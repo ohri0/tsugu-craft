@@ -39,6 +39,10 @@ describe("尖った角を探す", () => {
     expect(findCorners(ellipse(0, 0, 7.5, 5))).toHaveLength(0);
     expect(findCorners(ellipse(0, 0, 10, 5))).toHaveLength(0);
   });
+  it("角が丸くても、言う内角は本当の角に近い（丸み 0.4 mm の正三角形）", () => {
+    const c = findCorners(rounded(regular(0, 0, 5, 3), 0.4));
+    for (const k of c) expect(Math.abs(k.angleDeg - 60)).toBeLessThan(12);
+  });
   it("内角はおよそ合う（正三角形で 60°前後）", () => {
     const c = findCorners(regular(0, 0, 5, 3));
     for (const k of c) expect(k.angleDeg).toBeGreaterThan(50), expect(k.angleDeg).toBeLessThan(75);

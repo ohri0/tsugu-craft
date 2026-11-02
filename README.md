@@ -14,6 +14,14 @@
 
 （できあがったら書く）
 
+開発：
+
+```
+npm install
+npm run dev     # 画面
+npm test        # 形の処理・写真の読み取り・目安の式のテスト
+```
+
 ## Claude の使い方
 
 | 機能 | 何に使ったか | なぜ |
@@ -29,7 +37,10 @@
 
 | 名前 | 用途 | ライセンス |
 | --- | --- | --- |
-| （書き足す） | | |
+| [three.js](https://github.com/mrdoob/three.js) | 3D の表示 | MIT |
+| [Vite](https://github.com/vitejs/vite) | 開発用のサーバーと組み立て | MIT |
+| [TypeScript](https://github.com/microsoft/TypeScript) | 言語 | Apache-2.0 |
+| [Vitest](https://github.com/vitest-dev/vitest) | テスト | MIT |
 
 ## ライセンス
 

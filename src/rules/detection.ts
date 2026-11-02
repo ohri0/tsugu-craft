@@ -7,6 +7,8 @@ export const DETECTION = {
     samples: 180,
     /** 角の両側に伸ばす腕の長さ ÷ 周 */
     armRatio: 0.03,
+    /** 画面に出す内角は、角から armRatio〜この割合の所の辺の向きで測る（角の丸みを飛ばす） */
+    reportArmRatio: 0.08,
     /** これより小さい内角（度）を「尖った角」とみなす */
     maxInteriorDeg: 130,
     /** 角どうしの最小の間隔 ÷ 周 */
