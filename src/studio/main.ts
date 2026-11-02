@@ -29,6 +29,8 @@ import { buildStone } from "../geometry/stone";
 import { METAL_LABEL, RingSession, type Built } from "./session";
 import { howToMake, type Method } from "./howto";
 import { sheetHtml } from "./sheet";
+import { KIND_LABEL, toolById, toolsForStep } from "./toolbox";
+import { animFor } from "./toolanim";
 
 type Mode = "make" | "refine" | "hand";
 const MODES: { id: Mode; word: string; en: string; sub: string }[] = [
@@ -509,6 +511,33 @@ function applyFix(id: string) {
   }
 }
 
+// ---- 道具の札：何に使うか・使い方（動く絵）・気をつける所・出典 ----
+function openTool(id: string) {
+  const t = toolById(id);
+  if (!t) return;
+  let el = document.querySelector<HTMLElement>(".tool-sheet");
+  if (!el) {
+    el = document.createElement("div");
+    el.className = "tool-sheet";
+    $(".cad").appendChild(el);
+    el.addEventListener("click", (e) => {
+      if (e.target === el || (e.target as HTMLElement).closest(".ts-close")) el!.hidden = true;
+    });
+  }
+  const anim = animFor(t.name);
+  el.hidden = false;
+  el.innerHTML = `<div class="ts-card" role="dialog" aria-label="${esc(t.name)}">
+    <button type="button" class="ts-close" aria-label="閉じる">×</button>
+    <p class="ts-kind">${esc(KIND_LABEL[t.kind])}</p>
+    <h3>${esc(t.name)}<small>${esc(t.reading)}</small></h3>
+    ${anim ? `<div class="ts-anim">${anim}</div>` : ""}
+    <p class="ts-what">${esc(t.what)}</p>
+    <h4>使い方</h4><ol>${t.how.map((h) => `<li>${esc(h)}</li>`).join("")}</ol>
+    ${t.watch ? `<p class="ts-watch">${esc(t.watch)}</p>` : ""}
+    ${t.sources.length ? `<p class="ts-src">出典：${t.sources.map((x) => `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>`).join("・")}</p>` : ""}
+  </div>`;
+}
+
 // ---- 作る。：鋳造と手作りの工程（この石・この形から計算した数字つき） ----
 let method: Method = "hand";
 function howInput(b: Built) {
@@ -537,7 +566,7 @@ function renderBuild() {
     ${probs.length ? `<p class="build-warn">このままでは作れない所が ${probs.length} あります。<button type="button" class="link to-check">確かめる →</button></p>` : ""}
     <ol class="steps-b">${steps
       .map(
-        (st, i) => `<li><span class="n">${i + 1}</span><div><b>${esc(st.title)}</b><p>${esc(st.text)}</p>${st.specs.length ? `<dl>${st.specs.map((x) => `<div><dt>${esc(x.label)}</dt><dd>${esc(x.value)}</dd></div>`).join("")}</dl>` : ""}${st.watch ? `<p class="watch">${esc(st.watch)}</p>` : ""}</div></li>`,
+        (st, i) => `<li><span class="n">${i + 1}</span><div><b>${esc(st.title)}</b><p>${esc(st.text)}</p>${st.specs.length ? `<dl>${st.specs.map((x) => `<div><dt>${esc(x.label)}</dt><dd>${esc(x.value)}</dd></div>`).join("")}</dl>` : ""}${st.watch ? `<p class="watch">${esc(st.watch)}</p>` : ""}${toolsForStep(st.title).length ? `<div class="tools-row">${toolsForStep(st.title).map((t) => `<button type="button" class="tool-chip${animFor(t.name) ? " has-anim" : ""}" data-tool="${t.id}">${esc(t.name)}</button>`).join("")}</div>` : ""}</div></li>`,
       )
       .join("")}</ol>
     <p class="note-b">数字は、この石とこの形から計算した目安。手順は一般的な例で、最後は職人が決める。</p>
@@ -549,6 +578,7 @@ function renderBuild() {
     }),
   );
   box.querySelector(".to-check")?.addEventListener("click", () => setMode("refine"));
+  box.querySelectorAll<HTMLButtonElement>(".tool-chip").forEach((c) => c.addEventListener("click", () => openTool(c.dataset.tool!)));
   box.querySelector(".p-instr")!.addEventListener("click", () => {
     const svg = sheet();
     if (!svg) return;

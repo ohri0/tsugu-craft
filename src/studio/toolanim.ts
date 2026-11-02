@@ -67,11 +67,28 @@ function file(): string {
   );
 }
 
+/** バーナー：継ぎ目のまわり全体を温め、ロウが流れて継ぎ目に入る */
+function torch(): string {
+  return svg(
+    `<ellipse cx="120" cy="96" rx="58" ry="22" fill="none" stroke="${METAL}" stroke-width="10"/><rect class="glow" x="104" y="102" width="32" height="20" rx="6" fill="#ff8a3d" opacity="0"/>
+     <rect class="solder" x="116" y="110" width="8" height="5" fill="#f2f2f2"/>
+     <g class="torch"><rect x="10" y="20" width="60" height="12" rx="4" fill="#8a8178" transform="rotate(25 40 26)"/><path class="flame" d="M70 46 q30 18 44 46 q-34 -10 -50 -36z" fill="#5aa9ff" opacity=".85"/></g>
+     <text x="8" y="146" fill="${LINE}" font-size="11">まわり全体を温める。ロウが流れて継ぎ目に入る</text>`,
+    `.torch{animation:sweep 3s ease-in-out infinite}.flame{transform-origin:70px 46px;animation:flick .15s infinite alternate}
+     .glow{animation:glow 3s infinite}.solder{animation:melt 3s infinite}
+     @keyframes sweep{0%,100%{transform:translate(-10px,0)}50%{transform:translate(14px,4px)}}
+     @keyframes flick{to{transform:scale(1.06,.94)}}
+     @keyframes glow{0%,40%{opacity:0}70%,100%{opacity:.75}}
+     @keyframes melt{0%,60%{transform:scale(1);opacity:1}80%,100%{transform:scaleX(2.6) scaleY(.4) translate(-4px,6px);opacity:.9}}`,
+  );
+}
+
 /** 道具の名前から、使い方の動きを選ぶ */
 export function animFor(name: string): string | null {
   if (/青棒|バフ|研磨/.test(name)) return polish();
   if (/プッシャー|爪倒し|爪寄せ|寄せ/.test(name)) return pusher();
-  if (/座彫り|ベアリング|ハートバー|バー/.test(name)) return seat();
+  if (/座彫り|ベアリングバー|ハートバー|丸バー/.test(name)) return seat();
+  if (/バーナー|トーチ/.test(name)) return torch();
   if (/ヤスリ/.test(name)) return file();
   return null;
 }
