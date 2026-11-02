@@ -14,6 +14,7 @@ import { build, DEFAULT_DESIGN, rulePlans, type Built, type Design } from "./des
 import { planThumb } from "./thumb";
 import { mountLedger } from "./ledger-ui";
 import { mountTeach } from "./teach-ui";
+import { mountMotion } from "./motion-ui";
 import { groupQuestions, type QuestionGroup } from "../rules/teacher-queue";
 import { bookHtml } from "../rules/book";
 import { activeRules, sourceLabel } from "../rules/ledger";
@@ -215,6 +216,9 @@ const ledgerUI = mountLedger($("ledgerRoot"), (_l, why, addedRuleId) => {
 $("keepInterview").appendChild(document.getElementById("interview")!);
 $("keepManual").appendChild(document.getElementById("manual")!.closest("details")!);
 (document.getElementById("interview") as HTMLDetailsElement).open = true;
+
+// 手の記録（試作）
+mountMotion($("motionRoot"));
 
 const teachUI = mountTeach($("teachRoot"), {
   ledger: () => ledgerUI.ledger(),
