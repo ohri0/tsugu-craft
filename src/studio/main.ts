@@ -31,10 +31,10 @@ import { howToMake, type Method } from "./howto";
 import { sheetHtml } from "./sheet";
 
 type Mode = "make" | "refine" | "hand";
-const MODES: { id: Mode; word: string; sub: string }[] = [
-  { id: "make", word: "生む。", sub: "石と絵と言葉から" },
-  { id: "refine", word: "確かめる。", sub: "作れるか" },
-  { id: "hand", word: "作る。", sub: "手作り・鋳造の作り方" },
+const MODES: { id: Mode; word: string; en: string; sub: string }[] = [
+  { id: "make", word: "生む。", en: "Form", sub: "石と絵と言葉から" },
+  { id: "refine", word: "確かめる。", en: "Check", sub: "作れるか" },
+  { id: "hand", word: "作る。", en: "Make", sub: "手作り・鋳造の作り方" },
 ];
 const SAMPLE = { url: "stones/triangle.jpg", longMm: 8.88, depthMm: 4.24, label: "作者の石（淡い青の三角）" };
 
@@ -65,7 +65,7 @@ app.innerHTML = `
     <button type="button" class="book-btn">帳面<i class="book-n"></i></button>
   </header>
   <nav class="rail" aria-label="道具">
-    ${MODES.map((m) => `<button type="button" data-mode="${m.id}" title="${m.sub}"><i>${m.word.slice(0, 1)}</i><span>${m.word.replace("。", "")}</span></button>`).join("")}
+    ${MODES.map((m) => `<button type="button" data-mode="${m.id}" title="${m.sub}"><i>${m.word.slice(0, 1)}</i><span>${m.word.replace("。", "")}</span><small>${m.en}</small></button>`).join("")}
     <hr>
     ${(["angle", "top", "side", "front"] as const).map((v) => `<button type="button" class="view-btn" data-view="${v}"><i>${{ angle: "斜", top: "上", side: "横", front: "正" }[v]}</i><span>${{ angle: "斜め", top: "上", side: "横", front: "正面" }[v]}</span></button>`).join("")}
   </nav>
@@ -262,7 +262,7 @@ function onBuilt(b: Built, _why: string) {
 // ---- 場面 ----
 function setMode(m: Mode) {
   const w = MODES.find((x) => x.id === m)!;
-  $(".vp-mode").textContent = w.word;
+  $(".vp-mode").innerHTML = `${w.word}<em>${w.en}</em>`;
   $(".word-sub").textContent = w.sub;
   document.querySelectorAll<HTMLButtonElement>(".rail [data-mode]").forEach((b) => b.setAttribute("aria-current", String(b.dataset.mode === m)));
   $(".make-panel").hidden = m !== "make";

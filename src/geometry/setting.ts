@@ -162,7 +162,7 @@ const BEND = { rise: 0.25, lean: 0.4 };
  * step：板の高さの方向の段の間隔（mm。細かいほど面がなめらか）。
  * square：断面の角の丸め方（2 で丸、大きいほど角の丸い四角）。capLength：両端の張り出しの長さ（厚みの半分に対する倍率）
  */
-const V_WALL = { thick: 0.58, below: 0.5, round: 0.9, over: 0.45, steps: 8, along: 32, capSides: 12, upright: 1, step: 0.1, square: 3.2, capLength: 0.75 };
+const V_WALL = { thick: 0.46, below: 0.35, round: 0.9, over: 0.45, steps: 8, along: 32, capSides: 12, upright: 1, step: 0.1, square: 3.2, capLength: 0.75 };
 /** 板の外側の線を丸く太らせるときの、高さの方向の分け方 */
 const ROUND_OFFSET_STEPS = 48;
 /** V 字の爪の足：板の中に隠れるよう、板の厚みの半分の inside 倍まで細くなりながら、板の下の丸みの上（丸みの高さの into 倍だけ上）まで入る。

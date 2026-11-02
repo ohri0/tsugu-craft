@@ -200,3 +200,6 @@
 }
 .rhino .make-panel { display: flex; flex-direction: column; gap: 10px; }
 .rhino .make-panel > * { flex: none; }
+.vp-mode em { font-style: normal; font-family: "Cormorant Garamond", "Times New Roman", serif; font-size: 0.62em; letter-spacing: 0.16em; color: var(--ivory-3); margin-left: 10px; text-transform: uppercase; }
+.rail button small { font-size: 8px; letter-spacing: 0.14em; text-transform: uppercase; opacity: 0.6; }
+@media (max-width: 760px) { .rail button small { display: none; } }
