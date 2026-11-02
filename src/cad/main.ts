@@ -336,7 +336,7 @@ function showReason() {
   const box = $(".reason");
   box.hidden = !d.reason;
   box.innerHTML = d.reason
-    ? `<p>${esc(d.reason)}</p><button type="button" class="link to-refine">整える →</button>${history.length ? `<button type="button" class="link undo">ひとつ前に戻す</button>` : ""}`
+    ? `<p>${esc(d.reason)}</p>${d.cannotDo ? `<p class="cannot">まだ作れないこと：${esc(d.cannotDo)}</p>` : ""}<button type="button" class="link to-refine">整える →</button>${history.length ? `<button type="button" class="link undo">ひとつ前に戻す</button>` : ""}`
     : "";
   box.querySelector(".to-refine")?.addEventListener("click", () => setMode("refine"));
   box.querySelector(".undo")?.addEventListener("click", () => {

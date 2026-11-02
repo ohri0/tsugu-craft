@@ -30,6 +30,8 @@ export interface Design {
   engraveWidth: number;
   engraveDepth: number;
   reason?: string;
+  /** 希望のうち、まだ作れなかったこと（Claude が正直に書く） */
+  cannotDo?: string;
 }
 
 /** 元の形から、動かせる制御点を作る（大きさ size mm） */

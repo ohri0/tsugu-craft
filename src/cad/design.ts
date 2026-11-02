@@ -43,8 +43,9 @@ export const MAKE_DESIGN: ClaudeTool = {
       ring_size_gou: { type: "number", description: "指輪の号（指輪でなければ 0）" },
       fineness: { type: "number", description: "技法の細かさ。木目金＝層の数、魚々子＝粒の大きさ（mm）、布目象嵌＝模様の大きさ（mm）、鎚目＝叩きの大きさ（mm）、磨き＝0" },
       reason: { type: "string", description: "そう決めた理由（1〜2 文、やさしい日本語）" },
+      cannot_do: { type: "string", description: "希望のうち、この道具ではまだ作れないこと（例：鳥の飾り、立体の器、石を留めること）。正直に、短く書く。すべて作れたときは空の文字" },
     },
-    required: ["name", "form", "ring_section", "technique", "metal", "mokume_palette", "size_mm", "thickness_mm", "ring_size_gou", "fineness", "reason"],
+    required: ["name", "form", "ring_section", "technique", "metal", "mokume_palette", "size_mm", "thickness_mm", "ring_size_gou", "fineness", "reason", "cannot_do"],
     additionalProperties: false,
   },
 };
@@ -85,6 +86,7 @@ export function designFromTool(input: unknown, seed = 7): { ok: true; value: Des
   }
   d.name = typeof r.name === "string" && r.name.trim() ? r.name.trim().slice(0, 24) : "";
   d.reason = typeof r.reason === "string" ? r.reason.trim() : "";
+  d.cannotDo = typeof r.cannot_do === "string" ? r.cannot_do.trim() : "";
   return { ok: true, value: d };
 }
 
@@ -99,6 +101,7 @@ export function designPrompt(rulesText: string): string {
 - 技法は、その品と地金に合うものを選びます。木目金は色のちがう金属を重ねる技なので、地金ではなく重ねる金属の組（mokume_palette）で色を決めます。
 - 魚々子は赤銅や金の地に打つことが多く、布目象嵌は鉄などの地に金や銀の線を打ち込みます。
 - reason には、なぜその形・技法・大きさにしたかを、やさしい日本語で 1〜2 文書きます。
+- この道具で作れるのは、上の形（指輪・丸・角丸・梅・瓢箪の板）と、上の技法の面だけです。希望にそれ以外のもの（動物や花の立体の飾り、器、石留め など）があれば、作れる所だけで作り、作れなかった所を cannot_do に正直に書きます。作れなかったのに「ご希望どおり」とは書きません。
 - 職人の決まり（下の帳面）に当たるときは、それに合わせ、reason で触れます。帳面にない数字の目安を作りません。
 - Markdown の記号は使いません。
 
