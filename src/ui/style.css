@@ -154,7 +154,8 @@ ul.problems .opt small { color: var(--muted); }
   .hero h2 { font-size: 22px; }
   .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .pane.check { display: flex; flex-direction: column; height: auto; }
-  .pane.check .view { order: -1; position: sticky; top: 0; height: 44vh; z-index: 2; }
+  .pane.check .view { order: -1; position: sticky; top: var(--top-h, 120px); height: 42vh; z-index: 2; }
+  .view .hud { font-size: 11px; left: 8px; right: 8px; bottom: 8px; }
   .pane.check .steps { border-right: 0; padding: 16px; }
 }
 
@@ -220,3 +221,6 @@ ul.problems .opt small { color: var(--muted); }
   .motion-note-row button { flex: 1 1 auto; }
 }
 .motion-note-rule { font-size: 12px; padding: 2px 8px; margin-left: 6px; }
+
+/* 見出しの説明と同じことを言う、部品の中の最初の説明は出さない */
+#teachRoot > p.note:first-child, #ledgerRoot > p.note:first-child { display: none; }
