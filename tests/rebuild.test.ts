@@ -68,15 +68,14 @@ describe("資料を読む", () => {
     ]);
   });
 
-  it("用意できた技と、準備中の技", () => {
+  it("並べる技は、手がかりと答えがそろったものだけ（中身のない「準備中」は出さない）", () => {
     expect(mokume.status).toBe("ready");
     expect(mokume.clues).toHaveLength(20);
     expect(mokume.answer.filter((a) => a.kind === "step")).toHaveLength(11);
-    const soon = TECHNIQUES.filter((t) => t.status === "soon");
-    expect(soon.map((t) => t.reading)).toEqual(["ぬのめぞうがん", "ななこ"]);
-    for (const t of soon) {
-      expect(t.clues).toEqual([]);
-      expect(t.answer).toEqual([]);
+    for (const t of TECHNIQUES) {
+      expect(t.status).toBe("ready");
+      expect(t.clues.length).toBeGreaterThan(0);
+      expect(t.answer.length).toBeGreaterThan(0);
     }
   });
 });

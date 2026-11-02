@@ -393,3 +393,5 @@ input[type="range"]::-webkit-slider-runnable-track { height: 3px; border-radius:
 input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 13px; height: 13px; margin-top: -5px; border-radius: 50%; background: #f2f2f4; border: 0; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5); }
 input[type="range"]::-moz-range-track { height: 3px; border-radius: 2px; background: #3a3a3e; }
 input[type="range"]::-moz-range-thumb { width: 13px; height: 13px; border-radius: 50%; background: #f2f2f4; border: 0; }
+.empty-run p + p { border: 0; padding: 8px 16px 0; }
+.published-note { margin: 0 0 12px; padding: 8px 12px; border-left: 2px solid var(--accent); background: rgba(10, 132, 255, 0.07); border-radius: 0 6px 6px 0; font-size: 12px; line-height: 1.7; color: var(--fg-2); }

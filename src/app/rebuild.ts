@@ -5,19 +5,13 @@ import { TECHNIQUES, cluesFor, type Clue, type Condition, type Technique } from 
 import { gradePrompt, gradeUserMessage, hypothesisPrompt, hypothesisUserMessage } from "../rebuild/prompt";
 import { callTool } from "../rebuild/run";
 import { scoreLine, tally } from "../rebuild/score";
-import { GRADE_PROCESS, PROPOSE_PROCESS, parseGradeProcess, parseProposeProcess, type Grade, type Hypothesis, type Verdict } from "../rebuild/tools";
+import { GRADE_PROCESS, PROPOSE_PROCESS, parseGradeProcess, parseProposeProcess, type Verdict } from "../rebuild/tools";
 import { askPassword, resetPassword } from "./password";
 import { mountSim } from "./sim-view";
 import { esc, today } from "./store";
 
-/** 1 回の試し（このブラウザに残し、書き出せる） */
-interface Run {
-  technique: string;
-  condition: Condition["id"];
-  date: string;
-  hypothesis: Hypothesis;
-  grade?: Grade;
-}
+import { PUBLISHED_RUNS } from "../rebuild/published";
+import type { Run } from "../rebuild/runs";
 
 const RUN_STORE = "tsugu.rebuildRuns.v1";
 function loadRuns(): Run[] {
@@ -36,6 +30,15 @@ function saveRun(r: Run) {
   } catch {
     // 残せなくても画面は動く
   }
+}
+
+/** このブラウザで組み立てたものがあればそれ、なければ公開の記録 */
+function findRun(technique: string, condition: string): Run | null {
+  return (
+    loadRuns().find((r) => r.technique === technique && r.condition === condition) ??
+    PUBLISHED_RUNS.find((r) => r.technique === technique && r.condition === condition) ??
+    null
+  );
 }
 
 const VERDICT: Record<Verdict, { label: string; cls: string }> = {
@@ -61,10 +64,10 @@ export function mountRebuild(root: HTMLElement): void {
         <p class="lead">作り方が残っていない技を、残っている品物や材料の手がかりだけから組み立て直します。本当の作り方は隠しておき、最後に答え合わせをします。</p>
       </header>
       <ul class="techs">${TECHNIQUES.map(
-        (t, i) => `<li><button type="button" class="tech ${t.status}" data-i="${i}" ${t.status === "soon" ? "disabled" : ""}>
-          <span class="tech-mark" aria-hidden="true">${t.status === "ready" ? "？" : esc(t.name.slice(0, 1))}</span>
-          <span class="tech-body"><b>${esc(t.status === "ready" ? t.hiddenName : t.name)}</b><small>${esc(t.summary)}</small></span>
-          <span class="tech-meta">${t.status === "ready" ? `手がかり ${t.clues.length}` : "準備中"}</span>
+        (t, i) => `<li><button type="button" class="tech ready" data-i="${i}">
+          <span class="tech-mark" aria-hidden="true">？</span>
+          <span class="tech-body"><b>${esc(t.hiddenName)}</b><small>${esc(t.summary)}</small></span>
+          <span class="tech-meta">手がかり ${t.clues.length}${PUBLISHED_RUNS.some((r) => r.technique === t.id) ? " ・ 公開の記録あり" : ""}</span>
         </button></li>`,
       ).join("")}</ul>
       <p class="honest">言語モデルは、学習のときにその技の作り方を読んでいるかもしれません。だから、工程の一つ一つに「どの手がかりから考えたか」を書かせ、手がかりなしで出てきた工程は「もともとの知識から」として分けて数えます。</p>
@@ -75,7 +78,7 @@ export function mountRebuild(root: HTMLElement): void {
   function open(t: Technique) {
     tech = t;
     cond = t.conditions[0];
-    run = loadRuns().find((r) => r.technique === t.id && r.condition === cond!.id) ?? null;
+    run = findRun(t.id, cond!.id);
     render();
   }
 
@@ -115,6 +118,7 @@ export function mountRebuild(root: HTMLElement): void {
         h
           ? `<div class="block">
         <h3>組み立てた作り方 <small>${esc(run!.date)}</small></h3>
+        ${run!.published ? `<p class="published-note">公開の記録：${esc(run!.date)} に Claude が、この手がかりだけから実際に組み立て${g ? "、答え合わせまでし" : ""}た結果を、手を加えずに載せています。合言葉があれば、自分で組み立て直せます。</p>` : ""}
         ${sum ? `<div class="score"><b>${sum.covered}<small>/${sum.answerSteps}</small></b><p>${esc(scoreLine(sum))}</p></div>` : ""}
         <ol class="steps-h">${h.steps
           .map((s, i) => {
@@ -145,7 +149,7 @@ export function mountRebuild(root: HTMLElement): void {
             : ""
         }
       </div>`
-          : `<div class="block empty-run"><p>まだ組み立てていません。手がかり ${clues.length} 個だけを Claude に渡して、作り方を組み立てます。技の名前と本当の作り方は渡しません。</p></div>`
+          : `<div class="block empty-run"><p>まだ組み立てていません。手がかり ${clues.length} 個だけを Claude に渡して、作り方を組み立てます。技の名前と本当の作り方は渡しません。</p><p class="small">組み立てには Claude を使うので、合言葉が要ります。合言葉がなくても、上の「渡す手がかり」を開くと、Claude に渡す手がかりをそのまま読めます。</p></div>`
       }
 
       ${h && t.id === "mokume" ? `<div class="block sim-slot"></div>` : ""}
@@ -153,7 +157,7 @@ export function mountRebuild(root: HTMLElement): void {
       <div class="actions">
         <button type="button" class="primary go">${h ? "もう一度組み立てる" : "組み立てる"}</button>
         ${h && !g ? `<button type="button" class="primary gold check">答え合わせ（答えを開く）</button>` : ""}
-        ${h ? `<button type="button" class="ghost export">記録を書き出す</button>` : ""}
+        ${h && !run!.published ? `<button type="button" class="ghost export">記録を書き出す</button>` : ""}
       </div>
       <p class="small status"></p>
     </section>`;
@@ -165,7 +169,7 @@ export function mountRebuild(root: HTMLElement): void {
     root.querySelectorAll<HTMLButtonElement>(".cond [data-c]").forEach((b) =>
       b.addEventListener("click", () => {
         cond = t.conditions.find((x) => x.id === b.dataset.c)!;
-        run = loadRuns().find((r) => r.technique === t.id && r.condition === cond!.id) ?? null;
+        run = findRun(t.id, cond!.id);
         render();
       }),
     );
