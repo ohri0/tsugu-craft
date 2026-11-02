@@ -170,6 +170,17 @@ export class Viewer {
     this.dirty = true;
   }
 
+  /** 指輪のまわりを、上の軸で rad だけ回って、すぐ描く（動画を 1 コマずつ撮るため） */
+  turn(rad: number) {
+    const t = this.controls.target;
+    const p = this.camera.position.clone().sub(t);
+    p.applyAxisAngle(new THREE.Vector3(0, 0, 1), rad);
+    this.camera.position.copy(t).add(p);
+    this.camera.lookAt(t);
+    this.renderer.render(this.scene, this.camera);
+    for (const f of this.frameListeners) f();
+  }
+
   /** ゆっくり自動で回す（動画や見せるとき）。人がドラッグすれば、その向きから続けて回る */
   setAutoRotate(on: boolean) {
     this.controls.autoRotate = on;

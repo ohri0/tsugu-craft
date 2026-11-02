@@ -1392,6 +1392,8 @@ $(".act-why").addEventListener("click", () => {
   openWhy();
 });
 if (location.hash === "#why") openWhy();
+// 動画を 1 コマずつ撮るとき（?rec）：3D をページの外から回せるようにする
+if (new URLSearchParams(location.search).has("rec")) (window as unknown as { __viewer: Viewer }).__viewer = viewer;
 
 setMode("make");
 bookCount();
