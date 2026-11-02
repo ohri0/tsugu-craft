@@ -38,7 +38,6 @@ CAD のような画面です。上のタブ（1〜4 のキーでも）で場面�
 
 - **組み立て直す**（[app.html#rebuild](https://tsugu-craft.vercel.app/app.html#rebuild)）：作り方が途切れた技を、残っている品物と材料の手がかりだけから Claude が組み立て、隠しておいた本当の作り方と答え合わせをする。工程ごとに根拠の手がかりの番号か「もともとの知識から」を書かせ、分けて数える（言語モデルが学習のときに読んでいたかもしれないので）。最初の題材は木目金。
 - **残す**（[app.html#keep](https://tsugu-craft.vercel.app/app.html#keep)）：学ぶ人から届いた質問に、職人が声か動画で答える。答えは帳面に入る。
-- 前に作った画面（石座を確かめる）は [ring.html](https://tsugu-craft.vercel.app/ring.html) に残している。
 
 ## MCP サーバー（Claude のアプリから使う）
 

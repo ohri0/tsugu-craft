@@ -3,6 +3,20 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "functions": {
-    "api/claude.ts": { "maxDuration": 300 }
-  }
+    "api/claude.ts": {
+      "maxDuration": 300
+    }
+  },
+  "redirects": [
+    {
+      "source": "/ring.html",
+      "destination": "/studio.html",
+      "permanent": false
+    },
+    {
+      "source": "/cad.html",
+      "destination": "/studio.html",
+      "permanent": false
+    }
+  ]
 }

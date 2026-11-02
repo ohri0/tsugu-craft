@@ -43,9 +43,8 @@ export default defineConfig({
   plugins: [claudeApiForDev()],
   build: {
     rollupOptions: {
-      // ページ：入口（index.html）、継ぐのエディター（studio.html）、見る・組み立て直す・残す（app.html）、
-      // 目安帳の使い道の例として残す「石座を確かめる」（ring.html）
-      input: { main: "index.html", studio: "studio.html", app: "app.html", ring: "ring.html" },
+      // ページ：入口（index.html）、継ぐのエディター（studio.html）、見る・組み立て直す・残す（app.html）
+      input: { main: "index.html", studio: "studio.html", app: "app.html" },
     },
   },
   test: {
