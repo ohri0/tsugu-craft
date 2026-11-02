@@ -41,6 +41,13 @@ function loadSaved(id: string): SkillRecord | null {
   }
 }
 
+/** このブラウザに残した手の記録すべて（技の帳面に載せるため） */
+export function savedRecords(): SkillRecord[] {
+  return loadIndex()
+    .map((x) => loadSaved(x.id))
+    .filter((r): r is SkillRecord => r !== null);
+}
+
 /** 残す。入りきらないときは false */
 function storeRecord(r: SkillRecord): boolean {
   const main = r.metrics.mainHand === null ? null : r.metrics.hands[r.metrics.mainHand];

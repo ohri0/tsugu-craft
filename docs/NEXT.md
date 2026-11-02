@@ -38,3 +38,7 @@
 2. 新しいアカウントのクラウド環境を作り、環境変数に `ANTHROPIC_API_KEY` と `DEMO_PASSWORD` を入れる。
 3. 最初の一言：「`docs/NEXT.md` と `docs/SPEC.md` と `CLAUDE.md` を読んで、続きから進めて。作業ブランチは `claude/new-session-abjjnu`。作者が読むものはすべて日本語で。」
 4. README の「移った日」に日付を書く。
+
+## 公開（Vercel）
+
+`vercel.json` は用意済み（組み立ては `npm run build`、出力は `dist`、`api/claude.ts` は関数）。作者が Vercel にリポジトリをつなぎ、環境変数 `ANTHROPIC_API_KEY`・`DEMO_PASSWORD`・`DAILY_LIMIT` を入れる。Claude Console で使える金額の上限も決める。まだ一度も公開して試していない。

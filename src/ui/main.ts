@@ -14,7 +14,8 @@ import { build, DEFAULT_DESIGN, rulePlans, type Built, type Design } from "./des
 import { planThumb } from "./thumb";
 import { mountLedger } from "./ledger-ui";
 import { mountTeach } from "./teach-ui";
-import { mountMotion } from "./motion-ui";
+import { mountMotion, savedRecords } from "./motion-ui";
+import { summarizeMetrics } from "../craft/motion";
 import { groupQuestions, type QuestionGroup } from "../rules/teacher-queue";
 import { bookHtml } from "../rules/book";
 import { activeRules, sourceLabel } from "../rules/ledger";
@@ -250,7 +251,7 @@ function renderStats() {
   const items: [string, number, string][] = [
     ["職人の決まり", craft.length, "名前・日付・理由つき"],
     ["残した職人", names.size, "人"],
-    ["公開情報の目安", rules.length - craft.length, "出典つき"],
+    ["手の記録", savedRecords().length, "作業の動画から"],
     ["先生への質問", open, answered ? `答えて決まりにした ${answered}` : "まとめて届く"],
   ];
   $("stats").innerHTML = items.map(([k, n, sub]) => `<div class="stat"><b>${n}</b><span>${k}</span><small>${sub}</small></div>`).join("");
@@ -262,7 +263,16 @@ function book(): string {
   const answered = groupQuestions(teachUI.queue(), { includeAnswered: true })
     .filter((g) => g.answeredRuleId)
     .map((g) => ({ question: g.question, count: g.count, ruleId: g.answeredRuleId }));
-  return bookHtml({ ledger: ledgerUI.ledger(), answered, date: new Date().toLocaleDateString("sv-SE") });
+  const motions = savedRecords().map((r) => ({
+    title: r.title,
+    craftsman: r.craftsman,
+    date: r.date,
+    videoName: r.videoName,
+    durationS: r.durationS,
+    metrics: summarizeMetrics(r.metrics),
+    notes: r.notes.map((n) => ({ t: n.t, text: n.text })),
+  }));
+  return bookHtml({ ledger: ledgerUI.ledger(), answered, motions, date: new Date().toLocaleDateString("sv-SE") });
 }
 $("bookPrint").addEventListener("click", () => {
   const w = window.open("", "_blank");
