@@ -28,6 +28,7 @@ import { METAL_LABEL, RingSession, type Built } from "./session";
 import { howToMake, type Method } from "./howto";
 import { sheetHtml } from "./sheet";
 import { whyHtml } from "./why";
+import { PRESETS, presetOutline, type StonePreset } from "./presets";
 import { drawingPage, type DrawingView } from "./drawing";
 import { loadWorks, newWorkId, removeWork, saveWork, worksBookHtml } from "./works";
 import { KIND_LABEL, toolById, toolsForStep } from "./toolbox";
@@ -115,6 +116,7 @@ app.innerHTML = `
       <section class="sec band-only" hidden><h4>形</h4><div class="band-ctrl"></div></section>
       <section class="sec solitaire-only"><h4>石</h4>
         <label class="asset stone-card"><canvas class="stone-thumb" width="120" height="120"></canvas><span><b>石の写真</b><small class="stone-sub">—</small></span><span class="act">変える</span><input type="file" accept="image/*" class="stone-file" hidden></label>
+        <div class="presets" role="group" aria-label="よくある形">${PRESETS.map((p) => `<button type="button" data-preset="${p.id}">${p.name}</button>`).join("")}</div>
         <div class="fields"><label class="field">長辺<span class="in"><input type="number" step="0.01" class="in-long" inputmode="decimal"><i>mm</i></span></label><label class="field">深さ<span class="in"><input type="number" step="0.01" class="in-depth" inputmode="decimal"><i>mm</i></span></label></div>
       </section>
       <section class="sec solitaire-only"><h4>デザインの絵<small>なくてもよい</small></h4>
@@ -293,6 +295,33 @@ function drawThumb() {
   g.closePath();
   g.stroke();
 }
+
+/** よくある形：白い紙の上の写真のように描いて、写真と同じ読み取りに通す */
+async function loadPreset(p: StonePreset) {
+  const W = 720;
+  const k = 260 / p.longMm;
+  const c = document.createElement("canvas");
+  c.width = c.height = W;
+  const g = c.getContext("2d", { willReadFrequently: true })!;
+  g.fillStyle = "#f6f5f2";
+  g.fillRect(0, 0, W, W);
+  const pts = presetOutline(p);
+  g.beginPath();
+  pts.forEach((q, i) => (i ? g.lineTo(W / 2 + q.x * k, W / 2 - q.y * k) : g.moveTo(W / 2 + q.x * k, W / 2 - q.y * k)));
+  g.closePath();
+  const grad = g.createRadialGradient(W / 2 - 30, W / 2 - 30, 10, W / 2, W / 2, 160);
+  grad.addColorStop(0, "#c9ced3");
+  grad.addColorStop(1, "#8e969e");
+  g.fillStyle = grad;
+  g.fill();
+  document.querySelectorAll<HTMLButtonElement>(".presets button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.preset === p.id)));
+  // 読み取りの「長辺」は、輪郭のいちばん長い差し渡し（四角い石では対角）。それに合わせて渡す
+  let span = 0;
+  for (const q of pts) for (const r of pts) span = Math.max(span, Math.hypot(q.x - r.x, q.y - r.y));
+  await loadStone(g.getImageData(0, 0, W, W), `${p.name}の石`, Math.round(span * 100) / 100, p.depthMm, { intro: false });
+  $(".make-status").textContent = `${p.name}（${p.longMm} × ${p.widthMm} mm、深さは例）。ノギスの値があれば、長辺と深さを直してください。`;
+}
+document.querySelectorAll<HTMLButtonElement>(".presets button").forEach((b) => b.addEventListener("click", () => void loadPreset(PRESETS.find((p) => p.id === b.dataset.preset)!)));
 
 async function loadSample() {
   const img = new Image();

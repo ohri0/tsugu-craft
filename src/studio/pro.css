@@ -421,3 +421,7 @@ dialog.sheet input:focus { border-color: var(--accent); }
   .flow { grid-template-columns: 1fr; }
   .why-steps { grid-template-columns: 1fr; }
 }
+.presets { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.presets button { height: 24px; padding: 0 9px; border: 1px solid var(--line-2); border-radius: 12px; background: transparent; color: var(--fg-2); font-size: 11px; }
+.presets button:hover { color: var(--fg); border-color: var(--fg-3); }
+.presets button[aria-pressed="true"] { background: var(--accent-weak); border-color: rgba(10, 132, 255, 0.5); color: var(--accent-2); }
