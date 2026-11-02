@@ -22,7 +22,7 @@ app.innerHTML = `
   <header class="bar">
     <a class="brand" href="./" aria-label="継ぐ（始めの画面へ）" title="始めの画面へ"><span class="seal">継</span><span class="name">継ぐ</span></a>
     <nav class="nav" aria-label="画面">${VIEWS.filter((v) => !v.hidden).map((v) => `<a href="#${v.id}" data-view="${v.id}"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">${v.icon}</svg><span>${v.label}</span><i class="badge" hidden></i></a>`).join("")}</nav>
-    <button type="button" class="ghost help" aria-label="使い方">使い方</button>
+    <div class="bar-r"><a class="to-studio" href="studio.html">設計の画面へ</a><button type="button" class="ghost help" aria-label="使い方">使い方</button></div>
   </header>
   <main>${VIEWS.map((v) => `<div class="screen" id="screen-${v.id}" hidden></div>`).join("")}</main>
 </div>
@@ -75,4 +75,5 @@ badges();
 const intro = document.querySelector<HTMLDialogElement>(".intro")!;
 intro.addEventListener("close", () => store.setIntroSeen());
 document.querySelector(".help")!.addEventListener("click", () => intro.showModal());
-if (!store.introSeen() && !new URLSearchParams(location.search).has("nointro")) intro.showModal();
+// ほかの画面からの「組み立て直す」などのリンクで来たときは、説明を出さずにその場面へ
+if (!store.introSeen() && !location.hash && !new URLSearchParams(location.search).has("nointro")) intro.showModal();
