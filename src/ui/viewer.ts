@@ -67,10 +67,38 @@ export class Viewer {
       if (moved || this.dirty) {
         this.renderer.render(this.scene, this.camera);
         this.dirty = false;
+        for (const f of this.frameListeners) f();
       }
       requestAnimationFrame(loop);
     };
     loop();
+  }
+
+  private frameListeners: (() => void)[] = [];
+  /** 描き直すたびに呼ぶ（寸法の線や軸の印を 3D に合わせて動かすため） */
+  onFrame(f: () => void) {
+    this.frameListeners.push(f);
+  }
+  /** 3D の点（mm）→ 画面の点（px、左上が 0）。カメラの後ろなら null */
+  project(x: number, y: number, z: number): { x: number; y: number } | null {
+    const v = new THREE.Vector3(x, y, z).project(this.camera);
+    if (v.z > 1) return null;
+    const w = this.host.clientWidth;
+    const h = this.host.clientHeight;
+    return { x: ((v.x + 1) / 2) * w, y: ((1 - v.y) / 2) * h };
+  }
+  /** カメラから見た x・y・z 軸の向き（画面の右・上、軸の印を描くため） */
+  axes(): { x: [number, number]; y: [number, number]; z: [number, number] } {
+    const m = this.camera.matrixWorldInverse;
+    const f = (v: THREE.Vector3): [number, number] => {
+      const d = v.clone().transformDirection(m);
+      return [d.x, d.y];
+    };
+    return { x: f(new THREE.Vector3(1, 0, 0)), y: f(new THREE.Vector3(0, 1, 0)), z: f(new THREE.Vector3(0, 0, 1)) };
+  }
+  /** 中身に合わせてカメラを寄せ直す */
+  fit() {
+    this.frame(this.framedFor, this.camera.position.clone().sub(this.controls.target).normalize());
   }
 
   /** 1 mm の目盛りを出す・隠す */
@@ -234,6 +262,12 @@ export class Viewer {
   /** 黒い撮影台にする（継ぐの設計の画面）。床の影は黒の上では見えないので薄く */
   setDark(on: boolean) {
     this.scene.background = on ? darkBackdropTexture() : backdropTexture();
+    // 暗い画面の目盛りは、うすい灰色（CAD の作業面のように）
+    this.scene.remove(this.grid);
+    this.grid = on ? new THREE.GridHelper(60, 60, 0x4a4b50, 0x313236) : new THREE.GridHelper(40, 40, 0xc9c1b4, 0xe0dad0);
+    this.grid.rotation.x = Math.PI / 2;
+    this.grid.visible = on;
+    this.scene.add(this.grid);
     (this.shadow.plane.material as THREE.MeshBasicMaterial).opacity = on ? 0.25 : SHADOW.opacity;
     this.dirty = true;
   }
@@ -410,9 +444,10 @@ function darkBackdropTexture(): THREE.Texture {
   const c = document.createElement("canvas");
   c.width = c.height = 512;
   const g = c.getContext("2d")!;
-  const grad = g.createRadialGradient(256, 230, 10, 256, 256, 400);
-  grad.addColorStop(0, "#2a2724");
-  grad.addColorStop(1, "#0b0a09");
+  // CAD の作業画面のような、上が少し明るい中立の灰色
+  const grad = g.createLinearGradient(0, 0, 0, 512);
+  grad.addColorStop(0, "#36373b");
+  grad.addColorStop(1, "#1b1c1e");
   g.fillStyle = grad;
   g.fillRect(0, 0, 512, 512);
   const t = new THREE.CanvasTexture(c);

@@ -3,9 +3,7 @@
 // 整える。作れない所が赤く光り、誰のどの決まりかと、見た目への影響つきの直し方が出る。人も同じつまみで直せる。
 // 渡す。  職人への指示書・原寸の型紙・3D データ。
 // 帳面   職人が声で決まりを足すと、その場で確かめが変わる。
-import "../app/app.css";
-import "../cad/cad.css";
-import "./studio.css";
+import "./pro.css";
 import { findCorners } from "../geometry/corners";
 import { measureOutline, type StoneOutline } from "../geometry/measure";
 import { outlineIndexAtT } from "../geometry/setting";
@@ -35,14 +33,28 @@ import { MAKE_BAND, SECTION_LABEL, bandHowTo, bandInnerDiameter, bandMesh, bandP
 import { metalIdOf } from "./session";
 import { GUIDES } from "../rules/guides";
 import { callTool } from "../rebuild/run";
+import { dimsSvg, gizmoSvg, type Dim } from "./dims";
 
 type Mode = "make" | "refine" | "hand" | "works";
-const MODES: { id: Mode; word: string; en: string; sub: string }[] = [
-  { id: "make", word: "生む。", en: "Form", sub: "石と絵と言葉から" },
-  { id: "refine", word: "確かめる。", en: "Check", sub: "作れるか" },
-  { id: "hand", word: "作る。", en: "Make", sub: "手作り・鋳造の作り方" },
-  { id: "works", word: "記録。", en: "Keep", sub: "作った物ごとの記録" },
+const MODES: { id: Mode; word: string; key: string; sub: string }[] = [
+  { id: "make", word: "生む", key: "1", sub: "石・絵・言葉から形を組む" },
+  { id: "refine", word: "確かめる", key: "2", sub: "作れるか" },
+  { id: "hand", word: "作る", key: "3", sub: "手作り・鋳造の手順" },
+  { id: "works", word: "記録", key: "4", sub: "作った物ごとに残す" },
 ];
+// 線だけの小さな絵（自作）
+const ICON = {
+  angle: `<svg viewBox="0 0 20 20"><path d="M10 2.5 17 6.5v7L10 17.5 3 13.5v-7z"/><path d="M3 6.5 10 10.5l7-4M10 10.5v7"/></svg>`,
+  top: `<svg viewBox="0 0 20 20"><rect x="3.5" y="3.5" width="13" height="13" rx="1.5"/><path d="M10 7v6M7 10h6"/></svg>`,
+  side: `<svg viewBox="0 0 20 20"><rect x="3.5" y="5.5" width="13" height="9" rx="1.5"/><path d="M3.5 10h13"/></svg>`,
+  front: `<svg viewBox="0 0 20 20"><circle cx="10" cy="11" r="5.5"/><circle cx="10" cy="11" r="3.2"/><path d="M8 3.5h4l-1 2H9z"/></svg>`,
+  grid: `<svg viewBox="0 0 20 20"><path d="M3 7h14M3 13h14M7 3v14M13 3v14"/></svg>`,
+  dims: `<svg viewBox="0 0 20 20"><path d="M3 14 14 3l3 3L6 17z"/><path d="M6.5 10.5l1.5 1.5M9 8l1.5 1.5M11.5 5.5 13 7"/></svg>`,
+  fit: `<svg viewBox="0 0 20 20"><path d="M3 7V3h4M13 3h4v4M17 13v4h-4M7 17H3v-4"/></svg>`,
+  solitaire: `<svg viewBox="0 0 24 24"><circle cx="12" cy="15" r="6.5"/><path d="M9 6.5h6l-3 3.5z"/><path d="M8.5 6.5 10 4h4l1.5 2.5"/></svg>`,
+  band: `<svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="8" ry="8"/><ellipse cx="12" cy="12" rx="5.6" ry="5.6"/></svg>`,
+  pendant: `<svg viewBox="0 0 24 24"><path d="M5 3c2 4 4.5 6 7 6s5-2 7-6"/><circle cx="12" cy="15" r="5"/><circle cx="12" cy="15" r="3"/></svg>`,
+};
 const SAMPLE = { url: "stones/triangle.jpg", longMm: 8.88, depthMm: 4.24, label: "作者の石（淡い青の三角）" };
 
 interface Stone {
@@ -63,58 +75,128 @@ let undoClaude: (() => boolean) | null = null;
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
-<div class="cad dark studio rhino">
-  <div class="gl"></div>
-  <header class="cad-top">
-    <a class="brand" href="./"><span class="seal">継</span><span class="name">継ぐ</span></a>
-    <span class="doc-name word-name"></span>
-    <div class="top-actions"><button type="button" class="ghost-d act-sheet">指示書</button><button type="button" class="ghost-d act-stl">3D データ</button></div>
-    <button type="button" class="book-btn">帳面<i class="book-n"></i></button>
+<div class="pro" data-mode="make">
+  <header class="tb">
+    <div class="tb-l"><a class="brand" href="./"><span class="logo">継</span>継ぐ</a><span class="doc"><span class="word-name">新しい作品</span></span></div>
+    <nav class="tabs" aria-label="場面">${MODES.map((m) => `<button type="button" data-mode="${m.id}" title="${m.sub}（${m.key}）">${m.word}<span class="k">${m.key}</span></button>`).join("")}</nav>
+    <div class="tb-r"><a class="btn quiet hide-sm" href="app.html#rebuild">組み立て直す</a><button type="button" class="btn act-sheet hide-sm">指示書</button><button type="button" class="btn primary act-stl">STL</button><button type="button" class="book-btn">帳面<i class="book-n"></i></button></div>
   </header>
-  <nav class="rail" aria-label="道具">
-    ${MODES.map((m) => `<button type="button" data-mode="${m.id}" title="${m.sub}"><i>${m.word.slice(0, 1)}</i><span>${m.word.replace("。", "")}</span><small>${m.en}</small></button>`).join("")}
+  <nav class="tools" aria-label="見る">
+    ${(["angle", "top", "side", "front"] as const).map((v) => `<button type="button" class="tool view-btn" data-view="${v}" data-tip="${{ angle: "斜め", top: "上", side: "横", front: "正面" }[v]}" aria-label="${{ angle: "斜め", top: "上", side: "横", front: "正面" }[v]}">${ICON[v]}</button>`).join("")}
     <hr>
-    ${(["angle", "top", "side", "front"] as const).map((v) => `<button type="button" class="view-btn" data-view="${v}"><i>${{ angle: "斜", top: "上", side: "横", front: "正" }[v]}</i><span>${{ angle: "斜め", top: "上", side: "横", front: "正面" }[v]}</span></button>`).join("")}
+    <button type="button" class="tool t-grid" data-tip="1 mm の目盛り" aria-label="目盛り" aria-pressed="true">${ICON.grid}</button>
+    <button type="button" class="tool t-dims" data-tip="寸法" aria-label="寸法" aria-pressed="true">${ICON.dims}</button>
+    <button type="button" class="tool t-fit" data-tip="全体を見る" aria-label="全体を見る">${ICON.fit}</button>
   </nav>
-  <div class="vp-label"><b class="word"><span class="vp-mode"></span></b><span class="vp-view">斜め</span><span class="word-sub"></span></div>
-  <div class="verdict-chip" hidden></div>
+  <section class="vp">
+    <div class="gl"></div>
+    <svg class="dims" aria-hidden="true"></svg>
+    <svg class="gizmo" viewBox="0 0 60 60" aria-hidden="true"></svg>
+    <div class="vp-tl"><b class="vp-view">斜め</b><span class="sep">·</span><span>透視</span><span class="sep">·</span><span>mm</span></div>
+    <div class="verdict-chip" hidden></div>
+    <div class="intro-stage" hidden><canvas class="intro-photo"></canvas><svg class="intro-line" preserveAspectRatio="none"></svg><p class="intro-cap"></p></div>
+  </section>
 
-  <aside class="side make-panel studio-make">
-    <h3>何を作る</h3>
-    <div class="kinds">
-      <button type="button" data-kind="solitaire" aria-pressed="true"><b>一粒石の指輪</b><small>石の写真から</small></button>
-      <button type="button" data-kind="band" aria-pressed="false"><b>甲丸・平打ちの指輪</b><small>石なし</small></button>
-      <button type="button" disabled><b>覆輪のペンダント</b><small>次に足す</small></button>
+  <aside class="insp">
+    <div class="insp-head"><b class="vp-mode"></b><small class="word-sub"></small></div>
+    <div class="pane make-panel">
+      <section class="sec"><h4>種類</h4>
+        <div class="kinds">
+          <button type="button" data-kind="solitaire" aria-pressed="true">${ICON.solitaire}<span><b>一粒石の指輪</b><small>石の写真から</small></span></button>
+          <button type="button" data-kind="band" aria-pressed="false">${ICON.band}<span><b>甲丸・平打ちの指輪</b><small>石なし</small></span></button>
+          <button type="button" disabled>${ICON.pendant}<span><b>覆輪のペンダント</b><small>石を壁で包む</small></span><span class="soon">次</span></button>
+        </div>
+        <p class="hint">これから：ピアス・チェーン・パヴェ・ブローチ</p>
+      </section>
+      <section class="sec band-only" hidden><h4>形</h4><div class="band-ctrl"></div></section>
+      <section class="sec solitaire-only"><h4>石</h4>
+        <label class="asset stone-card"><canvas class="stone-thumb" width="120" height="120"></canvas><span><b>石の写真</b><small class="stone-sub">—</small></span><span class="act">変える</span><input type="file" accept="image/*" class="stone-file" hidden></label>
+        <div class="fields"><label class="field">長辺<span class="in"><input type="number" step="0.01" class="in-long" inputmode="decimal"><i>mm</i></span></label><label class="field">深さ<span class="in"><input type="number" step="0.01" class="in-depth" inputmode="decimal"><i>mm</i></span></label></div>
+      </section>
+      <section class="sec solitaire-only"><h4>デザインの絵<small>なくてもよい</small></h4>
+        <label class="asset sketch-card"><span class="thumb sketch-thumb">—</span><span><b>デザイナーの絵</b><small class="sketch-sub">写真か画像</small></span><span class="act">選ぶ</span><input type="file" accept="image/*" class="sketch-file" hidden></label>
+      </section>
+      <section class="sec"><h4>Claude の作業</h4>
+        <ol class="worklog"><li class="note">下の欄に希望を書いて「生む」。Claude が組み、作れるか確かめて直します。</li></ol>
+      </section>
     </div>
-    <p class="coming">これから：ピアス・チェーン・パヴェ・ブローチ</p>
-    <div class="band-only band-ctrl" hidden></div>
-    <div class="solitaire-only">
-    <h3>石</h3>
-    <label class="in-card stone-card"><canvas class="stone-thumb" width="120" height="120"></canvas><span><b>石の写真</b><small class="stone-sub">撮る・選ぶ</small></span><input type="file" accept="image/*" class="stone-file" hidden></label>
-    <div class="in-card size-card"><label>長辺<input type="number" step="0.01" class="in-long" inputmode="decimal"> mm</label><label>深さ<input type="number" step="0.01" class="in-depth" inputmode="decimal"> mm</label></div>
-    <h3>デザイン</h3>
-    <label class="in-card sketch-card"><span class="sketch-thumb">絵</span><span><b>デザインの絵</b><small class="sketch-sub">なくてもよい</small></span><input type="file" accept="image/*" class="sketch-file" hidden></label>
-    </div>
-    <h3>作業の記録</h3>
-    <ol class="worklog"><li class="note">下の行に希望を書いて「生む」を押すと、Claude が組み、作れるか確かめて直します。</li></ol>
+    <div class="pane studio-refine" hidden></div>
+    <div class="pane build-panel" hidden></div>
+    <div class="pane works-panel" hidden></div>
+    <aside class="book-panel" hidden></aside>
   </aside>
-  <aside class="side refine-panel studio-refine" hidden></aside>
-  <aside class="side refine-panel build-panel studio-build" hidden></aside>
-  <aside class="side works-panel" hidden></aside>
-  <aside class="book-panel" hidden></aside>
 
-  <div class="bottom">
-    <form class="prompt command"><span class="cmd-label">希望</span><input type="text" class="wish" placeholder="例：華奢に。毎日つける。石を大きく見せたい" aria-label="希望"><button type="submit">生む</button></form>
-    <p class="make-status"></p>
-    <dl class="specs status-bar"></dl>
-  </div>
-  <div class="intro-stage" hidden><canvas class="intro-photo"></canvas><svg class="intro-line" preserveAspectRatio="none"></svg><p class="intro-cap"></p></div>
+  <div class="cmd-wrap"><form class="prompt command"><span class="cmd-label">希望</span><input type="text" class="wish" placeholder="例：華奢に。毎日つける。石を大きく見せたい" aria-label="希望"><kbd>⏎</kbd><button type="submit">生む</button></form></div>
+  <footer class="sb"><p class="make-status"></p><dl class="specs"></dl></footer>
 </div>`;
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector<T>(s)!;
 
 // ---- 3D ----
 const viewer = new Viewer($(".gl"));
 viewer.setDark(true);
+
+// ---- 寸法の線と軸の印（3D を描き直すたびに合わせる） ----
+let dims: Dim[] = [];
+let showDims = true;
+viewer.onFrame(() => {
+  $(".dims").innerHTML = showDims ? dimsSvg(dims, (x, y, z) => viewer.project(x, y, z)) : "";
+  $(".gizmo").innerHTML = gizmoSvg(viewer.axes());
+});
+function setDims(d: Dim[]) {
+  dims = d;
+  $(".dims").innerHTML = showDims ? dimsSvg(dims, (x, y, z) => viewer.project(x, y, z)) : "";
+}
+/** 一粒石の指輪の寸法：内径・石の長辺・石と指のすき間・指から石座の上まで */
+function ringDims(b: Built): Dim[] {
+  if (!stone) return [];
+  const r = b.ring;
+  const lift = r.shank.outerRadiusMm;
+  const ri = r.shank.innerDiameterMm / 2;
+  const t = r.transform;
+  const h = r.stone.heights;
+  const c = Math.cos(t.rotationZ);
+  const sn = Math.sin(t.rotationZ);
+  const pts = stone.measured.outlineMm.map((q) => ({ x: q.x * c - q.y * sn, y: q.x * sn + q.y * c }));
+  let pair: [{ x: number; y: number }, { x: number; y: number }] = [pts[0], pts[0]];
+  let best = -1;
+  for (let i = 0; i < pts.length; i++)
+    for (let j = i + 1; j < pts.length; j++) {
+      const d = (pts[i].x - pts[j].x) ** 2 + (pts[i].y - pts[j].y) ** 2;
+      if (d > best) [best, pair] = [d, [pts[i], pts[j]]];
+    }
+  const tableZ = t.translateZ + h.tableZ + lift + 0.8;
+  const culetZ = t.translateZ + h.culetZ + lift;
+  const fingerTop = lift + ri;
+  let top = 0;
+  const sp = r.ringPositions.setting;
+  for (let i = 2; i < sp.length; i += 3) top = Math.max(top, sp[i]);
+  top += lift;
+  const halfY = Math.max(...pts.map((q) => Math.abs(q.y)));
+  const bad = new Set(b.problems.map((p) => p.check));
+  return [
+    { a: [0, -ri, lift], b: [0, ri, lift], label: `内径 ø${(ri * 2).toFixed(1)}` },
+    { a: [pair[0].x, pair[0].y, tableZ], b: [pair[1].x, pair[1].y, tableZ], label: `石 ${stone.measured.longMm.toFixed(2)}` },
+    { a: [0, 0, fingerTop], b: [0, 0, culetZ], label: `すき間 ${r.culetGapMm.toFixed(2)}`, bad: bad.has("finger-gap") },
+    { a: [0, -halfY - 1.4, fingerTop], b: [0, -halfY - 1.4, top], label: `高さ ${(top - fingerTop).toFixed(2)}`, bad: bad.has("tip-height") },
+  ];
+}
+/** 石のない指輪の寸法：内径・上の幅と厚み・下の厚み */
+function bandDims(positions: Float32Array): Dim[] {
+  let zmin = Infinity;
+  for (let i = 2; i < positions.length; i += 3) zmin = Math.min(zmin, positions[i]);
+  const ri = bandInnerDiameter(band.gou) / 2;
+  const cz = zmin + band.bottom.thickness + ri;
+  const ztop = cz + ri + band.top.thickness;
+  const titles = checkBand(band).map((p) => p.title).join(" ");
+  const thin = titles.includes("厚");
+  const narrow = titles.includes("幅");
+  return [
+    { a: [0, -ri, cz], b: [0, ri, cz], label: `内径 ø${(ri * 2).toFixed(1)}` },
+    { a: [-band.top.width / 2, 0, ztop], b: [band.top.width / 2, 0, ztop], label: `幅 ${band.top.width.toFixed(1)}`, bad: narrow },
+    { a: [band.top.width / 2 + 0.9, 0, cz + ri], b: [band.top.width / 2 + 0.9, 0, ztop], label: `厚み ${band.top.thickness.toFixed(1)}`, bad: thin },
+    { a: [band.bottom.width / 2 + 0.9, 0, zmin], b: [band.bottom.width / 2 + 0.9, 0, zmin + band.bottom.thickness], label: `下 ${band.bottom.thickness.toFixed(1)}`, bad: thin },
+  ];
+}
 
 // ---- 石を読む ----
 async function loadStone(img: ImageData, label: string, longMm: number, depthMm: number, opts: { intro?: boolean } = {}) {
@@ -195,7 +277,7 @@ function drawThumb() {
   tmp.height = p.height;
   tmp.getContext("2d")!.putImageData(p, 0, 0);
   g.drawImage(tmp, cx - half, cy - half, half * 2, half * 2, 0, 0, c.width, c.height);
-  g.strokeStyle = "#e9c46a";
+  g.strokeStyle = "#409cff";
   g.lineWidth = 2;
   g.beginPath();
   pts.forEach((q, i) => {
@@ -256,6 +338,7 @@ $<HTMLInputElement>(".sketch-file").addEventListener("change", async (e) => {
 function onBuilt(b: Built, _why: string) {
   if (!stone || kind !== "solitaire") return;
   viewer.setRing(b.ring, { color: stone.extraction.color, colorless: stone.extraction.colorless }, b.problems);
+  setDims(ringDims(b));
   const r = b.ring;
   const s = session!.state;
   const st = r.setting;
@@ -280,22 +363,22 @@ function onBuilt(b: Built, _why: string) {
 // ---- 場面 ----
 function setMode(m: Mode) {
   const w = MODES.find((x) => x.id === m)!;
-  $(".vp-mode").innerHTML = `${w.word}<em>${w.en}</em>`;
+  $(".vp-mode").textContent = w.word;
   $(".word-sub").textContent = w.sub;
-  document.querySelectorAll<HTMLButtonElement>(".rail [data-mode]").forEach((b) => b.setAttribute("aria-current", String(b.dataset.mode === m)));
+  document.querySelectorAll<HTMLButtonElement>(".tabs [data-mode]").forEach((b) => b.setAttribute("aria-current", String(b.dataset.mode === m)));
   $(".make-panel").hidden = m !== "make";
   $(".studio-refine").hidden = m !== "refine";
   $(".build-panel").hidden = m !== "hand";
   $(".works-panel").hidden = m !== "works";
   if (m === "works") renderWorks();
-  $(".cad").setAttribute("data-mode", m);
+  $(".pro").setAttribute("data-mode", m);
   viewer.setAutoRotate(m === "make");
   // スマホでは、下の板に隠れないよう品を上に寄せる
   viewer.setLift(0);
   if (m === "refine") renderCheck();
   if (m === "hand") renderBuild();
 }
-document.querySelectorAll<HTMLButtonElement>(".rail [data-mode]").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode as Mode)));
+document.querySelectorAll<HTMLButtonElement>(".tabs [data-mode]").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode as Mode)));
 const VIEW_NAME = { angle: "斜め", top: "上", side: "横", front: "正面" } as const;
 document.querySelectorAll<HTMLButtonElement>(".view-btn").forEach((b) =>
   b.addEventListener("click", () => {
@@ -303,8 +386,30 @@ document.querySelectorAll<HTMLButtonElement>(".view-btn").forEach((b) =>
     viewer.setAutoRotate(false);
     viewer.setView(v);
     $(".vp-view").textContent = VIEW_NAME[v];
+    document.querySelectorAll<HTMLButtonElement>(".view-btn").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
   }),
 );
+viewer.setGrid(true);
+$(".t-grid").addEventListener("click", (e) => {
+  const b = e.currentTarget as HTMLButtonElement;
+  const on = b.getAttribute("aria-pressed") !== "true";
+  b.setAttribute("aria-pressed", String(on));
+  viewer.setGrid(on);
+});
+$(".t-dims").addEventListener("click", (e) => {
+  const b = e.currentTarget as HTMLButtonElement;
+  showDims = !showDims;
+  b.setAttribute("aria-pressed", String(showDims));
+  setDims(dims);
+});
+$(".t-fit").addEventListener("click", () => viewer.fit());
+// 1〜4 で場面を切り替える（字を書いている間は使わない）
+document.addEventListener("keydown", (e) => {
+  const el = e.target as HTMLElement;
+  if (e.metaKey || e.ctrlKey || e.altKey || el.closest("input, textarea")) return;
+  const m = MODES.find((x) => x.key === e.key);
+  if (m) setMode(m.id);
+});
 $(".act-sheet").addEventListener("click", () => {
   setMode("hand");
   $<HTMLButtonElement>(".p-instr").click();
@@ -404,7 +509,7 @@ async function make() {
   // 表せなかった希望を、目立つ所に出す（できたふりをさせない）
   const cannot = /まだできないこと[：:]\s*(.+)/.exec(reason)?.[1]?.trim() ?? "";
   showCannot(cannot && !/^(なし|ありません|特になし)/.test(cannot) ? cannot : "");
-  st.innerHTML = `${r.remaining !== undefined ? `今日あと ${r.remaining} 回 ・ ` : ""}<button type="button" class="link go-refine">整える →</button><button type="button" class="link undo-claude">Claude の作業を戻す</button>`;
+  st.innerHTML = `${r.remaining !== undefined ? `今日あと ${r.remaining} 回 ・ ` : ""}<button type="button" class="link go-refine">確かめる →</button><button type="button" class="link undo-claude">元に戻す</button>`;
   st.querySelector(".go-refine")!.addEventListener("click", () => setMode("refine"));
   st.querySelector(".undo-claude")!.addEventListener("click", () => {
     undoClaude?.();
@@ -417,7 +522,7 @@ function showCannot(text: string) {
   if (!el) {
     el = document.createElement("p");
     el.className = "cannot-chip";
-    $(".cad").appendChild(el);
+    $(".pro").appendChild(el);
   }
   el.hidden = !text;
   el.textContent = text ? `まだできないこと：${text}` : "";
@@ -539,7 +644,7 @@ function openTool(id: string) {
   if (!el) {
     el = document.createElement("div");
     el.className = "tool-sheet";
-    $(".cad").appendChild(el);
+    $(".pro").appendChild(el);
     el.addEventListener("click", (e) => {
       if (e.target === el || (e.target as HTMLElement).closest(".ts-close")) el!.hidden = true;
     });
@@ -585,11 +690,11 @@ function renderBuild() {
     ${probs.length ? `<p class="build-warn">このままでは作れない所が ${probs.length} あります。<button type="button" class="link to-check">確かめる →</button></p>` : ""}
     <ol class="steps-b">${steps
       .map(
-        (st, i) => `<li><span class="n">${i + 1}</span><div><b>${esc(st.title)}</b><p>${esc(st.text)}</p>${st.specs.length ? `<dl>${st.specs.map((x) => `<div><dt>${esc(x.label)}</dt><dd>${esc(x.value)}</dd></div>`).join("")}</dl>` : ""}${st.watch ? `<p class="watch">${esc(st.watch)}</p>` : ""}${toolsForStep(st.title).length ? `<div class="tools-row">${toolsForStep(st.title).map((t) => `<button type="button" class="tool-chip" data-tool="${t.id}">${esc(t.name)}</button>`).join("")}</div>` : ""}</div></li>`,
+        (st, i) => `<li><span class="n">${String(i + 1).padStart(2, "0")}</span><div><b>${esc(st.title)}</b><p>${esc(st.text)}</p>${st.specs.length ? `<dl>${st.specs.map((x) => `<div><dt>${esc(x.label)}</dt><dd>${esc(x.value)}</dd></div>`).join("")}</dl>` : ""}${st.watch ? `<p class="watch">${esc(st.watch)}</p>` : ""}${toolsForStep(st.title).length ? `<div class="tools-row">${toolsForStep(st.title).map((t) => `<button type="button" class="tool-chip" data-tool="${t.id}">${esc(t.name)}</button>`).join("")}</div>` : ""}</div></li>`,
       )
       .join("")}</ol>
     <p class="note-b">数字は、この石とこの形から計算した目安。手順は一般的な例で、最後は職人が決める。</p>
-    <div class="row out"><button type="button" class="primary p-instr">指示書を印刷</button><button type="button" class="ghost-d p-stl">3D データ</button></div>
+    <div class="row out"><button type="button" class="primary p-instr">指示書を印刷</button><button type="button" class="ghost-d p-stl">STL を書き出す</button></div>
     <div class="save-work"><button type="button" class="next-btn p-save">この作品の記録を残す</button></div>`;
   box.querySelector(".p-save")!.addEventListener("click", () => openSaveWork(box.querySelector(".save-work")!, solitaireData()));
   box.querySelectorAll<HTMLButtonElement>(".method button").forEach((btn) =>
@@ -745,6 +850,7 @@ function showBand() {
   bandPositions = m.positions;
   bandWeight = m.weightG;
   viewer.setMetalMesh(m.positions, metalIdOf(bandMetal), "band");
+  setDims(bandDims(m.positions));
   const probs = checkBand(band);
   const chip = $(".verdict-chip");
   chip.hidden = false;
@@ -797,7 +903,7 @@ function setKind(k: Kind) {
   document.querySelectorAll<HTMLElement>(".solitaire-only").forEach((e) => (e.hidden = k !== "solitaire"));
   document.querySelectorAll<HTMLElement>(".band-only").forEach((e) => (e.hidden = k !== "band"));
   showCannot("");
-  $(".worklog").innerHTML = `<li class="note">${k === "band" ? "下の行に希望（例：細めで、手のひら側を薄く）を書いて「生む」。左の数字で手でも変えられます。" : "下の行に希望を書いて「生む」を押すと、Claude が組み、作れるか確かめて直します。"}</li>`;
+  $(".worklog").innerHTML = `<li class="note">${k === "band" ? "下の行に希望（例：細めで、手のひら側を薄く）を書いて「生む」。上の「形」の数字で、手でも変えられます。" : "下の行に希望を書いて「生む」を押すと、Claude が組み、作れるか確かめて直します。"}</li>`;
   if (k === "band") {
     bandControls($(".band-ctrl"));
     showBand();
@@ -835,11 +941,11 @@ function renderBandBuild() {
     ${probs.length ? `<p class="build-warn">このままでは作れない所が ${probs.length} あります。<button type="button" class="link to-check">確かめる →</button></p>` : ""}
     <ol class="steps-b">${steps
       .map(
-        (st, i) => `<li><span class="n">${i + 1}</span><div><b>${esc(st.title)}</b><p>${esc(st.text)}</p>${st.specs.length ? `<dl>${st.specs.map((x) => `<div><dt>${esc(x.label)}</dt><dd>${esc(x.value)}</dd></div>`).join("")}</dl>` : ""}${st.watch ? `<p class="watch">${esc(st.watch)}</p>` : ""}${toolsForStep(st.title).length ? `<div class="tools-row">${toolsForStep(st.title).map((t) => `<button type="button" class="tool-chip" data-tool="${t.id}">${esc(t.name)}</button>`).join("")}</div>` : ""}</div></li>`,
+        (st, i) => `<li><span class="n">${String(i + 1).padStart(2, "0")}</span><div><b>${esc(st.title)}</b><p>${esc(st.text)}</p>${st.specs.length ? `<dl>${st.specs.map((x) => `<div><dt>${esc(x.label)}</dt><dd>${esc(x.value)}</dd></div>`).join("")}</dl>` : ""}${st.watch ? `<p class="watch">${esc(st.watch)}</p>` : ""}${toolsForStep(st.title).length ? `<div class="tools-row">${toolsForStep(st.title).map((t) => `<button type="button" class="tool-chip" data-tool="${t.id}">${esc(t.name)}</button>`).join("")}</div>` : ""}</div></li>`,
       )
       .join("")}</ol>
     <p class="note-b">数字は、この形から計算した目安。手順は一般的な例で、最後は職人が決める。</p>
-    <div class="row out"><button type="button" class="primary p-instr">指示書を印刷</button><button type="button" class="ghost-d p-stl">3D データ</button></div>
+    <div class="row out"><button type="button" class="primary p-instr">指示書を印刷</button><button type="button" class="ghost-d p-stl">STL を書き出す</button></div>
     <div class="save-work"><button type="button" class="next-btn p-save">この作品の記録を残す</button></div>`;
   box.querySelector(".p-save")!.addEventListener("click", () => openSaveWork(box.querySelector(".save-work")!, bandData()));
   box.querySelectorAll<HTMLButtonElement>(".method button").forEach((b) => b.addEventListener("click", () => ((method = b.dataset.m as Method), renderBandBuild())));
