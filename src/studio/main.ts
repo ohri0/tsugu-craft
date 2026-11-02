@@ -29,17 +29,19 @@ import { buildStone } from "../geometry/stone";
 import { METAL_LABEL, RingSession, type Built } from "./session";
 import { howToMake, type Method } from "./howto";
 import { sheetHtml } from "./sheet";
+import { loadWorks, newWorkId, removeWork, saveWork, worksBookHtml } from "./works";
 import { KIND_LABEL, toolById, toolsForStep } from "./toolbox";
 import { MAKE_BAND, SECTION_LABEL, bandHowTo, bandInnerDiameter, bandMesh, bandPrompt, checkBand, parseBand, type Band, type BandDraft, type SectionKind } from "./band";
 import { metalIdOf } from "./session";
 import { GUIDES } from "../rules/guides";
 import { callTool } from "../rebuild/run";
 
-type Mode = "make" | "refine" | "hand";
+type Mode = "make" | "refine" | "hand" | "works";
 const MODES: { id: Mode; word: string; en: string; sub: string }[] = [
   { id: "make", word: "生む。", en: "Form", sub: "石と絵と言葉から" },
   { id: "refine", word: "確かめる。", en: "Check", sub: "作れるか" },
   { id: "hand", word: "作る。", en: "Make", sub: "手作り・鋳造の作り方" },
+  { id: "works", word: "記録。", en: "Keep", sub: "作った物ごとの記録" },
 ];
 const SAMPLE = { url: "stones/triangle.jpg", longMm: 8.88, depthMm: 4.24, label: "作者の石（淡い青の三角）" };
 
@@ -98,6 +100,7 @@ app.innerHTML = `
   </aside>
   <aside class="side refine-panel studio-refine" hidden></aside>
   <aside class="side refine-panel build-panel studio-build" hidden></aside>
+  <aside class="side works-panel" hidden></aside>
   <aside class="book-panel" hidden></aside>
 
   <div class="bottom">
@@ -283,6 +286,8 @@ function setMode(m: Mode) {
   $(".make-panel").hidden = m !== "make";
   $(".studio-refine").hidden = m !== "refine";
   $(".build-panel").hidden = m !== "hand";
+  $(".works-panel").hidden = m !== "works";
+  if (m === "works") renderWorks();
   $(".cad").setAttribute("data-mode", m);
   viewer.setAutoRotate(m === "make");
   // スマホでは、下の板に隠れないよう品を上に寄せる
@@ -547,7 +552,6 @@ function openTool(id: string) {
     <p class="ts-what">${esc(t.what)}</p>
     <h4>使い方</h4><ol>${t.how.map((h) => `<li>${esc(h)}</li>`).join("")}</ol>
     ${t.watch ? `<p class="ts-watch">${esc(t.watch)}</p>` : ""}
-    ${t.sources.length ? `<p class="ts-src">出典：${t.sources.map((x) => `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.title)}</a>`).join("・")}</p>` : ""}
   </div>`;
 
 }
@@ -585,7 +589,9 @@ function renderBuild() {
       )
       .join("")}</ol>
     <p class="note-b">数字は、この石とこの形から計算した目安。手順は一般的な例で、最後は職人が決める。</p>
-    <div class="row out"><button type="button" class="primary p-instr">指示書を印刷</button><button type="button" class="ghost-d p-stl">3D データ</button></div>`;
+    <div class="row out"><button type="button" class="primary p-instr">指示書を印刷</button><button type="button" class="ghost-d p-stl">3D データ</button></div>
+    <div class="save-work"><button type="button" class="next-btn p-save">この作品の記録を残す</button></div>`;
+  box.querySelector(".p-save")!.addEventListener("click", () => openSaveWork(box.querySelector(".save-work")!, solitaireData()));
   box.querySelectorAll<HTMLButtonElement>(".method button").forEach((btn) =>
     btn.addEventListener("click", () => {
       method = btn.dataset.m as Method;
@@ -833,7 +839,9 @@ function renderBandBuild() {
       )
       .join("")}</ol>
     <p class="note-b">数字は、この形から計算した目安。手順は一般的な例で、最後は職人が決める。</p>
-    <div class="row out"><button type="button" class="primary p-instr">指示書を印刷</button><button type="button" class="ghost-d p-stl">3D データ</button></div>`;
+    <div class="row out"><button type="button" class="primary p-instr">指示書を印刷</button><button type="button" class="ghost-d p-stl">3D データ</button></div>
+    <div class="save-work"><button type="button" class="next-btn p-save">この作品の記録を残す</button></div>`;
+  box.querySelector(".p-save")!.addEventListener("click", () => openSaveWork(box.querySelector(".save-work")!, bandData()));
   box.querySelectorAll<HTMLButtonElement>(".method button").forEach((b) => b.addEventListener("click", () => ((method = b.dataset.m as Method), renderBandBuild())));
   box.querySelector(".to-check")?.addEventListener("click", () => setMode("refine"));
   box.querySelectorAll<HTMLButtonElement>(".tool-chip").forEach((c) => c.addEventListener("click", () => openTool(c.dataset.tool!)));
@@ -893,6 +901,106 @@ async function makeBand() {
   showCannot(d.cannotDo);
   st.innerHTML = `${r.remaining !== undefined ? `今日あと ${r.remaining} 回 ・ ` : ""}<button type="button" class="link go-refine">確かめる →</button>`;
   st.querySelector(".go-refine")!.addEventListener("click", () => setMode("refine"));
+}
+
+// ---- 記録。：作った物ごとに残す ----
+interface WorkData {
+  title: string;
+  kind: string;
+  specs: { label: string; value: string }[];
+  problems: string[];
+  steps: ReturnType<typeof howToMake>;
+}
+function solitaireData(): WorkData {
+  const b = session!.built!;
+  const r = b.ring;
+  const st = r.setting;
+  return {
+    title: `${stone!.shapeName}の一粒石の指輪`,
+    kind: "一粒石の指輪",
+    specs: [
+      { label: "石", value: `${stone!.measured.longMm.toFixed(2)} × ${stone!.measured.widthMm.toFixed(2)} × ${stone!.depthMm.toFixed(2)} mm` },
+      { label: "号", value: `${session!.state.gou} 号 ・ 内径 ${r.shank.innerDiameterMm.toFixed(1)} mm` },
+      { label: "留め方", value: st.style === "bezel" ? `覆輪 ・ 壁 ${st.bezel?.wallMm.toFixed(2)} mm` : `爪 ${st.prongs.length} ・ ø ${st.prongs[0]?.diameterMm.toFixed(2)} mm` },
+      { label: "腕", value: `${r.shank.widthMm.toFixed(1)} × ${r.shank.thicknessMm.toFixed(1)} mm` },
+      { label: "石と指のすき間", value: `${r.culetGapMm.toFixed(2)} mm` },
+      { label: "地金", value: `${METAL_LABEL[session!.state.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g` },
+    ],
+    problems: grouped(b).map(({ p }) => `${SHORT[p.check] ?? p.where}（${p.current} → ${p.required}）`),
+    steps: howToMake(howInput(b), method),
+  };
+}
+function bandData(): WorkData {
+  return {
+    title: bandName(),
+    kind: bandName(),
+    specs: [
+      { label: "断面", value: SECTION_LABEL[band.kind] },
+      { label: "号", value: `${band.gou} 号 ・ 内径 ${bandInnerDiameter(band.gou).toFixed(1)} mm` },
+      { label: "上（見える側）", value: `${band.top.width} × ${band.top.thickness} mm` },
+      { label: "下（手のひら側）", value: `${band.bottom.width} × ${band.bottom.thickness} mm` },
+      { label: "地金", value: `${band.metalLabel} ・ 約 ${bandWeight.toFixed(1)} g` },
+    ],
+    problems: checkBand(band).map((p) => `${p.title}（${p.current} → ${p.required}）`),
+    steps: bandHowTo(band, method, bandWeight),
+  };
+}
+function thumbnail(): string {
+  viewer.snapshot(); // いまの形を描き直してから切り出す
+  const c = document.createElement("canvas");
+  c.width = c.height = 360;
+  const g = c.getContext("2d")!;
+  // 真ん中を正方形に切り出す
+  const cv = $(".gl canvas") as HTMLCanvasElement;
+  const s0 = Math.min(cv.width, cv.height);
+  g.drawImage(cv, (cv.width - s0) / 2, (cv.height - s0) / 2, s0, s0, 0, 0, 360, 360);
+  return c.toDataURL("image/jpeg", 0.8);
+}
+function openSaveWork(slot: HTMLElement, data: WorkData) {
+  slot.innerHTML = `<div class="save-form">
+    <label>作った人<input type="text" class="w-maker" value="${esc(masterName(store.ledger()) === "職人" ? "" : masterName(store.ledger()))}" placeholder="名前"></label>
+    <label>ひとこと（気をつけたこと・次の人へ）<textarea rows="2" class="w-note" placeholder="例：角は V 字の爪で守った。座は浅めに"></textarea></label>
+    <div class="row"><button type="button" class="ghost-d w-mic">話す</button><button type="button" class="primary w-save">記録する</button></div>
+  </div>`;
+  const note = slot.querySelector<HTMLTextAreaElement>(".w-note")!;
+  const voice = bindVoice(slot.querySelector<HTMLButtonElement>(".w-mic")!, note);
+  slot.querySelector(".w-save")!.addEventListener("click", () => {
+    voice.stop();
+    const ok = saveWork({
+      id: newWorkId(),
+      date: today(),
+      title: data.title,
+      kind: data.kind,
+      methodLabel: method === "hand" ? "手作り" : "鋳造",
+      image: thumbnail(),
+      specs: data.specs,
+      problems: data.problems,
+      steps: data.steps,
+      note: note.value.trim(),
+      maker: slot.querySelector<HTMLInputElement>(".w-maker")!.value.trim(),
+    });
+    slot.innerHTML = ok ? `<p class="saved">記録しました（${loadWorks().length} 作品目）。<button type="button" class="link to-works">記録を見る →</button></p>` : `<p class="build-warn">このブラウザにはもう入りません。</p>`;
+    slot.querySelector(".to-works")?.addEventListener("click", () => setMode("works"));
+  });
+}
+function renderWorks() {
+  const box = $(".works-panel");
+  const works = loadWorks();
+  box.innerHTML = `
+    <section class="works-head"><b>${works.length} 作品</b><small>作るたびに、形・作れるか・作り方・ひとことが残ります。</small></section>
+    ${works.length ? `<button type="button" class="primary w-print">記録の帳面を印刷</button>` : `<p class="tech-what">まだ記録がありません。「作る。」の下の「この作品の記録を残す」から残せます。</p>`}
+    <ul class="works-list">${works
+      .map(
+        (w) => `<li><img alt="" src="${w.image}"><div><b>${esc(w.title)}</b><small>${esc(w.date)}${w.maker ? ` ・ ${esc(w.maker)}` : ""} ・ ${esc(w.methodLabel)}</small>${w.note ? `<p>「${esc(w.note)}」</p>` : ""}<span class="${w.problems.length ? "ng" : "ok"}">${w.problems.length ? "作れない所あり" : "作れる形"}</span></div><button type="button" class="w-del" data-id="${w.id}" aria-label="消す">×</button></li>`,
+      )
+      .join("")}</ul>`;
+  box.querySelector(".w-print")?.addEventListener("click", () => openPrint(worksBookHtml(loadWorks(), today())));
+  box.querySelectorAll<HTMLButtonElement>(".w-del").forEach((b) =>
+    b.addEventListener("click", () => {
+      removeWork(b.dataset.id!);
+      renderWorks();
+    }),
+  );
 }
 
 setMode("make");
