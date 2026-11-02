@@ -225,12 +225,23 @@ export class Viewer {
     this.resize();
   }
 
+  /** 画面の上と下で、ボタンがかぶる高さ（px）。指輪はその間に収める */
+  private insets = { top: 0, bottom: 0 };
+  setInsets(top: number, bottom: number) {
+    if (this.insets.top === top && this.insets.bottom === bottom) return;
+    this.insets = { top, bottom };
+    this.resize();
+    if (this.framedFor) this.fit();
+  }
+
   private resize() {
     const w = this.host.clientWidth || 1;
     const h = this.host.clientHeight || 1;
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
-    if (this.lift > 0) this.camera.setViewOffset(w, h, 0, h * this.lift, w, h);
+    // 上下のボタンの間の真ん中に、中身の真ん中が来るようにずらす
+    const dy = h * this.lift + (this.insets.bottom - this.insets.top) / 2;
+    if (dy !== 0) this.camera.setViewOffset(w, h, 0, dy, w, h);
     else this.camera.clearViewOffset();
     this.camera.updateProjectionMatrix();
     this.dirty = true;
@@ -363,7 +374,9 @@ export class Viewer {
     this.framedFor = kind;
     this.controls.target.copy(sphere.center);
     // 縦長の画面（スマホ）では、横幅に収まるように遠くから
-    const fit = this.camera.aspect < 1 ? Math.min(2.2, 1 / this.camera.aspect) : 1;
+    const h = this.host.clientHeight || 1;
+    const free = Math.max(0.5, (h - this.insets.top - this.insets.bottom) / h);
+    const fit = (this.camera.aspect < 1 ? Math.min(2.2, 1 / this.camera.aspect) : 1) / free;
     this.camera.position.copy(sphere.center).addScaledVector(dir, sphere.radius * 3.6 * fit);
     this.controls.update();
     this.dirty = true;

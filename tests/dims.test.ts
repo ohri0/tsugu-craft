@@ -20,6 +20,26 @@ describe("寸法の線", () => {
   it("写せない点の寸法は描かない", () => {
     expect(dimsSvg([{ a: [0, 0, 0], b: [1, 0, 0], label: "x" }], () => null)).toBe("");
   });
+  it("数字の札は、避ける所と重ならない所へ動き、細い線でつなぐ", () => {
+    const dims = [{ a: [-5, 0, 0] as [number, number, number], b: [5, 0, 0] as [number, number, number], label: "ø 10.0" }];
+    const plain = dimsSvg(dims, top);
+    const ty = (svg: string) => Number(/<rect class="dim-tag" x="[^"]+" y="([^"]+)"/.exec(svg)![1]);
+    // 元の札は線の少し上（y ≈ 87 の中心）。そこを避けさせる
+    const moved = dimsSvg(dims, top, 1, { avoid: [{ x: 40, y: 70, w: 120, h: 26 }] });
+    expect(ty(moved)).not.toBe(ty(plain));
+    expect(moved).toContain("dim-leader");
+  });
+  it("2 つの札は重ならない", () => {
+    const dims = [
+      { a: [-5, 0, 0] as [number, number, number], b: [5, 0, 0] as [number, number, number], label: "A 10.0" },
+      { a: [-5, 0.2, 0] as [number, number, number], b: [5, 0.2, 0] as [number, number, number], label: "B 10.0" },
+    ];
+    const svg = dimsSvg(dims, top);
+    const rects = [...svg.matchAll(/<rect class="dim-tag" x="([^"]+)" y="([^"]+)" width="([^"]+)" height="([^"]+)"/g)].map((m) => m.slice(1).map(Number));
+    const [a, b] = rects;
+    const over = a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
+    expect(over).toBe(false);
+  });
   it("和文は広く数える", () => {
     expect(labelWidth("内径")).toBeGreaterThan(labelWidth("ab"));
   });

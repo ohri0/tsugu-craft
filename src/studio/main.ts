@@ -39,7 +39,7 @@ import { MAKE_BAND, SECTION_LABEL, bandHowTo, bandInnerDiameter, bandMesh, bandP
 import { metalIdOf } from "./session";
 import { GUIDES } from "../rules/guides";
 import { callTool } from "../rebuild/run";
-import { dimsSvg, gizmoSvg, type Dim } from "./dims";
+import { dimsSvg, gizmoSvg, type Dim, type Rect } from "./dims";
 
 type Mode = "make" | "refine" | "hand" | "works";
 const MODES: { id: Mode; word: string; key: string; sub: string }[] = [
@@ -147,17 +147,57 @@ let dims: Dim[] = [];
 let showDims = true;
 /** 見せ場の間は寸法を出さない（最後に 1 本ずつ出す） */
 let holdDims = false;
+/** 石座の箱（3D、mm）。数字の札をこの上に重ねない */
+let headBox: { min: [number, number, number]; max: [number, number, number] } | null = null;
+/** 札を重ねない所：画面のボタンと、石座が映っている所 */
+function dimsAvoid(): { avoid: Rect[]; bounds: Rect } {
+  const svg = $(".dims").getBoundingClientRect();
+  const avoid: Rect[] = [];
+  for (const sel of [".vp-tl", ".verdict-chip", ".tools", ".gizmo"]) {
+    const el = document.querySelector<HTMLElement>(sel);
+    if (!el || el.hidden || el.offsetParent === null) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width && r.height) avoid.push({ x: r.left - svg.left, y: r.top - svg.top, w: r.width, h: r.height });
+  }
+  if (headBox) {
+    const { min, max } = headBox;
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const x of [min[0], max[0]]) for (const y of [min[1], max[1]]) for (const z of [min[2], max[2]]) {
+      const p = viewer.project(x, y, z);
+      if (!p) continue;
+      x0 = Math.min(x0, p.x); y0 = Math.min(y0, p.y); x1 = Math.max(x1, p.x); y1 = Math.max(y1, p.y);
+    }
+    // 角を写した箱は実際より大きいので、少しだけ縮める
+    const sx = (x1 - x0) * 0.1, sy = (y1 - y0) * 0.1;
+    if (x1 > x0) avoid.push({ x: x0 + sx, y: y0 + sy, w: x1 - x0 - sx * 2, h: y1 - y0 - sy * 2 });
+  }
+  return { avoid, bounds: { x: 4, y: 4, w: svg.width - 8, h: svg.height - 8 } };
+}
+function drawDims(d: Dim[] = dims) {
+  $(".dims").innerHTML = showDims && !holdDims ? dimsSvg(d, (x, y, z) => viewer.project(x, y, z), 1, dimsAvoid()) : "";
+}
 viewer.onFrame(() => {
-  $(".dims").innerHTML = showDims && !holdDims ? dimsSvg(dims, (x, y, z) => viewer.project(x, y, z)) : "";
+  drawDims();
   $(".gizmo").innerHTML = gizmoSvg(viewer.axes());
 });
 function setDims(d: Dim[]) {
   dims = d;
-  if (holdDims) {
-    $(".dims").innerHTML = "";
-    return;
-  }
-  $(".dims").innerHTML = showDims ? dimsSvg(dims, (x, y, z) => viewer.project(x, y, z)) : "";
+  drawDims();
+}
+/** 石座の箱（画面の 3D と同じ座標） */
+function headBoxOf(b: Built): typeof headBox {
+  const sp = b.ring.ringPositions.setting;
+  if (!sp.length) return null;
+  const lift = b.ring.shank.outerRadiusMm;
+  const min: [number, number, number] = [Infinity, Infinity, Infinity];
+  const max: [number, number, number] = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < sp.length; i += 3)
+    for (let k = 0; k < 3; k++) {
+      const v = sp[i + k] + (k === 2 ? lift : 0);
+      if (v < min[k]) min[k] = v;
+      if (v > max[k]) max[k] = v;
+    }
+  return { min, max };
 }
 /** 一粒石の指輪の寸法：内径・石の長辺・石と指のすき間・指から石座の上まで */
 function ringDims(b: Built): Dim[] {
@@ -299,7 +339,7 @@ async function intro() {
   const all = dims;
   for (let i = 1; i <= all.length; i++) {
     dims = all.slice(0, i);
-    $(".dims").innerHTML = showDims ? dimsSvg(dims, (x, y, z) => viewer.project(x, y, z)) : "";
+    drawDims();
     await wait(260);
   }
   dims = all;
@@ -445,6 +485,7 @@ function tuneProngs() {
 function onBuilt(b: Built, _why: string) {
   if (tuning || !stone || kind !== "solitaire") return;
   viewer.setRing(b.ring, { color: stone.extraction.color, colorless: stone.extraction.colorless }, b.problems);
+  headBox = headBoxOf(b);
   setDims(ringDims(b));
   const r = b.ring;
   const s = session!.state;
@@ -468,6 +509,25 @@ function onBuilt(b: Built, _why: string) {
 }
 
 // ---- 場面 ----
+/** 3D の上と下にかぶるボタンの高さを測って、指輪をその間に収める */
+function fitInsets() {
+  const vp = $(".vp").getBoundingClientRect();
+  if (!vp.height) return;
+  let top = 0;
+  let bottom = 0;
+  for (const sel of [".vp-tl", ".verdict-chip", ".tools"]) {
+    const el = document.querySelector<HTMLElement>(sel);
+    if (!el || el.hidden || el.offsetParent === null) continue;
+    const r = el.getBoundingClientRect();
+    if (r.right <= vp.left || r.left >= vp.right || r.bottom <= vp.top || r.top >= vp.bottom) continue;
+    // 横に長いもの（スマホの道具の帯）だけを数える。左の縦の帯は数えない
+    if (r.height > vp.height * 0.5) continue;
+    if (r.top - vp.top < vp.height / 2) top = Math.max(top, r.bottom - vp.top + 6);
+    else bottom = Math.max(bottom, vp.bottom - r.top + 6);
+  }
+  viewer.setInsets(Math.round(top), Math.round(bottom));
+}
+new ResizeObserver(() => fitInsets()).observe($(".vp"));
 function setMode(m: Mode) {
   const w = MODES.find((x) => x.id === m)!;
   $(".vp-mode").textContent = w.word;
@@ -480,8 +540,8 @@ function setMode(m: Mode) {
   if (m === "works") renderWorks();
   $(".pro").setAttribute("data-mode", m);
   viewer.setAutoRotate(m === "make");
-  // スマホでは、下の板に隠れないよう品を上に寄せる
   viewer.setLift(0);
+  requestAnimationFrame(fitInsets);
   if (m === "refine") renderCheck();
   if (m === "hand") renderBuild();
 }
@@ -1209,6 +1269,7 @@ function showBand() {
   bandPositions = m.positions;
   bandWeight = m.weightG;
   viewer.setMetalMesh(m.positions, metalIdOf(bandMetal), "band");
+  headBox = null;
   setDims(bandDims(m.positions));
   const probs = checkBand(band);
   const chip = $(".verdict-chip");
@@ -1663,4 +1724,4 @@ if (new URLSearchParams(location.search).has("rec")) {
 setMode("make");
 bookCount();
 void loadSample().catch((e) => ($(".make-status").textContent = `見本の石を読めませんでした：${(e as Error).message}`));
-(window as unknown as { __studio: unknown }).__studio = { get session() { return session; }, setMode };
+(window as unknown as { __studio: unknown }).__studio = { get session() { return session; }, setMode, dimsAvoid };

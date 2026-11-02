@@ -15,6 +15,24 @@ export interface Dim {
 
 export type Project = (x: number, y: number, z: number) => { x: number; y: number } | null;
 
+/** 画面の四角（px） */
+export interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+export interface DimsOpts {
+  /** 数字の札を重ねない所（画面のボタン、石座など） */
+  avoid?: Rect[];
+  /** 札をこの中に収める（画面の大きさ） */
+  bounds?: Rect;
+}
+
+const hit = (a: Rect, b: Rect) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+const inside = (a: Rect, b: Rect) => a.x >= b.x && a.y >= b.y && a.x + a.w <= b.x + b.w && a.y + a.h <= b.y + b.h;
+
 /** 文字の幅の見積もり（px、11px の等幅と和文） */
 export function labelWidth(s: string): number {
   let w = 0;
@@ -26,8 +44,18 @@ const f = (v: number) => v.toFixed(1);
 const escText = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
 
 /** 寸法を SVG の中身（<g> の並び）にする。写せない寸法は描かない */
-export function dimsSvg(dims: Dim[], project: Project, k = 1): string {
+export function dimsSvg(dims: Dim[], project: Project, k = 1, opts: DimsOpts = {}): string {
   const out: string[] = [];
+  /** もう置いた札 */
+  const placed: Rect[] = [];
+  const pad = 5 * k;
+  /** 重なりの広さ（0 なら置ける）。画面からはみ出すのは、とても悪い */
+  const cost = (r: Rect) => {
+    const g = { x: r.x - pad, y: r.y - pad, w: r.w + pad * 2, h: r.h + pad * 2 };
+    let c = opts.bounds && !inside(r, opts.bounds) ? 1e6 : 0;
+    for (const q of [...placed, ...(opts.avoid ?? [])]) if (hit(g, q)) c += (Math.min(g.x + g.w, q.x + q.w) - Math.max(g.x, q.x)) * (Math.min(g.y + g.h, q.y + q.h) - Math.max(g.y, q.y));
+    return c;
+  };
   for (const d of dims) {
     const e = d.ext ?? [0, 0, 0];
     const fa = project(...d.a);
@@ -78,9 +106,34 @@ export function dimsSvg(dims: Dim[], project: Project, k = 1): string {
       parts.push(arrow(pa, -ux, -uy), arrow(pb, ux, uy));
     }
     const w = labelWidth(d.label) * k;
-    const lx = short ? mx + 46 * k : mx + nx * 13 * k;
-    const ly = short ? my - 22 * k : my + ny * 13 * k;
-    if (short) parts.push(`<polyline class="dim-leader" points="${f(mx)},${f(my)} ${f(lx - w / 2 - 4 * k)},${f(ly)}"/>`);
+    const h = 18 * k;
+    // 札の置き場所の候補：はじめが元の場所。重なるなら、線から離す・反対側・横へずらす
+    const cands: [number, number][] = [];
+    if (short) {
+      for (const dy of [-22, -46, 22, 46]) for (const dx of [46, 84, 124, -46, -84, -124]) cands.push([mx + dx * k, my + dy * k]);
+    } else {
+      for (const dist of [13, 32, 52, 72, 96, 124]) for (const s of [1, -1]) cands.push([mx + nx * dist * s * k, my + ny * dist * s * k]);
+      for (const sl of [0.3, -0.3]) for (const dist of [13, 32]) cands.push([mx + ux * len * sl + nx * dist * k, my + uy * len * sl + ny * dist * k]);
+    }
+    const rectAt = ([x, y]: [number, number]): Rect => ({ x: x - w / 2, y: y - h / 2, w, h });
+    let pick = cands[0];
+    let best = Infinity;
+    for (const c of cands) {
+      const v = cost(rectAt(c));
+      if (v < best) [best, pick] = [v, c];
+      if (v === 0) break;
+    }
+    const [lx, ly] = pick;
+    placed.push(rectAt(pick));
+    if (short) {
+      const ex = lx > mx ? lx - w / 2 - 4 * k : lx + w / 2 + 4 * k;
+      parts.push(`<polyline class="dim-leader" points="${f(mx)},${f(my)} ${f(ex)},${f(ly)}"/>`);
+    } else if (pick !== cands[0]) {
+      // 元の場所から動いたら、線の中ほどから札へ細い線を引く
+      const ex = Math.max(lx - w / 2, Math.min(mx, lx + w / 2));
+      const ey = Math.max(ly - h / 2, Math.min(my, ly + h / 2));
+      parts.push(`<polyline class="dim-leader" points="${f(mx)},${f(my)} ${f(ex)},${f(ey)}"/>`);
+    }
     parts.push(`<rect class="dim-tag" x="${f(lx - w / 2)}" y="${f(ly - 9 * k)}" width="${f(w)}" height="${f(18 * k)}" rx="${f(3 * k)}"/>`);
     parts.push(`<text class="dim-text" x="${f(lx)}" y="${f(ly + 4 * k)}" text-anchor="middle"${k !== 1 ? ` font-size="${f(11 * k)}"` : ""}>${escText(d.label)}</text>`);
     out.push(`<g class="${cls}">${parts.join("")}</g>`);

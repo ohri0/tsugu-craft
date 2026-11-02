@@ -343,6 +343,10 @@ dialog.sheet input:focus { border-color: var(--accent); }
   .insp { border-left: 0; border-top: 1px solid var(--line); }
   .insp-head { display: none; }
   .cmd-wrap { padding: 6px 8px; }
+  /* 希望の欄は「生む」の時だけ。ほかの場面はパネルを広く */
+  .pro:not([data-mode="make"]) .cmd-wrap { display: none; }
+  .pro:not([data-mode="make"]) { grid-template-rows: 44px minmax(200px, 38vh) 1fr 0 52px; }
+  .pro:not([data-mode="make"]) .tools { top: calc(44px + max(200px, 38vh) - 44px); }
   .sb { display: none; }
   .gizmo { display: none; }
   .verdict-chip { top: 8px; right: 8px; }
