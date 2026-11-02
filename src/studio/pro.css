@@ -323,7 +323,6 @@ dialog.sheet input:focus { border-color: var(--accent); }
 .sheet-actions .primary { border-color: transparent; background: var(--accent); }
 .toast { position: fixed; left: 50%; bottom: 44px; transform: translateX(-50%); z-index: 50; padding: 8px 14px; border-radius: 8px; background: #f2f2f4; color: #111; font-size: 12px; font-weight: 500; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4); }
 .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ng); display: inline-block; margin-right: 6px; animation: pulse 1s infinite; }
-.book-btn, .book-panel { display: none !important; }
 
 /* ---- スマホ（縦） ---- */
 @media (max-width: 820px) {

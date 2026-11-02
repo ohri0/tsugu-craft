@@ -68,6 +68,12 @@ describe("propose_rule", () => {
     expect(listed.history?.[0]).toMatchObject({ id: "finger-gap", replaced_by: out.rule_id });
     expect(ledgerAsText(ctx)).toContain("職人：試しの職人");
   });
+  it("手の決まりは、効く工程と一緒に残り、読むと工程の名前で出る", () => {
+    const out = proposeRule(ctx, { craftsman: "試しの職人", title: "ロウ付けの面", text: "相手の面に合わせて削る", reason: "すき間ができる", steps: ["solder"] });
+    const saved = JSON.parse(readFileSync(ctx.ledgerPath, "utf8"));
+    expect(saved.rules.find((r: { id: string }) => r.id === out.rule_id).steps).toEqual(["solder"]);
+    expect(JSON.stringify(listRules(ctx))).toContain("ロウ付けで閉じる");
+  });
   it("言葉だけの決まりは置き換えずに足す", () => {
     const out = proposeRule(ctx, { craftsman: "試しの職人", title: "爪の先は丸める", text: "爪の先は丸く仕上げる", reason: "服に引っかからない" });
     expect(out.replaced).toBeNull();

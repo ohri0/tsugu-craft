@@ -19,10 +19,10 @@ import { rulePlans } from "../ui/design";
 import { loadPhoto } from "../ui/photo";
 import { Viewer, type DisplayMode } from "../ui/viewer";
 import { extractStone, type Extraction } from "../vision/extract";
-import { PARAMS, activeRules, addRule, sourceLabel, type ParamId, type Rule } from "../rules/ledger";
+import { PARAMS, activeRules, addRule, type ParamId, type Rule } from "../rules/ledger";
 import { askPassword, resetPassword } from "../app/password";
 import { esc, store, today } from "../app/store";
-import { bindVoice, canListen } from "../app/voice";
+import { bindVoice } from "../app/voice";
 import { masterName } from "../app/master";
 import { toStl } from "../cad/solid";
 import { buildStone } from "../geometry/stone";
@@ -87,7 +87,7 @@ app.innerHTML = `
   <header class="tb">
     <div class="tb-l"><a class="brand" href="./"><span class="logo">継</span>継ぐ</a><span class="doc"><span class="word-name">新しい作品</span></span></div>
     <nav class="tabs" aria-label="場面">${MODES.map((m) => `<button type="button" data-mode="${m.id}" title="${m.sub}（${m.key}）">${m.word}<span class="k">${m.key}</span></button>`).join("")}</nav>
-    <div class="tb-r"><button type="button" class="btn quiet act-why">なぜ継ぐ</button><a class="btn quiet hide-sm" href="app.html#rebuild">組み立て直す</a><button type="button" class="btn act-sheet hide-sm">図面・指示書</button><button type="button" class="btn primary act-stl">STL</button><button type="button" class="book-btn">帳面<i class="book-n"></i></button></div>
+    <div class="tb-r"><button type="button" class="btn quiet act-why">なぜ継ぐ</button><a class="btn quiet hide-sm" href="app.html#rebuild">組み立て直す</a><button type="button" class="btn act-sheet hide-sm">図面・指示書</button><button type="button" class="btn primary act-stl">STL</button></div>
   </header>
   <nav class="tools" aria-label="見る">
     ${(["angle", "top", "side", "front"] as const).map((v) => `<button type="button" class="tool view-btn" data-view="${v}" data-tip="${{ angle: "斜め", top: "上", side: "横", front: "正面" }[v]}" aria-label="${{ angle: "斜め", top: "上", side: "横", front: "正面" }[v]}">${ICON[v]}</button>`).join("")}
@@ -132,7 +132,6 @@ app.innerHTML = `
     <div class="pane studio-refine" hidden></div>
     <div class="pane build-panel" hidden></div>
     <div class="pane works-panel" hidden></div>
-    <aside class="book-panel" hidden></aside>
   </aside>
 
   <div class="cmd-wrap"><form class="prompt command"><span class="cmd-label">希望</span><input type="text" class="wish" placeholder="例：華奢に。毎日つける。石を大きく見せたい" aria-label="希望"><kbd>⏎</kbd><button type="submit">生む</button></form></div>
@@ -1011,40 +1010,6 @@ function renderBuild() {
   });
 }
 
-// ---- 帳面：職人が声で決まりを足すと、その場で確かめが変わる ----
-function bookCount() {
-  const n = activeRules(store.ledger()).filter((r) => r.source.kind === "craftsman").length;
-  $(".book-n").textContent = String(n);
-}
-$(".book-btn").addEventListener("click", () => {
-  const p = $(".book-panel");
-  p.hidden = !p.hidden;
-  if (!p.hidden) renderBook();
-});
-function renderBook() {
-  const rules = activeRules(store.ledger());
-  const mine = rules.filter((r) => r.source.kind === "craftsman");
-  const others = rules.filter((r) => r.source.kind !== "craftsman");
-  const name = masterName(store.ledger());
-  const item = (r: Rule) => `<li class="${r.source.kind}"><b>${esc(r.title)}</b><p>${esc(r.text)}</p>${r.quote ? `<p class="q">「${esc(r.quote)}」</p>` : ""}<small>${esc(sourceLabel(r.source))} ・ ${esc(r.date)}</small></li>`;
-  $(".book-panel").innerHTML = `<div class="bp-head"><h3>帳面</h3><button type="button" class="ghost-d bp-close">閉じる</button></div>
-    <div class="add-rule">
-      <p class="tech-what">${esc(name)}さんが話すと、決まりになって、今の設計の確かめにすぐ効きます。</p>
-      <textarea rows="2" class="ar-text" placeholder="${canListen() ? "マイクを押して話す（例：石の下と指の間は 1 mm は空ける。汗がたまるから）" : "決まりを書く"}"></textarea>
-      <div class="row"><button type="button" class="ghost-d ar-mic">話す</button><button type="button" class="primary ar-go">決まりにする</button></div>
-      <div class="ar-proposal"></div>
-    </div>
-    <h4>${esc(name)}さんの決まり（${mine.length}）</h4><ul class="rules-l">${mine.map(item).join("")}</ul>
-    <h4>公開情報の目安（${others.length}）</h4><ul class="rules-l">${others.map(item).join("")}</ul>
-    <h4>ほかの道具</h4><p class="tech-what"><a class="link" href="app.html#rebuild">組み立て直す（途切れた技を、手がかりから）</a><br><a class="link" href="app.html#keep">残す（職人が手本を撮る・質問に答える）</a></p>`;
-  $(".bp-close").addEventListener("click", () => ($(".book-panel").hidden = true));
-  const field = $<HTMLTextAreaElement>(".ar-text");
-  const voice = bindVoice($<HTMLButtonElement>(".ar-mic"), field);
-  $(".ar-go").addEventListener("click", () => {
-    voice.stop();
-    void addRuleFromWords(field.value.trim());
-  });
-}
 async function addRuleFromWords(said: string) {
   if (!said) return;
   const name = masterName(store.ledger());
@@ -1096,7 +1061,6 @@ function acceptRule(p: ProposeRuleInput, name: string): string {
   if (!$(".studio-refine").hidden) renderCheck();
   toast(p.param ? `${name}さんの決まりで確かめ直しました：作れない所 ${before} → ${after}` : `${name}さんの決まりを帳面に足しました`);
   flashVerdict();
-  bookCount();
   return id;
 }
 // ---- 職人の一言で、設計の決まりが変わる（確かめるの中） ----
@@ -1816,6 +1780,5 @@ if (new URLSearchParams(location.search).has("rec")) {
 }
 
 setMode("make");
-bookCount();
 void loadSample().catch((e) => ($(".make-status").textContent = `見本の石を読めませんでした：${(e as Error).message}`));
 (window as unknown as { __studio: unknown }).__studio = { get session() { return session; }, setMode, dimsAvoid };

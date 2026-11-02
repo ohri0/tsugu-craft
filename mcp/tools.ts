@@ -1,6 +1,7 @@
 // MCP サーバーが出す道具の中身。画面のボタンや画面の中の Claude と同じ関数（形の処理・確かめるルール・目安帳）で動く。
 // ここの関数は MCP を知らない：入力を受け取って、そのまま JSON にできる結果を返す（テストから直接呼べるように）。
 // 入力の形（Zod）もここで決め、server.ts はそれを登録するだけにする。
+import { MAKING_STEPS, MAKING_STEP_IDS, stepsOfRule, type MakingStepId } from "../src/rules/making";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { z } from "zod";
@@ -88,6 +89,15 @@ export const proposeRuleShape = {
         paramIds.map((k) => `${k}＝${PARAMS[k].label}${PARAMS[k].unit ? `（${PARAMS[k].unit}）` : ""}`).join("、"),
     ),
   value: z.number().optional().describe("param の値（職人が言った数字だけ。単位は param の説明のとおり）"),
+  steps: z
+    .array(z.enum(MAKING_STEP_IDS as [MakingStepId, ...MakingStepId[]]))
+    .optional()
+    .describe(
+      "param を付けない決まり（手の動かし方・道具の当て方など）のとき、作り方のどの工程で効くか。画面の作るのその工程に出る：" +
+        Object.entries(MAKING_STEPS)
+          .map(([k, v]) => `${k}＝${v}`)
+          .join("、"),
+    ),
 };
 
 export const checkRingShape = {
@@ -135,6 +145,7 @@ function ruleView(r: Rule) {
     ...(r.example ? { example: r.example } : {}),
     ...(quoteOf(r) ? { quote: quoteOf(r) } : {}),
     ...(r.param ? { param: r.param, value: r.value, value_label: p ? `${p.label}${p.unit ? `（${p.unit}）` : ""}` : undefined } : {}),
+    ...(stepsOfRule(r).length ? { steps: stepsOfRule(r).map((x) => MAKING_STEPS[x]) } : {}),
     source: sourceLabel(r.source),
     date: r.date,
     ...(r.replaces ? { replaces: r.replaces } : {}),
@@ -176,6 +187,7 @@ export function proposeRule(ctx: ToolContext, input: ProposeRuleInput) {
     ...(parsed.example?.trim() ? { example: parsed.example.trim() } : {}),
     ...(parsed.quote?.trim() ? { quote: parsed.quote.trim() } : {}),
     ...(parsed.param ? { param: parsed.param, value: parsed.value } : {}),
+    ...(!parsed.param && parsed.steps?.length ? { steps: parsed.steps } : {}),
     source: { kind: "craftsman", name: parsed.craftsman },
     date: (ctx.today ?? todayLocal)(),
   };
