@@ -101,9 +101,8 @@ Claude Desktop に足す（設定の「開発者」→ 設定ファイル `claud
 | [Zod](https://github.com/colinhacks/zod) | MCP の道具の入力の形を決めて確かめる | MIT |
 | [tsx](https://github.com/privatenumber/tsx) | MCP サーバーと目安帳を作る小さな処理を、TypeScript のまま動かす | MIT |
 
-| [IPA P ゴシック](https://moji.or.jp/ipafont/) | デモ用のラフの絵（`samples/roughs/`）の手書き風の文字を描くのに使った（絵の中に文字の形として入っているだけで、フォントのファイルは入れていない） | IPA フォントライセンス v1.0 |
 
-画像を使うときは、ここに出典と利用条件を書き足す。`samples/roughs/` のラフの絵は、デモのためにコードで描いたもの（本物の学生の絵ではない）。`samples/triangle_closeup_2026-11-02.jpg` は作者が撮った写真。
+画像を使うときは、ここに出典と利用条件を書き足す。`samples/triangle_closeup_2026-11-02.jpg` は作者が撮った写真。
 
 ## ライセンス
 
