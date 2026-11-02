@@ -10,6 +10,7 @@ import { HOLD_NOTE } from "../rules/checks";
 import { metalName } from "../geometry/ring";
 import { extractStone, NoStoneError, type Extraction } from "../vision/extract";
 import { patternSvg } from "../pattern/sheet";
+import { instructionHtml } from "../pattern/instruction";
 import { build, DEFAULT_DESIGN, rulePlans, type Built, type Design } from "./design";
 import { planThumb } from "./thumb";
 import { mountLedger } from "./ledger-ui";
@@ -42,6 +43,8 @@ interface State {
   design: Design;
   history: Design[];
   built?: Built;
+  /** 選んだ理由（案を選んだときはその理由） */
+  planReason?: string;
 }
 
 /** 帳面の上の数字を出してよいか（教えるの画面ができてから） */
@@ -164,6 +167,7 @@ app.innerHTML = `
       <div class="row" style="margin-top:8px">
         <button id="print" class="primary" disabled>型紙を印刷（原寸）</button>
         <button id="saveSvg" disabled>型紙を保存（SVG）</button>
+        <button id="printInstr" disabled>指示書を印刷（型紙つき）</button>
         
       </div>
     </section>
@@ -379,6 +383,32 @@ $("print").addEventListener("click", () => {
   w.onload = go;
   setTimeout(go, 500);
 });
+function instruction(): string | undefined {
+  const b = state.built;
+  const svg = sheet();
+  if (!b || !svg || !state.measured) return;
+  return instructionHtml({
+    ring: b.ring,
+    problems: b.problems,
+    shapeName: state.shapeName ?? "",
+    depthMm: state.depthMm,
+    widthFromPhoto: state.measured.widthFromPhoto,
+    reason: state.planReason ?? "手で調整した設計（理由は職人が書き足す）",
+    imageDataUrl: viewer.snapshot(),
+    patternSvg: svg,
+    craftsmanRules: activeRules(ledgerUI.ledger()).filter((r) => r.source.kind === "craftsman"),
+    date: new Date().toLocaleDateString("sv-SE"),
+  });
+}
+$("printInstr").addEventListener("click", () => {
+  const html = instruction();
+  if (!html) return;
+  const w = window.open("", "_blank");
+  if (!w) return;
+  w.document.write(html);
+  w.document.close();
+  setTimeout(() => w.print(), 600);
+});
 $("saveSvg").addEventListener("click", () => {
   const svg = sheet();
   if (!svg) return;
@@ -438,6 +468,7 @@ function update() {
   state.shapeName = nameShape(state.measured.outlineMm, state.cornersMm).name;
   $<HTMLButtonElement>("print").disabled = false;
   $<HTMLButtonElement>("saveSvg").disabled = false;
+  $<HTMLButtonElement>("printInstr").disabled = false;
   const others = e.candidates.length - 1;
   $("wholeCap").textContent = `${state.sourceLabel ?? "写真"}。${others > 0 ? `ほかに石の候補が ${others} つ（点線）。` : ""}違う所を拾ったら、石を押して選び直す`;
   drawPhotos();
@@ -544,10 +575,11 @@ function renderPlans() {
   $("plans").querySelectorAll<HTMLButtonElement>("[data-plan]").forEach((el) =>
     el.addEventListener("click", () => {
       const p = plans[Number(el.dataset.plan)];
+      state.planReason = `${p.name}：${p.reason}`;
       setDesign({ ...p.design }, `案「${p.name}」に切り替え`);
     }),
   );
 }
 
 // 確かめ用（ヘッドレスのブラウザから読む）
-(window as unknown as { __tsugu: unknown }).__tsugu = { state, viewer, load: setImage, sheet, setDesign };
+(window as unknown as { __tsugu: unknown }).__tsugu = { state, viewer, load: setImage, sheet, setDesign, instruction, book };
