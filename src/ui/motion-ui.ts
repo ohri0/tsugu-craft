@@ -101,7 +101,12 @@ export interface MotionUI {
   current(): SkillRecord | null;
 }
 
-export function mountMotion(root: HTMLElement): MotionUI {
+export interface MotionOptions {
+  /** 職人の一言を、帳面の決まりにするとき（仕事の名前・職人・動画の時刻を添えて渡す） */
+  onNoteToRule?: (note: { text: string; t: number; clock: string; title: string; craftsman: string }) => void;
+}
+
+export function mountMotion(root: HTMLElement, opts: MotionOptions = {}): MotionUI {
   const p = `motion${++uid}`;
   root.classList.add("motion");
   root.innerHTML = `
@@ -531,10 +536,25 @@ export function mountMotion(root: HTMLElement): MotionUI {
     q("motion-notes").innerHTML = notes
       .map(
         (n, i) =>
-          `<li><button class="motion-note-t" data-i="${i}">${clock(n.t)}</button><span>${esc(n.text)}</span><button class="motion-note-del" data-i="${i}" aria-label="この言葉を消す">×</button></li>`,
+          `<li><button class="motion-note-t" data-i="${i}">${clock(n.t)}</button><span>${esc(n.text)}</span>${
+            opts.onNoteToRule ? `<button class="motion-note-rule" data-i="${i}">帳面の決まりにする</button>` : ""
+          }<button class="motion-note-del" data-i="${i}" aria-label="この言葉を消す">×</button></li>`,
       )
       .join("");
     root.querySelectorAll<HTMLButtonElement>(".motion-note-t").forEach((b) => b.addEventListener("click", () => seek(notes[Number(b.dataset.i)].t)));
+    root.querySelectorAll<HTMLButtonElement>(".motion-note-rule").forEach((b) =>
+      b.addEventListener("click", () => {
+        const n = notes[Number(b.dataset.i)];
+        if (!n) return;
+        opts.onNoteToRule?.({
+          text: n.text,
+          t: n.t,
+          clock: clock(n.t),
+          title: q<HTMLInputElement>("motion-title").value.trim(),
+          craftsman: q<HTMLInputElement>("motion-who").value.trim(),
+        });
+      }),
+    );
     root.querySelectorAll<HTMLButtonElement>(".motion-note-del").forEach((b) =>
       b.addEventListener("click", () => {
         notes = notes.filter((_, i) => i !== Number(b.dataset.i));

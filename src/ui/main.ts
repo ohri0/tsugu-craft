@@ -223,7 +223,22 @@ $("keepManual").appendChild(document.getElementById("manual")!.closest("details"
 (document.getElementById("interview") as HTMLDetailsElement).open = true;
 
 // 手の記録（試作）
-mountMotion($("motionRoot"));
+mountMotion($("motionRoot"), {
+  // 手の記録の一言を、帳面の決まりの下書きにする（手の動きと判断をつなぐ）
+  onNoteToRule: (n) => {
+    const box = document.querySelector("#manual")?.closest("details");
+    if (box) box.open = true;
+    const set = (f: string, v: string) => {
+      const el = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(`#manual [data-f="${f}"]`);
+      if (el && v) el.value = v;
+    };
+    set("title", n.title ? `${n.title}：${n.text}` : n.text);
+    set("text", n.text);
+    set("reason", `（手の記録「${n.title || "作業"}」${n.clock} の一言から。理由を書き足す）`);
+    set("name", n.craftsman);
+    document.querySelector("#manual")?.scrollIntoView({ behavior: "smooth", block: "center" });
+  },
+});
 
 const teachUI = mountTeach($("teachRoot"), {
   ledger: () => ledgerUI.ledger(),
