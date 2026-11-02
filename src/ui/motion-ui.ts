@@ -197,6 +197,8 @@ export function mountMotion(root: HTMLElement, opts: MotionOptions = {}): Motion
   let notes: SkillNote[] = [];
   let cursorT = 0;
   let abort: AbortController | null = null;
+  /** 残した記録を開いて、その動画を待っているとき、その動画の名前。動画を読み終えたあとは null（名前が同じでも別の動画として読む） */
+  let awaitingVideo: string | null = null;
 
   // ---- 動画を選ぶ・読む ----
 
@@ -207,12 +209,18 @@ export function mountMotion(root: HTMLElement, opts: MotionOptions = {}): Motion
     videoName = file.name || "動画";
     video.src = videoUrl;
     q("motion-stage").hidden = false;
-    const sameAsRecord = record !== null && record.videoName === videoName && overlayFrames.length > 0;
+    const sameAsRecord = record !== null && awaitingVideo !== null && awaitingVideo === videoName && overlayFrames.length > 0;
+    awaitingVideo = null;
     if (sameAsRecord) {
       status(`記録「${record!.title}」の動画としてつなぎました。骨組みは残した手の点から重ねます。`);
       q("motion-retrack-row").hidden = false;
       return;
     }
+    // 別の動画：前の結果は消してから読む（読み終わる前に「残す」を押して、前の記録を上書きしないように）
+    record = null;
+    notes = [];
+    cursorT = 0;
+    q("motion-result").hidden = true;
     void runTracking();
   }
 
@@ -667,6 +675,7 @@ export function mountMotion(root: HTMLElement, opts: MotionOptions = {}): Motion
     q<HTMLInputElement>("motion-title").value = r.title;
     q<HTMLInputElement>("motion-who").value = r.craftsman;
     cursorT = 0;
+    awaitingVideo = r.videoName || null;
     if (videoUrl && videoName === r.videoName) {
       q("motion-retrack-row").hidden = false;
     } else {
