@@ -378,7 +378,7 @@ export function mountSee(root: HTMLElement): { refresh(): void } {
   async function redPen(m: Moment, box: HTMLElement) {
     if (!current || !learner || !cmp) return;
     const name = current.record.craftsman || masterName(store.ledger());
-    const pass = store.password() || (await askPassword());
+    const pass = store.password() || (await askPassword(true));
     const note = box.querySelector<HTMLElement>(".pen-note")!;
     note.hidden = false;
     if (!pass) {

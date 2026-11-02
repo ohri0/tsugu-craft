@@ -4,8 +4,9 @@ import { store } from "./store";
 
 let skipped = false;
 
-export function askPassword(): Promise<string> {
-  if (skipped) return Promise.resolve("");
+/** force：「合言葉なしで使う」を選んだあとでも、人がボタンを押して Claude を頼んだときは聞き直す */
+export function askPassword(force = false): Promise<string> {
+  if (skipped && !force) return Promise.resolve("");
   return new Promise((resolve) => {
     const dlg = document.createElement("dialog");
     dlg.className = "sheet";

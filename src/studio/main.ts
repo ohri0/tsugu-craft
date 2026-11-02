@@ -112,9 +112,7 @@ app.innerHTML = `
         <div class="kinds">
           <button type="button" data-kind="solitaire" aria-pressed="true">${ICON.solitaire}<span><b>一粒石の指輪</b><small>石の写真から</small></span></button>
           <button type="button" data-kind="band" aria-pressed="false">${ICON.band}<span><b>甲丸・平打ちの指輪</b><small>石なし</small></span></button>
-          <button type="button" disabled>${ICON.pendant}<span><b>覆輪のペンダント</b><small>石を壁で包む</small></span><span class="soon">次</span></button>
         </div>
-        <p class="hint">これから：ピアス・チェーン・パヴェ・ブローチ</p>
       </section>
       <section class="sec band-only" hidden><h4>形</h4><div class="band-ctrl"></div></section>
       <section class="sec solitaire-only"><h4>石</h4>
@@ -462,7 +460,7 @@ $<HTMLInputElement>(".sketch-file").addEventListener("change", async (e) => {
   const dataUrl = c.toDataURL("image/jpeg", 0.85);
   sketch = { dataUrl, base64: dataUrl.split(",")[1], media: "image/jpeg" };
   $(".sketch-thumb").innerHTML = `<img alt="" src="${dataUrl}">`;
-  $(".sketch-sub").textContent = "読み取ります";
+  $(".sketch-sub").textContent = "「生む」で Claude が絵を読みます（合言葉が要ります）";
 });
 
 // ---- 組めたら：3D・数字・赤い所 ----
@@ -580,7 +578,13 @@ document.querySelectorAll<HTMLButtonElement>(".disp button").forEach((b) =>
 // 1〜4 で場面を切り替える（字を書いている間は使わない）
 document.addEventListener("keydown", (e) => {
   const el = e.target as HTMLElement;
-  if (e.metaKey || e.ctrlKey || e.altKey || el.closest("input, textarea")) return;
+  if (e.metaKey || e.ctrlKey || e.altKey || el.closest("input, textarea, select")) return;
+  const why = document.querySelector<HTMLElement>(".why");
+  if (why && !why.hidden) {
+    if (e.key === "Escape") why.querySelector<HTMLButtonElement>(".why-close")?.click();
+    return;
+  }
+  if (document.querySelector("dialog[open]")) return;
   const m = MODES.find((x) => x.key === e.key);
   if (m) setMode(m.id);
 });
@@ -644,9 +648,9 @@ async function make() {
   if (!session || !stone || making) return;
   const wish = $<HTMLInputElement>(".wish").value.trim();
   const st = $(".make-status");
-  const pass = store.password() || (await askPassword());
+  const pass = store.password() || (await askPassword(true));
   if (!pass) {
-    st.textContent = "生むには Claude が要ります。合言葉がないので、決まりごとから作った案を出しています。";
+    st.textContent = "生むには Claude が要ります。合言葉がないので、希望の言葉は使えません。形は今の案（決まりごとから作った案）のままです。「確かめる」の「手で変える」で変えられます。";
     return;
   }
   making = true;
@@ -735,7 +739,7 @@ function renderCheck() {
     `<div class="pick"><span>${name}</span><div>${list.map(([v, l]) => `<button type="button" data-k="${name}" data-v="${v}" aria-pressed="${v === cur}">${l}</button>`).join("")}</div></div>`;
   const fresh = lastRule ? new Set<string>(lastRule.checks) : new Set<string>();
   box.innerHTML = `
-    ${lastRule ? `<section class="rule-flash"><small>${esc(lastRule.by)}さんの決まりで、確かめ直しました</small><b>「${esc(lastRule.quote)}」</b><span>作れない所 <em>${lastRule.before}</em> → <em class="${lastRule.after ? "ng" : "ok"}">${lastRule.after}</em>${lastRule.after && probs.length < lastRule.after ? ` → 直して <em class="${probs.length ? "ng" : "ok"}">${probs.length}</em>` : ""}</span></section>` : ""}
+    ${lastRule ? `<section class="rule-flash"><small>${esc(lastRule.by)}さんの決まりで、確かめ直しました</small><b>${lastRule.spoken ? `「${esc(lastRule.quote)}」` : esc(lastRule.quote)}</b><span>作れない所 <em>${lastRule.before}</em> → <em class="${lastRule.after ? "ng" : "ok"}">${lastRule.after}</em>${lastRule.after && probs.length < lastRule.after ? ` → 直して <em class="${probs.length ? "ng" : "ok"}">${probs.length}</em>` : ""}</span></section>` : ""}
     <section class="big-verdict ${probs.length ? "ng" : "ok"}"><b>${probs.length ? "このままでは作れません" : "このまま作れます"}</b><small>${probs.length ? `直す所 ${probs.length}` : `爪・留まり・すき間・角、すべて目安の内側`}</small></section>
     ${
       probs.length
@@ -1014,7 +1018,7 @@ async function addRuleFromWords(said: string) {
   if (!said) return;
   const name = masterName(store.ledger());
   const slot = $(".ar-proposal");
-  const pass = store.password() || (await askPassword());
+  const pass = store.password() || (await askPassword(true));
   if (!pass) {
     slot.innerHTML = `<p class="tech-what">決まりの案を作るには Claude が要ります。</p>`;
     return;
@@ -1052,7 +1056,7 @@ function acceptRule(p: ProposeRuleInput, name: string): string {
   const next = addRule(store.ledger(), { title: p.title, text: p.text, reason: p.reason, example: p.example, quote: p.quote, param: p.param, value: p.value, steps: p.steps, bySize: p.by_size?.map((x) => ({ upToMm: x.up_to_mm, value: x.value })), source: { kind: "craftsman", name }, date: today() });
   store.setLedger(next);
   const id = next.rules[next.rules.length - 1].id;
-  lastRule = { by: name, quote: p.quote || p.text, before: session?.built ? grouped(session.built).length : before, after: 0, checks: p.param ? [...PARAMS[p.param].checks] : [] };
+  lastRule = { by: name, quote: p.quote || p.text, spoken: Boolean(p.quote), before: session?.built ? grouped(session.built).length : before, after: 0, checks: p.param ? [...PARAMS[p.param].checks] : [] };
   fixLog = [];
   ruleDraft = "";
   const after = session ? session.build("帳面が変わった").problems.length : 0;
@@ -1064,7 +1068,7 @@ function acceptRule(p: ProposeRuleInput, name: string): string {
   return id;
 }
 // ---- 職人の一言で、設計の決まりが変わる（確かめるの中） ----
-let lastRule: { by: string; quote: string; before: number; after: number; checks: string[] } | null = null;
+let lastRule: { by: string; quote: string; spoken: boolean; before: number; after: number; checks: string[] } | null = null;
 let fixLog: { text: string; cls: string }[] = [];
 let ruleDraft = "";
 function rulesSectionHtml(): string {
@@ -1227,8 +1231,12 @@ function flashVerdict() {
 /** 新しい決まりに合うように、Claude に直してもらう（作業は確かめるの中に一行ずつ） */
 async function fixWithClaude() {
   if (!session || !stone || making) return;
-  const pass = store.password() || (await askPassword());
-  if (!pass) return;
+  const pass = store.password() || (await askPassword(true));
+  if (!pass) {
+    fixLog = [{ text: "Claude に直してもらうには合言葉が要ります。合言葉がなくても、上の直し方のボタンか「手で変える」で直せます。", cls: "note" }];
+    renderCheck();
+    return;
+  }
   making = true;
   fixLog = [{ text: "Claude が、帳面の決まりに合うように直しています…", cls: "note" }];
   renderCheck();
@@ -1422,9 +1430,9 @@ async function makeBand() {
   if (making) return;
   const wish = $<HTMLInputElement>(".wish").value.trim();
   const st = $(".make-status");
-  const pass = store.password() || (await askPassword());
+  const pass = store.password() || (await askPassword(true));
   if (!pass) {
-    st.textContent = "生むには Claude が要ります。左の数字で手で作れます。";
+    st.textContent = "生むには Claude が要ります。合言葉がなくても、「形」の数字を変えて手で作れます。";
     return;
   }
   making = true;
@@ -1570,6 +1578,7 @@ function askPrint(hasPattern: boolean, go: (p: { drawing: boolean; steps: boolea
     const pick = { drawing: f("drawing"), steps: f("steps"), pattern: f("pattern"), details: f("details") };
     dlg.remove();
     if (dlg.returnValue === "ok" && (pick.drawing || pick.steps || pick.pattern)) go(pick);
+    else if (dlg.returnValue === "ok") toast("印刷するもの（図面・作り方・型紙）を 1 つ以上選んでください");
   });
   dlg.showModal();
 }
@@ -1647,7 +1656,7 @@ function openSaveWork(slot: HTMLElement, data: WorkData) {
     let leftOver = "";
     let sortNote = "";
     if (said) {
-      const pass = store.password() || (await askPassword());
+      const pass = store.password() || (await askPassword(true));
       if (pass) {
         slot.innerHTML = `<p class="saved working"><span class="pulse"></span> Claude が、話を工程ごとのコツに分けています…</p>`;
         const r = await callTool({ system: tipsPrompt(titles), user: `作った物：${data.title}\n職人が話したこと：${said}`, tool: SORT_TIPS, parse: parseTips(titles), password: pass, speed: "fast" });
@@ -1726,7 +1735,7 @@ function renderWorks() {
     ${works.some(isSample) ? `<button type="button" class="ghost-d w-unsample">見本の作品を消す</button>` : ""}
     <ul class="works-list">${works
       .map(
-        (w) => `<li><img alt="" src="${w.image}"><div><b>${esc(w.title)}</b><small>${esc(w.date)}${w.maker ? ` ・ ${esc(w.maker)}` : ""} ・ ${esc(w.methodLabel)}</small>${w.note ? `<p>「${esc(w.note)}」</p>` : ""}${(w.revisions ?? []).map((r) => `<p class="rev">${esc(r.by)}さんの決まりで直した：${esc(r.change)}</p>`).join("")}<span class="${w.problems.length ? "ng" : "ok"}">${w.problems.length ? "作れない所あり" : "作れる形"}</span></div><button type="button" class="w-del" data-id="${w.id}" aria-label="消す">×</button></li>`,
+        (w) => `<li><img alt="" src="${w.image}"><div><b>${esc(w.title)}</b><small>${esc(w.date)}${w.maker ? ` ・ ${esc(w.maker)}` : ""} ・ ${esc(w.methodLabel)}</small>${w.note ? (isSample(w) ? `<p class="sample-note">${esc(w.note)}</p>` : `<p>「${esc(w.note)}」</p>`) : ""}${(w.revisions ?? []).map((r) => `<p class="rev">${esc(r.by)}さんの決まりで直した：${esc(r.change)}</p>`).join("")}<span class="${w.problems.length ? "ng" : "ok"}">${w.problems.length ? "作れない所あり" : "作れる形"}</span></div><button type="button" class="w-del" data-id="${w.id}" aria-label="消す">×</button></li>`,
       )
       .join("")}</ul>`;
   box.querySelector(".w-print")?.addEventListener("click", () => openPrint(worksBookHtml(loadWorks(), today())));

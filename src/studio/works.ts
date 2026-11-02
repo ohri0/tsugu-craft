@@ -84,7 +84,7 @@ export function worksBookHtml(works: readonly WorkRecord[], date: string): strin
   const page = (w: WorkRecord) => `<section class="page">
     <header><h2>${esc(w.title)}</h2><small>${esc(w.date)}${w.maker ? ` ・ ${esc(w.maker)}` : ""} ・ ${esc(w.methodLabel)}</small></header>
     <div class="top"><img alt="" src="${w.image}"><dl>${w.specs.map((s) => `<div><dt>${esc(s.label)}</dt><dd>${esc(s.value)}</dd></div>`).join("")}</dl></div>
-    ${w.note ? `<blockquote>「${esc(w.note)}」</blockquote>` : ""}
+    ${w.note ? (w.maker === "見本" ? `<p>${esc(w.note)}</p>` : `<blockquote>「${esc(w.note)}」</blockquote>`) : ""}
     ${(w.revisions ?? []).map((r) => `<p class="rev">${esc(r.date)} ${esc(r.by)}さんの決まり「${esc(r.rule)}」で直した：${esc(r.change)}</p>`).join("")}
     <p class="v ${w.problems.length ? "ng" : "ok"}">${w.problems.length ? `作れない所があった：${w.problems.map(esc).join("、")}` : "作れる形だった"}</p>
     <ol>${w.steps.map((s) => `<li><b>${esc(s.title)}</b> ${esc(s.text)}${s.specs.length ? `<br><small>${s.specs.map((x) => `${esc(x.label)} ${esc(x.value)}`).join(" ・ ")}</small>` : ""}${(w.tips ?? []).filter((t) => t.step === s.title).map((t) => `<br><em class="tip">${esc(t.kind)}：${esc(t.text)}</em>`).join("")}</li>`).join("")}</ol>

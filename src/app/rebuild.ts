@@ -67,7 +67,7 @@ export function mountRebuild(root: HTMLElement): void {
         (t, i) => `<li><button type="button" class="tech ready" data-i="${i}">
           <span class="tech-mark" aria-hidden="true">？</span>
           <span class="tech-body"><b>${esc(t.hiddenName)}</b><small>${esc(t.summary)}</small></span>
-          <span class="tech-meta">手がかり ${t.clues.length}${PUBLISHED_RUNS.some((r) => r.technique === t.id) ? " ・ 公開の記録あり" : ""}</span>
+          <span class="tech-meta">手がかり ${cluesFor(t, t.conditions[0]).length}〜${t.clues.length}${PUBLISHED_RUNS.some((r) => r.technique === t.id) ? " ・ 公開の記録あり" : ""}</span>
         </button></li>`,
       ).join("")}</ul>
       <p class="honest">言語モデルは、学習のときにその技の作り方を読んでいるかもしれません。だから、工程の一つ一つに「どの手がかりから考えたか」を書かせ、手がかりなしで出てきた工程は「もともとの知識から」として分けて数えます。</p>
@@ -206,7 +206,7 @@ export function mountRebuild(root: HTMLElement): void {
   }
 
   async function password(): Promise<string> {
-    return localStorage.getItem("tsugu.password.v1") || (await askPassword());
+    return localStorage.getItem("tsugu.password.v1") || (await askPassword(true));
   }
 
   async function build() {

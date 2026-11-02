@@ -528,3 +528,4 @@ dialog.sheet input:focus { border-color: var(--accent); }
 .manual-rule .row { margin-top: 8px; }
 .no-works .link, .link.add-samples { padding: 0; border: 0; background: none; color: var(--accent-2); font: inherit; text-decoration: underline; cursor: pointer; }
 .works-panel .w-unsample { margin: 8px 0; }
+.works-list .sample-note { font-size: 11px; color: var(--fg-3); }
