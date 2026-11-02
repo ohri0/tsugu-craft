@@ -26,8 +26,14 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
     <header class="view-head">
       <p class="eyebrow">職人の画面</p>
       <h2 class="keep-title"></h2>
-      <p class="lead">空いた時間に、届いた質問へ声で答えるだけ。答えは決まりにまとめて、次の人が「聞く」で読めるようにします。</p>
+      <p class="lead">作業を撮るだけで手本になります。届いた質問には、空いた時間に声か動画で答えるだけ。答えは決まりになって、次の人に届きます。</p>
     </header>
+    <div class="block tiles">
+      <button type="button" class="tile" data-open="motion"><b>手本を撮る</b><small>作業を撮るだけ。話さなくていい。手の動きを数字にして、学ぶ人の動画と比べられます</small></button>
+      <button type="button" class="tile" data-open="book"><b>帳面を見る</b><small class="book-sub"></small></button>
+    </div>
+    <div class="block panel motion-panel" hidden><div class="panel-head"><h3>手本を撮る</h3><button type="button" class="ghost close">閉じる</button></div><div class="motion-root"></div></div>
+    <div class="block panel book-panel" hidden><div class="panel-head"><h3>帳面</h3><div class="row"><button type="button" class="ghost print">印刷する</button><button type="button" class="ghost close">閉じる</button></div></div><ul class="book-list"></ul></div>
     <div class="block">
       <h3>届いている質問 <small class="inbox-count"></small></h3>
       <ul class="inbox"></ul>
@@ -36,12 +42,6 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
         <div class="free-body"></div>
       </details>
     </div>
-    <div class="block tiles">
-      <button type="button" class="tile" data-open="motion"><b>手本を撮る</b><small>作業を撮るだけ。話さなくていい。手の動きを数字にして、学ぶ人の動画と比べられます</small></button>
-      <button type="button" class="tile" data-open="book"><b>帳面を見る</b><small class="book-sub"></small></button>
-    </div>
-    <div class="block panel motion-panel" hidden><div class="panel-head"><h3>手本を撮る</h3><button type="button" class="ghost close">閉じる</button></div><div class="motion-root"></div></div>
-    <div class="block panel book-panel" hidden><div class="panel-head"><h3>帳面</h3><div class="row"><button type="button" class="ghost print">印刷する</button><button type="button" class="ghost close">閉じる</button></div></div><ul class="book-list"></ul></div>
   </section>`;
   const $ = <T extends HTMLElement = HTMLElement>(s: string) => root.querySelector<T>(s)!;
 
