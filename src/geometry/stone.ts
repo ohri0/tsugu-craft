@@ -33,6 +33,49 @@ export interface StoneMesh {
 /** 縁の点の数（4 の倍数にする） */
 const GIRDLE_POINTS = 64;
 
+// 面を付けるための形の決まり（職人の目安ではない）。縁から上・下へ、どの高さで縁の形を何倍に縮めるか。
+// 石座はこの形に沿わせるので、ここだけで決める。
+/** 上側の途中の段：上側の高さの at の所で、縁の scale 倍 */
+const CROWN_MID = { at: 0.45, scale: 0.8 };
+/** 上面（テーブル）は縁の scale 倍 */
+const TABLE_SCALE = 0.55;
+/** 下側の途中の段：下側の高さの at の所で、縁の scale 倍 */
+const PAVILION_MID = { at: 0.6, scale: 0.45 };
+
+/** 石の面の段の高さ（z） */
+export function stoneKnots(h: StoneHeights) {
+  const gTop = h.girdleMm / 2;
+  return {
+    girdleTop: gTop,
+    girdleBottom: -gTop,
+    crownMid: gTop + h.crownMm * CROWN_MID.at,
+    pavilionMid: -gTop - h.pavilionMm * PAVILION_MID.at,
+    table: h.tableZ,
+    culet: h.culetZ,
+  };
+}
+
+/**
+ * 高さ z での、石の外形の縮み（縁 ＝ 1）。重心を中心に縁の形をこの倍率に縮めると、その高さの石の外側になる。
+ * テーブルより上は TABLE_SCALE、キューレットより下は 0。
+ */
+export function stoneScaleAt(h: StoneHeights, z: number): number {
+  const k = stoneKnots(h);
+  const lerp = (z0: number, s0: number, z1: number, s1: number) => (z1 === z0 ? s1 : s0 + ((s1 - s0) * (z - z0)) / (z1 - z0));
+  if (z >= k.table) return TABLE_SCALE;
+  if (z >= k.crownMid) return lerp(k.crownMid, CROWN_MID.scale, k.table, TABLE_SCALE);
+  if (z >= k.girdleTop) return lerp(k.girdleTop, 1, k.crownMid, CROWN_MID.scale);
+  if (z >= k.girdleBottom) return 1;
+  if (z >= k.pavilionMid) return lerp(k.girdleBottom, 1, k.pavilionMid, PAVILION_MID.scale);
+  if (z >= k.culet) return lerp(k.pavilionMid, PAVILION_MID.scale, k.culet, 0);
+  return 0;
+}
+
+/** 石の 3D で使う縁の点と重心（石座も同じ中心で縮める） */
+export function girdleCenter(outlineMm: readonly Point[]): Point {
+  return centroid(resample(toCounterClockwise(outlineMm), GIRDLE_POINTS));
+}
+
 export function stoneHeights(p: StoneParams): StoneHeights {
   const [c, v] = GUIDES.stone.defaultCrownPavilion;
   const crownRatio = p.crownRatio ?? c / (c + v);
@@ -47,6 +90,7 @@ export function buildStone(p: StoneParams): StoneMesh {
   const h = stoneHeights(p);
   const girdle = resample(toCounterClockwise(p.outlineMm), GIRDLE_POINTS);
   const c = centroid(girdle);
+  const k = stoneKnots(h);
   const ring = (scale: number, z: number, step: number): V3[] => {
     const out: V3[] = [];
     for (let i = 0; i < girdle.length; i += step) {
@@ -59,9 +103,9 @@ export function buildStone(p: StoneParams): StoneMesh {
   const tris: V3[][] = [];
   const girdleTop = ring(1, gTop, 1);
   const girdleBottom = ring(1, -gTop, 1);
-  const crownMid = ring(0.8, gTop + h.crownMm * 0.45, 2);
-  const table = ring(0.55, h.tableZ, 4);
-  const pavMid = ring(0.45, -gTop - h.pavilionMm * 0.6, 4);
+  const crownMid = ring(CROWN_MID.scale, k.crownMid, 2);
+  const table = ring(TABLE_SCALE, k.table, 4);
+  const pavMid = ring(PAVILION_MID.scale, k.pavilionMid, 4);
   const culet: V3 = [c.x, c.y, h.culetZ];
   const tableCenter: V3 = [c.x, c.y, h.tableZ];
 
