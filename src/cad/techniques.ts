@@ -110,10 +110,12 @@ export function makeSurface(t: TechniqueId, base: MetalId, p: TechniqueParams, m
   }
 }
 
+/** 木目金の重ねる金属の組。色は、煮色（煮て色を出す仕上げ）のあとの落ち着いた色にする（銅は赤茶、赤銅は黒、四分一は灰） */
+const NIIRO = { copper: "#9b4f30", shakudo: "#221c1d", silver: "#cbc7bd", shibuichi: "#7d7a74", gold: "#d2a54a" } as const;
 export const MOKUME_PALETTES: { name: string; colors: string[] }[] = [
-  { name: "銅・赤銅・銀", colors: [METALS.copper.color, METALS.shakudo.color, METALS.sv.color, METALS.shakudo.color] },
-  { name: "銅・四分一", colors: [METALS.copper.color, METALS.shibuichi.color] },
-  { name: "金・銀・赤銅", colors: [METALS.k18.color, METALS.sv.color, METALS.shakudo.color, METALS.sv.color] },
+  { name: "銅・赤銅・銀", colors: [NIIRO.copper, NIIRO.shakudo, NIIRO.silver, NIIRO.shakudo] },
+  { name: "銅・四分一", colors: [NIIRO.copper, NIIRO.shibuichi] },
+  { name: "金・銀・赤銅", colors: [NIIRO.gold, NIIRO.silver, NIIRO.shakudo, NIIRO.silver] },
 ];
 
 function mokume(p: TechniqueParams, palette: readonly string[] = MOKUME_PALETTES[0].colors): Surface {

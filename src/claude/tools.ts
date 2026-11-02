@@ -21,7 +21,7 @@ export function isToolName(name: string): name is ToolName {
  * 1 回だけ呼んで結果を受け取る道具（組み立て直す：src/rebuild/tools.ts、赤ペン：src/claude/redpen.ts）。
  * 定義はそちらに置き、サーバーが「継ぐ」の道具として通す名前だけをここに書く。
  */
-export const STRUCTURED_TOOL_NAMES = ["propose_process", "grade_process", "red_pen"] as const;
+export const STRUCTURED_TOOL_NAMES = ["propose_process", "grade_process", "red_pen", "make_design"] as const;
 
 /** サーバー（api/claude.ts）が通す道具の名前 */
 export function isAllowedToolName(name: string): boolean {
