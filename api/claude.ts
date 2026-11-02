@@ -7,7 +7,7 @@
 //   Claude Console 側でも使える金額の上限を決めておく（docs/SPEC.md「公開しても安全にするための決まり」）。
 import Anthropic from "@anthropic-ai/sdk";
 import { timingSafeEqual } from "node:crypto";
-import { isToolName } from "../src/claude/tools.js";
+import { isAllowedToolName } from "../src/claude/tools.js";
 import {
   PASSWORD_HEADER,
   REMAINING_HEADER,
@@ -47,7 +47,7 @@ const LIMITS = {
   systemChars: 40_000,
   tools: 8,
   /** Claude を待つ時間（ミリ秒）と、やり直しの回数 */
-  timeoutMs: 120_000,
+  timeoutMs: 200_000,
   maxRetries: 1,
 } as const;
 
@@ -98,7 +98,7 @@ function parseBody(raw: unknown): { ok: true; body: ParsedBody } | { ok: false; 
   for (const t of tools) {
     const tool = t as { name?: unknown; type?: unknown; input_schema?: unknown } | null;
     const custom = tool?.type === undefined || tool?.type === null || tool?.type === "custom";
-    if (!custom || typeof tool?.name !== "string" || !isToolName(tool.name) || typeof tool.input_schema !== "object") {
+    if (!custom || typeof tool?.name !== "string" || !isAllowedToolName(tool.name) || typeof tool.input_schema !== "object") {
       return { ok: false, message: "「継ぐ」の道具ではないものが入っています。" };
     }
   }

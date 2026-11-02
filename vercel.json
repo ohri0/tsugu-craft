@@ -3,6 +3,6 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "functions": {
-    "api/claude.ts": { "maxDuration": 60 }
+    "api/claude.ts": { "maxDuration": 300 }
   }
 }

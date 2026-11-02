@@ -17,6 +17,17 @@ export function isToolName(name: string): name is ToolName {
   return (TOOL_NAMES as readonly string[]).includes(name);
 }
 
+/**
+ * 1 回だけ呼んで結果を受け取る道具（組み立て直す：src/rebuild/tools.ts）。
+ * 定義はそちらに置き、サーバーが「継ぐ」の道具として通す名前だけをここに書く。
+ */
+export const STRUCTURED_TOOL_NAMES = ["propose_process", "grade_process"] as const;
+
+/** サーバー（api/claude.ts）が通す道具の名前 */
+export function isAllowedToolName(name: string): boolean {
+  return isToolName(name) || (STRUCTURED_TOOL_NAMES as readonly string[]).includes(name);
+}
+
 // ---- 入力 ----
 
 /** 聞き取りで、職人の言葉を決まりにして目安帳に足す案 */
