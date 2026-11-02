@@ -108,7 +108,7 @@ export function mountLedger(root: HTMLElement, onChange: LedgerChange): LedgerUI
     const value = r.param && r.value !== undefined ? `<span class="val">${r.value}${PARAMS[r.param].unit}</span>` : "";
     return `<li class="${kind}${replaced ? " old" : ""}"><b>${esc(r.title)}</b>${value}<span class="badge src-${kind}">${esc(sourceLabel(r.source))}・${r.date}</span>${
       replaced ? '<span class="badge">置き換え済み</span>' : ""
-    }<span class="why">${esc(r.text)}／理由：${esc(r.reason)}</span></li>`;
+    }<span class="why">${esc(r.text)}／理由：${esc(r.reason)}${r.quote ? `／「${esc(r.quote)}」` : ""}</span></li>`;
   }
 
   $("ruleUndo").addEventListener("click", () => set(removeLastRule(ledger), "最後に足した決まりを外した"));
@@ -207,6 +207,7 @@ export function mountLedger(root: HTMLElement, onChange: LedgerChange): LedgerUI
           text: edited.text,
           reason: edited.reason,
           example: p.example,
+          quote: p.quote,
           param: p.param,
           value: edited.value,
           source: { kind: "craftsman", name },

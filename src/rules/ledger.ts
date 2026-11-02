@@ -34,6 +34,8 @@ export interface Rule {
   reason: string;
   /** 例（あれば） */
   example?: string;
+  /** 職人の言葉そのまま（聞き取りで残したもの） */
+  quote?: string;
   /** 機械で確かめる値に結びつくとき */
   param?: ParamId;
   value?: number;
@@ -192,7 +194,7 @@ export function sourceLabel(s: RuleSource): string {
 /** Claude に渡す、目安帳の文章 */
 export function ledgerText(ledger: Ledger): string {
   return activeRules(ledger)
-    .map((r) => `- [${r.id}] ${r.title}：${r.text}（理由：${r.reason}${r.example ? `／例：${r.example}` : ""}／出どころ：${sourceLabel(r.source)}、${r.date}）`)
+    .map((r) => `- [${r.id}] ${r.title}：${r.text}（理由：${r.reason}${r.example ? `／例：${r.example}` : ""}${r.quote ? `／職人の言葉：「${r.quote}」` : ""}／出どころ：${sourceLabel(r.source)}、${r.date}）`)
     .join("\n");
 }
 
