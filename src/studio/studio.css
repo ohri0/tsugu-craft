@@ -235,3 +235,7 @@
 .rhino .make-status { left: auto; right: calc(var(--side-w) + 16px); bottom: calc(var(--bottom-h) + 8px); background: rgba(11, 10, 9, 0.7); padding: 4px 10px; border-radius: 8px; }
 .rhino .make-status:empty { display: none; }
 @media (max-width: 760px) { .rhino .make-status { position: static; right: auto; background: transparent; } }
+.ts-3d { height: 240px; border-radius: 12px; overflow: hidden; border: 1px solid var(--hair); background: #0e0c0a; touch-action: none; }
+.ts-3d canvas { display: block; width: 100%; height: 100%; }
+.ts-hint { margin: 4px 0 10px; font-size: 10px; color: var(--ivory-3); letter-spacing: 0.08em; }
+.tool-chip.has-3d::after { content: "3D"; font-size: 8px; margin-left: 5px; color: #e9c46a; letter-spacing: 0.05em; }

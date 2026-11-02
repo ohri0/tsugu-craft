@@ -55,15 +55,17 @@ function seat(): string {
   );
 }
 
-/** ヤスリ：すり板に品を押し付けて、ヤスリを前に押して削る */
+/** ヤスリ：すり板の先（V 字の所）に地金を押し付け、すり板から少し出た所を、押すときに削る */
 function file(): string {
   return svg(
-    `<rect x="10" y="88" width="150" height="22" rx="3" fill="#8b6a46"/><polygon points="160,88 230,96 230,104 160,110" fill="#8b6a46"/>
-     <rect x="96" y="74" width="40" height="14" fill="${METAL}"/>
-     <g class="file"><rect x="40" y="60" width="120" height="12" rx="2" fill="#7c7670"/><rect x="160" y="62" width="50" height="8" rx="3" fill="#4a3f38"/>${Array.from({ length: 14 }, (_, i) => `<line x1="${44 + i * 8}" y1="61" x2="${48 + i * 8}" y2="71" stroke="#5d5853"/>`).join("")}</g>
-     <text x="8" y="140" fill="${LINE}" font-size="11">押すときに削る。角度を変えず、引くときは浮かせる</text>`,
-    `.file{animation:stroke 1.6s ease-in-out infinite}
-     @keyframes stroke{0%{transform:translate(30px,0)}45%{transform:translate(-30px,0)}55%{transform:translate(-30px,-6px)}95%{transform:translate(30px,-6px)}100%{transform:translate(30px,0)}}`,
+    `<polygon points="8,92 150,92 150,112 8,112" fill="#8b6a46"/><polygon points="150,92 196,98 196,106 150,112" fill="#7a5b3b"/>
+     <rect x="128" y="80" width="80" height="12" fill="${METAL}"/>
+     <ellipse cx="146" cy="74" rx="16" ry="9" fill="#e0b9a0"/><text x="104" y="58" fill="#e0b9a0" font-size="10">押さえる手</text>
+     <g class="file"><rect x="160" y="40" width="10" height="70" rx="2" fill="#7c7670"/>${Array.from({ length: 9 }, (_, i) => `<line x1="160" y1="${46 + i * 7}" x2="170" y2="${50 + i * 7}" stroke="#5d5853"/>`).join("")}<rect x="162" y="10" width="6" height="30" rx="3" fill="#4a3f38"/></g>
+     <line x1="150" y1="118" x2="150" y2="126" stroke="#e9c46a"/><text x="96" y="136" fill="#e9c46a" font-size="10">すり板の先から少し出す</text>
+     <text x="8" y="148" fill="${LINE}" font-size="11">押すときに削る。角度を変えず、引くときは浮かせる</text>`,
+    `.file{animation:stroke 1.6s ease-in-out infinite;transform-origin:165px 75px}
+     @keyframes stroke{0%{transform:translate(28px,-14px) rotate(8deg)}45%{transform:translate(28px,22px) rotate(8deg)}55%{transform:translate(36px,22px) rotate(8deg)}95%{transform:translate(36px,-14px) rotate(8deg)}100%{transform:translate(28px,-14px) rotate(8deg)}}`,
   );
 }
 
