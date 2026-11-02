@@ -222,7 +222,7 @@ export class Viewer {
  * 床に落ちる淡い影。床（z ＝ 0）から真上を向いた正射のカメラで、床に近い部分ほど濃く写し、ぼかして床に貼る。
  * 光の向きによらない「置いた所が少し暗い」影なので、どの向きから見ても自然に見える。
  */
-class ContactShadow {
+export class ContactShadow {
   readonly plane: THREE.Mesh;
   private target = new THREE.WebGLRenderTarget(SHADOW.size, SHADOW.size);
   private temp = new THREE.WebGLRenderTarget(SHADOW.size, SHADOW.size);
@@ -316,7 +316,7 @@ class ContactShadow {
  * 映り込み用の撮影台：上が明るく下が暗い大きな球の内側に、やわらかい光の箱をいくつか置く。
  * 金属の面に、すっと伸びた明るい帯と、なめらかな濃淡が映る。
  */
-function studioScene(): THREE.Scene {
+export function studioScene(): THREE.Scene {
   const s = new THREE.Scene();
   const dome = new THREE.Mesh(
     new THREE.SphereGeometry(50, 48, 24),
@@ -353,7 +353,7 @@ function studioScene(): THREE.Scene {
 }
 
 /** 背景：真ん中がわずかに明るい、紙のような淡い色 */
-function backdropTexture(): THREE.Texture {
+export function backdropTexture(): THREE.Texture {
   const c = document.createElement("canvas");
   c.width = 512;
   c.height = 512;

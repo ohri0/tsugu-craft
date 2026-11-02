@@ -76,19 +76,23 @@ function waves(x: number, y: number, seed: number): number {
   const rand = rng(seed + 101);
   let v = 0;
   for (let k = 0; k < 4; k++) {
-    const fx = 2 + rand() * 6;
-    const fy = 2 + rand() * 6;
+    // 整数の波の数にして、端と端がつながる（板に貼ったときに継ぎ目が出ない）
+    const fx = 1 + Math.floor(rand() * 4);
+    const fy = 1 + Math.floor(rand() * 4);
     const ph = rand() * Math.PI * 2;
-    v += Math.sin(x * fx * Math.PI + y * fy * Math.PI * 0.7 + ph) / (k + 1);
+    v += Math.sin(2 * Math.PI * (x * fx + y * fy) + ph) / (k + 1);
   }
   return v / 2.1;
 }
 
-/** 位置 (x, y)（0〜1）の、彫った深さ（0〜1）。丸いくぼみのいちばん深い所を取る */
+/** 端と端をつないだ（くり返す）ときの距離 */
+const wrap = (a: number) => a - Math.round(a);
+
+/** 位置 (x, y)（0〜1）の、彫った深さ（0〜1）。丸いくぼみのいちばん深い所を取る。上下左右はつながっている（くり返して貼れる） */
 export function carveDepth(pits: readonly Pit[], x: number, y: number): number {
   let d = 0;
   for (const p of pits) {
-    const q = Math.hypot(x - p.x, y - p.y) / p.r;
+    const q = Math.hypot(wrap(x - p.x), wrap(y - p.y)) / p.r;
     if (q < 1) d = Math.max(d, p.d * Math.sqrt(1 - q * q));
   }
   return d;
