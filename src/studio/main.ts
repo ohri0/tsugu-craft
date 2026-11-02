@@ -1,5 +1,5 @@
 // 継ぐ：デザインを、職人の判断で「作れる形」にする。
-// 生む。  石の写真・デザインの絵・希望の言葉 → Claude が指輪を組み、職人の決まりで確かめ、直す（作業の記録が見える）。
+// 生む。  石の写真・デザインの絵・希望の言葉 → Claude が指輪を組み、作れるか確かめ、直す（作業の記録が見える）。
 // 整える。作れない所が赤く光り、誰のどの決まりかと、見た目への影響つきの直し方が出る。人も同じつまみで直せる。
 // 渡す。  職人への指示書・原寸の型紙・3D データ。
 // 帳面   職人が声で決まりを足すと、その場で確かめが変わる。
@@ -14,7 +14,6 @@ import { runClaude, type LogEntry } from "../claude/loop";
 import { designPrompt, keepPrompt } from "../claude/prompt";
 import { TOOLS, type ProposeRuleInput, type ProposeRuleResult, type ToolHost, type Metal } from "../claude/tools";
 import type { ClaudeContentBlockParam } from "../claude/wire";
-import { instructionHtml } from "../pattern/instruction";
 import { patternSvg } from "../pattern/sheet";
 import { rulePlans } from "../ui/design";
 import { loadPhoto } from "../ui/photo";
@@ -28,12 +27,14 @@ import { masterName } from "../app/master";
 import { toStl } from "../cad/solid";
 import { buildStone } from "../geometry/stone";
 import { METAL_LABEL, RingSession, type Built } from "./session";
+import { howToMake, type Method } from "./howto";
+import { sheetHtml } from "./sheet";
 
 type Mode = "make" | "refine" | "hand";
 const MODES: { id: Mode; word: string; sub: string }[] = [
   { id: "make", word: "生む。", sub: "石と絵と言葉から" },
-  { id: "refine", word: "整える。", sub: "職人の決まりで確かめる" },
-  { id: "hand", word: "渡す。", sub: "職人への指示書" },
+  { id: "refine", word: "確かめる。", sub: "作れるか" },
+  { id: "hand", word: "作る。", sub: "手作り・鋳造の作り方" },
 ];
 const SAMPLE = { url: "stones/triangle.jpg", longMm: 8.88, depthMm: 4.24, label: "作者の石（淡い青の三角）" };
 
@@ -78,7 +79,7 @@ app.innerHTML = `
   </div>
 
   <aside class="refine-panel studio-refine" hidden></aside>
-  <div class="hand-panel" hidden></div>
+  <aside class="refine-panel build-panel studio-build" hidden></aside>
   <aside class="book-panel" hidden></aside>
   <div class="intro-stage" hidden><canvas class="intro-photo"></canvas><svg class="intro-line" preserveAspectRatio="none"></svg><p class="intro-cap"></p></div>
 </div>`;
@@ -243,9 +244,10 @@ function onBuilt(b: Built, _why: string) {
   const chip = $(".verdict-chip");
   chip.hidden = false;
   chip.className = `verdict-chip ${n ? "ng" : "ok"}`;
-  chip.textContent = n ? `作れない所 ${n}` : "職人の決まりの内側";
+  chip.textContent = n ? `作れない所 ${grouped(b).length}` : "作れます";
   $(".word-name").textContent = `${stone.shapeName}の一粒石の指輪`;
-  if (!$(".refine-panel").hidden) renderRefine();
+  if (!$(".studio-refine").hidden) renderCheck();
+  if (!$(".build-panel").hidden) renderBuild();
 }
 
 // ---- 場面 ----
@@ -255,14 +257,14 @@ function setMode(m: Mode) {
   $(".word-sub").textContent = w.sub;
   document.querySelectorAll<HTMLButtonElement>(".modes button").forEach((b) => b.setAttribute("aria-current", String(b.dataset.mode === m)));
   $(".make-bar").hidden = m !== "make";
-  $(".refine-panel").hidden = m !== "refine";
-  $(".hand-panel").hidden = m !== "hand";
+  $(".studio-refine").hidden = m !== "refine";
+  $(".build-panel").hidden = m !== "hand";
   $(".cad").setAttribute("data-mode", m);
   viewer.setAutoRotate(m === "make");
   // スマホでは、下の板に隠れないよう品を上に寄せる
   viewer.setLift(window.innerWidth <= 760 ? (m === "hand" ? 0.1 : 0.16) : 0);
-  if (m === "refine") renderRefine();
-  if (m === "hand") renderHand();
+  if (m === "refine") renderCheck();
+  if (m === "hand") renderBuild();
 }
 document.querySelectorAll<HTMLButtonElement>(".modes button").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode as Mode)));
 
@@ -320,7 +322,7 @@ async function make() {
   }
   making = true;
   $(".worklog").innerHTML = "";
-  st.innerHTML = `<span class="pulse"></span> Claude が組んで、職人の決まりで確かめています…`;
+  st.innerHTML = `<span class="pulse"></span> Claude が組んで、作れるか確かめています…`;
   const content: ClaudeContentBlockParam[] = [{ type: "text", text: `${stoneText()}\n${wish ? `希望：${wish}` : "希望：特になし（ふつうの普段使いの一粒石の指輪）"}` }];
   if (sketch) {
     content.push({ type: "text", text: "デザイナーの絵：この雰囲気に近づけてください。絵から分かることと分からないことを分けて書いてください。" });
@@ -374,45 +376,49 @@ function showCannot(text: string) {
   el.textContent = text ? `まだできないこと：${text}` : "";
 }
 
-// ---- 整える。 ----
-function ruleChip(r?: Rule): string {
-  if (!r) return "";
-  const who = r.source.kind === "craftsman" ? `${r.source.name}さんの決まり` : r.source.kind === "public" ? "公開情報の目安" : "仮の目安";
-  return `<div class="rule-chip ${r.source.kind}"><b>${esc(who)}</b><span>${r.quote ? `「${esc(r.quote)}」` : esc(r.text)}</span><small>${esc(r.title)} ・ ${esc(r.date)}</small></div>`;
+// ---- 確かめる。：作れるか。直す所は短く ----
+const SHORT: Record<string, string> = {
+  "prong-thin": "爪が細い",
+  "finger-gap": "石が指に近い",
+  "tip-height": "爪の先の高さ",
+  hold: "石の留まりが弱い",
+  "prong-gap": "爪と爪の間が広い",
+  corner: "角が守られていない",
+  "bezel-wall": "覆輪の壁が薄い",
+};
+function grouped(b: Built) {
+  const groups = new Map<string, { p: (typeof b.problems)[number]; n: number }>();
+  for (const p of b.problems) {
+    const g = groups.get(p.check);
+    if (g) g.n++;
+    else groups.set(p.check, { p, n: 1 });
+  }
+  return [...groups.values()];
 }
-function renderRefine() {
+function renderCheck() {
   if (!session?.built) return;
   const b = session.built;
   const s = session.state;
-  // 同じ確かめ・同じ数字の問題（爪 1・2・3 など）は 1 つにまとめる
-  const groups = new Map<string, { p: (typeof b.problems)[number]; where: string[] }>();
-  for (const p of b.problems) {
-    const k = `${p.check}|${p.current}|${p.required}`;
-    const g = groups.get(k);
-    if (g) g.where.push(p.where);
-    else groups.set(k, { p, where: [p.where] });
-  }
-  const probs = [...groups.values()].map((g) => ({ ...g.p, where: g.where.length > 1 ? `${g.where[0]} ほか ${g.where.length - 1} か所` : g.where[0] }));
-  const box = $(".refine-panel");
+  const probs = grouped(b);
+  const box = $(".studio-refine");
   const pick = <T extends string | number>(name: string, cur: T, list: [T, string][]) =>
     `<div class="pick"><span>${name}</span><div>${list.map(([v, l]) => `<button type="button" data-k="${name}" data-v="${v}" aria-pressed="${v === cur}">${l}</button>`).join("")}</div></div>`;
   box.innerHTML = `
-    <section><h3>${b.problems.length ? `作れない所 ${b.problems.length}` : "職人の決まりの内側です"}</h3>
-      ${
-        probs.length
-          ? `<ul class="probs">${probs
-              .map(
-                (p, i) => `<li><p class="p-where">${esc(p.where)}</p><p class="p-num">今 <b>${esc(p.current)}</b> ／ 必要 ${esc(p.required)}</p><p class="p-why">${esc(p.reason)}</p>${ruleChip(p.rule)}
-              <div class="fixes">${p.options.map((o, j) => `<button type="button" data-p="${i}" data-o="${j}">${esc(o.label)}<small>${esc(o.effectOnLook)}</small></button>`).join("")}</div></li>`,
-              )
-              .join("")}</ul>`
-          : `<p class="tech-what">爪の太さ・石と指のすき間・石の留まり・尖った角の守りは、どれも帳面の決まりの内側です。数字は目安・最後は職人が決める。</p>`
-      }
-    </section>
-    ${reason ? `<section><h3>決めた理由</h3><p class="tech-what">${esc(reason).replace(/\n/g, "<br>")}</p></section>` : ""}
-    <section class="manual"><h3>手で整える</h3>
+    <section class="big-verdict ${probs.length ? "ng" : "ok"}"><b>${probs.length ? "このままでは作れません" : "このまま作れます"}</b><small>${probs.length ? `直す所 ${probs.length}` : `爪・留まり・すき間・角、すべて目安の内側`}</small></section>
+    ${
+      probs.length
+        ? `<ul class="probs">${probs
+            .map(
+              ({ p, n }, i) => `<li><div class="p-head"><b>${esc(SHORT[p.check] ?? p.where)}</b>${n > 1 ? `<small>${n} か所</small>` : ""}</div>
+              <p class="p-num">${esc(p.current)} <span>→</span> ${esc(p.required)}</p>
+              <div class="p-act"><button type="button" class="fix-go" data-p="${i}">${esc(p.options[0]?.label ?? "直す")}</button><details><summary>なぜ</summary><p>${esc(p.reason)}</p></details></div></li>`,
+            )
+            .join("")}</ul>`
+        : ""
+    }
+    <details class="manual" ${probs.length ? "" : "open"}><summary>手で変える</summary>
       ${pick("留め方", s.style, [["prong", "爪"], ["bezel", "覆輪"]])}
-      ${s.style === "prong" ? pick("爪の本数", s.prongCount ?? 0, [[0, "自動"], [3, "3"], [4, "4"], [5, "5"], [6, "6"]]) : ""}
+      ${s.style === "prong" ? pick("爪", s.prongCount ?? 0, [[0, "自動"], [3, "3"], [4, "4"], [5, "5"], [6, "6"]]) : ""}
       ${pick("高さ", s.height, [["low", "低め"], ["standard", "標準"], ["high", "高め"]])}
       ${pick("向き", s.orientation, [["along", "縦"], ["across", "横"]])}
       ${pick("地金", s.metal, (["k18yg", "pt900", "k18wg", "k18pg", "sv925"] as Metal[]).map((m) => [m, METAL_LABEL[m]] as [Metal, string]))}
@@ -420,12 +426,12 @@ function renderRefine() {
         ${s.style === "prong" ? `<label><span>爪の太さ</span><input type="range" class="r-prong" min="0.4" max="1.6" step="0.05" value="${b.ring.setting.prongs[0]?.diameterMm.toFixed(2) ?? 0.8}"><output>${b.ring.setting.prongs[0]?.diameterMm.toFixed(2)} mm</output></label>` : ""}
         <label><span>号</span><input type="range" class="r-gou" min="5" max="25" step="1" value="${s.gou}"><output>${s.gou} 号</output></label>
       </div>
-    </section>`;
-  box.querySelectorAll<HTMLButtonElement>(".fixes button").forEach((btn) =>
+    </details>
+    <button type="button" class="next-btn to-build">作り方を見る →</button>`;
+  box.querySelectorAll<HTMLButtonElement>(".fix-go").forEach((btn) =>
     btn.addEventListener("click", () => {
-      const p = probs[Number(btn.dataset.p)];
-      const o = p.options[Number(btn.dataset.o)];
-      applyFix(o.id);
+      const { p } = probs[Number(btn.dataset.p)];
+      if (p.options[0]) applyFix(p.options[0].id);
     }),
   );
   box.querySelectorAll<HTMLButtonElement>(".pick button").forEach((btn) =>
@@ -433,18 +439,21 @@ function renderRefine() {
       const k = btn.dataset.k!;
       const v = btn.dataset.v!;
       if (k === "留め方") session!.setSetting({ style: v as "prong" | "bezel", reason: "手で" });
-      if (k === "爪の本数") session!.setSetting({ prong_count: Number(v) || undefined, reason: "手で" });
+      if (k === "爪") {
+        if (Number(v)) session!.setSetting({ prong_count: Number(v), reason: "手で" });
+        else {
+          session!.state.prongCount = undefined;
+          session!.build("自動");
+        }
+      }
       if (k === "高さ") session!.setSetting({ height: v as "low", reason: "手で" });
       if (k === "向き") session!.setSetting({ orientation: v as "along", reason: "手で" });
       if (k === "地金") session!.setShank({ metal: v as Metal, reason: "手で" });
-      if (k === "爪の本数" && !Number(v)) {
-        session!.state.prongCount = undefined;
-        session!.build("自動");
-      }
     }),
   );
   box.querySelector<HTMLInputElement>(".r-prong")?.addEventListener("change", (e) => session!.setSetting({ prong_mm: Number((e.target as HTMLInputElement).value), reason: "手で" }));
   box.querySelector<HTMLInputElement>(".r-gou")?.addEventListener("change", (e) => session!.setShank({ gou: Number((e.target as HTMLInputElement).value), reason: "手で" }));
+  box.querySelector(".to-build")!.addEventListener("click", () => setMode("hand"));
 }
 function applyFix(id: string) {
   const s = session!.state;
@@ -456,9 +465,12 @@ function applyFix(id: string) {
     case "lower":
       session!.setSetting({ height: s.height === "high" ? "standard" : "low", reason: "直し方から" });
       break;
-    case "thicker":
-      session!.setSetting({ prong_mm: Math.round(Math.max(std, (s.prongMm ?? std) * 1.15) * 100) / 100, reason: "直し方から" });
+    case "thicker": {
+      // 必要な太さまで一度に上げる（何度も押さなくてよいように）
+      const need = Math.max(...session!.built!.problems.filter((p) => p.check === "prong-thin").map((p) => p.requiredValue), std);
+      session!.setSetting({ prong_mm: Math.ceil(Math.max(need, (s.prongMm ?? std) * 1.15) * 100) / 100, reason: "直し方から" });
       break;
+    }
     case "moreProngs":
     case "addProng":
       session!.setSetting({ prong_count: Math.min(8, session!.built!.ring.setting.prongs.length + 1), reason: "直し方から" });
@@ -471,7 +483,11 @@ function applyFix(id: string) {
   }
 }
 
-// ---- 渡す。 ----
+// ---- 作る。：鋳造と手作りの工程（この石・この形から計算した数字つき） ----
+let method: Method = "hand";
+function howInput(b: Built) {
+  return { ring: b.ring, outlineMm: stone!.measured.outlineMm, longMm: stone!.measured.longMm, widthMm: stone!.measured.widthMm, depthMm: stone!.depthMm, metalLabel: METAL_LABEL[session!.state.metal] };
+}
 function sheet(): string | undefined {
   if (!stone) return;
   const m = stone.measured;
@@ -484,39 +500,55 @@ function openPrint(html: string) {
   w.document.close();
   setTimeout(() => w.print(), 600);
 }
-function renderHand() {
+function renderBuild() {
   if (!session?.built || !stone) return;
   const b = session.built;
-  const img = viewer.snapshot();
-  $(".hand-panel").innerHTML = `<div class="sheet-preview">
-    <img alt="" src="${img}">
-    <div><h3>${esc(stone.shapeName)}の一粒石の指輪</h3><p>${b.problems.length ? `まだ作れない所が ${b.problems.length} あります。指示書にもそのまま書きます。` : "職人の決まりの内側です。"}</p>
-    <div class="row"><button type="button" class="primary p-instr">指示書を印刷</button><button type="button" class="ghost-d p-sheet">原寸の型紙</button><button type="button" class="ghost-d p-stl">3D データ（STL）</button></div>
-    <p class="note">指示書には、何を作るか・確かめた結果・根拠にした職人の決まりを書きます。作り方の手順は書きません（職人が決める）。型紙は「実際のサイズ」で印刷します。</p></div>
-  </div>`;
-  $(".hand-panel .p-instr").addEventListener("click", () => {
+  const steps = howToMake(howInput(b), method);
+  const box = $(".build-panel");
+  const probs = grouped(b);
+  box.innerHTML = `
+    <div class="seg method"><button type="button" data-m="hand" aria-pressed="${method === "hand"}">手作り</button><button type="button" data-m="cast" aria-pressed="${method === "cast"}">鋳造</button></div>
+    ${probs.length ? `<p class="build-warn">このままでは作れない所が ${probs.length} あります。<button type="button" class="link to-check">確かめる →</button></p>` : ""}
+    <ol class="steps-b">${steps
+      .map(
+        (st, i) => `<li><span class="n">${i + 1}</span><div><b>${esc(st.title)}</b><p>${esc(st.text)}</p>${st.specs.length ? `<dl>${st.specs.map((x) => `<div><dt>${esc(x.label)}</dt><dd>${esc(x.value)}</dd></div>`).join("")}</dl>` : ""}${st.watch ? `<p class="watch">${esc(st.watch)}</p>` : ""}</div></li>`,
+      )
+      .join("")}</ol>
+    <p class="note-b">数字は、この石とこの形から計算した目安。手順は一般的な例で、最後は職人が決める。</p>
+    <div class="row out"><button type="button" class="primary p-instr">指示書を印刷</button><button type="button" class="ghost-d p-stl">3D データ</button></div>`;
+  box.querySelectorAll<HTMLButtonElement>(".method button").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      method = btn.dataset.m as Method;
+      renderBuild();
+    }),
+  );
+  box.querySelector(".to-check")?.addEventListener("click", () => setMode("refine"));
+  box.querySelector(".p-instr")!.addEventListener("click", () => {
     const svg = sheet();
     if (!svg) return;
+    const r = b.ring;
+    const st = r.setting;
     openPrint(
-      instructionHtml({
-        ring: b.ring,
-        problems: b.problems,
-        shapeName: stone!.shapeName,
-        depthMm: stone!.depthMm,
-        widthFromPhoto: stone!.measured.widthFromPhoto,
-        reason: reason || "手で整えた設計",
-        imageDataUrl: img,
-        patternSvg: svg,
-        craftsmanRules: activeRules(store.ledger()).filter((r) => r.source.kind === "craftsman"),
+      sheetHtml({
+        title: `${stone!.shapeName}の一粒石の指輪`,
         date: today(),
+        imageDataUrl: viewer.snapshot(),
+        specs: [
+          { label: "石", value: `${stone!.measured.longMm.toFixed(2)} × ${stone!.measured.widthMm.toFixed(2)} × ${stone!.depthMm.toFixed(2)} mm` },
+          { label: "号", value: `${session!.state.gou} 号 ・ 内径 ${r.shank.innerDiameterMm.toFixed(1)} mm` },
+          { label: "留め方", value: st.style === "bezel" ? `覆輪 ・ 壁 ${st.bezel?.wallMm.toFixed(2)} mm` : `爪 ${st.prongs.length} ・ ø ${st.prongs[0]?.diameterMm.toFixed(2)} mm` },
+          { label: "腕", value: `${r.shank.widthMm.toFixed(1)} × ${r.shank.thicknessMm.toFixed(1)} mm` },
+          { label: "石と指のすき間", value: `${r.culetGapMm.toFixed(2)} mm` },
+          { label: "地金", value: `${METAL_LABEL[session!.state.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g` },
+        ],
+        problems: probs.map(({ p }) => `${SHORT[p.check] ?? p.where}（${p.current} → ${p.required}）`),
+        methodLabel: method === "hand" ? "手作り" : "鋳造",
+        steps,
+        patternSvg: svg,
       }),
     );
   });
-  $(".hand-panel .p-sheet").addEventListener("click", () => {
-    const svg = sheet();
-    if (svg) openPrint(`<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>継ぐ 型紙</title><style>@page{size:A4;margin:0}html,body{margin:0}svg{display:block;width:210mm;height:297mm}</style></head><body>${svg}</body></html>`);
-  });
-  $(".hand-panel .p-stl").addEventListener("click", () => {
+  box.querySelector(".p-stl")!.addEventListener("click", () => {
     const r = b.ring.ringPositions;
     const all = new Float32Array(r.setting.length + r.shank.length);
     all.set(r.setting, 0);

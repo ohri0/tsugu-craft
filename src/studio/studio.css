@@ -102,3 +102,43 @@
 .cad.studio:not([data-mode="make"]) .cannot-chip { display: none; }
 .worklog { max-height: calc(100vh - 640px); }
 @media (max-width: 760px) { .cannot-chip { bottom: 296px; font-size: 12px; } }
+
+/* 帳面（職人の決まり）は画面に出さない。確かめは裏で同じ目安を使う */
+.studio .book-btn { display: none; }
+/* 確かめる。 */
+.big-verdict { padding: 14px 16px; border-radius: 14px; display: grid; gap: 2px; }
+.big-verdict b { font-family: var(--serif); font-weight: 500; font-size: 22px; letter-spacing: 0.06em; }
+.big-verdict small { font-size: 12px; color: var(--ivory-2); }
+.big-verdict.ok { background: rgba(47, 125, 79, 0.18); border: 1px solid rgba(47, 125, 79, 0.6); }
+.big-verdict.ng { background: rgba(224, 65, 43, 0.12); border: 1px solid rgba(224, 65, 43, 0.5); }
+.probs li { padding: 12px 14px; }
+.p-head { display: flex; align-items: baseline; gap: 8px; }
+.p-head b { font-family: var(--serif); font-weight: 500; font-size: 16px; }
+.p-head small { font-size: 11px; color: var(--ivory-3); }
+.p-num { margin: 4px 0 0; font-size: 15px; font-variant-numeric: tabular-nums; color: #ffb4a6; }
+.p-num span { color: var(--ivory-3); margin: 0 4px; }
+.p-act { display: flex; align-items: center; gap: 12px; margin-top: 8px; flex-wrap: wrap; }
+.fix-go { border: 0; border-radius: 999px; padding: 6px 14px; background: var(--ivory); color: #14110e; font-size: 13px; }
+.p-act details summary { cursor: pointer; font-size: 12px; color: var(--ivory-3); list-style: none; }
+.p-act details p { margin: 6px 0 0; font-size: 12px; color: var(--ivory-2); line-height: 1.7; }
+.manual summary { cursor: pointer; font-size: 13px; color: var(--ivory-2); margin-bottom: 8px; }
+.next-btn { border: 1px solid var(--ivory-3); background: transparent; color: var(--ivory); border-radius: 999px; padding: 9px 16px; font-family: var(--serif); font-size: 14px; letter-spacing: 0.08em; justify-self: start; }
+/* 作る。 */
+.studio-build { display: grid; gap: 12px; align-content: start; }
+.method { margin: 0; }
+.method button { flex: 1; font-size: 14px; padding: 8px; font-family: var(--serif); letter-spacing: 0.1em; }
+.build-warn { margin: 0; font-size: 12px; color: #ffb4a6; }
+.steps-b { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.steps-b li { display: grid; grid-template-columns: 28px 1fr; gap: 10px; padding: 12px; border-radius: 14px; background: rgba(239, 231, 214, 0.05); border: 1px solid var(--hair); animation: rise 0.25s ease-out both; }
+.steps-b li:nth-child(2) { animation-delay: 0.04s; } .steps-b li:nth-child(3) { animation-delay: 0.08s; } .steps-b li:nth-child(4) { animation-delay: 0.12s; } .steps-b li:nth-child(5) { animation-delay: 0.16s; } .steps-b li:nth-child(6) { animation-delay: 0.2s; }
+.steps-b .n { width: 26px; height: 26px; border-radius: 50%; background: var(--ivory); color: #14110e; display: grid; place-items: center; font-family: var(--serif); font-size: 13px; }
+.steps-b b { font-family: var(--serif); font-weight: 500; font-size: 15px; }
+.steps-b p { margin: 2px 0 0; font-size: 12px; color: var(--ivory-2); line-height: 1.6; }
+.steps-b dl { margin: 8px 0 0; display: grid; gap: 4px; }
+.steps-b dl div { display: grid; grid-template-columns: 92px 1fr; gap: 8px; }
+.steps-b dt { font-size: 11px; color: var(--ivory-3); }
+.steps-b dd { margin: 0; font-size: 13px; font-variant-numeric: tabular-nums; }
+.steps-b .watch { color: #e9c46a; font-size: 11px; margin-top: 6px; }
+.note-b { margin: 0; font-size: 11px; color: var(--ivory-3); }
+.studio-build .out { display: flex; gap: 8px; }
+.studio-build .out .primary { background: var(--ivory); color: #14110e; border: 0; border-radius: 999px; padding: 9px 18px; }
