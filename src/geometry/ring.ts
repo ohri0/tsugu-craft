@@ -4,7 +4,7 @@
 // 持ち上げる量は「石の一番下が指から、石座の決めたすき間だけ離れる」ように決める。
 import { GUIDES, type MetalId } from "../rules/guides";
 import { buildSetting, type SettingParams, type SettingResult } from "./setting";
-import { buildShank, weightG, type ShankParams, type ShankResult } from "./shank";
+import { buildShank, weightG, type ShankHead, type ShankParams, type ShankResult } from "./shank";
 import { buildStone, meshVolume, type StoneMesh, type StoneParams } from "./stone";
 
 /** 向き：along（縦）＝ 石の長辺が指に沿う。across（横）＝ 長辺が指を横切る */
@@ -46,15 +46,17 @@ export interface RingDesign {
 
 export function buildRing(p: RingParams): RingDesign {
   const orientation = p.orientation ?? "along";
-  const shank = buildShank(p.shank);
-  const setting = buildSetting({ ...p.setting, stone: p.stone, shankThicknessMm: shank.thicknessMm });
+  const plain = buildShank(p.shank);
+  const setting = buildSetting({ ...p.setting, stone: p.stone, shankThicknessMm: plain.thicknessMm });
   const stone = buildStone(p.stone);
   const transform: RingTransform = {
     rotationZ: orientation === "across" ? Math.PI / 2 : 0,
-    translateZ: shank.innerRadiusMm - setting.heights.fingerZ,
+    translateZ: plain.innerRadiusMm - setting.heights.fingerZ,
   };
   const ringStone = applyTransform(stone.positions, transform);
   const ringSetting = applyTransform(setting.positions, transform);
+  // 石座の足が腕の中へ入る所の広さから、腕のいちばん上の肩を決めて、腕を作り直す
+  const shank = buildShank({ ...p.shank, head: p.shank.head ?? headFootprint(ringSetting, plain) });
   const culetGapMm = stone.heights.culetZ + transform.translateZ - shank.innerRadiusMm;
   const metal = shank.metal;
   return {
@@ -69,6 +71,27 @@ export function buildRing(p: RingParams): RingDesign {
     metalWeightG: weightG(shank.volumeMm3 + meshVolume(setting.positions), metal),
     metal,
   };
+}
+
+/**
+ * 肩の決まり（形を作るための決まり）。zoneMm：腕の外側のいちばん上からこの高さまでにある石座の点を「腕へ入る足」とみなす。
+ * marginMm：足のまわりに残す腕の幅（片側）。taperMm：肩から元の幅へ戻る長さ。
+ * maxWidthRatio：肩の幅は腕の幅のこの倍まで（広げすぎると、印台のように重く見える）
+ */
+const SHOULDER = { zoneMm: 0, marginMm: 0.2, taperMm: 4.5, maxWidthRatio: 1.6 };
+
+/** 石座が腕へ入る所（指輪の座標）を囲む、肩の幅と長さ */
+function headFootprint(ringSetting: Float32Array, shank: ShankResult): ShankHead {
+  let xMax = 0;
+  let yMax = 0;
+  const zTop = shank.outerRadiusMm + SHOULDER.zoneMm;
+  for (let i = 0; i < ringSetting.length; i += 3) {
+    if (ringSetting[i + 2] > zTop) continue;
+    xMax = Math.max(xMax, Math.abs(ringSetting[i]));
+    yMax = Math.max(yMax, Math.abs(ringSetting[i + 1]));
+  }
+  const widthMm = Math.min(shank.widthMm * SHOULDER.maxWidthRatio, Math.max(shank.widthMm, 2 * (xMax + SHOULDER.marginMm)));
+  return { widthMm, spanMm: 2 * (yMax + SHOULDER.marginMm), taperMm: SHOULDER.taperMm };
 }
 
 /** 石の座標の形を、指輪の座標へ移す（新しい配列を返す） */
