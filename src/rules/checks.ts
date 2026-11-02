@@ -4,6 +4,7 @@ import type { Point } from "../geometry/polygon";
 import type { RingDesign } from "../geometry/ring";
 import { tipMeasures, type SettingResult } from "../geometry/setting";
 import { GUIDE_NOTE, GUIDES, type Guides, type StonePosition } from "./guides";
+import { prongMinOverride } from "./ledger";
 
 /** 画面に必ず添える、留まりの注意 */
 export const HOLD_NOTE = "「留まり」は爪を片持ちの棒と見なした目安の比較で、強度計算の代わりではない";
@@ -142,16 +143,18 @@ export function checkSetting(s: SettingResult, culetGapMm: number = s.heights.cu
 
   if (s.style === "prong") {
     // 爪の太さ
+    // 目安帳に職人の爪の太さの決まりがあれば、それを使う（なければ式）
+    const minProng = prongMinOverride(g) ?? s.minProngMm;
     s.prongs.forEach((p, i) => {
-      if (p.diameterMm < s.minProngMm - 1e-9) {
+      if (p.diameterMm < minProng - 1e-9) {
         out.push({
           id: `prong-thin:${i}`,
           check: "prong-thin",
           where: prongName(i, p.isV),
           current: mm(p.diameterMm),
-          required: `${mm(s.minProngMm)} 以上`,
+          required: `${mm(minProng)} 以上`,
           currentValue: p.diameterMm,
-          requiredValue: s.minProngMm,
+          requiredValue: minProng,
           reason: "石の大きさに対して爪が細く、曲がったり減ったりして石が外れやすい",
           options: fix("thicker"),
           target: { kind: "prong", index: i },

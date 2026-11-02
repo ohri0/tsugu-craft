@@ -14,6 +14,7 @@ export type RuleSource =
 /** 機械で確かめる値のうち、目安帳で上書きできるもの */
 export const PARAMS = {
   "height.minFingerGapMm": { label: "石の一番下と指のすき間（最低）", unit: "mm", checks: ["finger-gap"] },
+  "prong.minDiameterMm": { label: "爪の太さ（最低）", unit: "mm", checks: ["prong-thin"] },
   "prong.cornerReachMm": { label: "尖った角から爪までの距離（最大）", unit: "mm", checks: ["corner"] },
   "prong.maxGapRatio": { label: "爪と爪の間のいちばん広い所 ÷ 縁の周（最大）", unit: "", checks: ["prong-gap"] },
   "bezel.wallMinMm": { label: "覆輪の壁の厚み（最低）", unit: "mm", checks: ["bezel-wall"] },
@@ -39,6 +40,11 @@ export interface Rule {
   /** 機械で確かめる値に結びつくとき */
   param?: ParamId;
   value?: number;
+  /**
+   * 石の大きさで値を変えるとき（小さい順）。石の大きさ ＝（長辺 ＋ 幅）÷ 2（mm）。
+   * upToMm 以下ならその値。最後の段を超えたら最後の値。value より先に使う。
+   */
+  bySize?: SizeStep[];
   /** どの確かめの根拠か */
   checks?: CheckId[];
   source: RuleSource;
@@ -46,6 +52,40 @@ export interface Rule {
   date: string;
   /** 置き換えた決まりの id */
   replaces?: string;
+}
+
+export interface SizeStep {
+  /** この大きさ（mm）まで。最後の段は null（それより大きい石すべて） */
+  upToMm: number | null;
+  value: number;
+}
+
+/** 石の大きさに合う値（段がなければ value） */
+export function valueFor(rule: Pick<Rule, "value" | "bySize">, stoneSizeMm?: number): number | undefined {
+  const steps = rule.bySize;
+  if (!steps || steps.length === 0 || stoneSizeMm === undefined) return rule.value ?? steps?.[steps.length - 1]?.value;
+  for (const s of steps) if (s.upToMm === null || stoneSizeMm <= s.upToMm + 1e-9) return s.value;
+  return steps[steps.length - 1].value;
+}
+
+/** 「4:0.6, 6:0.8, 1.0」→ 段（最後の「:」のない値は、それより大きい石） */
+export function parseSizeSteps(text: string): SizeStep[] | undefined {
+  const parts = text.split(/[,、，\s]+/).filter(Boolean);
+  if (parts.length === 0) return undefined;
+  const steps: SizeStep[] = [];
+  for (const p of parts) {
+    const m = p.match(/^(?:(\d+(?:\.\d+)?)[:：])?(\d+(?:\.\d+)?)$/);
+    if (!m) return undefined;
+    steps.push({ upToMm: m[1] === undefined ? null : Number(m[1]), value: Number(m[2]) });
+  }
+  return steps;
+}
+
+/** 段を言葉に（例：〜4 mm は 0.6、〜6 mm は 0.8、それより大きいと 1.0） */
+export function sizeStepsText(steps: SizeStep[], unit: string): string {
+  return steps
+    .map((s) => (s.upToMm === null ? `それより大きい石は ${s.value}${unit}` : `石の大きさ ${s.upToMm} mm まで ${s.value}${unit}`))
+    .join("、");
 }
 
 export interface Ledger {
@@ -167,15 +207,22 @@ export function removeLastRule(ledger: Ledger): Ledger {
   return { ...ledger, rules: ledger.rules.slice(0, -1) };
 }
 
-/** 目安帳の値を当てはめた目安（確かめに渡す） */
-export function effectiveGuides(ledger: Ledger): Guides {
+/** 目安帳の値を当てはめた目安（確かめに渡す）。石の大きさで変わる決まりは、その石の大きさの値を使う */
+export function effectiveGuides(ledger: Ledger, stoneSizeMm?: number): Guides {
   const g = structuredClone(GUIDES) as unknown as Record<string, Record<string, number>>;
   for (const r of activeRules(ledger)) {
-    if (!r.param || r.value === undefined || !Number.isFinite(r.value)) continue;
+    if (!r.param) continue;
+    const v = valueFor(r, stoneSizeMm);
+    if (v === undefined || !Number.isFinite(v)) continue;
     const [group, key] = r.param.split(".");
-    g[group][key] = r.value;
+    g[group][key] = v;
   }
   return g as unknown as Guides;
+}
+
+/** 爪の最低の太さを目安帳が決めているか（決めていなければ guides.ts の式） */
+export function prongMinOverride(g: Guides): number | undefined {
+  return (g.prong as { minDiameterMm?: number }).minDiameterMm;
 }
 
 /** その確かめの根拠になっている決まり（職人の決まりを先に） */
@@ -194,7 +241,7 @@ export function sourceLabel(s: RuleSource): string {
 /** Claude に渡す、目安帳の文章 */
 export function ledgerText(ledger: Ledger): string {
   return activeRules(ledger)
-    .map((r) => `- [${r.id}] ${r.title}：${r.text}（理由：${r.reason}${r.example ? `／例：${r.example}` : ""}${r.quote ? `／職人の言葉：「${r.quote}」` : ""}／出どころ：${sourceLabel(r.source)}、${r.date}）`)
+    .map((r) => `- [${r.id}] ${r.title}：${r.text}${r.bySize && r.param ? `（石の大きさで：${sizeStepsText(r.bySize, PARAMS[r.param].unit)}）` : ""}（理由：${r.reason}${r.example ? `／例：${r.example}` : ""}${r.quote ? `／職人の言葉：「${r.quote}」` : ""}／出どころ：${sourceLabel(r.source)}、${r.date}）`)
     .join("\n");
 }
 

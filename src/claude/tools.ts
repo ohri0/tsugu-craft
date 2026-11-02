@@ -29,6 +29,8 @@ export interface ProposeRuleInput {
   quote?: string;
   param?: ParamId;
   value?: number;
+  /** 石の大きさで値を変えるとき（小さい順）。最後の段より大きい石は最後の値 */
+  by_size?: { up_to_mm: number; value: number }[];
 }
 
 export interface ProposeRuleResult {
@@ -321,7 +323,18 @@ export const TOOLS: ClaudeTool[] = [
               .map(([k, v]) => `${k}＝${v.label}${v.unit ? `（${v.unit}）` : ""}`)
               .join("、"),
         },
-        value: { type: "number", description: "param の値（職人が言った数字だけ）" },
+        value: { type: "number", description: "param の値（職人が言った数字だけ）。石の大きさで変わるときは、いちばんよく使う大きさの値" },
+        by_size: {
+          type: "array",
+          description:
+            "石の大きさで値が変わると職人が言ったときだけ付ける。石の大きさ ＝（長辺 ＋ 幅）÷ 2（mm）。小さい順に「この大きさまでならこの値」を並べる。最後の段より大きい石は最後の値",
+          items: {
+            type: "object",
+            properties: { up_to_mm: { type: "number" }, value: { type: "number" } },
+            required: ["up_to_mm", "value"],
+            additionalProperties: false,
+          },
+        },
       },
       required: ["title", "text", "reason"],
       additionalProperties: false,
@@ -366,7 +379,7 @@ export type ParseResult = { ok: true; call: ParsedToolCall } | { ok: false; erro
 interface PropSchema {
   type: "string" | "number" | "integer" | "array";
   enum?: readonly string[];
-  items?: { type: "integer" };
+  items?: { type: "integer" } | { type: "object" };
 }
 
 const BOUND_OF: Record<string, keyof typeof INPUT_BOUNDS> = {
@@ -402,12 +415,29 @@ function checkProp(key: string, s: PropSchema, v: unknown): string | null {
       return checkNumber(key, v, true);
     case "array":
       if (!Array.isArray(v)) return `${key} は番号の並びで書いてください`;
+      if (s.items?.type === "object") return checkSizeSteps(key, v);
       for (const item of v) {
         const e = checkNumber(key, item, true);
         if (e) return e;
       }
       return null;
   }
+}
+
+/** 石の大きさの段：大きさは 0.5〜30 mm で小さい順、値は 0〜100 */
+function checkSizeSteps(key: string, v: unknown[]): string | null {
+  if (v.length === 0 || v.length > 12) return `${key} は 1〜12 段で書いてください`;
+  let last = 0;
+  for (const item of v) {
+    const r = item as { up_to_mm?: unknown; value?: unknown };
+    if (typeof item !== "object" || item === null || typeof r.up_to_mm !== "number" || typeof r.value !== "number") {
+      return `${key} は {up_to_mm, value} の並びで書いてください`;
+    }
+    if (r.up_to_mm < 0.5 || r.up_to_mm > 30 || r.up_to_mm <= last) return `${key} の大きさは 0.5〜30 mm で、小さい順に書いてください`;
+    if (r.value < 0 || r.value > 100) return `${key} の値は 0〜100 で書いてください`;
+    last = r.up_to_mm;
+  }
+  return null;
 }
 
 /** 道具の名前と入力を、定義の形と受け付け範囲で確かめる */

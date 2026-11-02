@@ -55,7 +55,7 @@ export function build(stone: StoneParams, d: Design, ledger: Ledger = seedLedger
     shank: { gou: d.gou, metal: d.metal },
     orientation: d.orientation,
   });
-  const problems = checkRing(ring, { position: d.position, guides: effectiveGuides(ledger) });
+  const problems = checkRing(ring, { position: d.position, guides: effectiveGuides(ledger, stoneSizeMm(stone.longMm, stone.widthMm)) });
   return { design: d, ring, problems: problems.map((p) => ({ ...p, rule: ruleForCheck(ledger, p.check) })) };
 }
 

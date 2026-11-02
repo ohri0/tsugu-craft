@@ -4,7 +4,8 @@ import { runClaude } from "../claude/loop";
 import { interviewPrompt } from "../claude/prompt";
 import { TOOLS, type ProposeRuleInput, type ProposeRuleResult, type ToolHost } from "../claude/tools";
 import type { ClaudeMessageParam } from "../claude/wire";
-import { activeRules, addRule, PARAMS, removeLastRule, seedLedger, sourceLabel, type Ledger, type ParamId, type Rule } from "../rules/ledger";
+import { activeRules, addRule, PARAMS, removeLastRule, seedLedger, parseSizeSteps, sizeStepsText, sourceLabel, type Ledger, type ParamId, type Rule } from "../rules/ledger";
+
 
 const STORE = "tsugu.ledger.v1";
 
@@ -78,6 +79,7 @@ export function mountLedger(root: HTMLElement, onChange: LedgerChange): LedgerUI
           .map(([k, v]) => `<option value="${k}">${v.label}${v.unit ? `（${v.unit}）` : ""}</option>`)
           .join("")}</select></label>
         <label>値<input data-f="value" type="number" step="0.01"></label>
+        <label>石の大きさで変える（なくてもよい）<input data-f="bySize" type="text" placeholder="例：4:0.6, 6:0.8, 8:1.0, 1.2（大きさ mm まで:値。最後はそれより大きい石）"></label>
         <label>職人の名前<input data-f="name" type="text"></label>
         <button id="manualAdd" class="primary">目安帳に足す</button>
       </div>
@@ -105,7 +107,12 @@ export function mountLedger(root: HTMLElement, onChange: LedgerChange): LedgerUI
 
   function ruleItem(r: Rule, replaced: boolean): string {
     const kind = r.source.kind;
-    const value = r.param && r.value !== undefined ? `<span class="val">${r.value}${PARAMS[r.param].unit}</span>` : "";
+    const value =
+      r.param && r.bySize
+        ? `<span class="val">${esc(sizeStepsText(r.bySize, PARAMS[r.param].unit))}</span>`
+        : r.param && r.value !== undefined
+          ? `<span class="val">${r.value}${PARAMS[r.param].unit}</span>`
+          : "";
     return `<li class="${kind}${replaced ? " old" : ""}"><b>${esc(r.title)}</b>${value}<span class="badge src-${kind}">${esc(sourceLabel(r.source))}・${r.date}</span>${
       replaced ? '<span class="badge">置き換え済み</span>' : ""
     }<span class="why">${esc(r.text)}／理由：${esc(r.reason)}${r.quote ? `／「${esc(r.quote)}」` : ""}</span></li>`;
@@ -139,7 +146,12 @@ export function mountLedger(root: HTMLElement, onChange: LedgerChange): LedgerUI
       return;
     }
     const param = (v("param") || undefined) as ParamId | undefined;
-    const value = param && v("value") !== "" ? Number(v("value")) : undefined;
+    const bySize = param && v("bySize") ? parseSizeSteps(v("bySize")) : undefined;
+    if (param && v("bySize") && !bySize) {
+      alert("石の大きさの段は「4:0.6, 6:0.8, 1.0」の形で書いてください");
+      return;
+    }
+    const value = param && v("value") !== "" ? Number(v("value")) : bySize ? bySize[bySize.length - 1].value : undefined;
     if (param && value === undefined) {
       alert("機械で確かめる値を選んだときは、値も書いてください");
       return;
@@ -150,6 +162,7 @@ export function mountLedger(root: HTMLElement, onChange: LedgerChange): LedgerUI
         reason: v("reason"),
         param,
         value,
+        bySize,
         source: { kind: "craftsman", name: v("name") },
         date: today(),
       });
@@ -185,6 +198,7 @@ export function mountLedger(root: HTMLElement, onChange: LedgerChange): LedgerUI
       <label>決まり<textarea data-p="text" rows="2">${esc(p.text)}</textarea></label>
       <label>理由<textarea data-p="reason" rows="2">${esc(p.reason)}</textarea></label>
       ${p.param ? `<label>${esc(PARAMS[p.param].label)}<input data-p="value" type="number" step="0.01" value="${p.value ?? ""}"></label>` : ""}
+      ${p.by_size && p.param ? `<p class="quote">石の大きさで：${esc(sizeStepsText(p.by_size.map((x) => ({ upToMm: x.up_to_mm, value: x.value })), PARAMS[p.param].unit))}</p>` : ""}
       ${p.quote ? `<p class="quote">「${esc(p.quote)}」</p>` : ""}
       <div class="row"><button class="primary" data-a="ok">目安帳に足す</button><button data-a="no">見送る</button></div>
     </div>`;
@@ -210,6 +224,7 @@ export function mountLedger(root: HTMLElement, onChange: LedgerChange): LedgerUI
           quote: p.quote,
           param: p.param,
           value: edited.value,
+          bySize: p.by_size?.map((x) => ({ upToMm: x.up_to_mm, value: x.value })),
           source: { kind: "craftsman", name },
           date: today(),
         });
