@@ -1,0 +1,85 @@
+/* 継ぐ（指輪の設計）：黒い撮影台の上の部品 */
+.studio .book-btn { margin-left: 8px; border: 1px solid var(--hair); background: transparent; color: var(--ivory); border-radius: 999px; padding: 6px 14px; font-family: var(--serif); font-size: 14px; letter-spacing: 0.1em; display: inline-flex; gap: 6px; align-items: center; }
+.studio .book-n { font-style: normal; font-family: var(--sans); font-size: 11px; background: #e9c46a; color: #14110e; border-radius: 9px; min-width: 18px; padding: 0 5px; }
+.verdict-chip { position: absolute; left: 32px; top: 284px; z-index: 4; padding: 6px 16px; border-radius: 999px; font-size: 13px; letter-spacing: 0.08em; border: 1px solid; backdrop-filter: blur(8px); }
+.verdict-chip.ng { color: #ffb4a6; border-color: rgba(224, 65, 43, 0.6); background: rgba(224, 65, 43, 0.16); }
+.verdict-chip.ok { color: #b9e4c6; border-color: rgba(47, 125, 79, 0.7); background: rgba(47, 125, 79, 0.2); }
+
+.worklog { position: absolute; left: 32px; top: 330px; z-index: 3; width: min(380px, 34vw); max-height: calc(100vh - 560px); overflow: auto; margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+.worklog li { font-size: 12px; line-height: 1.6; padding: 6px 10px; border-left: 2px solid var(--ivory-3); color: var(--ivory-2); background: rgba(239, 231, 214, 0.04); border-radius: 0 8px 8px 0; animation: rise 0.25s ease-out; }
+.worklog li.note { border-left-color: transparent; background: transparent; font-style: italic; }
+.worklog li.tool.set_setting, .worklog li.tool.set_shank { border-left-color: #e9c46a; color: var(--ivory); }
+.worklog li.ng { border-left-color: #e0412b; color: #ffb4a6; }
+.worklog li.ok { border-left-color: #2f7d4f; color: #b9e4c6; }
+
+.studio-make { width: min(760px, calc(100vw - 32px)); }
+.inputs { display: grid; grid-template-columns: 1.2fr 1fr 1.2fr; gap: 8px; width: 100%; }
+.in-card { display: flex; align-items: center; gap: 10px; padding: 8px 12px 8px 8px; border-radius: 16px; background: rgba(239, 231, 214, 0.06); border: 1px solid var(--hair); color: var(--ivory); cursor: pointer; min-width: 0; }
+.in-card b { display: block; font-family: var(--serif); font-weight: 500; font-size: 14px; }
+.in-card small { display: block; font-size: 11px; color: var(--ivory-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.in-card > span:last-of-type { min-width: 0; }
+.stone-thumb { width: 48px; height: 48px; border-radius: 10px; background: #000; flex: none; }
+.sketch-thumb { width: 48px; height: 48px; border-radius: 10px; flex: none; display: grid; place-items: center; border: 1px dashed var(--ivory-3); color: var(--ivory-3); font-family: var(--serif); overflow: hidden; }
+.sketch-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.size-card { flex-direction: column; align-items: stretch; gap: 4px; cursor: default; padding: 8px 12px; }
+.size-card label { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ivory-2); }
+.size-card input { width: 64px; border: 0; border-bottom: 1px solid var(--ivory-3); background: transparent; color: var(--ivory); font-size: 14px; text-align: right; padding: 2px 0; }
+.studio .make-status .link { margin-left: 8px; }
+
+.studio-refine { display: grid; gap: 16px; }
+.probs { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.probs li { padding: 12px; border-radius: 14px; background: rgba(224, 65, 43, 0.08); border: 1px solid rgba(224, 65, 43, 0.35); }
+.p-where { margin: 0; font-family: var(--serif); font-size: 15px; }
+.p-num { margin: 2px 0 0; font-size: 12px; color: var(--ivory-2); }
+.p-num b { color: #ffb4a6; font-weight: 500; }
+.p-why { margin: 6px 0 0; font-size: 12px; color: var(--ivory-2); line-height: 1.7; }
+.rule-chip { margin-top: 8px; padding: 8px 10px; border-radius: 10px; background: rgba(233, 196, 106, 0.1); border-left: 2px solid #e9c46a; display: grid; gap: 2px; }
+.rule-chip b { font-size: 11px; color: #e9c46a; font-weight: 500; letter-spacing: 0.08em; }
+.rule-chip span { font-family: var(--serif); font-size: 13px; }
+.rule-chip small { font-size: 10px; color: var(--ivory-3); }
+.rule-chip.public { background: rgba(239, 231, 214, 0.05); border-left-color: var(--ivory-3); }
+.rule-chip.public b { color: var(--ivory-2); }
+.fixes { display: grid; gap: 6px; margin-top: 8px; }
+.fixes button { text-align: left; border: 1px solid var(--hair); background: rgba(239, 231, 214, 0.04); color: var(--ivory); border-radius: 10px; padding: 7px 10px; font-size: 13px; display: grid; }
+.fixes button small { font-size: 11px; color: var(--ivory-3); }
+.fixes button:hover { border-color: var(--ivory-2); }
+.pick { display: grid; grid-template-columns: 70px 1fr; gap: 8px; align-items: center; margin-bottom: 8px; }
+.pick > span { font-size: 12px; color: var(--ivory-2); }
+.pick > div { display: flex; flex-wrap: wrap; gap: 4px; }
+.pick button { border: 1px solid var(--hair); background: transparent; color: var(--ivory-2); border-radius: 999px; padding: 4px 11px; font-size: 12px; }
+.pick button[aria-pressed="true"] { border-color: var(--ivory); color: #14110e; background: var(--ivory); }
+
+.book-panel { position: absolute; right: 16px; top: 76px; bottom: 16px; width: 380px; z-index: 8; overflow: auto; padding: 16px 18px; border-radius: 18px; background: rgba(20, 18, 16, 0.92); border: 1px solid var(--hair); backdrop-filter: blur(12px); }
+.bp-head { display: flex; justify-content: space-between; align-items: center; }
+.bp-head h3 { margin: 0; font-family: var(--serif); font-weight: 500; font-size: 20px; letter-spacing: 0.1em; }
+.add-rule { margin: 12px 0 16px; padding: 12px; border-radius: 14px; background: rgba(233, 196, 106, 0.08); border: 1px solid rgba(233, 196, 106, 0.3); display: grid; gap: 8px; }
+.add-rule textarea { width: 100%; border-radius: 10px; border: 1px solid var(--hair); background: rgba(0, 0, 0, 0.3); color: var(--ivory); padding: 8px 10px; font-size: 14px; resize: vertical; }
+.add-rule .primary, .proposal-d .primary { background: var(--ivory); color: #14110e; border: 0; border-radius: 999px; padding: 6px 14px; font-size: 13px; }
+.proposal-d { padding: 10px; border-radius: 10px; background: rgba(0, 0, 0, 0.3); display: grid; gap: 4px; }
+.proposal-d p { margin: 0; font-size: 13px; }
+.book-panel h4 { margin: 14px 0 6px; font-size: 12px; letter-spacing: 0.16em; color: var(--ivory-2); font-weight: 500; }
+.rules-l { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.rules-l li { padding: 8px 10px; border-radius: 10px; background: rgba(239, 231, 214, 0.04); }
+.rules-l li.craftsman { border-left: 2px solid #e9c46a; }
+.rules-l b { font-size: 13px; font-family: var(--serif); font-weight: 500; }
+.rules-l p { margin: 2px 0 0; font-size: 12px; color: var(--ivory-2); }
+.rules-l .q { font-family: var(--serif); color: var(--ivory); }
+.rules-l small { font-size: 10px; color: var(--ivory-3); }
+.studio .toast { background: var(--ivory); color: #14110e; bottom: 32px; }
+
+.studio .modes button { white-space: nowrap; }
+@media (max-width: 760px) {
+  .studio .cad-top { gap: 8px; }
+  .studio .modes { margin-left: auto; }
+  .studio .modes button { padding: 6px 9px; font-size: 12px; letter-spacing: 0.04em; }
+  .studio .word h1 { font-size: 34px; }
+  .studio .word-name { font-size: 14px; }
+  .worklog li:not(:nth-last-child(-n + 2)) { display: none; }
+  .worklog { left: 14px; right: 14px; width: auto; top: auto; bottom: 300px; max-height: 110px; }
+  .inputs { grid-template-columns: 1fr 1fr; }
+  .sketch-card { grid-column: span 2; }
+  .verdict-chip { top: 178px; left: 18px; font-size: 11px; padding: 4px 12px; }
+  .studio .book-btn { padding: 5px 10px; font-size: 12px; }
+  .book-panel { left: 0; right: 0; top: auto; bottom: 0; width: auto; max-height: 70vh; border-radius: 18px 18px 0 0; }
+  .cad.studio[data-mode="make"] .specs { display: none; }
+}

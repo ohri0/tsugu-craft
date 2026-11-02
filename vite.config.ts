@@ -44,7 +44,7 @@ export default defineConfig({
   build: {
     rollupOptions: {
       // 2 つのページ：継ぐ（index.html）と、目安帳の使い道の例として残す「石座を確かめる」（ring.html）
-      input: { main: "index.html", ring: "ring.html", cad: "cad.html" },
+      input: { main: "index.html", app: "app.html", ring: "ring.html", cad: "cad.html" },
     },
   },
   test: {

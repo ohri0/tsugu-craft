@@ -85,11 +85,20 @@ export class Viewer {
     this.dirty = true;
   }
 
+  /** 品を画面の上のほうに寄せる割合（下に入力の板がある画面で使う。0 で真ん中） */
+  private lift = 0;
+  setLift(f: number) {
+    this.lift = f;
+    this.resize();
+  }
+
   private resize() {
     const w = this.host.clientWidth || 1;
     const h = this.host.clientHeight || 1;
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
+    if (this.lift > 0) this.camera.setViewOffset(w, h, 0, h * this.lift, w, h);
+    else this.camera.clearViewOffset();
     this.camera.updateProjectionMatrix();
     this.dirty = true;
   }
@@ -206,9 +215,34 @@ export class Viewer {
       this.framedFor === kind ? this.camera.position.clone().sub(this.controls.target).normalize() : firstDir.clone().normalize();
     this.framedFor = kind;
     this.controls.target.copy(sphere.center);
-    this.camera.position.copy(sphere.center).addScaledVector(dir, sphere.radius * 3.6);
+    // 縦長の画面（スマホ）では、横幅に収まるように遠くから
+    const fit = this.camera.aspect < 1 ? Math.min(2.2, 1 / this.camera.aspect) : 1;
+    this.camera.position.copy(sphere.center).addScaledVector(dir, sphere.radius * 3.6 * fit);
     this.controls.update();
     this.dirty = true;
+  }
+
+  /** 黒い撮影台にする（継ぐの設計の画面）。床の影は黒の上では見えないので薄く */
+  setDark(on: boolean) {
+    this.scene.background = on ? darkBackdropTexture() : backdropTexture();
+    (this.shadow.plane.material as THREE.MeshBasicMaterial).opacity = on ? 0.25 : SHADOW.opacity;
+    this.dirty = true;
+  }
+
+  /** 決まった向きから見た画像（look の道具）。今の視点は元に戻す */
+  snapshotFrom(view: "top" | "side" | "front" | "angle"): string {
+    const target = this.controls.target.clone();
+    const pos = this.camera.position.clone();
+    const r = pos.distanceTo(target);
+    const dir = { top: new THREE.Vector3(0, -0.001, 1), side: new THREE.Vector3(1, 0, 0.05), front: new THREE.Vector3(0, -1, 0.05), angle: new THREE.Vector3(0.6, -0.8, 0.6) }[view].normalize();
+    this.camera.position.copy(target).addScaledVector(dir, r);
+    this.camera.lookAt(target);
+    this.renderer.render(this.scene, this.camera);
+    const url = this.renderer.domElement.toDataURL("image/png");
+    this.camera.position.copy(pos);
+    this.camera.lookAt(target);
+    this.dirty = true;
+    return url;
   }
 
   /** 今の 3D の画像（指示書や look の道具で使う） */
@@ -350,6 +384,21 @@ export function studioScene(): THREE.Scene {
   box(6, 22, 3.0, [-8, 28, -4]); // 奥の低い所：下側の縁に細い光
   box(40, 40, 0.5, [0, 0, -30]); // 床の白い板：下を向いた面の暗さを少しやわらげる
   return s;
+}
+
+/** 黒い撮影台：真ん中がわずかに明るい、あたたかい黒 */
+function darkBackdropTexture(): THREE.Texture {
+  const c = document.createElement("canvas");
+  c.width = c.height = 512;
+  const g = c.getContext("2d")!;
+  const grad = g.createRadialGradient(256, 230, 10, 256, 256, 400);
+  grad.addColorStop(0, "#2a2724");
+  grad.addColorStop(1, "#0b0a09");
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 512, 512);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
 }
 
 /** 背景：真ん中がわずかに明るい、紙のような淡い色 */
