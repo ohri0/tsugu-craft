@@ -1,0 +1,163 @@
+{
+  "craft": "ジュエリー（一粒石の指輪）",
+  "rules": [
+    {
+      "id": "finger-gap",
+      "title": "石の先を指から離す",
+      "text": "石の一番下（キューレット）は、指から 0.3 mm 以上離す",
+      "reason": "石の先が指に当たると痛く、石も欠けやすい",
+      "param": "height.minFingerGapMm",
+      "value": 0.3,
+      "checks": [
+        "finger-gap"
+      ],
+      "source": {
+        "kind": "public",
+        "title": "教科書・公開情報レベルの目安"
+      },
+      "date": "2026-11-02"
+    },
+    {
+      "id": "prong-thickness",
+      "title": "爪の太さ",
+      "text": "爪の最低の太さは石の大きさで変わる：2.5 mm の石で 0.45 mm、4 mm の石で 0.6 mm、6.4 mm の石で 1 mm、8 mm の石で 1.2 mm。点の間はまっすぐつなぐ。標準は最低 × 1.15。点はメーカーの CAD 基準・職人のフォーラム・Skyjems から、つなぐ線は仮の目安",
+      "reason": "細い爪は曲がりやすく、石が抜ける",
+      "checks": [
+        "prong-thin"
+      ],
+      "source": {
+        "kind": "public",
+        "title": "Prong wire（Skyjems）",
+        "url": "https://skyjems.ca/pages/encyclopedia-prong-wire"
+      },
+      "date": "2026-11-02"
+    },
+    {
+      "id": "tip-height",
+      "title": "爪の先の高さ",
+      "text": "爪の先は、石の上面までの高さの 75%〜85%。上側にかかる長さは 33%〜50%",
+      "reason": "低いと石を押さえられず、高いと引っかかる",
+      "checks": [
+        "tip-height"
+      ],
+      "source": {
+        "kind": "public",
+        "title": "GIA ベンチティップ",
+        "url": "https://www.gia.edu/jp/bench-tip-avoid-stone-loss-with-quality-assurance-benchmarks"
+      },
+      "date": "2026-11-02"
+    },
+    {
+      "id": "corner-reach",
+      "title": "尖った角を守る",
+      "text": "尖った角から 0.9 mm 以内に爪を置く（角は V 字の爪で包む）",
+      "reason": "角の先は欠けやすい",
+      "param": "prong.cornerReachMm",
+      "value": 0.9,
+      "checks": [
+        "corner"
+      ],
+      "source": {
+        "kind": "public",
+        "title": "教科書・公開情報レベルの目安"
+      },
+      "date": "2026-11-02"
+    },
+    {
+      "id": "prong-gap",
+      "title": "爪の間隔",
+      "text": "爪と爪の間のいちばん広い所は、縁の周の 38% 以下",
+      "reason": "広いと石が傾いて抜けやすい",
+      "param": "prong.maxGapRatio",
+      "value": 0.38,
+      "checks": [
+        "prong-gap"
+      ],
+      "source": {
+        "kind": "public",
+        "title": "教科書・公開情報レベルの目安"
+      },
+      "date": "2026-11-02"
+    },
+    {
+      "id": "hold-top",
+      "title": "石の留まり（石が上）",
+      "text": "標準の 4 本爪を 1.0× として、1× 以上",
+      "reason": "物に当たったときに石が抜けないため",
+      "param": "hold.requiredTop",
+      "value": 1,
+      "checks": [
+        "hold"
+      ],
+      "source": {
+        "kind": "provisional"
+      },
+      "date": "2026-11-02"
+    },
+    {
+      "id": "bezel-wall",
+      "title": "覆輪の壁の厚み",
+      "text": "覆輪の壁は 0.5 mm、0.4 mm 未満は薄い",
+      "reason": "薄い壁は欠けたり曲がったりする",
+      "param": "bezel.wallMinMm",
+      "value": 0.4,
+      "checks": [
+        "bezel-wall"
+      ],
+      "source": {
+        "kind": "public",
+        "title": "教科書・公開情報レベルの目安"
+      },
+      "date": "2026-11-02"
+    },
+    {
+      "title": "ロウ付けする面は、相手の面に合わせて削る",
+      "text": "ロウ付けする面は、相手の面の形に合わせて削る。平らな面どうし（指輪の両端など）は直角に揃え、丸い石座に付けるなら石座の丸みに合わせて丸く削る。合わせながら少しずつ調整する",
+      "reason": "面どうしがぴったり合わないと隙間ができ、ロウ付けがうまくいかない",
+      "example": "指輪にするとき、両端が直角に揃っていないとロウ付けでうまく付かない",
+      "quote": "丸に合わせるんだったら、それに合わせて丸く削らなきゃいけないし、それも調整していく",
+      "source": {
+        "kind": "craftsman",
+        "name": "石川"
+      },
+      "date": "2026-11-02",
+      "id": "rule-mrekpa"
+    },
+    {
+      "title": "ヤスリの角度をずらさない",
+      "text": "ヤスリは削る面に対して角度をずらさずに当てる（直角に揃えるなら直角のまま）",
+      "reason": "斜めにずれると面がだれて角が丸くなり、面がきれいにならない",
+      "quote": "面がだれたりとかしないように、面が綺麗になるように",
+      "source": {
+        "kind": "craftsman",
+        "name": "石川"
+      },
+      "date": "2026-11-02",
+      "id": "rule-1vxmav6"
+    },
+    {
+      "title": "必要な分だけ削る",
+      "text": "削るのは必要な分だけ。0.何 mm の調整は、ヤスリにかける力の入れ具合で決める",
+      "reason": "削りすぎた地金は戻せない",
+      "quote": "力の入れ具合で、どれぐらい削るだとか、どれぐらい削らないだとかを調整する",
+      "source": {
+        "kind": "craftsman",
+        "name": "石川"
+      },
+      "date": "2026-11-02",
+      "id": "rule-19edlyp"
+    },
+    {
+      "title": "金属を持つ手は、すり板に押し付けて動かさない",
+      "text": "金属を持つ手は、すり板に金属を押し付けて動かないようにする。ただし削るものによっては、金属を動かしながら削る",
+      "reason": "金属が動くと、ヤスリとの角度がずれて面がだれる",
+      "quote": "すり板に金属を押し付けて、もう動かないようにしてた",
+      "source": {
+        "kind": "craftsman",
+        "name": "石川"
+      },
+      "date": "2026-11-02",
+      "id": "rule-142lf1c"
+    }
+  ]
+}
