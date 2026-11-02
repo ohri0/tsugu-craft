@@ -2,6 +2,7 @@
 // 動きの数字と職人の言葉（動画の時刻つき）を「手の記録」として残し、後で手本と比べる。
 // 技そのものは読めない。残すのは、動きの数字と、職人が言った判断。
 // 記録はこのブラウザに残し（localStorage）、JSON に書き出せる。動画そのものは記録に入れない。
+import "./motion.css";
 import { compareRecords, HAND_CONNECTIONS, summarizeMetrics, type HandMetrics, type MotionFrame, type MotionMetrics } from "../craft/motion";
 import { MAX_TRACK_S, trackVideo } from "../craft/hand-tracker";
 import { createRecord, exportRecord, importRecord, inputFromSampled, RecordFormatError, type SkillNote, type SkillRecord } from "../craft/record";

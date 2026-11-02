@@ -41,6 +41,12 @@ function claudeApiForDev(): Plugin {
 
 export default defineConfig({
   plugins: [claudeApiForDev()],
+  build: {
+    rollupOptions: {
+      // 2 つのページ：継ぐ（index.html）と、目安帳の使い道の例として残す「石座を確かめる」（ring.html）
+      input: { main: "index.html", ring: "ring.html" },
+    },
+  },
   test: {
     include: ["tests/**/*.test.ts"],
     environment: "node",
