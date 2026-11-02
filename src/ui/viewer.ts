@@ -229,6 +229,16 @@ export class Viewer {
     this.dirty = true;
   }
 
+  /** 決まった向きから見る（上・横・正面・斜め）。今の距離のまま */
+  setView(view: "top" | "side" | "front" | "angle") {
+    const target = this.controls.target.clone();
+    const r = this.camera.position.distanceTo(target);
+    const dir = { top: new THREE.Vector3(0, -0.001, 1), side: new THREE.Vector3(1, 0, 0.05), front: new THREE.Vector3(0, -1, 0.05), angle: new THREE.Vector3(0.6, -0.8, 0.6) }[view].normalize();
+    this.camera.position.copy(target).addScaledVector(dir, r);
+    this.controls.update();
+    this.dirty = true;
+  }
+
   /** 決まった向きから見た画像（look の道具）。今の視点は元に戻す */
   snapshotFrom(view: "top" | "side" | "front" | "angle"): string {
     const target = this.controls.target.clone();

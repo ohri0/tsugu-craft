@@ -142,3 +142,61 @@
 .note-b { margin: 0; font-size: 11px; color: var(--ivory-3); }
 .studio-build .out { display: flex; gap: 8px; }
 .studio-build .out .primary { background: var(--ivory); color: #14110e; border: 0; border-radius: 999px; padding: 9px 18px; }
+
+/* ---- ライノセラスのような並び：上に帯、左に道具の列、真ん中に 3D、右に操作、下にコマンドと寸法 ---- */
+.rhino { --rail-w: 76px; --side-w: 340px; --top-h: 56px; --bottom-h: 92px; }
+.rhino .cad-top { height: var(--top-h); padding: 0 16px; gap: 14px; background: rgba(11, 10, 9, 0.7); border-bottom: 1px solid var(--hair); backdrop-filter: blur(8px); }
+.rhino .doc-name { font-family: var(--serif); font-size: 15px; color: var(--ivory); letter-spacing: 0.04em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rhino .top-actions { margin-left: auto; display: flex; gap: 6px; }
+.rhino .gl { top: var(--top-h); left: var(--rail-w); right: var(--side-w); bottom: var(--bottom-h); }
+.rail { position: absolute; z-index: 6; top: var(--top-h); left: 0; bottom: var(--bottom-h); width: var(--rail-w); padding: 10px 8px; display: flex; flex-direction: column; gap: 6px; border-right: 1px solid var(--hair); background: rgba(11, 10, 9, 0.55); }
+.rail button { border: 1px solid transparent; background: transparent; color: var(--ivory-2); border-radius: 12px; padding: 7px 2px 6px; display: grid; justify-items: center; gap: 2px; }
+.rail button i { font-style: normal; font-family: var(--serif); font-size: 19px; line-height: 1.1; }
+.rail button span { font-size: 10px; letter-spacing: 0.04em; }
+.rail button[aria-current="true"] { background: var(--ivory); color: #14110e; }
+.rail button:hover:not([aria-current="true"]) { border-color: var(--hair); color: var(--ivory); }
+.rail hr { border: 0; border-top: 1px solid var(--hair); margin: 6px 4px; width: calc(100% - 8px); }
+.rail .view-btn i { font-size: 14px; width: 26px; height: 26px; display: grid; place-items: center; border: 1px solid var(--hair); border-radius: 6px; }
+.vp-label { position: absolute; z-index: 4; top: calc(var(--top-h) + 12px); left: calc(var(--rail-w) + 16px); display: flex; align-items: baseline; gap: 10px; pointer-events: none; }
+.vp-label .word { position: static; font-family: var(--serif); font-size: 26px; font-weight: 500; letter-spacing: 0.08em; }
+.vp-label .vp-view { font-size: 11px; color: var(--ivory-3); border: 1px solid var(--hair); border-radius: 6px; padding: 1px 8px; }
+.vp-label .word-sub { font-size: 11px; color: var(--ivory-3); letter-spacing: 0.12em; }
+.rhino .verdict-chip { left: calc(var(--rail-w) + 16px); top: calc(var(--top-h) + 52px); transform: none; }
+.rhino .side { position: absolute; z-index: 5; top: var(--top-h); right: 0; bottom: var(--bottom-h); width: var(--side-w); overflow: auto; padding: 14px 16px; border-left: 1px solid var(--hair); border-radius: 0; background: rgba(15, 13, 11, 0.86); backdrop-filter: blur(10px); display: grid; gap: 12px; align-content: start; }
+.rhino .side h3 { margin: 4px 0 0; font-family: var(--sans); font-weight: 500; font-size: 11px; letter-spacing: 0.2em; color: var(--ivory-3); }
+.rhino .make-panel .in-card { width: 100%; }
+.rhino .worklog { position: static; width: auto; max-height: none; top: auto; left: auto; }
+.rhino .bottom { position: absolute; z-index: 6; left: 0; right: 0; bottom: 0; height: var(--bottom-h); padding: 8px 16px 6px; display: grid; grid-template-rows: auto auto; gap: 4px; background: rgba(11, 10, 9, 0.85); border-top: 1px solid var(--hair); }
+.rhino .command { width: 100%; border-radius: 10px; padding: 4px; background: rgba(239, 231, 214, 0.06); }
+.rhino .command .cmd-label { align-self: center; padding: 0 4px 0 10px; font-size: 11px; letter-spacing: 0.16em; color: #e9c46a; white-space: nowrap; }
+.rhino .command input { padding: 8px 8px; font-size: 15px; }
+.rhino .command button { border-radius: 8px; }
+.rhino .make-status { position: absolute; right: 16px; bottom: 54px; margin: 0; font-size: 11px; color: var(--ivory-2); }
+.rhino .status-bar { position: static; display: flex; flex-wrap: nowrap; gap: 18px; overflow-x: auto; white-space: nowrap; margin: 0; padding: 2px 4px; pointer-events: auto; }
+.rhino .status-bar div { display: flex; gap: 6px; align-items: baseline; }
+.rhino .status-bar dt { font-size: 10px; letter-spacing: 0.12em; }
+.rhino .status-bar dd { font-size: 12px; }
+.cad.studio.rhino[data-mode="make"] .specs { display: flex; }
+.rhino .cannot-chip { left: calc(var(--rail-w) + 16px); right: calc(var(--side-w) + 16px); bottom: calc(var(--bottom-h) + 12px); transform: none; width: auto; }
+.rhino .intro-stage { z-index: 20; }
+.rhino .studio-refine, .rhino .studio-build { gap: 12px; }
+
+@media (max-width: 760px) {
+  .rhino { --rail-w: 0px; --side-w: 0px; --top-h: 50px; --bottom-h: 112px; }
+  .rhino .top-actions { display: none; }
+  .rhino .gl { bottom: calc(var(--bottom-h) + 46vh); }
+  .rail { top: auto; bottom: 0; left: 0; right: 0; width: auto; height: 56px; flex-direction: row; padding: 4px 6px calc(4px + env(safe-area-inset-bottom)); border-right: 0; border-top: 1px solid var(--hair); background: rgba(11, 10, 9, 0.95); z-index: 9; }
+  .rail button { flex: 1; padding: 4px 0; }
+  .rail hr { display: none; }
+  .rail .view-btn { display: none; }
+  .rhino .bottom { bottom: 56px; height: auto; padding: 6px 10px; }
+  .rhino .status-bar { display: none !important; }
+  .rhino .make-status { position: static; text-align: center; }
+  .rhino .side { top: auto; left: 0; right: 0; bottom: calc(56px + 64px); height: 46vh; width: auto; border-left: 0; border-top: 1px solid var(--hair); border-radius: 16px 16px 0 0; }
+  .vp-label { left: 14px; }
+  .vp-label .word { font-size: 22px; }
+  .rhino .verdict-chip { left: 14px; top: calc(var(--top-h) + 44px); }
+  .rhino .cannot-chip { left: 14px; right: 14px; bottom: auto; top: calc(var(--top-h) + 80px); }
+}
+.rhino .make-panel { display: flex; flex-direction: column; gap: 10px; }
+.rhino .make-panel > * { flex: none; }

@@ -56,31 +56,40 @@ let undoClaude: (() => boolean) | null = null;
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
-<div class="cad dark studio">
+<div class="cad dark studio rhino">
   <div class="gl"></div>
   <header class="cad-top">
     <a class="brand" href="./"><span class="seal">継</span><span class="name">継ぐ</span></a>
-    <nav class="modes">${MODES.map((m) => `<button type="button" data-mode="${m.id}">${m.word}</button>`).join("")}</nav>
+    <span class="doc-name word-name"></span>
+    <div class="top-actions"><button type="button" class="ghost-d act-sheet">指示書</button><button type="button" class="ghost-d act-stl">3D データ</button></div>
     <button type="button" class="book-btn">帳面<i class="book-n"></i></button>
   </header>
-  <div class="word"><h1></h1><p class="word-sub"></p><p class="word-name"></p></div>
-  <ol class="worklog" hidden></ol>
-  <dl class="specs"></dl>
+  <nav class="rail" aria-label="道具">
+    ${MODES.map((m) => `<button type="button" data-mode="${m.id}" title="${m.sub}"><i>${m.word.slice(0, 1)}</i><span>${m.word.replace("。", "")}</span></button>`).join("")}
+    <hr>
+    ${(["angle", "top", "side", "front"] as const).map((v) => `<button type="button" class="view-btn" data-view="${v}"><i>${{ angle: "斜", top: "上", side: "横", front: "正" }[v]}</i><span>${{ angle: "斜め", top: "上", side: "横", front: "正面" }[v]}</span></button>`).join("")}
+  </nav>
+  <div class="vp-label"><b class="word"><span class="vp-mode"></span></b><span class="vp-view">斜め</span><span class="word-sub"></span></div>
   <div class="verdict-chip" hidden></div>
 
-  <div class="make-bar studio-make">
-    <div class="inputs">
-      <label class="in-card stone-card"><canvas class="stone-thumb" width="120" height="120"></canvas><span><b>石の写真</b><small class="stone-sub">撮る・選ぶ</small></span><input type="file" accept="image/*" class="stone-file" hidden></label>
-      <div class="in-card size-card"><label>長辺<input type="number" step="0.01" class="in-long" inputmode="decimal"> mm</label><label>深さ<input type="number" step="0.01" class="in-depth" inputmode="decimal"> mm</label></div>
-      <label class="in-card sketch-card"><span class="sketch-thumb">絵</span><span><b>デザインの絵</b><small class="sketch-sub">なくてもよい</small></span><input type="file" accept="image/*" class="sketch-file" hidden></label>
-    </div>
-    <form class="prompt"><input type="text" class="wish" placeholder="希望（例：華奢に。毎日つける。石を大きく見せたい）" aria-label="希望"><button type="submit">生む</button></form>
-    <p class="make-status"></p>
-  </div>
-
-  <aside class="refine-panel studio-refine" hidden></aside>
-  <aside class="refine-panel build-panel studio-build" hidden></aside>
+  <aside class="side make-panel studio-make">
+    <h3>石</h3>
+    <label class="in-card stone-card"><canvas class="stone-thumb" width="120" height="120"></canvas><span><b>石の写真</b><small class="stone-sub">撮る・選ぶ</small></span><input type="file" accept="image/*" class="stone-file" hidden></label>
+    <div class="in-card size-card"><label>長辺<input type="number" step="0.01" class="in-long" inputmode="decimal"> mm</label><label>深さ<input type="number" step="0.01" class="in-depth" inputmode="decimal"> mm</label></div>
+    <h3>デザイン</h3>
+    <label class="in-card sketch-card"><span class="sketch-thumb">絵</span><span><b>デザインの絵</b><small class="sketch-sub">なくてもよい</small></span><input type="file" accept="image/*" class="sketch-file" hidden></label>
+    <h3>作業の記録</h3>
+    <ol class="worklog"><li class="note">下の行に希望を書いて「生む」を押すと、Claude が組み、作れるか確かめて直します。</li></ol>
+  </aside>
+  <aside class="side refine-panel studio-refine" hidden></aside>
+  <aside class="side refine-panel build-panel studio-build" hidden></aside>
   <aside class="book-panel" hidden></aside>
+
+  <div class="bottom">
+    <form class="prompt command"><span class="cmd-label">希望</span><input type="text" class="wish" placeholder="例：華奢に。毎日つける。石を大きく見せたい" aria-label="希望"><button type="submit">生む</button></form>
+    <p class="make-status"></p>
+    <dl class="specs status-bar"></dl>
+  </div>
   <div class="intro-stage" hidden><canvas class="intro-photo"></canvas><svg class="intro-line" preserveAspectRatio="none"></svg><p class="intro-cap"></p></div>
 </div>`;
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector<T>(s)!;
@@ -253,20 +262,37 @@ function onBuilt(b: Built, _why: string) {
 // ---- 場面 ----
 function setMode(m: Mode) {
   const w = MODES.find((x) => x.id === m)!;
-  $(".word h1").textContent = w.word;
+  $(".vp-mode").textContent = w.word;
   $(".word-sub").textContent = w.sub;
-  document.querySelectorAll<HTMLButtonElement>(".modes button").forEach((b) => b.setAttribute("aria-current", String(b.dataset.mode === m)));
-  $(".make-bar").hidden = m !== "make";
+  document.querySelectorAll<HTMLButtonElement>(".rail [data-mode]").forEach((b) => b.setAttribute("aria-current", String(b.dataset.mode === m)));
+  $(".make-panel").hidden = m !== "make";
   $(".studio-refine").hidden = m !== "refine";
   $(".build-panel").hidden = m !== "hand";
   $(".cad").setAttribute("data-mode", m);
   viewer.setAutoRotate(m === "make");
   // スマホでは、下の板に隠れないよう品を上に寄せる
-  viewer.setLift(window.innerWidth <= 760 ? (m === "hand" ? 0.1 : 0.16) : 0);
+  viewer.setLift(0);
   if (m === "refine") renderCheck();
   if (m === "hand") renderBuild();
 }
-document.querySelectorAll<HTMLButtonElement>(".modes button").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode as Mode)));
+document.querySelectorAll<HTMLButtonElement>(".rail [data-mode]").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode as Mode)));
+const VIEW_NAME = { angle: "斜め", top: "上", side: "横", front: "正面" } as const;
+document.querySelectorAll<HTMLButtonElement>(".view-btn").forEach((b) =>
+  b.addEventListener("click", () => {
+    const v = b.dataset.view as keyof typeof VIEW_NAME;
+    viewer.setAutoRotate(false);
+    viewer.setView(v);
+    $(".vp-view").textContent = VIEW_NAME[v];
+  }),
+);
+$(".act-sheet").addEventListener("click", () => {
+  setMode("hand");
+  $<HTMLButtonElement>(".p-instr").click();
+});
+$(".act-stl").addEventListener("click", () => {
+  setMode("hand");
+  $<HTMLButtonElement>(".p-stl").click();
+});
 
 // ---- 生む。：Claude が組んで、確かめて、直す ----
 const TOOL_WORD: Record<string, string> = { set_setting: "石座", set_shank: "腕", check: "確かめ", look: "見る" };
@@ -307,7 +333,7 @@ function stoneText(): string {
 }
 
 let making = false;
-$(".studio-make .prompt").addEventListener("submit", (e) => {
+$(".command").addEventListener("submit", (e) => {
   e.preventDefault();
   void make();
 });
