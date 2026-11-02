@@ -130,20 +130,22 @@ export interface SettingResult {
 /** 縁を取り直す点の数（石座の 3D の細かさ） */
 const OUTLINE_POINTS = 128;
 /** 角で、隣の点どうしの外向きの向きがこの角度（ラジアン）より大きく回る所には点を足す。外へずらした線が角で丸く回る */
-const MAX_TURN_RAD = (5 * Math.PI) / 180;
+const MAX_TURN_RAD = (8 * Math.PI) / 180;
 /** 爪の針金の断面の円を何角形で作るか（20 以上で、光の当たり方が丸く見える） */
-export const PRONG_SIDES = 24;
+export const PRONG_SIDES = 20;
 /** 石座の輪の針金の断面 */
-const RING_SIDES = 20;
+const RING_SIDES = 16;
 /** 針金の端の丸いふたの段の数 */
 const CAP_STEPS = 7;
 /** 爪の中心の線を取り直す間隔（mm） */
-const PATH_STEP = 0.08;
+const PATH_STEP = 0.1;
 /**
  * 石の一番下の近くでは、石の外形はほとんど点まで縮む。爪の足と下の輪がそこへ集まって固まりにならないよう、
  * 石座の形は縁の形をこの倍率より小さくは縮めない
  */
-const FOOT_SCALE = 0.12;
+const FOOT_SCALE = 0.2;
+/** 爪の足の下の端（腕の中）は、下の輪の所から中心へ寄せる（足がこの倍率まで中心へ近づく）。足が腕の幅に収まる */
+const FOOT_PULL = 0.5;
 /**
  * 爪の先の形（爪の半径に対する倍率）。先は石の上側に乗るので、石に直角な向きに薄く（normal）、横に少し細く（side）し、
  * 先から taper 本分の長さで細くしていく。端は cap の長さの丸いふた
@@ -152,17 +154,26 @@ const TIP = { normal: 0.55, side: 0.85, taper: 2.4, cap: 0.9 };
 /** 爪の先の曲がり：縁の上から真上へ出て、石の上側の面に沿って先へ届く。曲線の手前・奥の引っぱりの強さ */
 const BEND = { rise: 0.5, lean: 0.45 };
 /**
- * V 字の爪の、角を包む壁。thicken：壁の厚みを足の太さよりわずかに大きく（足が壁の中に隠れて、面がちらつかない）。
- * below：縁の下から下へ、爪の太さの何本分まで包むか。round：上下の端の丸みの高さ（壁の厚みの半分に対する倍率）。
- * contact：先の丸みが始まる高さを、先の高さから爪の半径の何倍だけ下にするか
+ * V 字の爪の、角を包む板（上から見て V の字）。thick：板の厚み ＝ 爪の太さ × この値（足より少し薄い板が、角に沿って折れる）。
+ * below：縁の下から下へ、爪の太さの何本分まで包むか。round：上下の端の丸みの高さ（板の厚みの半分に対する倍率）。
+ * over：上の端の丸みのうち、先の高さより上に出る割合（残りは先の高さより下で、石の上側に乗る）。
+ * steps：丸みの段の数。along：縁に沿った点の数。capSides：板の両端の半円の分け方。
+ * upright：縁より下で、板の外側を石の下側の面のこの割合しか内へ倒さない（下へ行くほど板が厚くなり、足を受け止める）。
+ * step：板の高さの方向の段の間隔（mm。細かいほど面がなめらか）。
+ * square：断面の角の丸め方（2 で丸、大きいほど角の丸い四角）。capLength：両端の張り出しの長さ（厚みの半分に対する倍率）
  */
-const V_WALL = { thicken: 1.05, below: 0.9, round: 0.9, contact: 0.25, steps: 6, along: 40, capSides: 8 };
-/** V 字の爪の 2 本の足が 1 本の軸に合わさる所：上の輪と下の輪の間のこの割合の高さ。軸は足よりわずかに太く */
-const V_STEM = { at: 0.5, thicken: 1.06 };
+const V_WALL = { thick: 0.58, below: 0.5, round: 0.9, over: 0.45, steps: 8, along: 32, capSides: 12, upright: 1, step: 0.1, square: 3.2, capLength: 0.75 };
+/** 板の外側の線を丸く太らせるときの、高さの方向の分け方 */
+const ROUND_OFFSET_STEPS = 48;
+/** V 字の爪の足：板の中に隠れるよう、板の厚みの半分の inside 倍まで細くなりながら、板の下の丸みの上（丸みの高さの into 倍だけ上）まで入る。
+ * 端の丸いふたは短く（endCap 倍）して、板の外へ出ないようにする */
+const V_LEG = { inside: 0.75, into: 0.1, endCap: 0.4 };
+/** V 字の爪の 2 本の足が 1 本の軸に合わさる所：上の輪と下の輪の間のこの割合の高さ（0 なら下の輪の高さで、合わさる所が輪に隠れる）。軸は足よりわずかに太く */
+const V_STEM = { at: 0, thicken: 1.06 };
 /** 覆輪の上の端の丸み（半円）を何段で作るか（偶数にすると、いちばん上の点がちょうど上の端の高さに来る） */
 const LIP_STEPS = 8;
 /** 覆輪の壁の途中の高さの間隔（mm）。なめらかに見えるよう、段の間を細かく */
-const WALL_STEP = 0.15;
+const WALL_STEP = 0.3;
 /** 爪と覆輪の下の端を、腕の厚みのこの割合だけ腕の中へ入れる（つながって見えるように） */
 const EMBED_RATIO = 0.5;
 /** 石座の輪 2 段を置くのに要る、縁の下と腕の上の間（輪の線の太さの何本分か） */
@@ -429,11 +440,12 @@ function along(s: Sample): V3 {
  * 先の中心 e は、石の上側の、先の高さ tz の点から、面に直角に外へ「先の厚みの半分」だけ離れた所。
  * 返すのは曲線の上の点（g は含めない）と、先の中心
  */
-function clawBend(f: Frame, s: Sample, g: V3, tz: number, halfThickness: number): V3[] {
-  const c = onStone(f, s, tz);
+function clawBend(f: Frame, s: Sample, g: V3, tz: number, halfThickness: number, capLength: number): V3[] {
   const eps = 0.02;
   // 石の上側の面を、上へ登る向き（内向きに倒れている）
   const up = normalize(sub(onStone(f, s, tz + eps), onStone(f, s, tz - eps)));
+  // 先の丸いふたの端が、ちょうど先の高さ tz に届くように、先の中心をふたの長さの分だけ下げる
+  const c = onStone(f, s, tz - up[2] * capLength);
   const nh: V3 = [s.n.x, s.n.y, 0];
   const out = normalize(sub(nh, scale(up, dot(nh, up))));
   const e = add(c, scale(out, halfThickness));
@@ -489,46 +501,85 @@ function vWall(f: Frame, tA: number, tB: number, zb: number, zt: number, half: n
   const sA = samples[0];
   const sB = samples[samples.length - 1];
 
-  // 高さと、その高さの壁の厚みの半分。上下の端は丸く（厚み 0 まで）
+  // 高さと、その高さの板の厚みの割合（1 ＝ そのままの厚み）。上下の端は丸く（厚み 0 まで）
   const rb = V_WALL.round * half;
-  const levels: { z: number; h: number }[] = [];
+  const levels: { z: number; w: number }[] = [];
   for (let q = 0; q <= V_WALL.steps; q++) {
     const beta = (q / V_WALL.steps) * (Math.PI / 2);
-    levels.push({ z: zb + rb * (1 - Math.cos(beta)), h: half * Math.sin(beta) });
+    levels.push({ z: zb + rb * (1 - squircle(Math.cos(beta))), w: squircle(Math.sin(beta)) });
   }
   const k0 = stoneKnots(f.h);
   const midFrom = zb + rb;
   const midTo = zt - rb;
   const mids = [k0.girdleBottom, k0.girdleTop, k0.crownMid];
-  const nStep = Math.max(1, Math.ceil((midTo - midFrom) / WALL_STEP));
+  const nStep = Math.max(1, Math.ceil((midTo - midFrom) / V_WALL.step));
   for (let q = 1; q < nStep; q++) mids.push(midFrom + ((midTo - midFrom) * q) / nStep);
-  for (const z of ascending(mids, midFrom + EPS, midTo - EPS)) levels.push({ z, h: half });
+  for (const z of ascending(mids, midFrom + EPS, midTo - EPS)) levels.push({ z, w: 1 });
   for (let q = 0; q <= V_WALL.steps; q++) {
     const g = (q / V_WALL.steps) * (Math.PI / 2);
-    levels.push({ z: midTo + rb * Math.sin(g), h: half * Math.cos(g) });
+    levels.push({ z: midTo + rb * squircle(Math.sin(g)), w: squircle(Math.cos(g)) });
   }
   levels.sort((a, b) => a.z - b.z);
 
-  const loops = levels.map(({ z, h }) => {
-    const loop: V3[] = samples.map((s) => at(f, s, z, dc + h));
-    // 終わりの端（tB）：外 → 先 → 内 の半円
-    const cB = at(f, sB, z, dc);
+  // 板の内側は石の面から inner、外側は「石の形を外へ 2 × half ＋ inner だけ太らせた形」（縁の稜線のまわりは丸い弧）
+  const inner = dc - half;
+  const outerOf = (s: Sample, z: number) => roundOffset(f, s, z, inner + 2 * half);
+  const loops = levels.map(({ z, w }) => {
+    // 縁に沿った点ごとの、板の中心の線と厚みの半分
+    const mid = samples.map((s) => {
+      const o = outerOf(s, z);
+      return { c: (inner + o) / 2, h: ((o - inner) / 2) * w };
+    });
+    const loop: V3[] = samples.map((s, j) => at(f, s, z, mid[j].c + mid[j].h));
+    // 終わりの端（tB）：外 → 先 → 内。角の丸い四角に近い形（丸すぎると、溶けたように見える）
+    const mB = mid[mid.length - 1];
+    const cB = at(f, sB, z, mB.c);
     const nB: V3 = [sB.n.x, sB.n.y, 0];
     for (let q = 1; q < V_WALL.capSides; q++) {
       const th = (q / V_WALL.capSides) * Math.PI;
-      loop.push(add(cB, add(scale(nB, h * Math.cos(th)), scale(along(sB), h * Math.sin(th)))));
+      loop.push(add(cB, add(scale(nB, mB.h * squircle(Math.cos(th))), scale(along(sB), mB.h * V_WALL.capLength * squircle(Math.sin(th))))));
     }
-    for (let j = samples.length - 1; j >= 0; j--) loop.push(at(f, samples[j], z, dc - h));
-    // 始まりの端（tA）：内 → 手前 → 外 の半円
-    const cA = at(f, sA, z, dc);
+    for (let j = samples.length - 1; j >= 0; j--) loop.push(at(f, samples[j], z, mid[j].c - mid[j].h));
+    // 始まりの端（tA）：内 → 手前 → 外
+    const mA = mid[0];
+    const cA = at(f, sA, z, mA.c);
     const nA: V3 = [sA.n.x, sA.n.y, 0];
     for (let q = 1; q < V_WALL.capSides; q++) {
       const th = Math.PI + (q / V_WALL.capSides) * Math.PI;
-      loop.push(add(cA, add(scale(nA, h * Math.cos(th)), scale(along(sA), h * Math.sin(th)))));
+      loop.push(add(cA, add(scale(nA, mA.h * squircle(Math.cos(th))), scale(along(sA), mA.h * V_WALL.capLength * squircle(Math.sin(th))))));
     }
     return loop;
   });
   stackLoops(loops, out);
+}
+
+/** 丸と四角の間の形（超楕円）にするための、cos・sin の曲げ。V_WALL.square が 2 なら丸、大きいほど四角に近い */
+function squircle(c: number): number {
+  return Math.sign(c) * Math.abs(c) ** (2 / V_WALL.square);
+}
+
+/**
+ * 縁の点 s を通る縦の断面で、石の外側の線を D だけ太らせた線（半径 D の円をその線に沿って転がした外側）が、
+ * 高さ z で石の面から外へどれだけ離れているか（mm、水平に測る）。
+ * 縁の稜線（いちばん外へ出る所）のまわりでは、太らせた線が丸い弧になるので、板の外側に角ができない。
+ * 縁より下は、石の下側の面より立てた線を使う（板の下の方が、石から離れて縦に近くなる）。
+ */
+function roundOffset(f: Frame, s: Sample, z: number, D: number): number {
+  const k0 = stoneKnots(f.h);
+  // 石の外側の線の、外向きの水平の位置（縁の高さを 0 とする）
+  const reach = (s.p.x - f.center.x) * s.n.x + (s.p.y - f.center.y) * s.n.y;
+  const u = (zz: number) => -(1 - stoneScaleAt(f.h, zz)) * reach;
+  const ub = u(k0.girdleBottom);
+  const shaped = (zz: number) => (zz < k0.girdleBottom ? ub + V_WALL.upright * (u(zz) - ub) : u(zz));
+  let best = -Infinity;
+  const consider = (z0: number) => {
+    const dz = z - z0;
+    if (Math.abs(dz) > D) return;
+    best = Math.max(best, shaped(z0) + Math.sqrt(D * D - dz * dz));
+  };
+  for (let q = 0; q <= ROUND_OFFSET_STEPS; q++) consider(z - D + (2 * D * q) / ROUND_OFFSET_STEPS);
+  for (const z0 of [k0.girdleBottom, k0.girdleTop, k0.crownMid]) consider(z0);
+  return best - u(z);
 }
 
 /** 下から順に、重ならない高さだけを残す */
@@ -584,7 +635,13 @@ export function buildSetting(params: SettingParams): SettingResult {
     tipZ = tz;
     // 爪の中心の線が通る高さ：上の輪から縁の上まで（石の下側の面に沿う）と、上の輪より下（腕の中へ）
     const upper = ascending([v.upperRingZ, k.pavilionMid, k.girdleBottom, k.girdleTop], v.upperRingZ, k.girdleTop);
-    const lower = (from: number, below: number) => ascending([v.lowerRingZ, h.culetZ, k.pavilionMid], from, below).filter((z) => z < below - EPS);
+    // 下の輪より上の高さだけ（下の輪より下は、足の下の端へまっすぐ寄せる）
+    const lower = (from: number, below: number) =>
+      ascending([v.lowerRingZ, h.culetZ, k.pavilionMid], Math.max(from, v.lowerRingZ), below).filter((z) => z < below - EPS);
+    const footAt = (s: Sample, z: number, dd: number): V3 => {
+      const q = at(f, s, z, dd);
+      return [f.center.x + (q[0] - f.center.x) * FOOT_PULL, f.center.y + (q[1] - f.center.y) * FOOT_PULL, z];
+    };
 
     for (const plan of plans) {
       const r = plan.diameterMm / 2;
@@ -602,11 +659,13 @@ export function buildSetting(params: SettingParams): SettingResult {
       if (!plan.isV) {
         // ふつうの爪：腕の中 → 下の輪 → 上の輪 → 石の下側に沿って縁 → 縁の上で内へ曲がり、先が石の上側に乗る
         const ctrl: V3[] = [
-          at(f, tipAt, footZ(r), d),
+          footAt(tipAt, footZ(r), d),
           ...lower(footZ(r) + EPS, v.upperRingZ).map((z) => at(f, tipAt, z, d)),
           ...upper.map((z) => at(f, tipAt, z, d)),
         ];
-        ctrl.push(...clawBend(f, tipAt, ctrl[ctrl.length - 1], tz, TIP.normal * r));
+        // 先の丸いふたの長さ ＝ 先の断面の半径の平均 × TIP.cap（sweepTube と同じ決め方）
+        const capLength = (TIP.cap * r * (TIP.normal + TIP.side)) / 2;
+        ctrl.push(...clawBend(f, tipAt, ctrl[ctrl.length - 1], tz, TIP.normal * r, capLength));
         const path = smoothPath(ctrl, PATH_STEP);
         const rest = lengthsToEnd(path);
         const tris: number[] = [];
@@ -630,27 +689,50 @@ export function buildSetting(params: SettingParams): SettingResult {
         legPoints.push({ x: at(f, tipAt, 0, d)[0], y: at(f, tipAt, 0, d)[1] });
       } else {
         // V 字の爪：角を包む壁 ＋ 角の両側の 2 本の足 ＋ 足が合わさった下の軸
-        const rw = r * V_WALL.thicken;
-        const dcW = cl / 2 + rw;
+        // 板：厚みの半分 hw、中心の線は石の面から cl/2 ＋ hw（内側が石の面に沿う）
+        const hw = (V_WALL.thick * plan.diameterMm) / 2;
+        const dcW = cl / 2 + hw;
+        const rb = V_WALL.round * hw;
         const zb = k.girdleBottom - V_WALL.below * plan.diameterMm;
-        const zt = tz - V_WALL.contact * r + V_WALL.round * rw;
+        const zt = tz + V_WALL.over * rb;
         const wallTris: number[] = [];
-        vWall(f, plan.t - spreadT, plan.t + spreadT, zb, zt, rw, dcW, wallTris);
+        vWall(f, plan.t - spreadT, plan.t + spreadT, zb, zt, hw, dcW, wallTris);
         pieces.push(wallTris);
         // 軸：腕の中から、上の輪と下の輪の間まで（角の真下）
         const rs = r * V_STEM.thicken;
         const zm = v.lowerRingZ + (v.upperRingZ - v.lowerRingZ) * V_STEM.at;
         const merge = at(f, tipAt, zm, d);
-        const stemCtrl: V3[] = [at(f, tipAt, footZ(rs), d), ...lower(footZ(rs) + EPS, zm).map((z) => at(f, tipAt, z, d)), merge];
+        const stemCtrl: V3[] = [footAt(tipAt, footZ(rs), d), ...lower(footZ(rs) + EPS, zm).map((z) => at(f, tipAt, z, d)), merge];
         const stem: number[] = [];
         sweepTube(smoothPath(stemCtrl, PATH_STEP), { sides: PRONG_SIDES, side: side(tipAt), radius: () => [rs, rs], startCap: footCap(rs), endCap: 1, capSteps: CAP_STEPS }, stem);
         pieces.push(stem);
+        // 足が板へ入る高さ（板の下の丸みの少し上）。足はそこへ向かって板の厚みまで細くなり、中心も板の中心の線へ寄る
+        const legTop = Math.min(k.girdleBottom, zb + rb * (1 + V_LEG.into));
+        const legR = V_LEG.inside * hw;
+        const taper = (z: number) => smoothstep((z - v.upperRingZ) / (legTop - v.upperRingZ));
         for (const lt of legTs) {
           const s = sampleAt(f, lt);
-          // 足：軸の上の端から分かれ、上の輪を通って石の下側に沿い、壁の中（縁の下）で終わる
-          const legUpper = upper.filter((z) => z <= k.girdleBottom + EPS).map((z) => at(f, s, z, d));
+          // 足：軸の上の端から分かれ、上の輪を通って石の下側に沿い、板の中で終わる
+          const zs = ascending([...upper.filter((z) => z < legTop - EPS), (v.upperRingZ + legTop) / 2, legTop], v.upperRingZ, legTop);
+          // 板の中では、板の本当の中心の線（下ほど厚い）へ寄せる
+          const plateMid = (z: number) => (cl / 2 + roundOffset(f, s, z, cl / 2 + 2 * hw)) / 2;
+          const legPath = smoothPath([merge, ...zs.map((z) => at(f, s, z, d + (plateMid(z) - d) * taper(z)))], PATH_STEP);
           const leg: number[] = [];
-          sweepTube(smoothPath([merge, ...legUpper], PATH_STEP), { sides: PRONG_SIDES, side: side(s), radius: () => [r, r], startCap: 1, endCap: 1, capSteps: CAP_STEPS }, leg);
+          sweepTube(
+            legPath,
+            {
+              sides: PRONG_SIDES,
+              side: side(s),
+              radius: (j) => {
+                const rr = r + (legR - r) * taper(legPath[j][2]);
+                return [rr, rr];
+              },
+              startCap: 1,
+              endCap: V_LEG.endCap,
+              capSteps: CAP_STEPS,
+            },
+            leg,
+          );
           pieces.push(leg);
           const g = at(f, s, 0, d);
           legPoints.push({ x: g[0], y: g[1] });
