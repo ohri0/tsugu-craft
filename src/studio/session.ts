@@ -100,6 +100,9 @@ export class RingSession implements ToolHost<RingState> {
     private shoot: (view: LookInput["view"]) => Promise<string> | string,
   ) {}
 
+  /** 石座を継ぎ目のない一体の形で作る（画面と STL。重いのでテストでは使わない） */
+  solid = false;
+
   private sizeMm() {
     return stoneSizeMm(this.stone.longMm, this.stone.widthMm);
   }
@@ -116,6 +119,7 @@ export class RingSession implements ToolHost<RingState> {
         prongCount: s.prongCount,
         prongDiameterMm: s.prongMm,
         prongs: s.prongPositions?.length ? s.prongPositions.map((i) => ({ t: tAtOutlineIndex(outline, i) })) : undefined,
+        solid: this.solid,
       },
       shank: { gou: s.gou, metal: metalIdOf(s.metal), widthMm: s.shankWidthMm, thicknessMm: s.shankThicknessMm },
       orientation: s.orientation,

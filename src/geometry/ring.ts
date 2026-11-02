@@ -36,7 +36,7 @@ export interface RingDesign {
   shank: ShankResult;
   transform: RingTransform;
   /** 指輪の座標に置いた、表示用の形 */
-  ringPositions: { stone: Float32Array; setting: Float32Array; shank: Float32Array };
+  ringPositions: { stone: Float32Array; setting: Float32Array; shank: Float32Array; settingNormals?: Float32Array };
   /** 石の一番下と指のすき間（mm）。置いたあとの形から測り直した値 */
   culetGapMm: number;
   /** 地金の重さの見積もり（g）＝（腕 ＋ 石座）の体積 × 密度。部品の重なりも数えるので少し多め。目安 */
@@ -66,7 +66,7 @@ export function buildRing(p: RingParams): RingDesign {
     setting,
     shank,
     transform,
-    ringPositions: { stone: ringStone, setting: ringSetting, shank: shank.positions },
+    ringPositions: { stone: ringStone, setting: ringSetting, shank: shank.positions, settingNormals: setting.normals ? rotateNormals(setting.normals, transform.rotationZ) : undefined },
     culetGapMm,
     metalWeightG: weightG(shank.volumeMm3 + meshVolume(setting.positions), metal),
     metal,
@@ -112,4 +112,18 @@ export function applyTransform(positions: Float32Array, t: RingTransform): Float
 /** 地金の名前（画面に出す） */
 export function metalName(metal: MetalId): string {
   return GUIDES.metals[metal].name;
+}
+
+/** 向き（法線）を z 軸まわりに回す（位置の移動はしない） */
+function rotateNormals(n: Float32Array, rad: number): Float32Array {
+  if (rad === 0) return n;
+  const c = Math.cos(rad);
+  const s = Math.sin(rad);
+  const out = new Float32Array(n.length);
+  for (let i = 0; i < n.length; i += 3) {
+    out[i] = n[i] * c - n[i + 1] * s;
+    out[i + 1] = n[i] * s + n[i + 1] * c;
+    out[i + 2] = n[i + 2];
+  }
+  return out;
 }

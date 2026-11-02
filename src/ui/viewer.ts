@@ -135,7 +135,7 @@ export class Viewer {
       if (!ud.render) ud.render = o.material;
       if (!ud.edges) {
         // 面の折れ目の線（シェードでは濃く、ワイヤーフレームでは明るく）
-        const e = new THREE.LineSegments(new THREE.EdgesGeometry(o.geometry, 14), new THREE.LineBasicMaterial({ color: 0xd8d8dc, transparent: true, opacity: 0.9 }));
+        const e = new THREE.LineSegments(new THREE.EdgesGeometry(o.geometry, o.geometry.userData.smooth ? 60 : 14), new THREE.LineBasicMaterial({ color: 0xd8d8dc, transparent: true, opacity: 0.9 }));
         e.position.copy(o.position);
         e.rotation.copy(o.rotation);
         e.scale.copy(o.scale);
@@ -249,7 +249,7 @@ export class Viewer {
     const warn = new THREE.MeshPhysicalMaterial({ color: WARN, metalness: 0.35, roughness: 0.3, clearcoat: 0.6, side: THREE.DoubleSide });
     // 問題のある爪の三角形だけ、赤い材質の組に分ける
     const badProngs = new Set(problems.flatMap((p) => (p.target.kind === "prong" ? [p.target.index] : [])));
-    const settingGeo = metalGeometry(ring.ringPositions.setting);
+    const settingGeo = ring.ringPositions.settingNormals ? smoothGeometry(ring.ringPositions.setting, ring.ringPositions.settingNormals) : metalGeometry(ring.ringPositions.setting);
     const ranges = ring.setting.prongs
       .map((pr, i) => ({ ...pr.triangles, bad: badProngs.has(i) }))
       .filter((r) => r.bad)
@@ -649,6 +649,15 @@ function geometry(positions: Float32Array): THREE.BufferGeometry {
 }
 
 /** 金属はなめらかに（40° より鋭い折れ目だけ角として残す）。石は面ごとに平らなまま */
+/** 向きが決まっている形（一体の石座）。折れ目の線は細かいでこぼこを拾わないよう、角度を大きく */
+function smoothGeometry(positions: Float32Array, normals: Float32Array): THREE.BufferGeometry {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  g.setAttribute("normal", new THREE.BufferAttribute(normals, 3));
+  g.userData.smooth = true;
+  return g;
+}
+
 function metalGeometry(positions: Float32Array): THREE.BufferGeometry {
   return toCreasedNormals(geometry(positions), (40 * Math.PI) / 180);
 }

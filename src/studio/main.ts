@@ -230,6 +230,7 @@ async function loadStone(img: ImageData, label: string, longMm: number, depthMm:
     onBuilt,
     (view) => viewer.snapshotFrom(view).split(",")[1],
   );
+  session.solid = true;
   // 最初は、決まりごとから作った案（Claude なしでも形が出る）
   const plan = rulePlans(session.stone, corners)[0];
   session.state.style = plan.design.style;
