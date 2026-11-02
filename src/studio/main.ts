@@ -27,6 +27,7 @@ import { buildStone } from "../geometry/stone";
 import { METAL_LABEL, RingSession, type Built } from "./session";
 import { howToMake, type Method } from "./howto";
 import { sheetHtml } from "./sheet";
+import { whyHtml } from "./why";
 import { drawingPage, type DrawingView } from "./drawing";
 import { loadWorks, newWorkId, removeWork, saveWork, worksBookHtml } from "./works";
 import { KIND_LABEL, toolById, toolsForStep } from "./toolbox";
@@ -82,7 +83,7 @@ app.innerHTML = `
   <header class="tb">
     <div class="tb-l"><a class="brand" href="./"><span class="logo">継</span>継ぐ</a><span class="doc"><span class="word-name">新しい作品</span></span></div>
     <nav class="tabs" aria-label="場面">${MODES.map((m) => `<button type="button" data-mode="${m.id}" title="${m.sub}（${m.key}）">${m.word}<span class="k">${m.key}</span></button>`).join("")}</nav>
-    <div class="tb-r"><a class="btn quiet hide-sm" href="app.html#rebuild">組み立て直す</a><button type="button" class="btn act-sheet hide-sm">図面・指示書</button><button type="button" class="btn primary act-stl">STL</button><button type="button" class="book-btn">帳面<i class="book-n"></i></button></div>
+    <div class="tb-r"><button type="button" class="btn quiet act-why">なぜ継ぐ</button><a class="btn quiet hide-sm" href="app.html#rebuild">組み立て直す</a><button type="button" class="btn act-sheet hide-sm">図面・指示書</button><button type="button" class="btn primary act-stl">STL</button><button type="button" class="book-btn">帳面<i class="book-n"></i></button></div>
   </header>
   <nav class="tools" aria-label="見る">
     ${(["angle", "top", "side", "front"] as const).map((v) => `<button type="button" class="tool view-btn" data-view="${v}" data-tip="${{ angle: "斜め", top: "上", side: "横", front: "正面" }[v]}" aria-label="${{ angle: "斜め", top: "上", side: "横", front: "正面" }[v]}">${ICON[v]}</button>`).join("")}
@@ -1303,6 +1304,32 @@ function renderWorks() {
     }),
   );
 }
+
+// ---- なぜ継ぐ（往復の図・20 年の図・残し方） ----
+function openWhy() {
+  let el = document.querySelector<HTMLElement>(".why");
+  if (!el) {
+    el = document.createElement("div");
+    el.className = "why";
+    el.setAttribute("role", "dialog");
+    el.setAttribute("aria-label", "なぜ継ぐ");
+    document.body.appendChild(el);
+  }
+  el.innerHTML = whyHtml();
+  el.hidden = false;
+  el.scrollTop = 0;
+  const close = () => {
+    el!.hidden = true;
+    if (location.hash === "#why") history.replaceState(null, "", location.pathname + location.search);
+  };
+  el.querySelector(".why-close")!.addEventListener("click", close);
+  el.querySelector(".why-go")!.addEventListener("click", close);
+}
+$(".act-why").addEventListener("click", () => {
+  history.replaceState(null, "", "#why");
+  openWhy();
+});
+if (location.hash === "#why") openWhy();
 
 setMode("make");
 bookCount();
