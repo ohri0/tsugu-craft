@@ -506,3 +506,17 @@ dialog.sheet input:focus { border-color: var(--accent); }
 .pc-list i { font-style: normal; font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: 4px; background: rgba(255, 69, 58, 0.2); color: #ff8a82; }
 .pc-list li.ok i { background: rgba(48, 209, 88, 0.2); color: var(--ok); }
 .works-list p.rev { color: var(--accent-2); }
+
+/* 作るの工程の中の、職人の作り方の決まり */
+.past.rule-in-step { border-left-color: var(--warn); background: rgba(255, 214, 10, 0.06); }
+.past.rule-in-step > small { color: var(--warn); }
+.steps-b .rule-in-step p { display: block; }
+.steps-b .rule-in-step .r-text { margin-top: 2px; color: var(--fg); font-size: 12px; font-weight: 400; line-height: 1.65; }
+.steps-b .rule-in-step .r-why { font-size: 11px; color: var(--fg-2); }
+.steps-b .rule-in-step .r-q { font-size: 11.5px; color: var(--fg-2); margin-bottom: 6px; }
+.steps-b .rule-in-step .r-q span { margin-left: 6px; }
+.making-rules { margin-top: 10px; }
+.making-rules .rules-mini li { display: block; }
+.making-rules .rules-mini .where { color: var(--warn); }
+.making-rules .rules-mini li small { display: block; }
+.making-rules .rules-mini li:first-child { border-color: var(--line); }

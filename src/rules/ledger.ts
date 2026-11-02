@@ -47,6 +47,8 @@ export interface Rule {
   bySize?: SizeStep[];
   /** どの確かめの根拠か */
   checks?: CheckId[];
+  /** 作り方のどの工程の決まりか（機械で確かめない決まり。src/rules/making.ts の工程の id） */
+  steps?: string[];
   source: RuleSource;
   /** YYYY-MM-DD */
   date: string;

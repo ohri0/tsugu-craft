@@ -160,7 +160,7 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
             return;
           }
           const ed = { title: read("title"), text: read("text"), reason: read("reason") };
-          const next = addRule(store.ledger(), { ...ed, example: p.example, quote: p.quote, param: p.param, value: p.value, source: { kind: "craftsman", name: masterName(store.ledger()) }, date: today() });
+          const next = addRule(store.ledger(), { ...ed, example: p.example, quote: p.quote, param: p.param, value: p.value, steps: p.steps, source: { kind: "craftsman", name: masterName(store.ledger()) }, date: today() });
           const id = next.rules[next.rules.length - 1].id;
           let holder: HTMLElement | null = slot;
           while (holder && !shownVideo.has(holder)) holder = holder.parentElement;

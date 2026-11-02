@@ -3,6 +3,7 @@
 // 整える。作れない所が赤く光り、誰のどの決まりかと、見た目への影響つきの直し方が出る。人も同じつまみで直せる。
 // 渡す。  職人への指示書・原寸の型紙・3D データ。
 // 帳面   職人が声で決まりを足すと、その場で確かめが変わる。
+import { MAKING_STEPS, isCheckRule, makingRulesFor, stepsOfRule } from "../rules/making";
 import "./pro.css";
 import { findCorners } from "../geometry/corners";
 import { measureOutline, type StoneOutline } from "../geometry/measure";
@@ -898,7 +899,7 @@ function stepsHtml(steps: Step[]): string {
         st.specs.length ? `<dl>${st.specs.map((x) => `<div><dt>${esc(x.label)}</dt><dd>${esc(x.value)}</dd></div>`).join("")}</dl>` : ""
       }${st.watch ? `<p class="watch">${esc(st.watch)}</p>` : ""}${
         st.details?.length ? `<details class="more"><summary>詳しく</summary><ul>${detailsHtml(st.details, seen)}</ul></details>` : ""
-      }${pastTipsHtml(st.title)}${tools.length ? `<div class="tools-row">${tools.map((t) => `<button type="button" class="tool-chip" data-tool="${t.id}">${esc(t.name)}</button>`).join("")}</div>` : ""}</div></li>`;
+      }${makingRulesHtml(st.id)}${pastTipsHtml(st.title)}${tools.length ? `<div class="tools-row">${tools.map((t) => `<button type="button" class="tool-chip" data-tool="${t.id}">${esc(t.name)}</button>`).join("")}</div>` : ""}</div></li>`;
     })
     .join("")}</ol>`;
 }
@@ -1061,7 +1062,7 @@ async function addRuleFromWords(said: string) {
 }
 function propose(slot: HTMLElement, p: ProposeRuleInput, name: string): Promise<ProposeRuleResult> {
   return new Promise((resolve) => {
-    slot.innerHTML = `<div class="proposal-d"><b>${esc(p.title)}</b><p>${esc(p.text)}</p><p class="tech-what">なぜ：${esc(p.reason)}</p>${p.param ? `<p class="tech-what">値：${p.value}</p>` : ""}
+    slot.innerHTML = `<div class="proposal-d"><b>${esc(p.title)}</b><p>${esc(p.text)}</p><p class="tech-what">なぜ：${esc(p.reason)}</p>${p.param ? `<p class="tech-what">値：${p.value}</p>` : ""}${!p.param && p.steps?.length ? `<p class="tech-what">入る工程：${esc(p.steps.map((s) => MAKING_STEPS[s]).join("・"))}</p>` : ""}
       <div class="row"><button type="button" class="primary ok">これでいい</button><button type="button" class="ghost-d no">いらない</button></div></div>`;
     slot.querySelector(".no")!.addEventListener("click", () => {
       slot.innerHTML = "";
@@ -1069,7 +1070,7 @@ function propose(slot: HTMLElement, p: ProposeRuleInput, name: string): Promise<
     });
     slot.querySelector(".ok")!.addEventListener("click", () => {
       const before = session?.built?.problems.length ?? 0;
-      const next = addRule(store.ledger(), { title: p.title, text: p.text, reason: p.reason, example: p.example, quote: p.quote, param: p.param, value: p.value, bySize: p.by_size?.map((x) => ({ upToMm: x.up_to_mm, value: x.value })), source: { kind: "craftsman", name }, date: today() });
+      const next = addRule(store.ledger(), { title: p.title, text: p.text, reason: p.reason, example: p.example, quote: p.quote, param: p.param, value: p.value, steps: p.steps, bySize: p.by_size?.map((x) => ({ upToMm: x.up_to_mm, value: x.value })), source: { kind: "craftsman", name }, date: today() });
       store.setLedger(next);
       const id = next.rules[next.rules.length - 1].id;
       resolve({ status: "accepted", rule_id: id });
@@ -1092,9 +1093,12 @@ let fixLog: { text: string; cls: string }[] = [];
 let ruleDraft = "";
 function rulesSectionHtml(): string {
   const name = masterName(store.ledger());
-  const mine = activeRules(store.ledger()).filter((r) => r.source.kind === "craftsman");
-  return `<section class="sec rules-sec"><h4>職人の決まり<small>${mine.length} 件</small></h4>
-    <p class="hint">話すと、Claude が決まりの案にします。「これでいい」を押すと、その場で確かめ直します。</p>
+  const all = activeRules(store.ledger()).filter((r) => r.source.kind === "craftsman");
+  const mine = all.filter((r) => isCheckRule(r));
+  const making = all.filter((r) => !isCheckRule(r));
+  const where = (r: Rule) => stepsOfRule(r).map((s) => MAKING_STEPS[s]).join("・");
+  return `<section class="sec rules-sec"><h4>職人の決まり<small>確かめに効く ${mine.length} 件</small></h4>
+    <p class="hint">話すと、Claude が決まりの案にします。数字で確かめられる決まりは、「これでいい」を押すとその場で確かめ直します。手の動かし方などの決まりは、作るの工程に入ります。</p>
     <textarea rows="2" class="ar-text" placeholder="例：石の一番下と指の間は 2.5 mm は空ける。汗がたまるから">${esc(ruleDraft)}</textarea>
     <div class="row"><button type="button" class="ghost-d ar-mic">話す</button><button type="button" class="primary ar-go">決まりにする</button></div>
     <div class="ar-proposal"></div>
@@ -1102,8 +1106,23 @@ function rulesSectionHtml(): string {
       .slice()
       .reverse()
       .map((r) => `<li><b>${esc(r.title)}</b>${r.param && r.value !== undefined ? `<span class="v">${r.value} ${esc(PARAMS[r.param].unit)}</span>` : ""}${r.quote ? `<small>「${esc(r.quote)}」</small>` : ""}<small>${esc(name)} ・ ${esc(r.date)}</small></li>`)
-      .join("")}</ul>` : ""}
+      .join("")}</ul>` : `<p class="hint">確かめに効く職人の決まりは、まだありません（いまは公開の目安で確かめています）。</p>`}
+    ${making.length ? `<details class="more making-rules"><summary>作り方の決まり ${making.length} 件（作るの工程に出ます）</summary><ul class="rules-mini">${making
+      .slice()
+      .reverse()
+      .map((r) => `<li><b>${esc(r.title)}</b><small class="where">${where(r) ? `工程：${esc(where(r))}` : "工程なし"}</small><small>${esc(name)} ・ ${esc(r.date)}</small></li>`)
+      .join("")}</ul></details>` : ""}
   </section>`;
+}
+/** 作るの工程の中に出す、職人の作り方の決まり */
+function makingRulesHtml(stepId: string | undefined): string {
+  if (!stepId) return "";
+  const rules = makingRulesFor(activeRules(store.ledger()), stepId);
+  if (!rules.length) return "";
+  const name = masterName(store.ledger());
+  return `<div class="past rule-in-step"><small>職人の決まり</small>${rules
+    .map((r) => `<p class="r-text">${esc(r.text)}</p>${r.reason ? `<p class="r-why">なぜ：${esc(r.reason)}</p>` : ""}${r.quote ? `<p class="r-q">「${esc(r.quote)}」<span>${esc(name)} ・ ${esc(r.date)}</span></p>` : ""}`)
+    .join("")}</div>`;
 }
 function bindRules(box: HTMLElement) {
   const field = box.querySelector<HTMLTextAreaElement>(".ar-text");

@@ -3,6 +3,7 @@ import { buildRing } from "../src/geometry/ring";
 import { howToMake, measures } from "../src/studio/howto";
 import { stoneFrom } from "./helpers/stones";
 import { triangle } from "./helpers/synth";
+import { MAKING_STEPS } from "../src/rules/making";
 
 const stone = stoneFrom(triangle(200, 200, 160, 140), 8.88, 4.24);
 const input = (style: "prong" | "bezel") => {
@@ -44,5 +45,16 @@ describe("作り方：この石・このデザインから、工程と数字を�
     const b = measures({ ring, outlineMm: small.outlineMm, longMm: small.longMm, widthMm: small.widthMm, depthMm: small.depthMm, metalLabel: "K18" });
     expect(b.prongWire!.diameter).toBeLessThan(a.prongWire!.diameter);
     expect(b.girdleLen).toBeLessThan(a.girdleLen);
+  });
+});
+
+describe("工程の id と題は、作り方の決まりの工程の一覧と同じ", () => {
+  it("鋳造・手作り・爪・覆輪のどの工程も、一覧にある", () => {
+    for (const style of ["prong", "bezel"] as const)
+      for (const route of ["cast", "hand"] as const)
+        for (const st of howToMake(input(style), route)) {
+          expect(st.id).toBeDefined();
+          expect(MAKING_STEPS[st.id as keyof typeof MAKING_STEPS]).toBe(st.title);
+        }
   });
 });

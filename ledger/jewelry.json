@@ -121,7 +121,12 @@
         "name": "石川"
       },
       "date": "2026-11-02",
-      "id": "rule-mrekpa"
+      "id": "rule-mrekpa",
+      "steps": [
+        "solder",
+        "head",
+        "attach"
+      ]
     },
     {
       "title": "ヤスリの角度をずらさない",
@@ -133,7 +138,11 @@
         "name": "石川"
       },
       "date": "2026-11-02",
-      "id": "rule-1vxmav6"
+      "id": "rule-1vxmav6",
+      "steps": [
+        "cut_sprue",
+        "finish"
+      ]
     },
     {
       "title": "必要な分だけ削る",
@@ -145,7 +154,11 @@
         "name": "石川"
       },
       "date": "2026-11-02",
-      "id": "rule-19edlyp"
+      "id": "rule-19edlyp",
+      "steps": [
+        "cut_sprue",
+        "finish"
+      ]
     },
     {
       "title": "金属を持つ手は、すり板に押し付けて動かさない",
@@ -157,7 +170,11 @@
         "name": "石川"
       },
       "date": "2026-11-02",
-      "id": "rule-142lf1c"
+      "id": "rule-142lf1c",
+      "steps": [
+        "cut_sprue",
+        "finish"
+      ]
     }
   ]
 }

@@ -3,6 +3,7 @@
 // 教える画面で、目安帳では答えられない生徒の質問を「先生に聞くこと」に回す ask_teacher。
 // 道具は人のボタンと同じ関数で動く。その関数は画面が ToolHost として用意する（ここでは形だけ決める）。
 // 道具の入力と結果は Claude とやり取りするので、名前は snake_case にそろえる。
+import { MAKING_STEPS, MAKING_STEP_IDS, type MakingStepId } from "../rules/making.js";
 import { GUIDE_NOTE, GUIDES } from "../rules/guides.js";
 import { PARAMS, type ParamId } from "../rules/ledger.js";
 import type { ClaudeTool } from "./wire.js";
@@ -42,6 +43,8 @@ export interface ProposeRuleInput {
   value?: number;
   /** 石の大きさで値を変えるとき（小さい順）。最後の段より大きい石は最後の値 */
   by_size?: { up_to_mm: number; value: number }[];
+  /** 機械で確かめない決まりのとき、作り方のどの工程の決まりか */
+  steps?: MakingStepId[];
 }
 
 export interface ProposeRuleResult {
@@ -345,6 +348,15 @@ export const TOOLS: ClaudeTool[] = [
             required: ["up_to_mm", "value"],
             additionalProperties: false,
           },
+        },
+        steps: {
+          type: "array",
+          description:
+            "param を付けない決まり（手の動かし方・道具の当て方など）のとき、作り方のどの工程で効くか。作るの画面のその工程に出る。当てはまる工程だけ：" +
+            Object.entries(MAKING_STEPS)
+              .map(([k, v]) => `${k}＝${v}`)
+              .join("、"),
+          items: { type: "string", enum: MAKING_STEP_IDS },
         },
       },
       required: ["title", "text", "reason"],
