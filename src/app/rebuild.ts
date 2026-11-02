@@ -7,6 +7,7 @@ import { callTool } from "../rebuild/run";
 import { scoreLine, tally } from "../rebuild/score";
 import { GRADE_PROCESS, PROPOSE_PROCESS, parseGradeProcess, parseProposeProcess, type Grade, type Hypothesis, type Verdict } from "../rebuild/tools";
 import { askPassword, resetPassword } from "./password";
+import { mountSim } from "./sim-view";
 import { esc, today } from "./store";
 
 /** 1 回の試し（このブラウザに残し、書き出せる） */
@@ -147,6 +148,8 @@ export function mountRebuild(root: HTMLElement): void {
           : `<div class="block empty-run"><p>まだ組み立てていません。手がかり ${clues.length} 個だけを Claude に渡して、作り方を組み立てます。技の名前と本当の作り方は渡しません。</p></div>`
       }
 
+      ${h && t.id === "mokume" ? `<div class="block sim-slot"></div>` : ""}
+
       <div class="actions">
         <button type="button" class="primary go">${h ? "もう一度組み立てる" : "組み立てる"}</button>
         ${h && !g ? `<button type="button" class="primary gold check">答え合わせ（答えを開く）</button>` : ""}
@@ -156,6 +159,8 @@ export function mountRebuild(root: HTMLElement): void {
     </section>`;
 
     const $ = <T extends HTMLElement = HTMLElement>(s: string) => root.querySelector<T>(s);
+    const slot = $(".sim-slot");
+    if (slot) mountSim(slot);
     $(".back")!.addEventListener("click", list);
     root.querySelectorAll<HTMLButtonElement>(".cond [data-c]").forEach((b) =>
       b.addEventListener("click", () => {

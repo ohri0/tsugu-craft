@@ -105,6 +105,8 @@ export interface MotionUI {
 export interface MotionOptions {
   /** 職人の一言を、帳面の決まりにするとき（仕事の名前・職人・動画の時刻を添えて渡す） */
   onNoteToRule?: (note: { text: string; t: number; clock: string; title: string; craftsman: string }) => void;
+  /** 「残す」を押して記録を残したとき（読んだ動画のファイルも渡す。開き直した記録で動画がなければ null） */
+  onSaved?: (record: SkillRecord, video: File | null) => void;
 }
 
 export function mountMotion(root: HTMLElement, opts: MotionOptions = {}): MotionUI {
@@ -200,11 +202,14 @@ export function mountMotion(root: HTMLElement, opts: MotionOptions = {}): Motion
   let abort: AbortController | null = null;
   /** 残した記録を開いて、その動画を待っているとき、その動画の名前。動画を読み終えたあとは null（名前が同じでも別の動画として読む） */
   let awaitingVideo: string | null = null;
+  /** 今読んでいる動画のファイル（残したとき、呼ぶ側が動画もしまえるように） */
+  let videoFile: File | null = null;
 
   // ---- 動画を選ぶ・読む ----
 
   function onVideoPicked(file: File | undefined) {
     if (!file) return;
+    videoFile = file;
     if (videoUrl) URL.revokeObjectURL(videoUrl);
     videoUrl = URL.createObjectURL(file);
     videoName = file.name || "動画";
@@ -655,6 +660,7 @@ export function mountMotion(root: HTMLElement, opts: MotionOptions = {}): Motion
     if (storeRecord(r)) status(`「${r.title}」をこのブラウザに残しました。`);
     else status("このブラウザにはもう入りません。書き出す（JSON）で残してください。", true);
     renderSaved();
+    opts.onSaved?.(r, videoFile && videoFile.name === r.videoName ? videoFile : null);
   });
 
   q("motion-export").addEventListener("click", () => {

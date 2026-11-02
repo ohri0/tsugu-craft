@@ -17,7 +17,8 @@ import {
 
 export interface CallToolOptions<T> {
   system: string;
-  user: string;
+  /** 人の言葉。画像を添えるときは中身の並び（文と画像）で渡す */
+  user: string | ClaudeContentBlockParam[];
   tool: ClaudeTool;
   parse: (input: unknown) => { ok: true; value: T; warnings?: string[] } | { ok: false; error: string };
   /** 公開ページの合言葉 */

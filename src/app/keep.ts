@@ -10,13 +10,14 @@ import { activeRules, addRule, type Rule } from "../rules/ledger";
 import { groupQuestions, markAnswered, type QuestionGroup } from "../rules/teacher-queue";
 import { mountMotion, savedRecords } from "../ui/motion-ui";
 import { masterName } from "./master";
+import { putVideo } from "./video-store";
 import { askPassword, resetPassword } from "./password";
 import { esc, store, today } from "./store";
 import { bindVoice, canListen } from "./voice";
 
 const MIC = `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-2.1A7 7 0 0 0 19 12h-2Z" fill="currentColor"/></svg>`;
 
-export function mountKeep(root: HTMLElement): { refresh(): void } {
+export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void } = {}): { refresh(): void } {
   root.innerHTML = `
   <section class="view keep">
     <header class="view-head">
@@ -190,7 +191,17 @@ export function mountKeep(root: HTMLElement): { refresh(): void } {
       panel.hidden = false;
       if (which === "motion" && !motionMounted) {
         motionMounted = true;
-        mountMotion($(".motion-root"));
+        mountMotion($(".motion-root"), {
+          // 手本として残したら、動画もこのブラウザにしまい、「見る」に出す
+          onSaved: (r, video) => {
+            if (!video) return;
+            void putVideo(r.id, video).then(() => {
+              flash(`手本として残しました：${r.title}（「見る」に出ます）`);
+              refresh();
+              opts.onExampleSaved?.();
+            });
+          },
+        });
       }
       panel.scrollIntoView({ behavior: "smooth", block: "start" });
     }),
