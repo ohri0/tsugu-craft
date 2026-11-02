@@ -578,7 +578,7 @@ function handMetrics(obs: readonly (HandObservation | null)[], aspect: number, t
   const angles = sa.filter(isNum);
   const axis = ((theta * 180) / Math.PI + 180) % 180;
   return {
-    label: "手",
+    label: "映っていた手",
     seenRatio: n ? seen / n : 0,
     palmLength: L,
     axisDeg: axis > 90 ? 180 - axis : axis,

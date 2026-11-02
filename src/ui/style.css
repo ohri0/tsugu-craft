@@ -114,3 +114,53 @@ ul.problems .cite { display: block; font-size: 12px; color: #6b4c1f; }
 .teach-item .teach-answer { margin-top: 4px; font-size: 12px; }
 .teach-done-box { margin-top: 6px; }
 .teach-done-box summary { cursor: pointer; }
+
+/* 手の記録（motion-ui） */
+.motion-pick { margin-top: 8px; }
+.motion-fps { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); }
+.motion-fps select { font: inherit; font-size: 13px; color: var(--ink); padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+.motion-stage { margin-top: 10px; }
+.motion-frame { position: relative; width: 100%; margin: 0 auto; aspect-ratio: 16 / 9; background: #111; border-radius: 8px; overflow: hidden; }
+.motion-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
+.motion-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.motion-progress { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; font-size: 12px; color: var(--muted); }
+.motion-bar { flex: 1 1 100%; width: 100%; height: 10px; accent-color: var(--accent); }
+.motion-progress-text { flex: 1 1 auto; }
+.motion-result { margin-top: 8px; }
+.motion-chart { position: relative; width: 100%; margin-top: 6px; touch-action: manipulation; cursor: pointer; }
+.motion-chart svg { display: block; }
+.motion-grid { stroke: var(--line); stroke-width: 1; }
+.motion-axis { fill: var(--muted); font-size: 10px; }
+.motion-tick { stroke: var(--ink); stroke-width: 1.5; stroke-linecap: round; }
+.motion-pause.still { fill: #8c857a; opacity: 0.16; }
+.motion-pause.unseen { fill: #8c857a; opacity: 0.32; }
+.motion-pin line { stroke: var(--ink); stroke-width: 1; stroke-dasharray: 3 3; }
+.motion-pin circle { fill: var(--ink); stroke: #fff; stroke-width: 2; }
+.motion-pin { cursor: pointer; }
+.motion-cursor { stroke: var(--warn); stroke-width: 1.5; }
+.motion-hover-line { stroke: var(--muted); stroke-width: 1; }
+.motion-tip { position: absolute; top: 4px; min-width: 110px; pointer-events: none; background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; font-size: 12px; box-shadow: 0 2px 8px #0002; }
+.motion-tip i, .motion-legend i { display: inline-block; width: 12px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 4px; }
+.motion-tip-t { color: var(--muted); }
+.motion-legend span { white-space: nowrap; }
+.motion-summary { margin: 8px 0 0; padding-left: 18px; font-size: 13px; display: grid; gap: 4px; }
+.motion-h { font-size: 14px; margin: 14px 0 6px; }
+.motion-note-row input { flex: 1 1 160px; min-width: 0; font: inherit; padding: 8px; border: 1px solid var(--line); border-radius: 8px; }
+.motion-notes { list-style: none; padding: 0; margin: 6px 0 0; display: grid; gap: 4px; }
+.motion-notes li { display: flex; gap: 8px; align-items: center; font-size: 13px; }
+.motion-notes li span { flex: 1; }
+.motion-note-t { font-variant-numeric: tabular-nums; padding: 4px 8px; font-size: 12px; }
+.motion-note-del { padding: 4px 10px; color: var(--muted); }
+.motion-meta { margin-top: 12px; }
+.motion-meta input { font: inherit; font-size: 14px; color: var(--ink); padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; }
+.motion-save-row, .motion-import-row { margin-top: 8px; }
+.motion-list, .motion-compare-out { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 6px; }
+.motion-item { display: grid; gap: 2px; border: 1px solid var(--line); border-radius: 8px; padding: 8px; font-size: 13px; }
+.motion-item .row button { padding: 4px 10px; font-size: 13px; }
+.motion-compare-out li { display: grid; gap: 2px; font-size: 13px; border-bottom: 1px solid var(--line); padding: 4px 0; }
+.motion-compare-out b { font-size: 12px; color: var(--muted); font-weight: normal; }
+.motion-compare-pick { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.motion-compare-pick select { width: 100%; min-width: 0; }
+@media (max-width: 820px) {
+  .motion-note-row button { flex: 1 1 auto; }
+}
