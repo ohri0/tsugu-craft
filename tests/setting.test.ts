@@ -25,8 +25,8 @@ describe("爪の本数（自動）", () => {
     expect(s.prongs).toHaveLength(3);
     expect(s.prongs.every((p) => p.isV && p.legs === 2)).toBe(true);
   });
-  it("四角は 4 本、直角の角に丸い爪を 1 本ずつ（V 字にはしない）", () => {
-    const s = buildSetting({ stone: squareStone(), style: "prong" });
+  it("V 字にしないときは、四角の 4 つの角に丸い爪を 1 本ずつ", () => {
+    const s = buildSetting({ stone: squareStone(), style: "prong", vAtCorners: false });
     expect(s.corners).toHaveLength(4);
     expect(s.prongs).toHaveLength(4);
     expect(s.prongs.every((p) => !p.isV)).toBe(true);

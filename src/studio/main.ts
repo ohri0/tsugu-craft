@@ -242,6 +242,7 @@ async function loadStone(img: ImageData, label: string, longMm: number, depthMm:
   session.state.style = plan.design.style;
   session.state.height = plan.design.height;
   reason = `${plan.name}：${plan.reason}（決まりごとから）`;
+  tuneProngs();
   if (opts.intro) await intro();
   else session.build("最初の案");
 }
@@ -424,8 +425,25 @@ $<HTMLInputElement>(".sketch-file").addEventListener("change", async (e) => {
 });
 
 // ---- 組めたら：3D・数字・赤い所 ----
+/** 最初の案の爪の太さを、留まりと太さの確かめが通るまで上げる（軽い作り方で数回だけ試す。画面には出さない） */
+let tuning = false;
+function tuneProngs() {
+  if (!session) return;
+  const solid = session.solid;
+  tuning = true;
+  session.solid = false;
+  for (let i = 0; i < 4; i++) {
+    const b = session.build("爪の太さを決める");
+    if (!b.problems.some((p) => p.check === "hold" || p.check === "prong-thin")) break;
+    const cur = b.ring.setting.prongs[0]?.diameterMm ?? b.ring.setting.standardProngMm;
+    session.state.prongMm = Math.ceil(cur * 1.08 * 100) / 100;
+  }
+  session.solid = solid;
+  tuning = false;
+}
+
 function onBuilt(b: Built, _why: string) {
-  if (!stone || kind !== "solitaire") return;
+  if (tuning || !stone || kind !== "solitaire") return;
   viewer.setRing(b.ring, { color: stone.extraction.color, colorless: stone.extraction.colorless }, b.problems);
   setDims(ringDims(b));
   const r = b.ring;

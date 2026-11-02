@@ -120,6 +120,8 @@ export class RingSession implements ToolHost<RingState> {
         prongDiameterMm: s.prongMm,
         prongs: s.prongPositions?.length ? s.prongPositions.map((i) => ({ t: tAtOutlineIndex(outline, i) })) : undefined,
         solid: this.solid,
+        // 角は丸い爪で押さえる普通の爪留め（作者の判断）。V 字の爪は使わない
+        vAtCorners: false,
       },
       shank: { gou: s.gou, metal: metalIdOf(s.metal), widthMm: s.shankWidthMm, thicknessMm: s.shankThicknessMm },
       orientation: s.orientation,
