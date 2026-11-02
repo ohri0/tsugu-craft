@@ -4,6 +4,8 @@ import { SECTION_PRESETS, meshVolume, ringSolid, type Section } from "../cad/sol
 import { GUIDES } from "../rules/guides";
 import type { ClaudeTool } from "../claude/wire";
 import type { Step } from "./howto";
+import type { AlloyId } from "./process";
+import { castSteps, finishStep, forgeSteps } from "./steps";
 
 export type SectionKind = "kouman" | "hirauchi" | "kamaboko";
 export const SECTION_LABEL: Record<SectionKind, string> = { kouman: "甲丸", hirauchi: "平打ち", kamaboko: "かまぼこ" };
@@ -75,37 +77,43 @@ export function checkBand(b: Band): BandProblem[] {
 const mm = (v: number, d = 1) => `${v.toFixed(d)} mm`;
 
 /** 作り方（手作り・鋳造）。数字は形から計算した目安 */
-export function bandHowTo(b: Band, method: "hand" | "cast", weightG: number): Step[] {
+export function bandHowTo(b: Band, method: "hand" | "cast", weightG: number, alloy?: AlloyId | null): Step[] {
   const id = bandInnerDiameter(b.gou);
   const t = Math.max(b.top.thickness, b.bottom.thickness);
   const w = Math.max(b.top.width, b.bottom.width);
   const length = (id + t) * Math.PI;
   const taper = b.top.width !== b.bottom.width || b.top.thickness !== b.bottom.thickness;
-  const finish: Step = { title: "仕上げ", text: "角を整え、全体を磨く。", specs: [{ label: "地金", value: `${b.metalLabel} ・ 約 ${weightG.toFixed(1)} g` }] };
+  const finish = finishStep([{ label: "地金", value: `${b.metalLabel} ・ 約 ${weightG.toFixed(1)} g` }], "角を整え、ヤスリの跡を消して、全体を磨く。");
+  const shape: Step[] = taper
+    ? [{ id: "shape", title: "形を整える", text: "手のひら側を細く・薄く削り、上から下へなめらかにつなぐ。", specs: [{ label: "上", value: `${b.top.width} × ${b.top.thickness} mm` }, { label: "下", value: `${b.bottom.width} × ${b.bottom.thickness} mm` }] }]
+    : [];
   if (method === "cast") {
     return [
-      { title: "原型を作る", text: "3D データ（STL）からワックスを 3D 印刷するか、ワックスの筒から削る。", specs: [{ label: "号", value: `${b.gou} 号（内径 ${mm(id)}）` }, { label: "断面", value: `${SECTION_LABEL[b.kind]} ・ 上 ${b.top.width}×${b.top.thickness} ・ 下 ${b.bottom.width}×${b.bottom.thickness} mm` }], watch: "地金が縮む分は、鋳造所の値で大きめに。" },
-      { title: "湯道を付ける", text: "手のひら側の、いちばん厚い所に付ける。", specs: [{ label: "付ける所", value: "腕の下" }] },
-      { title: "鋳造する", text: "原型を鋳造所へ。地金と重さを伝える。", specs: [{ label: "地金", value: `${b.metalLabel} ・ 約 ${weightG.toFixed(1)} g（湯道の分は別）` }] },
-      { title: "湯道を切り、整える", text: "湯道の跡を削り、内側を真円に、号を合わせる。", specs: [{ label: "内径", value: mm(id) }] },
+      ...castSteps({
+        modelSpecs: [{ label: "号", value: `${b.gou} 号（内径 ${mm(id)}）` }, { label: "断面", value: `${SECTION_LABEL[b.kind]} ・ 上 ${b.top.width}×${b.top.thickness} ・ 下 ${b.bottom.width}×${b.bottom.thickness} mm` }],
+        sprueAt: "腕の下（手のひら側）",
+        metalLabel: b.metalLabel,
+        weightG,
+        alloy: alloy ?? null,
+        innerMm: id,
+        gou: b.gou,
+      }),
       finish,
     ];
   }
   return [
-    {
-      title: "材料を用意する",
-      text: taper ? "いちばん太い所の寸法の線を切る。細くする所は、あとで削る。" : "断面の寸法の線を切る。",
-      specs: [
+    ...forgeSteps({
+      materialText: taper ? "いちばん太い所の寸法の線を用意する。細くする所は、あとで削る。" : "断面の寸法の線を用意する。",
+      materialSpecs: [
         { label: "号", value: `${b.gou} 号（内径 ${mm(id)}）` },
         { label: "線", value: `${SECTION_LABEL[b.kind] === "平打ち" ? "平角線" : "甲丸線か平角線"} ${mm(w)} × ${mm(t)}` },
         { label: "長さ", value: `約 ${mm(length)}` },
       ],
-      watch: "長さは（内径 ＋ 厚み）× 3.14。削る分を少し足す。",
-    },
-    { title: "腕を丸めて、つなぐ", text: "線を丸め、継ぎ目を合わせてロウ付けし、芯金で真円にする。", specs: [{ label: "内径", value: `${mm(id)}（${b.gou} 号）` }], watch: "継ぎ目の面はすき間なく合わせる。" },
-    ...(taper
-      ? [{ title: "形を整える", text: "手のひら側を細く・薄く削り、上から下へなめらかにつなぐ。", specs: [{ label: "上", value: `${b.top.width} × ${b.top.thickness} mm` }, { label: "下", value: `${b.bottom.width} × ${b.bottom.thickness} mm` }] } as Step]
-      : []),
+      alloy: alloy ?? null,
+      innerMm: id,
+      gou: b.gou,
+    }),
+    ...shape,
     finish,
   ];
 }

@@ -16,6 +16,8 @@ export interface SheetInput {
   drawingHtml?: string;
   /** 作り方のページを入れるか（入れないときは図面だけ） */
   includeSteps?: boolean;
+  /** 「詳しく」の細かい手順も入れるか */
+  includeDetails?: boolean;
 }
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
@@ -52,6 +54,8 @@ li table { border-collapse: collapse; width: 100%; font-size: 9pt; }
 li td { padding: 0.6mm 0; vertical-align: top; }
 li td:first-child { color: #666; width: 32%; }
 li .w { color: #8a2a1c; font-size: 8.5pt; }
+ul.d { margin: 1.5mm 0 0; padding-left: 3.5mm; font-size: 7.5pt; line-height: 1.5; color: #333; display: block; }
+ul.d li { border: 0; padding: 0; counter-increment: none; }
 .foot { margin-top: 4mm; font-size: 7.5pt; color: #666; }
 </style></head><body>
 ${o.drawingHtml ?? ""}
@@ -67,7 +71,7 @@ ${o.includeSteps === false ? "" : `<section class="page">
   <h2>作り方（${esc(o.methodLabel)}）</h2>
   <ol>${o.steps
     .map(
-      (s) => `<li><h3>${esc(s.title)}</h3><p>${esc(s.text)}</p>${s.specs.length ? `<table>${s.specs.map((x) => `<tr><td>${esc(x.label)}</td><td>${esc(x.value)}</td></tr>`).join("")}</table>` : ""}${s.watch ? `<p class="w">！ ${esc(s.watch)}</p>` : ""}</li>`,
+      (s) => `<li><h3>${esc(s.title)}</h3><p>${esc(s.text)}</p>${s.specs.length ? `<table>${s.specs.map((x) => `<tr><td>${esc(x.label)}</td><td>${esc(x.value)}</td></tr>`).join("")}</table>` : ""}${s.watch ? `<p class="w">！ ${esc(s.watch)}</p>` : ""}${o.includeDetails && s.details?.length ? `<ul class="d">${s.details.map((d) => `<li>${esc(d.text)}</li>`).join("")}</ul>` : ""}</li>`,
     )
     .join("")}</ol>
   <p class="foot">数字は、この石とこの形から計算した目安です。手順は一般的な作り方の例で、最後は職人が決めます。${o.patternSvg ? "最後のページは原寸の型紙（「実際のサイズ・100%」で印刷）。" : ""}</p>

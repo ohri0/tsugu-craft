@@ -30,6 +30,8 @@ import { sheetHtml } from "./sheet";
 import { drawingPage, type DrawingView } from "./drawing";
 import { loadWorks, newWorkId, removeWork, saveWork, worksBookHtml } from "./works";
 import { KIND_LABEL, toolById, toolsForStep } from "./toolbox";
+import { NOTE, TERMS, type AlloyId } from "./process";
+import type { Step } from "./howto";
 import { MAKE_BAND, SECTION_LABEL, bandHowTo, bandInnerDiameter, bandMesh, bandPrompt, checkBand, parseBand, type Band, type BandDraft, type SectionKind } from "./band";
 import { metalIdOf } from "./session";
 import { GUIDES } from "../rules/guides";
@@ -668,10 +670,69 @@ function openTool(id: string) {
 
 }
 
-// ---- 作る。：鋳造と手作りの工程（この石・この形から計算した数字つき） ----
+// ---- 作る。：鋳造と鍛造の工程（この石・この形から計算した数字つき） ----
+/** 画面の地金 → 温度の表の地金（表のない地金は null） */
+function alloyOf(m: Metal): AlloyId | null {
+  return m === "k18yg" ? "k18y" : m === "pt900" ? "pt900" : m === "sv925" ? "sv925" : null;
+}
+// 説明のある言葉（1 文字の言葉は、ほかの言葉の中に入りやすいので印を付けない）
+const LINKED = TERMS.filter((t) => t.word.length > 1).sort((a, b) => b.word.length - a.word.length);
+const TERM_RE = new RegExp(LINKED.map((t) => t.word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "g");
+/** 文の中の言葉に印を付ける（同じ言葉は 1 回だけ）。text は esc 済み */
+function withTerms(text: string, seen: Set<string>): string {
+  return text.replace(TERM_RE, (w) => {
+    if (seen.has(w)) return w;
+    seen.add(w);
+    return `<button type="button" class="term" data-term="${w}">${w}</button>`;
+  });
+}
+/** 「詳しく」の中身。同じ見出し（「焼成：」など）が続くときは、見出しを 1 回だけ出す */
+function detailsHtml(list: NonNullable<Step["details"]>, seen: Set<string>): string {
+  let last = "";
+  return list
+    .map((d) => {
+      const m = /^([^：]{1,10})：(.*)$/.exec(d.text);
+      if (!m) return `<li>${withTerms(esc(d.text), seen)}</li>`;
+      const head = m[1] === last ? "" : `<li class="sub">${esc(m[1])}</li>`;
+      last = m[1];
+      return `${head}<li>${withTerms(esc(m[2]), seen)}</li>`;
+    })
+    .join("");
+}
+function stepsHtml(steps: Step[]): string {
+  return `<ol class="steps-b">${steps
+    .map((st, i) => {
+      const seen = new Set<string>();
+      const tools = toolsForStep(st.title);
+      return `<li><span class="n">${String(i + 1).padStart(2, "0")}</span><div><b>${esc(st.title)}</b><p>${withTerms(esc(st.text), seen)}</p>${
+        st.specs.length ? `<dl>${st.specs.map((x) => `<div><dt>${esc(x.label)}</dt><dd>${esc(x.value)}</dd></div>`).join("")}</dl>` : ""
+      }${st.watch ? `<p class="watch">${esc(st.watch)}</p>` : ""}${
+        st.details?.length ? `<details class="more"><summary>詳しく</summary><ul>${detailsHtml(st.details, seen)}</ul></details>` : ""
+      }${tools.length ? `<div class="tools-row">${tools.map((t) => `<button type="button" class="tool-chip" data-tool="${t.id}">${esc(t.name)}</button>`).join("")}</div>` : ""}</div></li>`;
+    })
+    .join("")}</ol>`;
+}
+/** 言葉を押すと、その文のすぐ下に意味を出す（もう一度押すと消す） */
+function bindTerms(box: HTMLElement) {
+  box.querySelectorAll<HTMLButtonElement>(".term").forEach((b) =>
+    b.addEventListener("click", () => {
+      const word = b.dataset.term!;
+      const host = b.closest<HTMLElement>("p, li")!;
+      const open = host.parentElement!.querySelector<HTMLElement>(`:scope > .term-def[data-term="${word}"]`);
+      b.setAttribute("aria-expanded", String(!open));
+      if (open) return open.remove();
+      const t = TERMS.find((x) => x.word === word)!;
+      const el = document.createElement("div");
+      el.className = "term-def";
+      el.dataset.term = word;
+      el.innerHTML = `<b>${esc(t.word)}</b>${t.reading ? `<small>${esc(t.reading)}</small>` : ""}<span>${esc(t.meaning)}</span>`;
+      host.after(el);
+    }),
+  );
+}
 let method: Method = "hand";
 function howInput(b: Built) {
-  return { ring: b.ring, outlineMm: stone!.measured.outlineMm, longMm: stone!.measured.longMm, widthMm: stone!.measured.widthMm, depthMm: stone!.depthMm, metalLabel: METAL_LABEL[session!.state.metal] };
+  return { ring: b.ring, outlineMm: stone!.measured.outlineMm, longMm: stone!.measured.longMm, widthMm: stone!.measured.widthMm, depthMm: stone!.depthMm, metalLabel: METAL_LABEL[session!.state.metal], alloy: alloyOf(session!.state.metal) };
 }
 function sheet(): string | undefined {
   if (!stone) return;
@@ -695,12 +756,8 @@ function renderBuild() {
   box.innerHTML = `
     <div class="seg method"><button type="button" data-m="hand" aria-pressed="${method === "hand"}">鍛造</button><button type="button" data-m="cast" aria-pressed="${method === "cast"}">鋳造</button></div>
     ${probs.length ? `<p class="build-warn">このままでは作れない所が ${probs.length} あります。<button type="button" class="link to-check">確かめる →</button></p>` : ""}
-    <ol class="steps-b">${steps
-      .map(
-        (st, i) => `<li><span class="n">${String(i + 1).padStart(2, "0")}</span><div><b>${esc(st.title)}</b><p>${esc(st.text)}</p>${st.specs.length ? `<dl>${st.specs.map((x) => `<div><dt>${esc(x.label)}</dt><dd>${esc(x.value)}</dd></div>`).join("")}</dl>` : ""}${st.watch ? `<p class="watch">${esc(st.watch)}</p>` : ""}${toolsForStep(st.title).length ? `<div class="tools-row">${toolsForStep(st.title).map((t) => `<button type="button" class="tool-chip" data-tool="${t.id}">${esc(t.name)}</button>`).join("")}</div>` : ""}</div></li>`,
-      )
-      .join("")}</ol>
-    <p class="note-b">数字は、この石とこの形から計算した目安。手順は一般的な例で、最後は職人が決める。</p>
+    ${stepsHtml(steps)}
+    <p class="note-b">寸法は、この石とこの形から計算した目安。${NOTE}</p>
     <div class="row out"><button type="button" class="primary p-instr">図面・指示書を印刷</button><button type="button" class="ghost-d p-stl">STL を書き出す</button></div>
     <div class="save-work"><button type="button" class="next-btn p-save">この作品の記録を残す</button></div>`;
   box.querySelector(".p-save")!.addEventListener("click", () => openSaveWork(box.querySelector(".save-work")!, solitaireData()));
@@ -712,6 +769,7 @@ function renderBuild() {
   );
   box.querySelector(".to-check")?.addEventListener("click", () => setMode("refine"));
   box.querySelectorAll<HTMLButtonElement>(".tool-chip").forEach((c) => c.addEventListener("click", () => openTool(c.dataset.tool!)));
+  bindTerms(box);
   box.querySelector(".p-instr")!.addEventListener("click", () => askPrint(true, (pick) => {
     const svg = sheet();
     if (!svg) return;
@@ -735,6 +793,7 @@ function renderBuild() {
         steps,
         patternSvg: pick.pattern ? svg : "",
         includeSteps: pick.steps,
+        includeDetails: pick.details,
         drawingHtml: pick.drawing ? solitaireDrawing(b, probs.map(({ p }) => SHORT[p.check] ?? p.where)) : "",
       }),
     );
@@ -943,27 +1002,25 @@ function renderBandCheck() {
 
 function renderBandBuild() {
   const box = $(".build-panel");
-  const steps = bandHowTo(band, method, bandWeight);
+  const steps = bandHowTo(band, method, bandWeight, alloyOf(bandMetal));
   const probs = checkBand(band);
   box.innerHTML = `
     <div class="seg method"><button type="button" data-m="hand" aria-pressed="${method === "hand"}">鍛造</button><button type="button" data-m="cast" aria-pressed="${method === "cast"}">鋳造</button></div>
     ${probs.length ? `<p class="build-warn">このままでは作れない所が ${probs.length} あります。<button type="button" class="link to-check">確かめる →</button></p>` : ""}
-    <ol class="steps-b">${steps
-      .map(
-        (st, i) => `<li><span class="n">${String(i + 1).padStart(2, "0")}</span><div><b>${esc(st.title)}</b><p>${esc(st.text)}</p>${st.specs.length ? `<dl>${st.specs.map((x) => `<div><dt>${esc(x.label)}</dt><dd>${esc(x.value)}</dd></div>`).join("")}</dl>` : ""}${st.watch ? `<p class="watch">${esc(st.watch)}</p>` : ""}${toolsForStep(st.title).length ? `<div class="tools-row">${toolsForStep(st.title).map((t) => `<button type="button" class="tool-chip" data-tool="${t.id}">${esc(t.name)}</button>`).join("")}</div>` : ""}</div></li>`,
-      )
-      .join("")}</ol>
-    <p class="note-b">数字は、この形から計算した目安。手順は一般的な例で、最後は職人が決める。</p>
+    ${stepsHtml(steps)}
+    <p class="note-b">寸法は、この形から計算した目安。${NOTE}</p>
     <div class="row out"><button type="button" class="primary p-instr">図面・指示書を印刷</button><button type="button" class="ghost-d p-stl">STL を書き出す</button></div>
     <div class="save-work"><button type="button" class="next-btn p-save">この作品の記録を残す</button></div>`;
   box.querySelector(".p-save")!.addEventListener("click", () => openSaveWork(box.querySelector(".save-work")!, bandData()));
   box.querySelectorAll<HTMLButtonElement>(".method button").forEach((b) => b.addEventListener("click", () => ((method = b.dataset.m as Method), renderBandBuild())));
   box.querySelector(".to-check")?.addEventListener("click", () => setMode("refine"));
   box.querySelectorAll<HTMLButtonElement>(".tool-chip").forEach((c) => c.addEventListener("click", () => openTool(c.dataset.tool!)));
+  bindTerms(box);
   box.querySelector(".p-instr")!.addEventListener("click", () => askPrint(false, (pick) =>
     openPrint(
       sheetHtml({
         includeSteps: pick.steps,
+        includeDetails: pick.details,
         drawingHtml: pick.drawing ? bandDrawing(probs.map((p) => p.title)) : "",
         title: bandName(),
         date: today(),
@@ -1126,20 +1183,21 @@ function bandDrawing(problems: string[]): string {
   });
 }
 /** 印刷する物を選ぶ：図面・作り方・原寸の型紙 */
-function askPrint(hasPattern: boolean, go: (p: { drawing: boolean; steps: boolean; pattern: boolean }) => void) {
+function askPrint(hasPattern: boolean, go: (p: { drawing: boolean; steps: boolean; pattern: boolean; details: boolean }) => void) {
   const dlg = document.createElement("dialog");
   dlg.className = "sheet print-pick";
   dlg.innerHTML = `<form method="dialog">
     <h3>印刷する物</h3>
     <label class="chk"><input type="checkbox" name="drawing" checked><span><b>図面</b><small>正面・横・上、寸法つき（A4 横）</small></span></label>
     <label class="chk"><input type="checkbox" name="steps" checked><span><b>作り方</b><small>${method === "hand" ? "鍛造" : "鋳造"}の手順と数字</small></span></label>
+    <label class="chk"><input type="checkbox" name="details"><span><b>詳しい手順も</b><small>「詳しく」の中身と温度（ページが増えます）</small></span></label>
     ${hasPattern ? `<label class="chk"><input type="checkbox" name="pattern"><span><b>原寸の型紙</b><small>石を置いて確かめる</small></span></label>` : ""}
     <div class="sheet-actions"><button value="cancel" class="ghost">やめる</button><button value="ok" class="primary">印刷</button></div>
   </form>`;
   document.body.appendChild(dlg);
   dlg.addEventListener("close", () => {
     const f = (n: string) => !!dlg.querySelector<HTMLInputElement>(`[name="${n}"]`)?.checked;
-    const pick = { drawing: f("drawing"), steps: f("steps"), pattern: f("pattern") };
+    const pick = { drawing: f("drawing"), steps: f("steps"), pattern: f("pattern"), details: f("details") };
     dlg.remove();
     if (dlg.returnValue === "ok" && (pick.drawing || pick.steps || pick.pattern)) go(pick);
   });
@@ -1185,7 +1243,7 @@ function bandData(): WorkData {
       { label: "地金", value: `${band.metalLabel} ・ 約 ${bandWeight.toFixed(1)} g` },
     ],
     problems: checkBand(band).map((p) => `${p.title}（${p.current} → ${p.required}）`),
-    steps: bandHowTo(band, method, bandWeight),
+    steps: bandHowTo(band, method, bandWeight, alloyOf(bandMetal)),
   };
 }
 function thumbnail(): string {

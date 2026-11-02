@@ -5,6 +5,8 @@
 // 形から出せず出典もない数字は書かない（鋳造所・職人の値を使う、と書く）。
 import type { RingDesign } from "../geometry/ring";
 import { perimeter } from "../geometry/polygon";
+import type { AlloyId, Detail } from "./process";
+import { castSteps, finishStep, forgeSteps, settingStep } from "./steps";
 
 export type Method = "cast" | "hand";
 
@@ -14,12 +16,16 @@ export interface Spec {
 }
 
 export interface Step {
+  /** 工程の名前（詳しくの中身や道具を引くため） */
+  id?: string;
   title: string;
   /** 1 行の説明 */
   text: string;
   specs: Spec[];
   /** 気をつける所（1 行、なければ空） */
   watch?: string;
+  /** 「詳しく」の細かい手順（出典つき） */
+  details?: Detail[];
 }
 
 const mm = (v: number, d = 1) => `${v.toFixed(d)} mm`;
@@ -32,6 +38,8 @@ export interface HowToInput {
   widthMm: number;
   depthMm: number;
   metalLabel: string;
+  /** 温度を出す地金（分からなければ null か省く） */
+  alloy?: AlloyId | null;
 }
 
 /** 形から出す数字（どちらの作り方でも使う） */
@@ -88,58 +96,49 @@ export function howToMake(o: HowToInput, method: Method): Step[] {
             { label: "爪の線材", value: `ø ${mm(m.prongWire.diameter, 2)} × ${m.prongWire.count} 本 ・ 1 本 約 ${mm(m.prongWire.length)}` },
           ]
         : [];
-  const seat: Step =
+  const seat = settingStep(
+    s.style === "bezel" ? "bezel" : "prong",
     s.style === "bezel"
-      ? {
-          title: "石を入れて、覆輪を倒す",
-          text: "石を入れ、壁を内側へ少しずつ倒して、縁を包む。",
-          specs: [{ label: "壁がかかる高さ", value: `縁の上 約 ${mm(s.bezel?.coverMm ?? 0, 2)}` }],
-          watch: "一か所から倒さず、向かい合う所を交互に。",
-        }
-      : {
-          title: "座を彫って、石を留める",
-          text: "爪の内側に、石の縁が入る溝（座）を彫り、石を入れて爪を倒す。",
-          specs: [
-            ...(m.seatFromTip !== null ? [{ label: "座の位置", value: `爪の先から 約 ${mm(m.seatFromTip, 2)} 下` }] : []),
-            { label: "石と指のすき間", value: mm(m.culetGap, 2) },
-          ],
-          watch: m.prongWire && m.prongWire.vCount ? "V 字の爪は、角の先が当たらないよう、角の所を少し深く。" : "爪は向かい合う 2 本ずつ倒す。",
-        };
-  const finish: Step = {
-    title: "仕上げ",
-    text: "爪の先を丸め、全体を磨く。",
-    specs: [
-      { label: "地金", value: `${o.metalLabel} ・ 約 ${r.metalWeightG.toFixed(1)} g` },
-    ],
-  };
+      ? []
+      : [...(m.seatFromTip !== null ? [{ label: "座の位置", value: `爪の先から 約 ${mm(m.seatFromTip, 2)} 下` }] : []), { label: "石と指のすき間", value: mm(m.culetGap, 2) }],
+    s.style === "bezel" ? "一か所から倒さず、向かい合う所を交互に。" : m.prongWire && m.prongWire.vCount ? "V 字の爪は、角の先が金属に当たらないよう逃がす。" : "爪は向かい合う 2 本ずつ倒す。",
+    s.bezel?.coverMm,
+  );
+  const finish = finishStep([{ label: "地金", value: `${o.metalLabel} ・ 約 ${r.metalWeightG.toFixed(1)} g` }], "爪の先を丸め、ヤスリの跡を消して、全体を磨く。");
+  const alloy = o.alloy ?? null;
 
   if (method === "cast") {
     return [
-      { title: "原型を作る", text: "3D データ（STL）からワックスを 3D 印刷するか、手で彫る。", specs: [...head, { label: "腕", value: `幅 ${mm(sh.widthMm)} × 厚み ${mm(sh.thicknessMm)}` }, ...settingSpecs], watch: "地金が縮む分は、鋳造所の値で大きめに。" },
-      { title: "湯道を付ける", text: "腕のいちばん下（手のひら側）の、厚い所に付ける。", specs: [{ label: "付ける所", value: "腕の下 ・ 石座の反対側" }], watch: "爪の先には付けない（細い所に地金が回りにくい）。" },
-      { title: "鋳造する", text: "原型を鋳造所へ。地金と重さを伝える。", specs: [{ label: "地金", value: `${o.metalLabel} ・ 約 ${r.metalWeightG.toFixed(1)} g（湯道の分は別）` }] },
-      { title: "湯道を切り、整える", text: "湯道の跡を削り、内側を真円に、号を合わせる。", specs: [{ label: "内径", value: mm(sh.innerDiameterMm) }] },
+      ...castSteps({
+        modelSpecs: [...head, { label: "腕", value: `幅 ${mm(sh.widthMm)} × 厚み ${mm(sh.thicknessMm)}` }, ...settingSpecs],
+        sprueAt: "腕の下（石座の反対側）",
+        metalLabel: o.metalLabel,
+        weightG: r.metalWeightG,
+        alloy,
+        innerMm: sh.innerDiameterMm,
+        gou: sh.gou,
+      }),
       seat,
       finish,
     ];
   }
   return [
-    {
-      title: "材料を用意する",
-      text: "腕の線と、石座の材料を切る。",
-      specs: [
+    ...forgeSteps({
+      materialText: "腕の線と、石座の材料を用意する。",
+      materialSpecs: [
         ...head,
         { label: "腕の線", value: `${mm(sh.widthMm)} × ${mm(sh.thicknessMm)} ・ 長さ 約 ${mm(m.shankLength)}` },
         ...settingSpecs,
         ...(m.galleryWire && s.style !== "bezel" ? [{ label: "支えの輪", value: `ø ${mm(m.galleryWire, 2)} ・ 長さ 約 ${mm(m.girdleLen)}（石の縁の周）` }] : []),
       ],
-      watch: "腕の長さは（内径 ＋ 厚み）× 3.14。削る分を少し足す。",
-    },
-    { title: "腕を丸めて、つなぐ", text: "線を丸め、継ぎ目を合わせてロウ付けし、芯金で真円にする。", specs: [{ label: "内径", value: `${mm(sh.innerDiameterMm)}（${sh.gou} 号）` }], watch: "継ぎ目の面はすき間なく合わせる。" },
+      alloy,
+      innerMm: sh.innerDiameterMm,
+      gou: sh.gou,
+    }),
     s.style === "bezel"
-      ? { title: "覆輪を作る", text: "帯を石の縁に沿わせて輪にし、ロウ付けする。", specs: settingSpecs, watch: "石を当てて、すき間がないか確かめる。" }
-      : { title: "石座を組む", text: "支えの輪に爪の線を立て、ロウ付けする。", specs: settingSpecs, watch: m.prongWire?.vCount ? "V 字の爪は、石の尖った角に合わせて置く。" : "爪は石の周りに均等に。" },
-    { title: "石座を腕に付ける", text: "腕のいちばん上に石座をのせ、ロウ付けする。", specs: [{ label: "指から石座の上まで", value: mm(m.heightAboveFinger, 2) }, { label: "石と指のすき間", value: mm(m.culetGap, 2) }] },
+      ? { id: "bezel_make", title: "覆輪を作る", text: "帯を石の縁に沿わせて輪にし、ロウ付けする。", specs: settingSpecs, watch: "石を当てて、すき間がないか確かめる。" }
+      : { id: "head", title: "石座を組む", text: "支えの輪に爪の線を立て、ロウ付けする。", specs: settingSpecs, watch: m.prongWire?.vCount ? "V 字の爪は、石の尖った角に合わせて置く。" : "爪は石の周りに均等に。" },
+    { id: "attach", title: "石座を腕に付ける", text: "腕のいちばん上に石座をのせ、ロウ付けする。", specs: [{ label: "指から石座の上まで", value: mm(m.heightAboveFinger, 2) }, { label: "石と指のすき間", value: mm(m.culetGap, 2) }] },
     seat,
     finish,
   ];

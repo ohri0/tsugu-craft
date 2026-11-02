@@ -719,19 +719,6 @@ export const TOOLS: Tool[] = [
 export const STEP_TOOLS: Record<string, string[]> = {
   // 手作り
   材料を用意する: ["ring-gauge", "calipers", "rolling-mill", "draw-plate", "bench-pin", "saw", "file"],
-  "腕を丸めて、つなぐ": [
-    "pliers",
-    "file",
-    "soldering-block",
-    "flux",
-    "solder",
-    "tweezers",
-    "torch",
-    "pickle",
-    "mandrel",
-    "mallet",
-    "safety-glasses",
-  ],
   石座を組む: [
     "calipers",
     "pliers",
@@ -778,10 +765,16 @@ export const STEP_TOOLS: Record<string, string[]> = {
   // 鋳造
   原型を作る: ["calipers", "wax", "file", "wax-pen", "wax-printer"],
   湯道を付ける: ["sprue", "wax-pen", "sprue-base", "scale"],
-  鋳造する: ["scale", "loupe"],
   // 石のない指輪で、上から下へ太さを変えるとき
   形を整える: ["ring-clamp", "file", "needle-file", "calipers", "loupe"],
   "湯道を切り、整える": ["saw", "file", "mandrel", "mallet", "handpiece", "loupe", "safety-glasses"],
+  "埋没して、焼く": ["scale", "sprue-base", "safety-glasses"],
+  鋳込む: ["scale", "torch", "tweezers", "safety-glasses"],
+  "型から出し、洗う": ["pickle", "tweezers", "safety-glasses"],
+  "焼きなまして、のばす": ["torch", "soldering-block", "pickle", "rolling-mill", "draw-plate", "calipers", "safety-glasses"],
+  "切って、丸める": ["bench-pin", "saw", "file", "pliers", "mallet", "mandrel"],
+  ロウ付けで閉じる: ["soldering-block", "flux", "solder", "tweezers", "torch", "pickle", "safety-glasses"],
+  芯金で丸く整える: ["mandrel", "mallet", "ring-gauge", "file"],
 };
 
 const BY_ID = new Map(TOOLS.map((t) => [t.id, t]));

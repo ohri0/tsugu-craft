@@ -351,3 +351,23 @@ dialog.sheet input:focus { border-color: var(--accent); }
 .chk input { margin: 2px 0 0; accent-color: var(--accent); width: 15px; height: 15px; }
 .chk b { display: block; font-size: 13px; font-weight: 500; }
 .chk small { font-size: 11px; color: var(--fg-3); }
+
+/* 言葉の説明と「詳しく」 */
+.term { display: inline; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-decoration: underline dotted var(--fg-3); text-underline-offset: 3px; cursor: pointer; }
+.term:hover, .term[aria-expanded="true"] { color: var(--accent-2); text-decoration-color: var(--accent-2); }
+.term-def { margin: 6px 0 2px; padding: 7px 10px; border-radius: 5px; background: var(--panel-2); border: 1px solid var(--line); font-size: 12px; line-height: 1.6; color: var(--fg); }
+.term-def b { font-weight: 600; margin-right: 6px; }
+.term-def small { color: var(--fg-3); font-size: 10px; margin-right: 8px; }
+.steps-b .more { margin-top: 8px; }
+.steps-b .more > summary { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--fg-2); }
+.steps-b .more > summary::before { content: "+"; width: 14px; height: 14px; border-radius: 50%; border: 1px solid var(--line-2); display: grid; place-items: center; font: 600 10px/1 var(--mono); }
+.steps-b .more[open] > summary::before { content: "−"; }
+.steps-b .more > summary:hover { color: var(--fg); }
+.steps-b .more ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 5px; }
+.steps-b .more ul > li { position: relative; padding-left: 12px; font-size: 12px; line-height: 1.65; color: var(--fg-2); }
+.steps-b .more ul > li::before { content: "–"; position: absolute; left: 0; color: var(--fg-3); }
+.steps-b .more ul > li b { display: inline; font-size: inherit; font-weight: 600; color: var(--fg); }
+.steps-b .more .term-def { margin-left: 12px; }
+.steps-b .term-def b { display: inline; font-size: inherit; }
+.steps-b .more ul > li.sub { padding: 6px 0 0; font-size: 11px; font-weight: 600; color: var(--fg); }
+.steps-b .more ul > li.sub::before { content: none; }
