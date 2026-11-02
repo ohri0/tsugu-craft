@@ -28,6 +28,7 @@ import { METAL_LABEL, RingSession, type Built } from "./session";
 import { howToMake, type Method } from "./howto";
 import { sheetHtml } from "./sheet";
 import { whyHtml } from "./why";
+import { SORT_TIPS, parseTips, tipsFor, tipsPrompt, type Tip } from "./tips";
 import { PRESETS, presetOutline, type StonePreset } from "./presets";
 import { drawingPage, type DrawingView } from "./drawing";
 import { loadWorks, newWorkId, removeWork, saveWork, worksBookHtml } from "./works";
@@ -729,6 +730,12 @@ function detailsHtml(list: NonNullable<Step["details"]>, seen: Set<string>): str
     })
     .join("");
 }
+/** 前の記録から：この工程で、前に職人が話したコツ */
+function pastTipsHtml(title: string): string {
+  const past = tipsFor(loadWorks(), title);
+  if (!past.length) return "";
+  return `<div class="past"><small>前の記録から</small>${past.map((t) => `<p><i class="k-${t.kind}">${esc(t.kind)}</i>${esc(t.text)}<span>${esc(t.maker || "職人")} ・ ${esc(t.date)}</span></p>`).join("")}</div>`;
+}
 function stepsHtml(steps: Step[]): string {
   return `<ol class="steps-b">${steps
     .map((st, i) => {
@@ -738,7 +745,7 @@ function stepsHtml(steps: Step[]): string {
         st.specs.length ? `<dl>${st.specs.map((x) => `<div><dt>${esc(x.label)}</dt><dd>${esc(x.value)}</dd></div>`).join("")}</dl>` : ""
       }${st.watch ? `<p class="watch">${esc(st.watch)}</p>` : ""}${
         st.details?.length ? `<details class="more"><summary>詳しく</summary><ul>${detailsHtml(st.details, seen)}</ul></details>` : ""
-      }${tools.length ? `<div class="tools-row">${tools.map((t) => `<button type="button" class="tool-chip" data-tool="${t.id}">${esc(t.name)}</button>`).join("")}</div>` : ""}</div></li>`;
+      }${pastTipsHtml(st.title)}${tools.length ? `<div class="tools-row">${tools.map((t) => `<button type="button" class="tool-chip" data-tool="${t.id}">${esc(t.name)}</button>`).join("")}</div>` : ""}</div></li>`;
     })
     .join("")}</ol>`;
 }
@@ -1290,13 +1297,32 @@ function thumbnail(): string {
 function openSaveWork(slot: HTMLElement, data: WorkData) {
   slot.innerHTML = `<div class="save-form">
     <label>作った人<input type="text" class="w-maker" value="${esc(masterName(store.ledger()) === "職人" ? "" : masterName(store.ledger()))}" placeholder="名前"></label>
-    <label>ひとこと（気をつけたこと・次の人へ）<textarea rows="2" class="w-note" placeholder="例：角は V 字の爪で守った。座は浅めに"></textarea></label>
+    <label>話して残す（気をつけたこと・コツ・なぜそうしたか）<textarea rows="3" class="w-note" placeholder="例：座は爪の 3 分の 1 まで。V 字の爪は角に当てないよう先を逃がした。ロウは継ぎ目の反対から熱した"></textarea></label>
+    <p class="hint">Claude が、話を工程ごとのコツに分けて残します。次に同じ工程を作る人の画面に「前の記録から」と出ます。</p>
     <div class="row"><button type="button" class="ghost-d w-mic">話す</button><button type="button" class="primary w-save">記録する</button></div>
   </div>`;
   const note = slot.querySelector<HTMLTextAreaElement>(".w-note")!;
   const voice = bindVoice(slot.querySelector<HTMLButtonElement>(".w-mic")!, note);
-  slot.querySelector(".w-save")!.addEventListener("click", () => {
+  slot.querySelector(".w-save")!.addEventListener("click", async () => {
     voice.stop();
+    const said = note.value.trim();
+    const maker = slot.querySelector<HTMLInputElement>(".w-maker")!.value.trim();
+    const titles = data.steps.map((s) => s.title);
+    let tips: Tip[] = [];
+    let leftOver = "";
+    let sortNote = "";
+    if (said) {
+      const pass = store.password() || (await askPassword());
+      if (pass) {
+        slot.innerHTML = `<p class="saved working"><span class="pulse"></span> Claude が、話を工程ごとのコツに分けています…</p>`;
+        const r = await callTool({ system: tipsPrompt(titles), user: `作った物：${data.title}\n職人が話したこと：${said}`, tool: SORT_TIPS, parse: parseTips(titles), password: pass, speed: "fast" });
+        if (r.ok) ({ tips, leftOver } = r.value);
+        else {
+          if (r.code === "wrong_password") resetPassword();
+          sortNote = `工程に分けられませんでした（${r.error}）。話はそのまま残しました。`;
+        }
+      } else sortNote = "合言葉がないので、話はそのまま残しました（工程には分けていません）。";
+    }
     const ok = saveWork({
       id: newWorkId(),
       date: today(),
@@ -1306,11 +1332,21 @@ function openSaveWork(slot: HTMLElement, data: WorkData) {
       image: thumbnail(),
       specs: data.specs,
       problems: data.problems,
-      steps: data.steps,
-      note: note.value.trim(),
-      maker: slot.querySelector<HTMLInputElement>(".w-maker")!.value.trim(),
+      // 記録には「詳しく」を入れない（このブラウザの入れ物が小さいため）
+      steps: data.steps.map(({ details: _d, ...rest }) => rest),
+      note: said,
+      maker,
+      tips,
     });
-    slot.innerHTML = ok ? `<p class="saved">記録しました（${loadWorks().length} 作品目）。<button type="button" class="link to-works">記録を見る →</button></p>` : `<p class="build-warn">このブラウザにはもう入りません。</p>`;
+    if (!ok) {
+      slot.innerHTML = `<p class="build-warn">このブラウザにはもう入りません。「記録」で古い物を消してください。</p>`;
+      return;
+    }
+    slot.innerHTML = `<div class="saved"><b>記録しました（${loadWorks().length} 作品目）</b>
+      ${tips.length ? `<ul class="sorted">${tips.map((t) => `<li><i class="k-${t.kind}">${esc(t.kind)}</i><span><small>${esc(t.step)}</small>${esc(t.text)}</span></li>`).join("")}</ul>` : ""}
+      ${leftOver ? `<p class="hint">工程に当てはまらなかった話：${esc(leftOver)}</p>` : ""}
+      ${sortNote ? `<p class="hint">${esc(sortNote)}</p>` : ""}
+      <button type="button" class="link to-works">記録を見る →</button></div>`;
     slot.querySelector(".to-works")?.addEventListener("click", () => setMode("works"));
   });
 }

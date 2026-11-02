@@ -2,6 +2,7 @@
 // 一点ものは同じ物を繰り返し作って覚えられない。だから作るたびに残し、次の人がそこから始められるようにする。
 // このブラウザに残し（localStorage）、印刷できる。画面に依存しない（保存の所だけ localStorage を使う）。
 import type { Step } from "./howto";
+import type { Tip } from "./tips";
 
 export interface WorkRecord {
   id: string;
@@ -19,6 +20,8 @@ export interface WorkRecord {
   /** 職人のひとこと（あれば） */
   note: string;
   maker: string;
+  /** 話したことを Claude が工程ごとに分けたコツ */
+  tips?: Tip[];
 }
 
 const STORE = "tsugu.works.v1";
@@ -66,7 +69,7 @@ export function worksBookHtml(works: readonly WorkRecord[], date: string): strin
     <div class="top"><img alt="" src="${w.image}"><dl>${w.specs.map((s) => `<div><dt>${esc(s.label)}</dt><dd>${esc(s.value)}</dd></div>`).join("")}</dl></div>
     ${w.note ? `<blockquote>「${esc(w.note)}」</blockquote>` : ""}
     <p class="v ${w.problems.length ? "ng" : "ok"}">${w.problems.length ? `作れない所があった：${w.problems.map(esc).join("、")}` : "作れる形だった"}</p>
-    <ol>${w.steps.map((s) => `<li><b>${esc(s.title)}</b> ${esc(s.text)}${s.specs.length ? `<br><small>${s.specs.map((x) => `${esc(x.label)} ${esc(x.value)}`).join(" ・ ")}</small>` : ""}</li>`).join("")}</ol>
+    <ol>${w.steps.map((s) => `<li><b>${esc(s.title)}</b> ${esc(s.text)}${s.specs.length ? `<br><small>${s.specs.map((x) => `${esc(x.label)} ${esc(x.value)}`).join(" ・ ")}</small>` : ""}${(w.tips ?? []).filter((t) => t.step === s.title).map((t) => `<br><em class="tip">${esc(t.kind)}：${esc(t.text)}</em>`).join("")}</li>`).join("")}</ol>
   </section>`;
   return `<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>作品の記録</title><style>
 @page { size: A4; margin: 0; } * { box-sizing: border-box; }
@@ -74,6 +77,7 @@ body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", "Yu Gothic", san
 .cover, .page { width: 210mm; min-height: 297mm; padding: 16mm; page-break-after: always; }
 .cover h1 { font-family: "Hiragino Mincho ProN", "Yu Mincho", serif; font-size: 28pt; font-weight: 600; margin: 60mm 0 6mm; letter-spacing: 0.1em; }
 .cover p { font-size: 11pt; line-height: 1.9; color: #4a443c; max-width: 140mm; }
+.tip { font-style: normal; color: #0b5cad; font-size: 9pt; }
 header { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 0.4mm solid #1f1c18; padding-bottom: 2mm; }
 h2 { margin: 0; font-family: "Hiragino Mincho ProN", "Yu Mincho", serif; font-weight: 600; font-size: 17pt; }
 header small { font-size: 8.5pt; color: #6e665b; }
