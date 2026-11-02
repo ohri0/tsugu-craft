@@ -120,7 +120,7 @@ export function seedLedger(): Ledger {
       {
         id: "prong-thickness",
         title: "爪の太さ",
-        text: `爪の最低の太さ ＝ ${g.prong.minBase} ＋ ${g.prong.perMm} ×（石の大きさ − ${g.prong.sizeOffset}）mm。1 カラットで 1.0〜1.3 mm`,
+        text: `1 カラット（約 6.5 mm）で 1.0〜1.3 mm、小さな石では 0.5 mm まで（Skyjems）。間を埋める式「最低 ＝ ${g.prong.minBase} ＋ ${g.prong.perMm} ×（石の大きさ − ${g.prong.sizeOffset}）mm」は、この範囲に合わせた仮の目安（式そのものは出典にない）`,
         reason: "細い爪は曲がりやすく、石が抜ける",
         checks: ["prong-thin"],
         source: SKYJEMS,

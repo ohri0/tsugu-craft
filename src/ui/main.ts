@@ -14,7 +14,8 @@ import { build, DEFAULT_DESIGN, rulePlans, type Built, type Design } from "./des
 import { planThumb } from "./thumb";
 import { mountLedger } from "./ledger-ui";
 import { mountTeach } from "./teach-ui";
-import type { QuestionGroup } from "../rules/teacher-queue";
+import { groupQuestions, type QuestionGroup } from "../rules/teacher-queue";
+import { bookHtml } from "../rules/book";
 import { sourceLabel } from "../rules/ledger";
 import { drawWhole, drawZoom, eventToPhoto, imageToCanvas, loadPhoto } from "./photo";
 import { drawSampleStone, SAMPLE } from "./sample";
@@ -55,6 +56,11 @@ app.innerHTML = `
     <section class="step core">
       <h2><span class="n">★</span>目安帳（この工房の決まり）</h2>
       <div id="ledgerRoot"></div>
+      <div class="row" style="margin-top:8px">
+        <button id="bookPrint" class="primary">技の帳面を印刷</button>
+        <button id="bookSave">技の帳面を保存（HTML）</button>
+      </div>
+      <p class="note">もしも教える人がいなくなっても読めるように、決まり・先生に聞いて分かったこと・手の記録を、アプリなしで読める 1 枚にまとめます。</p>
     </section>
 
     <section class="step core">
@@ -163,6 +169,26 @@ const teachUI = mountTeach($("teachRoot"), {
       title.focus();
     }
   },
+});
+function book(): string {
+  const answered = groupQuestions(teachUI.queue(), { includeAnswered: true })
+    .filter((g) => g.answeredRuleId)
+    .map((g) => ({ question: g.question, count: g.count, ruleId: g.answeredRuleId }));
+  return bookHtml({ ledger: ledgerUI.ledger(), answered, date: new Date().toLocaleDateString("sv-SE") });
+}
+$("bookPrint").addEventListener("click", () => {
+  const w = window.open("", "_blank");
+  if (!w) return;
+  w.document.write(book());
+  w.document.close();
+  setTimeout(() => w.print(), 400);
+});
+$("bookSave").addEventListener("click", () => {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([book()], { type: "text/html" }));
+  a.download = `技の帳面-${new Date().toLocaleDateString("sv-SE")}.html`;
+  a.click();
+  URL.revokeObjectURL(a.href);
 });
 const longIn = $<HTMLInputElement>("long");
 const depthIn = $<HTMLInputElement>("depth");
