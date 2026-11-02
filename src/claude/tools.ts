@@ -1,12 +1,13 @@
 // Claude に渡す道具の定義（docs/SPEC.md「道具」の表のとおり：set_setting / set_shank / check / look）と、
-// 聞き取りで職人の決まりを目安帳に足すための propose_rule。
+// 聞き取りで職人の決まりを目安帳に足すための propose_rule、
+// 教える画面で、目安帳では答えられない生徒の質問を「先生に聞くこと」に回す ask_teacher。
 // 道具は人のボタンと同じ関数で動く。その関数は画面が ToolHost として用意する（ここでは形だけ決める）。
 // 道具の入力と結果は Claude とやり取りするので、名前は snake_case にそろえる。
 import { GUIDE_NOTE, GUIDES } from "../rules/guides";
 import { PARAMS, type ParamId } from "../rules/ledger";
 import type { ClaudeTool } from "./wire";
 
-export const TOOL_NAMES = ["set_setting", "set_shank", "check", "look", "propose_rule"] as const;
+export const TOOL_NAMES = ["set_setting", "set_shank", "check", "look", "propose_rule", "ask_teacher"] as const;
 export type ToolName = (typeof TOOL_NAMES)[number];
 
 /** 指輪の形を変える道具。最初に呼ばれる前に、戻すための写しを取る。 */
@@ -36,6 +37,22 @@ export interface ProposeRuleResult {
   rule_id?: string;
   /** 職人が直した後の決まり、または見送った理由 */
   note?: string;
+}
+
+/** 目安帳では答えられない・職人でないと決められない生徒の質問を、先生に回す */
+export interface AskTeacherInput {
+  /** 生徒の質問（短く） */
+  question: string;
+  /** なぜ目安帳では答えられないか */
+  why_unanswered: string;
+  /** 先生が答えやすくなる、話の流れ（石の形、どの決まりの話か、など） */
+  context?: string;
+}
+
+export interface AskTeacherResult {
+  queued: true;
+  /** 先生に聞くことの一覧での番号 */
+  id: string;
 }
 
 export type SettingStyle = "prong" | "bezel";
@@ -158,6 +175,8 @@ export interface ToolHost<S = unknown> {
   look(input: LookInput): Awaitable<LookResult>;
   /** 決まりの案を職人に見せ、承認を待つ（聞き取りの画面だけが用意する） */
   proposeRule?(input: ProposeRuleInput): Awaitable<ProposeRuleResult>;
+  /** 生徒の質問を「先生に聞くこと」に足す（教える画面だけが用意する） */
+  askTeacher?(input: AskTeacherInput): Awaitable<AskTeacherResult>;
   snapshot(): S;
   restore(snapshot: S): void;
 }
@@ -308,6 +327,27 @@ export const TOOLS: ClaudeTool[] = [
       additionalProperties: false,
     },
   },
+  {
+    name: "ask_teacher",
+    description:
+      "生徒の質問を「先生に聞くこと」の一覧に足す。目安帳と職人の目安に答えになる決まりがないとき、" +
+      "または職人でないと決められない判断（この石でこの形にしてよいか、など）のときに使う。" +
+      "推し量って答えを作る代わりに使う道具。足したら、生徒には「先生に聞くことに足した」と短く伝える。",
+    strict: true,
+    input_schema: {
+      type: "object",
+      properties: {
+        question: { type: "string", description: "生徒の質問。短く、先生が一目で分かる言葉で" },
+        why_unanswered: {
+          type: "string",
+          description: "なぜ目安帳では答えられないか（例：目安帳に決まりがない、決まりはあるがこの石には職人の判断が要る）",
+        },
+        context: { type: "string", description: "先生が答えやすくなる話の流れ（石の形、どの決まりの話か など。あれば）" },
+      },
+      required: ["question", "why_unanswered"],
+      additionalProperties: false,
+    },
+  },
 ];
 
 // ---- 入力を確かめる ----
@@ -318,7 +358,8 @@ export type ParsedToolCall =
   | { name: "set_shank"; input: SetShankInput }
   | { name: "check"; input: Record<string, never> }
   | { name: "look"; input: LookInput }
-  | { name: "propose_rule"; input: ProposeRuleInput };
+  | { name: "propose_rule"; input: ProposeRuleInput }
+  | { name: "ask_teacher"; input: AskTeacherInput };
 
 export type ParseResult = { ok: true; call: ParsedToolCall } | { ok: false; error: string };
 
@@ -391,6 +432,11 @@ export function parseToolCall(name: string, input: unknown): ParseResult {
   }
   if (name === "propose_rule" && (record.param === undefined) !== (record.value === undefined)) {
     return { ok: false, error: "param と value は、両方付けるか、両方付けないかにしてください" };
+  }
+  if (name === "ask_teacher") {
+    for (const key of ["question", "why_unanswered"] as const) {
+      if (typeof record[key] === "string" && record[key].trim() === "") return { ok: false, error: `${key} を短く書いてください` };
+    }
   }
   if (typeof record.reason === "string" && record.reason.trim() === "") {
     return { ok: false, error: "reason（理由）を短く書いてください" };
