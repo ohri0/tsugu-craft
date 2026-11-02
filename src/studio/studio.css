@@ -83,3 +83,17 @@
   .book-panel { left: 0; right: 0; top: auto; bottom: 0; width: auto; max-height: 70vh; border-radius: 18px 18px 0 0; }
   .cad.studio[data-mode="make"] .specs { display: none; }
 }
+
+/* 最初の見せ場：写真 → 輪郭 → 立体 */
+.intro-stage { position: absolute; inset: 0; z-index: 7; display: grid; place-items: center; background: #0b0a09; transition: opacity 1.2s ease; }
+.intro-stage.out { opacity: 0; pointer-events: none; }
+.intro-photo, .intro-line { position: absolute; width: min(70vmin, 640px); height: min(70vmin, 640px); object-fit: contain; border-radius: 18px; }
+.intro-photo { opacity: 0; transform: scale(1.04); transition: opacity 0.8s ease, transform 3s ease; }
+.intro-stage.draw .intro-photo { opacity: 1; transform: scale(1); }
+.intro-line path { fill: none; stroke: #e9c46a; stroke-width: 0.5%; stroke-dasharray: 1000; stroke-dashoffset: 1000; filter: drop-shadow(0 0 6px rgba(233, 196, 106, 0.8)); vector-effect: non-scaling-stroke; }
+.intro-stage.draw .intro-line path { animation: trace 1.8s 0.5s ease-in-out forwards; stroke-width: 3px; }
+.intro-line circle { fill: #e0412b; opacity: 0; }
+.intro-stage.draw .intro-line circle { animation: pop 0.4s 2.3s ease-out forwards; }
+@keyframes trace { to { stroke-dashoffset: 0; } }
+@keyframes pop { from { opacity: 0; transform-box: fill-box; transform-origin: center; transform: scale(0.2); } to { opacity: 1; transform-box: fill-box; transform-origin: center; transform: scale(1); } }
+.intro-cap { position: absolute; bottom: 12vh; margin: 0; font-family: var(--serif); font-size: 18px; letter-spacing: 0.1em; color: var(--ivory); text-align: center; padding: 0 16px; }

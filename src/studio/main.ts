@@ -26,6 +26,7 @@ import { esc, store, today } from "../app/store";
 import { bindVoice, canListen } from "../app/voice";
 import { masterName } from "../app/master";
 import { toStl } from "../cad/solid";
+import { buildStone } from "../geometry/stone";
 import { METAL_LABEL, RingSession, type Built } from "./session";
 
 type Mode = "make" | "refine" | "hand";
@@ -79,6 +80,7 @@ app.innerHTML = `
   <aside class="refine-panel studio-refine" hidden></aside>
   <div class="hand-panel" hidden></div>
   <aside class="book-panel" hidden></aside>
+  <div class="intro-stage" hidden><canvas class="intro-photo"></canvas><svg class="intro-line" preserveAspectRatio="none"></svg><p class="intro-cap"></p></div>
 </div>`;
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector<T>(s)!;
 
@@ -87,7 +89,7 @@ const viewer = new Viewer($(".gl"));
 viewer.setDark(true);
 
 // ---- 石を読む ----
-async function loadStone(img: ImageData, label: string, longMm: number, depthMm: number) {
+async function loadStone(img: ImageData, label: string, longMm: number, depthMm: number, opts: { intro?: boolean } = {}) {
   const extraction = extractStone(img);
   const measured = measureOutline({ outlinePx: extraction.outlinePx, longMm });
   const corners = findCorners(measured.outlineMm);
@@ -116,7 +118,37 @@ async function loadStone(img: ImageData, label: string, longMm: number, depthMm:
   session.state.style = plan.design.style;
   session.state.height = plan.design.height;
   reason = `${plan.name}：${plan.reason}（決まりごとから）`;
+  if (opts.intro) await intro();
   session.build("最初の案");
+}
+
+/** 最初の見せ場：写真に輪郭が描かれ → 石が立体になり → まわりに指輪が組み上がる */
+async function intro() {
+  if (!stone || !session) return;
+  const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const box = $(".intro-stage");
+  const cv = $<HTMLCanvasElement>(".intro-photo");
+  const p = stone.photo;
+  cv.width = p.width;
+  cv.height = p.height;
+  cv.getContext("2d")!.putImageData(p, 0, 0);
+  const svg = document.querySelector<SVGSVGElement>(".intro-line")!;
+  svg.setAttribute("viewBox", `0 0 ${p.width} ${p.height}`);
+  const d = `M${stone.extraction.outlinePx.map((q) => `${q.x.toFixed(1)} ${q.y.toFixed(1)}`).join("L")}Z`;
+  svg.innerHTML = `<path d="${d}" pathLength="1000"/>${findCorners(stone.extraction.outlinePx).map((c) => `<circle cx="${c.point.x}" cy="${c.point.y}" r="${p.width / 45}"/>`).join("")}`;
+  $(".intro-cap").textContent = `${stone.label}　長辺 ${stone.measured.longMm.toFixed(2)} mm`;
+  box.hidden = false;
+  box.classList.remove("out");
+  void box.offsetWidth;
+  box.classList.add("draw");
+  await wait(2200);
+  $(".intro-cap").textContent = `${stone.shapeName}・尖った角 ${stone.cornerIdx.length} か所・幅 ${stone.measured.widthMm.toFixed(2)} mm`;
+  await wait(1100);
+  viewer.setStone(buildStone(session.stone), { color: stone.extraction.color, colorless: stone.extraction.colorless });
+  box.classList.add("out");
+  await wait(1300);
+  box.hidden = true;
+  box.classList.remove("draw", "out");
 }
 
 function drawThumb() {
@@ -157,7 +189,7 @@ async function loadSample() {
   c.height = img.naturalHeight;
   const g = c.getContext("2d", { willReadFrequently: true })!;
   g.drawImage(img, 0, 0);
-  await loadStone(g.getImageData(0, 0, c.width, c.height), SAMPLE.label, SAMPLE.longMm, SAMPLE.depthMm);
+  await loadStone(g.getImageData(0, 0, c.width, c.height), SAMPLE.label, SAMPLE.longMm, SAMPLE.depthMm, { intro: !new URLSearchParams(location.search).has("nointro") });
 }
 
 $<HTMLInputElement>(".stone-file").addEventListener("change", async (e) => {
@@ -165,7 +197,7 @@ $<HTMLInputElement>(".stone-file").addEventListener("change", async (e) => {
   if (!f) return;
   try {
     const img = await loadPhoto(f);
-    await loadStone(img, f.name, Number($<HTMLInputElement>(".in-long").value) || 8, Number($<HTMLInputElement>(".in-depth").value) || 4);
+    await loadStone(img, f.name, Number($<HTMLInputElement>(".in-long").value) || 8, Number($<HTMLInputElement>(".in-depth").value) || 4, { intro: true });
     $(".make-status").textContent = "石を読みました。長辺と深さをノギスの値にしてから「生む」を押してください。";
   } catch (err) {
     $(".make-status").textContent = `石が読めませんでした：${(err as Error).message}`;
