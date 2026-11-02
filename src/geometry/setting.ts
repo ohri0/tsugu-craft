@@ -659,10 +659,12 @@ export function buildSetting(params: SettingParams): SettingResult {
 
       if (!plan.isV) {
         // ふつうの爪：腕の中 → 下の輪 → 上の輪 → 石の下側に沿って縁 → 縁の上で内へ曲がり、先が石の上側に乗る
+        // 縁の高さでは、座を彫った分だけ爪が石の縁に食いこむ（爪の内側の座に縁が入る）
+        const dSeat = cl + plan.diameterMm * (0.5 - GUIDES.prong.seatCutRatio);
         const ctrl: V3[] = [
           footAt(tipAt, footZ(r), d),
           ...lower(footZ(r) + EPS, v.upperRingZ).map((z) => at(f, tipAt, z, d)),
-          ...upper.map((z) => at(f, tipAt, z, d)),
+          ...upper.map((z) => at(f, tipAt, z, z >= k.girdleBottom - EPS ? dSeat : d)),
         ];
         // 先の丸いふたの長さ ＝ 先の断面の半径の平均 × TIP.cap（sweepTube と同じ決め方）
         const capLength = (TIP.cap * r * (TIP.normal + TIP.side)) / 2;

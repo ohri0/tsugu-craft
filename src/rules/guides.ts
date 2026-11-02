@@ -41,6 +41,12 @@ export const GUIDES = {
     largeLongMm: 9,
     /** 尖った角がこの数の範囲なら、爪の本数は角の数（角は V 字の爪で包む） */
     cornerCountRange: [3, 6] as const,
+    /**
+     * 座の深さ：縁の高さで、爪の太さのこの割合だけ内側を彫って石の縁を受ける。
+     * 出どころ（docs/RESEARCH-setting.md）：40〜50 %（T1・T10）、30〜50 %（T5）。半分を超えると爪が弱い。
+     * 形では、縁の高さの爪の中心を、石の縁から 爪の太さ ×（0.5 − この値）外に置く。
+     */
+    seatCutRatio: 0.45,
     /** 仮の目安：V 字の爪の 2 本の足の中心は、角から縁に沿って 爪の太さ × この値 の所 */
     vLegSpreadRatio: 1.0,
   },
@@ -62,7 +68,8 @@ export const GUIDES = {
     /** 内側の線 ＝ 石の縁 ＋ この値（mm） */
     clearanceMm: 0.04,
     wallMm: 0.5,
-    wallMinMm: 0.4,
+    /** 壁の厚みの最低：0.45 mm 以上（docs/RESEARCH-setting.md の T22）。5 mm より小さい石は 0.5 mm で足りる（T15） */
+    wallMinMm: 0.45,
     /** 上の端が上側にかかる割合と上限（mm） */
     crownCoverRatio: 0.3,
     crownCoverMaxMm: 0.35,
