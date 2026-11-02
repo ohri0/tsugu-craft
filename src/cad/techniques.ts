@@ -1,10 +1,11 @@
 // 技法を、面の見た目（色と凹凸）として作る。写真を貼るのではなく、「その技で、どうしてその見た目になるか」から作る。
-// - 木目金：色のちがう層を重ね、彫って、平らにする（src/rebuild/sim.ts の模型）。
+// - 木目金：色のちがう薄い層をたくさん重ね、彫って、平らにする（src/cad/mokume.ts。考え方は src/rebuild/sim.ts の模型と同じ）。
 // - 魚々子：小さな丸い鏨で、粒を一つずつ打ち並べる。粒の大きさと間（ピッチ）で決まる。
 // - 布目象嵌：地に細かい刻み目を縦横に入れ、そこに金や銀の薄い線を打ち込む。
 // - 鎚目：金づちで叩いた浅いくぼみが並ぶ。
 // どれも「1 枚の大きさ（mm）」を持ち、形の面に、ほんとうの大きさでくり返して貼る。
-import { DEFAULT_SIM, layerColor, makePits, carveDepth, layerAt, rng, type SimParams } from "../rebuild/sim";
+import { rng } from "../rebuild/sim";
+import { MOKUME_TILE_MM, mokumeField } from "./mokume";
 
 export type TechniqueId = "plain" | "mokume" | "nanako" | "nunome" | "tsuchime";
 export type MetalId = "k18" | "pt" | "sv" | "copper" | "shakudo" | "shibuichi" | "iron";
@@ -37,7 +38,7 @@ export interface TechniqueParams {
 }
 
 export const DEFAULT_PARAMS: TechniqueParams = {
-  layers: 20,
+  layers: 36,
   depth: 0.7,
   pits: 22,
   dotMm: 0.5,
@@ -90,11 +91,11 @@ function hex(c: string): [number, number, number] {
   return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
 }
 
-/** 技法の面を作る。base は地金（木目金では使わない） */
-export function makeSurface(t: TechniqueId, base: MetalId, p: TechniqueParams, mokumePalette?: readonly string[]): Surface {
+/** 技法の面を作る。base は地金（木目金では使わない）。draft なら粗く速く（つまみを動かしている間） */
+export function makeSurface(t: TechniqueId, base: MetalId, p: TechniqueParams, mokumePalette?: readonly string[], draft = false): Surface {
   switch (t) {
     case "mokume":
-      return mokume(p, mokumePalette);
+      return mokume(p, mokumePalette, draft ? 512 : 1024);
     case "nanako":
       return nanako(base, p);
     case "nunome":
@@ -118,37 +119,55 @@ export const MOKUME_PALETTES: { name: string; colors: string[] }[] = [
   { name: "金・銀・赤銅", colors: [NIIRO.gold, NIIRO.silver, NIIRO.shakudo, NIIRO.silver] },
 ];
 
-function mokume(p: TechniqueParams, palette: readonly string[] = MOKUME_PALETTES[0].colors): Surface {
-  const sim: SimParams = { ...DEFAULT_SIM, layers: p.layers, depth: p.depth, pits: p.pits, seed: p.seed, palette };
-  const n = 640;
+function mokume(p: TechniqueParams, palette: readonly string[] = MOKUME_PALETTES[0].colors, n = 1024): Surface {
+  // 30 mm 角を 1024 こま（1 mm に約 34 こま）。層の境は、となりのこまとの差（傾き）から 1 こまの幅でなめらかにする
+  const layers = Math.max(1, Math.round(p.layers));
+  const L = mokumeField({ layers, depth: p.depth, pits: p.pits, seed: p.seed }, n);
   const [c, g] = canvas(n, n);
   const [b, gb] = canvas(n, n);
   const img = g.createImageData(n, n);
   const bimg = gb.createImageData(n, n);
-  const pits = makePits(sim);
-  const rand = rng(sim.seed + 101);
-  const waves: [number, number, number, number][] = Array.from({ length: 4 }, (_, k) => [1 + Math.floor(rand() * 4), 1 + Math.floor(rand() * 4), rand() * Math.PI * 2, 1 / (k + 1)]);
-  const wv = (x: number, y: number, s: number) => waves.reduce((a, [fx, fy, ph, w]) => a + Math.sin(2 * Math.PI * (x * fx + y * fy) + ph + s) * w, 0) / 2.1;
+  // 層ごとの色（下から palette をくり返す）。同じ金属でも層ごとにわずかに色がちがう
+  const tone = rng(p.seed + 31);
+  const cols = Array.from({ length: layers }, (_, k) => {
+    const idx = (layers - 1 - k) % palette.length;
+    const s = 0.96 + 0.08 * tone();
+    const [r, gg, bb] = hex(palette[idx]);
+    return [Math.min(255, r * s), Math.min(255, gg * s), Math.min(255, bb * s), idx % 2] as const;
+  });
+  const at = (i: number, j: number) => L[((j + n) % n) * n + ((i + n) % n)];
+  const px = img.data;
+  const bx = bimg.data;
   for (let j = 0; j < n; j++) {
     for (let i = 0; i < n; i++) {
-      const x = (i + 0.5) / n;
-      const y = (j + 0.5) / n;
-      const wx = x + sim.wobble * 0.035 * wv(x, y, 0);
-      const wy = y + sim.wobble * 0.035 * wv(y, x, 1.3);
-      const d = carveDepth(pits, wx, wy);
-      const z = d > 0 ? Math.min(0.999, Math.max(0, d + sim.wobble * 0.05 * wv(x * 2, y * 2, 2.1))) : 0;
-      const k = layerAt(z, sim.layers);
-      const [r, gg, bb] = hex(layerColor(k, sim));
-      const o = 4 * (j * n + i);
-      img.data.set([r, gg, bb, 255], o);
-      // 層の境目にわずかな段（煮色のあとの、金属ごとの硬さのちがいで出る浅い起伏）
-      const v = 128 + (k % 2) * 6;
-      bimg.data.set([v, v, v, 255], o);
+      const o = j * n + i;
+      const v = L[o];
+      const gx = (at(i + 1, j) - at(i - 1, j)) / 2;
+      const gy = (at(i, j + 1) - at(i, j - 1)) / 2;
+      const grad = Math.hypot(gx, gy) + 1e-6;
+      const k = Math.floor(v);
+      const f = v - k;
+      // いちばん近い境目までの距離（こま）。半こまより近ければ、となりの層の色を混ぜる
+      const lower = f < 0.5;
+      const dist = (lower ? f : 1 - f) / grad;
+      const w = Math.max(0, Math.min(0.5, 0.5 - dist));
+      const k2 = Math.max(0, Math.min(layers - 1, lower ? k - 1 : k + 1));
+      const a = cols[Math.min(layers - 1, k)];
+      const e = cols[k2];
+      const q = 4 * o;
+      px[q] = a[0] + (e[0] - a[0]) * w;
+      px[q + 1] = a[1] + (e[1] - a[1]) * w;
+      px[q + 2] = a[2] + (e[2] - a[2]) * w;
+      px[q + 3] = 255;
+      // 層の境目にわずかな段（金属ごとの硬さのちがいで、磨くと浅い起伏が出る）
+      const h = 128 + 6 * (a[3] + (e[3] - a[3]) * w);
+      bx[q] = bx[q + 1] = bx[q + 2] = h;
+      bx[q + 3] = 255;
     }
   }
   g.putImageData(img, 0, 0);
   gb.putImageData(bimg, 0, 0);
-  return { color: c, bump: b, widthMm: 24, heightMm: 24, roughness: 0.32, metalness: 0.75 };
+  return { color: c, bump: b, widthMm: MOKUME_TILE_MM, heightMm: MOKUME_TILE_MM, roughness: 0.32, metalness: 0.75 };
 }
 
 function nanako(base: MetalId, p: TechniqueParams): Surface {

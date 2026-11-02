@@ -12,7 +12,7 @@ export const BOUNDS = {
   ringThick: [0.8, 4],
   plateSize: [10, 80],
   plateThick: [0.8, 6],
-  layers: [2, 40],
+  layers: [2, 60],
   dotMm: [0.2, 1.2],
   motifMm: [3, 20],
   dentMm: [1, 5],
