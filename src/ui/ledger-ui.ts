@@ -7,19 +7,29 @@ import type { ClaudeMessageParam } from "../claude/wire";
 import { activeRules, addRule, PARAMS, removeLastRule, seedLedger, parseSizeSteps, sizeStepsText, sourceLabel, type Ledger, type ParamId, type Rule } from "../rules/ledger";
 
 
+import repoLedger from "../../ledger/jewelry.json";
+
 const STORE = "tsugu.ledger.v1";
 
+/**
+ * 最初の帳面は、リポジトリに残した帳面（ledger/jewelry.json）。このブラウザに残した帳面があれば、それを使い、
+ * リポジトリの帳面にあってまだ入っていない決まりだけを後ろに足す（職人がリポジトリに足した決まりが、どの画面にも届くように）。
+ */
 export function loadLedger(): Ledger {
+  const repo = repoLedger as Ledger;
   try {
     const raw = localStorage.getItem(STORE);
     if (raw) {
       const l = JSON.parse(raw) as Ledger;
-      if (Array.isArray(l.rules)) return l;
+      if (Array.isArray(l.rules)) {
+        const have = new Set(l.rules.map((r) => r.id));
+        return { ...l, rules: [...l.rules, ...repo.rules.filter((r) => !have.has(r.id))] };
+      }
     }
   } catch {
-    // 読めなければ出発点から
+    // 読めなければリポジトリの帳面から
   }
-  return seedLedger();
+  return Array.isArray(repo.rules) ? repo : seedLedger();
 }
 
 function saveLedger(l: Ledger) {
