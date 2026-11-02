@@ -396,8 +396,9 @@ describe("Claude との作業の繰り返し", () => {
 // ---- 道具の定義 ----
 
 describe("道具の定義", () => {
-  it("仕様書の 4 つの道具と、聞き取りの propose_rule が、strict で、理由を求める", () => {
-    expect(TOOLS.map((t) => t.name)).toEqual(["set_setting", "set_shank", "check", "look", "propose_rule"]);
+  it("仕様書の 4 つの道具と、聞き取りの propose_rule、教える ask_teacher が、strict で、理由を求める", () => {
+    expect(TOOLS.map((t) => t.name)).toEqual(["set_setting", "set_shank", "check", "look", "propose_rule", "ask_teacher"]);
+    expect(TOOLS[5].input_schema.required).toEqual(["question", "why_unanswered"]);
     expect(TOOLS[4].input_schema.required).toEqual(["title", "text", "reason"]);
     for (const t of TOOLS) {
       expect(t.strict).toBe(true);

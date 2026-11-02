@@ -200,6 +200,9 @@ async function dispatch<S>(host: ToolHost<S>, call: ParsedToolCall): Promise<unk
     case "propose_rule":
       if (!host.proposeRule) return { status: "declined", note: "この画面では決まりを足せません（聞き取りの画面で使ってください）" };
       return host.proposeRule(call.input);
+    case "ask_teacher":
+      if (!host.askTeacher) return { queued: false, note: "この画面では先生に回せません（教える画面で使ってください）。分からないことは、分からないと書いてください" };
+      return host.askTeacher(call.input);
   }
 }
 
