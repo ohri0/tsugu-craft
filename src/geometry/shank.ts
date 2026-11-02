@@ -15,6 +15,20 @@ export interface ShankParams {
   thicknessMm?: number;
   /** 地金。なければ K18 イエロー */
   metal?: MetalId;
+  /**
+   * 石座を受ける肩。腕のいちばん上のまわりだけ幅を広げ、石座の足が腕の幅に収まるようにする。
+   * なければ、どこも同じ幅（いちばん上で広げない）
+   */
+  head?: ShankHead;
+}
+
+export interface ShankHead {
+  /** いちばん上の幅（mm）。腕の幅より狭ければ広げない */
+  widthMm: number;
+  /** その幅を保つ長さ（mm、腕の外側に沿って測る。真ん中が腕のいちばん上） */
+  spanMm: number;
+  /** 広い所から元の幅へ、なめらかに戻る長さ（mm、片側） */
+  taperMm: number;
 }
 
 export interface ShankResult {
@@ -45,18 +59,20 @@ export function buildShank(p: ShankParams): ShankResult {
   const metal = p.metal ?? "k18y";
   const dIn = innerDiameterMm(p.gou);
   const r = dIn / 2;
-  // 断面（x：指の向き、ρ：指の軸からの距離）。内側の平らな所を −w/2 → +w/2、外側の丸みを +w/2 → −w/2
+  // 断面（ξ：幅の中の位置 −1〜1、ρ：指の軸からの距離）。内側の平らな所を −1 → +1、外側の丸みを +1 → −1
   const section: [number, number][] = [];
-  for (let i = 0; i < FLAT; i++) section.push([-w / 2 + (w * i) / FLAT, r]);
+  for (let i = 0; i < FLAT; i++) section.push([-1 + (2 * i) / FLAT, r]);
   for (let i = 0; i < DOME; i++) {
     const a = (Math.PI * i) / DOME;
-    section.push([(w / 2) * Math.cos(a), r + t * Math.sin(a)]);
+    section.push([Math.cos(a), r + t * Math.sin(a)]);
   }
-  // 断面の点ごとに、指のまわりを 1 周する輪。φ = 0 がいちばん上（+z）
-  const rings: V3[][] = section.map(([x, rho]) =>
+  // 指のまわりの角度 φ での幅（肩のある所だけ広い）。φ = 0 がいちばん上（+z）
+  const widthAt = shoulderWidth(w, r + t, p.head);
+  // 断面の点ごとに、指のまわりを 1 周する輪
+  const rings: V3[][] = section.map(([xi, rho]) =>
     Array.from({ length: AROUND }, (_, k) => {
       const phi = (k / AROUND) * Math.PI * 2;
-      return [x, rho * Math.sin(phi), rho * Math.cos(phi)] as V3;
+      return [(xi * widthAt(phi)) / 2, rho * Math.sin(phi), rho * Math.cos(phi)] as V3;
     }),
   );
   const tris: number[] = [];
@@ -74,6 +90,20 @@ export function buildShank(p: ShankParams): ShankResult {
     metal,
     volumeMm3,
     weightG: weightG(volumeMm3, metal),
+  };
+}
+
+/**
+ * 指のまわりの角度 φ（ラジアン、いちばん上が 0）での腕の幅。肩がなければいつも w。
+ * 肩があれば、いちばん上から外側に沿って spanMm / 2 までは広い幅、そこから taperMm でなめらかに（余弦の形で）元の幅へ戻る。
+ */
+function shoulderWidth(w: number, outerR: number, head: ShankHead | undefined): (phi: number) => number {
+  if (!head || head.widthMm <= w) return () => w;
+  return (phi) => {
+    const a = Math.atan2(Math.sin(phi), Math.cos(phi)); // −π〜π にそろえる
+    const s = Math.abs(a) * outerR - head.spanMm / 2;
+    const k = s <= 0 ? 1 : s >= head.taperMm ? 0 : 0.5 * (1 + Math.cos((Math.PI * s) / head.taperMm));
+    return w + (head.widthMm - w) * k;
   };
 }
 
