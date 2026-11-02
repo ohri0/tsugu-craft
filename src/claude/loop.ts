@@ -10,6 +10,7 @@ import {
   PASSWORD_HEADER,
   REMAINING_HEADER,
   type ClaudeContentBlockParam,
+  type ClaudeTool,
   type ClaudeErrorCode,
   type ClaudeMessage,
   type ClaudeMessageParam,
@@ -68,6 +69,8 @@ export interface LoopOptions<S> {
   /** ここまでの会話（最後は人の言葉）。続きから頼むときは、前の結果の messages に足して渡す。 */
   messages: ClaudeMessageParam[];
   system?: string;
+  /** Claude に渡す道具（既定はすべて）。聞き取りでは propose_rule だけを渡す */
+  tools?: ClaudeTool[];
   /** 公開ページの合言葉 */
   password?: string;
   endpoint?: string;
@@ -194,6 +197,9 @@ async function dispatch<S>(host: ToolHost<S>, call: ParsedToolCall): Promise<unk
       return host.check();
     case "look":
       return host.look(call.input);
+    case "propose_rule":
+      if (!host.proposeRule) return { status: "declined", note: "この画面では決まりを足せません（聞き取りの画面で使ってください）" };
+      return host.proposeRule(call.input);
   }
 }
 
@@ -291,7 +297,7 @@ export async function runClaude<S>(opts: LoopOptions<S>): Promise<LoopResult> {
   for (let turn = 1; turn <= maxTurns; turn++) {
     if (opts.signal?.aborted) return finish("aborted", { message: MESSAGES.aborted });
 
-    const outcome = await callOnce(fetchImpl, endpoint, { messages, system, tools: TOOLS }, opts.password, opts.signal);
+    const outcome = await callOnce(fetchImpl, endpoint, { messages, system, tools: opts.tools ?? TOOLS }, opts.password, opts.signal);
     if (outcome.remaining !== undefined) remaining = outcome.remaining;
     if (!outcome.ok) {
       return finish(outcome.kind === "offline" ? "offline" : outcome.kind, { code: outcome.code, message: outcome.message });

@@ -82,6 +82,18 @@ export const GUIDES = {
   },
 } as const;
 
+/** 数字の型を広げた目安（目安帳で値を上書きするため。GUIDES は文字どおりの値の型になっている） */
+type Widen<T> = T extends number
+  ? number
+  : T extends string
+    ? string
+    : T extends readonly (infer U)[]
+      ? readonly Widen<U>[]
+      : T extends object
+        ? { readonly [K in keyof T]: Widen<T[K]> }
+        : T;
+export type Guides = Widen<typeof GUIDES>;
+
 export type MetalId = keyof typeof GUIDES.metals;
 export type HeightOption = keyof typeof GUIDES.height.options;
 export type StonePosition = "top" | "side" | "palm";

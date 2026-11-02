@@ -3,7 +3,7 @@
 import type { Point } from "../geometry/polygon";
 import type { RingDesign } from "../geometry/ring";
 import { tipMeasures, type SettingResult } from "../geometry/setting";
-import { GUIDE_NOTE, GUIDES, requiredHold, type StonePosition } from "./guides";
+import { GUIDE_NOTE, GUIDES, type Guides, type StonePosition } from "./guides";
 
 /** 画面に必ず添える、留まりの注意 */
 export const HOLD_NOTE = "「留まり」は爪を片持ちの棒と見なした目安の比較で、強度計算の代わりではない";
@@ -67,6 +67,8 @@ export interface Problem {
 export interface CheckOptions {
   /** 石の場所：上（ふつうの一粒の指輪）／横（肩）／手のひら側寄り。既定は上 */
   position?: StonePosition;
+  /** 確かめに使う目安（目安帳で職人が上書きした値）。なければ公開情報レベルの目安 */
+  guides?: Guides;
 }
 
 const mm = (v: number) => `${v.toFixed(2)} mm`;
@@ -120,7 +122,7 @@ export function checkRing(ring: RingDesign, opts: CheckOptions = {}): Problem[] 
 /** 石座を確かめる（指とのすき間は、置いたあとの値を渡す） */
 export function checkSetting(s: SettingResult, culetGapMm: number = s.heights.culetGapMm, opts: CheckOptions = {}): Problem[] {
   const out: Problem[] = [];
-  const g = GUIDES;
+  const g: Guides = opts.guides ?? GUIDES;
 
   // 石の一番下と指のすき間
   if (culetGapMm < g.height.minFingerGapMm - 1e-6) {
@@ -224,7 +226,7 @@ export function checkSetting(s: SettingResult, culetGapMm: number = s.heights.cu
 
   // 石の留まり
   const position = opts.position ?? "top";
-  const need = requiredHold(position);
+  const need = position === "palm" ? g.hold.requiredPalm : position === "side" ? g.hold.requiredSide : g.hold.requiredTop;
   const hold = holdRatio(s);
   if (hold < need - 1e-9) {
     out.push({

@@ -104,6 +104,44 @@ function fakeHost(opts: { failCheck?: boolean } = {}) {
 
 const start: ClaudeMessageParam[] = [{ role: "user", content: "華奢に。手をよく使います。" }];
 
+// ---- 聞き取り ----
+
+describe("聞き取り（propose_rule）", () => {
+  const rule = { title: "角を守る", text: "尖った角から 0.7 mm 以内に爪", reason: "角の先が欠けやすい", param: "prong.cornerReachMm", value: 0.7 };
+
+  it("決まりの案を職人に見せ、承認の結果を Claude に返す。渡す道具は指定したものだけ", async () => {
+    const { host } = fakeHost();
+    const shown: unknown[] = [];
+    host.proposeRule = async (input) => {
+      shown.push(input);
+      return { status: "accepted", rule_id: "corner-reach-2" };
+    };
+    const f = fakeFetch([
+      { body: message("tool_use", [text("まとめます。"), toolUse("t1", "propose_rule", rule)]) },
+      { body: message("end_turn", [text("目安帳に足しました。次の質問です。")]) },
+    ]);
+    const only = TOOLS.filter((t) => t.name === "propose_rule");
+    const r = await runClaude({ host, messages: start, fetch: f.impl, tools: only, system: "聞き手" });
+    expect(r.status).toBe("done");
+    expect(shown).toEqual([rule]);
+    expect(f.requests[0].body.tools.map((t) => t.name)).toEqual(["propose_rule"]);
+    const result = blocks(f.requests[1].body.messages[2])[0];
+    expect(JSON.parse(String(result.content))).toEqual({ status: "accepted", rule_id: "corner-reach-2" });
+    expect(r.changed).toBe(false);
+  });
+
+  it("聞き取りの画面でなければ、決まりを足さずに見送ったと返す", async () => {
+    const { host } = fakeHost();
+    const f = fakeFetch([
+      { body: message("tool_use", [toolUse("t1", "propose_rule", rule)]) },
+      { body: message("end_turn", [text("わかりました。")]) },
+    ]);
+    await runClaude({ host, messages: start, fetch: f.impl });
+    const result = JSON.parse(String(blocks(f.requests[1].body.messages[2])[0].content));
+    expect(result.status).toBe("declined");
+  });
+});
+
 // ---- 繰り返し ----
 
 describe("Claude との作業の繰り返し", () => {
@@ -358,8 +396,9 @@ describe("Claude との作業の繰り返し", () => {
 // ---- 道具の定義 ----
 
 describe("道具の定義", () => {
-  it("仕様書の 4 つの道具が、strict で、理由を求める", () => {
-    expect(TOOLS.map((t) => t.name)).toEqual(["set_setting", "set_shank", "check", "look"]);
+  it("仕様書の 4 つの道具と、聞き取りの propose_rule が、strict で、理由を求める", () => {
+    expect(TOOLS.map((t) => t.name)).toEqual(["set_setting", "set_shank", "check", "look", "propose_rule"]);
+    expect(TOOLS[4].input_schema.required).toEqual(["title", "text", "reason"]);
     for (const t of TOOLS) {
       expect(t.strict).toBe(true);
       expect(t.description).toBeTruthy();
@@ -368,6 +407,16 @@ describe("道具の定義", () => {
     expect(TOOLS[0].input_schema.required).toEqual(["reason"]);
     expect(TOOLS[1].input_schema.required).toEqual(["reason"]);
     expect(TOOLS[2].description).toContain("選択肢は答えではない");
+  });
+
+  it("決まりの案：param と value は両方そろえる。値の範囲も確かめる", () => {
+    const base = { title: "角を守る", text: "角から 0.7 mm 以内に爪", reason: "欠けやすい" };
+    expect(parseToolCall("propose_rule", base).ok).toBe(true);
+    expect(parseToolCall("propose_rule", { ...base, param: "prong.cornerReachMm", value: 0.7 }).ok).toBe(true);
+    expect(parseToolCall("propose_rule", { ...base, param: "prong.cornerReachMm" }).ok).toBe(false);
+    expect(parseToolCall("propose_rule", { ...base, value: 0.7 }).ok).toBe(false);
+    expect(parseToolCall("propose_rule", { ...base, param: "shank.widthMm", value: 2 }).ok).toBe(false);
+    expect(parseToolCall("propose_rule", { ...base, param: "prong.cornerReachMm", value: 500 }).ok).toBe(false);
   });
 
   it("入力を型と範囲で確かめる", () => {

@@ -1,10 +1,12 @@
-// Claude に渡す道具の定義（docs/SPEC.md「道具」の表のとおり：set_setting / set_shank / check / look）。
+// Claude に渡す道具の定義（docs/SPEC.md「道具」の表のとおり：set_setting / set_shank / check / look）と、
+// 聞き取りで職人の決まりを目安帳に足すための propose_rule。
 // 道具は人のボタンと同じ関数で動く。その関数は画面が ToolHost として用意する（ここでは形だけ決める）。
 // 道具の入力と結果は Claude とやり取りするので、名前は snake_case にそろえる。
 import { GUIDE_NOTE, GUIDES } from "../rules/guides";
+import { PARAMS, type ParamId } from "../rules/ledger";
 import type { ClaudeTool } from "./wire";
 
-export const TOOL_NAMES = ["set_setting", "set_shank", "check", "look"] as const;
+export const TOOL_NAMES = ["set_setting", "set_shank", "check", "look", "propose_rule"] as const;
 export type ToolName = (typeof TOOL_NAMES)[number];
 
 /** 指輪の形を変える道具。最初に呼ばれる前に、戻すための写しを取る。 */
@@ -15,6 +17,26 @@ export function isToolName(name: string): name is ToolName {
 }
 
 // ---- 入力 ----
+
+/** 聞き取りで、職人の言葉を決まりにして目安帳に足す案 */
+export interface ProposeRuleInput {
+  title: string;
+  text: string;
+  reason: string;
+  example?: string;
+  /** 職人の言葉そのまま（言い換えないで残す） */
+  quote?: string;
+  param?: ParamId;
+  value?: number;
+}
+
+export interface ProposeRuleResult {
+  /** accepted：そのまま足した / edited：職人が直して足した / declined：足さなかった */
+  status: "accepted" | "edited" | "declined";
+  rule_id?: string;
+  /** 職人が直した後の決まり、または見送った理由 */
+  note?: string;
+}
 
 export type SettingStyle = "prong" | "bezel";
 export type HeightChoice = keyof typeof GUIDES.height.options;
@@ -134,6 +156,8 @@ export interface ToolHost<S = unknown> {
   setShank(input: SetShankInput): Awaitable<SetShankResult>;
   check(): Awaitable<CheckResult>;
   look(input: LookInput): Awaitable<LookResult>;
+  /** 決まりの案を職人に見せ、承認を待つ（聞き取りの画面だけが用意する） */
+  proposeRule?(input: ProposeRuleInput): Awaitable<ProposeRuleResult>;
   snapshot(): S;
   restore(snapshot: S): void;
 }
@@ -145,6 +169,7 @@ export const INPUT_BOUNDS = {
   prong_count: [3, 8],
   prong_mm: [0.3, 3],
   prong_position: [0, 9999],
+  value: [0, 100],
   width_mm: [1, 10],
   thickness_mm: [0.8, 5],
   gou: [1, 30],
@@ -253,6 +278,36 @@ export const TOOLS: ClaudeTool[] = [
       additionalProperties: false,
     },
   },
+  {
+    name: "propose_rule",
+    description:
+      "聞き取りで、職人の答えを 1 つの決まりにまとめ、目安帳に足す案として職人に見せる。職人が承認・直す・見送るのを待ち、その結果を返す。" +
+      "決まりは「判断と理由」だけ（作り方の手順は書かない）。職人の言葉を勝手に強めたり数字を足したりしない。" +
+      "機械で確かめられる値に当たるときだけ param と value を付ける（単位は param の説明のとおり）。当たらないときは付けず、言葉だけの決まりにする。",
+    strict: true,
+    input_schema: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "短い名前（例：鋳造の爪の根元）" },
+        text: { type: "string", description: "決まりの言葉。ふつうの日本語で、いつ・何を・どこまで" },
+        reason: { type: "string", description: "なぜそうするか（職人が言った理由）" },
+        example: { type: "string", description: "例（職人が挙げたもの）" },
+        quote: { type: "string", description: "職人の言葉そのまま（短く）" },
+        param: {
+          type: "string",
+          enum: Object.keys(PARAMS),
+          description:
+            "機械で確かめる値のどれに当たるか：" +
+            Object.entries(PARAMS)
+              .map(([k, v]) => `${k}＝${v.label}${v.unit ? `（${v.unit}）` : ""}`)
+              .join("、"),
+        },
+        value: { type: "number", description: "param の値（職人が言った数字だけ）" },
+      },
+      required: ["title", "text", "reason"],
+      additionalProperties: false,
+    },
+  },
 ];
 
 // ---- 入力を確かめる ----
@@ -262,7 +317,8 @@ export type ParsedToolCall =
   | { name: "set_setting"; input: SetSettingInput }
   | { name: "set_shank"; input: SetShankInput }
   | { name: "check"; input: Record<string, never> }
-  | { name: "look"; input: LookInput };
+  | { name: "look"; input: LookInput }
+  | { name: "propose_rule"; input: ProposeRuleInput };
 
 export type ParseResult = { ok: true; call: ParsedToolCall } | { ok: false; error: string };
 
@@ -279,6 +335,7 @@ const BOUND_OF: Record<string, keyof typeof INPUT_BOUNDS> = {
   width_mm: "width_mm",
   thickness_mm: "thickness_mm",
   gou: "gou",
+  value: "value",
 };
 
 function checkNumber(key: string, v: unknown, integer: boolean): string | null {
@@ -331,6 +388,9 @@ export function parseToolCall(name: string, input: unknown): ParseResult {
     if (value === undefined) continue;
     const e = checkProp(key, s, value);
     if (e) return { ok: false, error: e };
+  }
+  if (name === "propose_rule" && (record.param === undefined) !== (record.value === undefined)) {
+    return { ok: false, error: "param と value は、両方付けるか、両方付けないかにしてください" };
   }
   if (typeof record.reason === "string" && record.reason.trim() === "") {
     return { ok: false, error: "reason（理由）を短く書いてください" };
