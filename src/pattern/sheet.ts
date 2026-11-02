@@ -56,7 +56,7 @@ export function patternSvg(o: SheetInput): string {
   const dims = `長辺 ${o.longMm.toFixed(2)} × 幅 ${o.widthMm.toFixed(2)}${o.widthFromPhoto ? "（写真から）" : ""} × 深さ ${o.depthMm.toFixed(2)} mm`;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${A4.w}mm" height="${A4.h}mm" viewBox="0 0 ${A4.w} ${A4.h}">
 <rect width="${A4.w}" height="${A4.h}" fill="#fff"/>
-${t(15, 20, "Stone Fit　原寸の型紙（1:1）", 6, 'font-weight="bold"')}
+${t(15, 20, "継ぐ　原寸の型紙（1:1）", 6, 'font-weight="bold"')}
 ${t(15, 28, `${o.shapeName}　${dims}`)}
 ${t(15, 34, `${o.label ? `${o.label}　` : ""}${o.date ?? ""}`, 3, 'fill="#666"')}
 ${shapes(c1.x, c1.y, 1, 0.08)}

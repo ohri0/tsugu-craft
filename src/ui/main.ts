@@ -44,8 +44,8 @@ app.innerHTML = `
 <div class="app">
   <aside class="steps">
     <header>
-      <h1>Stone Fit</h1>
-      <p>その石にしかない指輪を、写真から。</p>
+      <h1>継ぐ <small style="font-weight:normal;font-size:12px;color:var(--muted)">つぐ</small></h1>
+      <p>職人の判断を、聞き取り、使い、次の人へ。題材：一粒石の指輪</p>
     </header>
 
     <section class="step">
@@ -201,7 +201,7 @@ $("print").addEventListener("click", () => {
   if (!svg) return;
   const w = window.open("", "_blank");
   if (!w) return;
-  w.document.write(`<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>Stone Fit 型紙</title>
+  w.document.write(`<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>継ぐ 型紙</title>
 <style>@page{size:A4;margin:0}html,body{margin:0}svg{display:block;width:210mm;height:297mm}</style></head><body>${svg}</body></html>`);
   w.document.close();
   let printed = false;
