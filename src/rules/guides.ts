@@ -30,6 +30,14 @@ export const GUIDES = {
     elongatedRatio: 1.45,
     /** 大きいとみなす長辺（mm） */
     largeLongMm: 9,
+    /** 尖った角がこの数の範囲なら、爪の本数は角の数（角は V 字の爪で包む） */
+    cornerCountRange: [3, 6] as const,
+    /** 仮の目安：V 字の爪の 2 本の足の中心は、角から縁に沿って 爪の太さ × この値 の所 */
+    vLegSpreadRatio: 1.0,
+  },
+  gallery: {
+    /** 仮の目安：爪をつなぐ輪（石座の輪）の線の太さ ＝ 標準の爪の太さ × この値 */
+    wireRatio: 0.7,
   },
   hold: {
     /** 必要な留まり（標準の 4 本爪 ＝ 1.0×） */
@@ -62,7 +70,27 @@ export const GUIDES = {
     innerDiameterBaseMm: 13.0,
     gouPerMm: 3,
   },
+  /**
+   * 仮の目安：地金の密度（g/cm³）。重さの見積もりだけに使う。割り金の配合で変わるので、使う地金の値で上書きする。
+   * 出典：https://learn.apmex.com/learning-guide/science/what-is-the-density-of-gold-vs-platinum/ ほか、
+   * 公開の地金の重さの表（K18 イエロー 15.2〜15.6、Pt900 はパラジウム割りで約 19.9〜イリジウム割りで約 21.4、SV925 は 10.36〜10.4）
+   */
+  metals: {
+    k18y: { name: "K18 イエローゴールド", densityGPerCm3: 15.5 },
+    pt900: { name: "Pt900", densityGPerCm3: 20.0 },
+    sv925: { name: "SV925", densityGPerCm3: 10.4 },
+  },
 } as const;
+
+export type MetalId = keyof typeof GUIDES.metals;
+export type HeightOption = keyof typeof GUIDES.height.options;
+export type StonePosition = "top" | "side" | "palm";
+
+/** 石の場所ごとの、必要な留まり（標準の 4 本爪 ＝ 1.0×） */
+export function requiredHold(position: StonePosition): number {
+  const h = GUIDES.hold;
+  return position === "palm" ? h.requiredPalm : position === "side" ? h.requiredSide : h.requiredTop;
+}
 
 /** 石の大きさ ＝（長辺 ＋ 幅）÷ 2 */
 export function stoneSizeMm(longMm: number, widthMm: number): number {
