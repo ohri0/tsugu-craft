@@ -21,7 +21,7 @@
 
 **C4 漆の工芸との似かより**
 C3 のような金具の文様は、漆の工芸に元があると説明されている。その漆の工芸では、赤と黒の漆を何層も塗り重ね、それを彫って、溝の壁に赤黒の縞を見せる。
-出典：https://www.metmuseum.org/art/collection/search/24615 ／ https://ipfs.ssi.eecc.de/ipns/en.wikipedia-on-ipfs.org/wiki/Mokume-gane （英語版百科事典の写し。頁名に技法名が入る）
+出典：https://www.metmuseum.org/art/collection/search/24615 （漆の工芸が元という点）。「赤と黒の漆の層」という点の出典は、URL に技法名が入る百科事典の頁なので、ここには書かず answer.md の H2 に置いた。
 
 **C5 よく使われる組み合わせ**
 こうした品の色の組み合わせとして、「銅と銀」「銅と、黒くなる銅と金の合金」「銀と、灰色になる銀と銅の合金」がよく挙げられる。金そのものの層が入る品もある。
