@@ -7,6 +7,7 @@ import { nameShape } from "../geometry/shape";
 import { buildStone, stoneHeights } from "../geometry/stone";
 import { GUIDE_NOTE, GUIDES } from "../rules/guides";
 import { extractStone, NoStoneError, type Extraction } from "../vision/extract";
+import { patternSvg } from "../pattern/sheet";
 import { mockPlans } from "./mock";
 import { drawWhole, drawZoom, eventToPhoto, imageToCanvas, loadPhoto } from "./photo";
 import { drawSampleStone, SAMPLE } from "./sample";
@@ -20,6 +21,7 @@ interface State {
   cornersPx?: Corner[];
   measured?: StoneOutline;
   cornersMm?: Corner[];
+  shapeName?: string;
   error?: string;
   busy: boolean;
   longMm: number;
@@ -84,9 +86,14 @@ app.innerHTML = `
       <div class="mockbody">留め方（覆輪 / 爪）、爪の本数・太さ、高さ（低め / 標準 / 高め）、向き（縦 / 横）、地金、サイズ（号）。すべて履歴に積み、戻せます。</div>
     </section>
 
-    <section class="step mock">
-      <h2><span class="n">7</span>型紙と指示書 <span class="badge">モック・11/4〜5</span></h2>
-      <div class="mockbody">1 ページ目が指示書、2 ページ目が原寸（1:1）の型紙。「実際のサイズ・100%」で印刷し、10 mm と 50 mm の線を定規で確かめます。<div class="row" style="margin-top:8px"><button disabled>PDF に書き出す</button></div></div>
+    <section class="step">
+      <h2><span class="n">7</span>型紙と指示書 <span class="badge">型紙は試し版・指示書は 11/5</span></h2>
+      <p class="note">原寸（1:1）の型紙：黒が石の縁、赤が覆輪の内側（点線）と外側。「実際のサイズ・100%」で印刷し、10 mm と 50 mm の線を定規で確かめます。印刷した線の上に本物の石を置くと、合っているかが分かります。</p>
+      <div class="row" style="margin-top:8px">
+        <button id="print" class="primary" disabled>型紙を印刷（原寸）</button>
+        <button id="saveSvg" disabled>型紙を保存（SVG）</button>
+        <button disabled>指示書つき PDF</button>
+      </div>
     </section>
   </aside>
   <main class="view" id="view">
@@ -128,6 +135,44 @@ $<HTMLCanvasElement>("whole").addEventListener("click", (ev) => {
 });
 for (const el of [longIn, depthIn, widthIn]) el.addEventListener("input", () => (readSizes(), update()));
 window.addEventListener("resize", () => drawPhotos());
+
+function sheet(): string | undefined {
+  const m = state.measured;
+  if (!m) return;
+  return patternSvg({
+    ...m,
+    depthMm: state.depthMm,
+    shapeName: state.shapeName ?? "",
+    label: state.sourceLabel,
+    date: new Date().toLocaleDateString("ja-JP"),
+  });
+}
+$("print").addEventListener("click", () => {
+  const svg = sheet();
+  if (!svg) return;
+  const w = window.open("", "_blank");
+  if (!w) return;
+  w.document.write(`<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>Stone Fit 型紙</title>
+<style>@page{size:A4;margin:0}html,body{margin:0}svg{display:block;width:210mm;height:297mm}</style></head><body>${svg}</body></html>`);
+  w.document.close();
+  let printed = false;
+  const go = () => {
+    if (printed) return;
+    printed = true;
+    w.print();
+  };
+  w.onload = go;
+  setTimeout(go, 500);
+});
+$("saveSvg").addEventListener("click", () => {
+  const svg = sheet();
+  if (!svg) return;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
+  a.download = `stone-fit-pattern-${state.measured!.longMm.toFixed(2)}mm.svg`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
 
 function readSizes() {
   const num = (el: HTMLInputElement) => (el.value.trim() === "" ? undefined : Number(el.value));
@@ -175,6 +220,9 @@ function update() {
   state.cornersPx = findCorners(e.outlinePx);
   state.measured = measureOutline({ outlinePx: e.outlinePx, longMm: state.longMm, widthMm: state.widthMm });
   state.cornersMm = findCorners(state.measured.outlineMm);
+  state.shapeName = nameShape(state.measured.outlineMm, state.cornersMm).name;
+  $<HTMLButtonElement>("print").disabled = false;
+  $<HTMLButtonElement>("saveSvg").disabled = false;
   const others = e.candidates.length - 1;
   $("wholeCap").textContent = `${state.sourceLabel ?? "写真"}。${others > 0 ? `ほかに石の候補が ${others} つ（点線）。` : ""}違う所を拾ったら、石を押して選び直す`;
   drawPhotos();
@@ -232,4 +280,4 @@ function renderPlans() {
 }
 
 // 確かめ用（ヘッドレスのブラウザから読む）
-(window as unknown as { __stoneFit: unknown }).__stoneFit = { state, viewer, load: setImage };
+(window as unknown as { __stoneFit: unknown }).__stoneFit = { state, viewer, load: setImage, sheet };
