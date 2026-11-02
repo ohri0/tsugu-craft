@@ -147,12 +147,12 @@ const FOOT_SCALE = 0.2;
 /** 爪の足の下の端（腕の中）は、下の輪の所から中心へ寄せる（足がこの倍率まで中心へ近づく）。足が腕の幅に収まる */
 const FOOT_PULL = 0.3;
 /**
- * 爪の先の形（爪の半径に対する倍率）。先は石の上側に乗るので、石に直角な向きに薄く（normal）、横に少し細く（side）し、
+ * 爪の先の形（爪の半径に対する倍率）。先は石の上側に乗るので、石に直角な向きに少し薄く（normal）、横に少し細く（side）し、
  * 先から taper 本分の長さで細くしていく。端は cap の長さの丸いふた
  */
-const TIP = { normal: 0.55, side: 0.85, taper: 2.4, cap: 0.9 };
-/** 爪の先の曲がり：縁の上から真上へ出て、石の上側の面に沿って先へ届く。曲線の手前・奥の引っぱりの強さ */
-const BEND = { rise: 0.5, lean: 0.45 };
+const TIP = { normal: 0.78, side: 0.85, taper: 2.4, cap: 0.75 };
+/** 爪の先の曲がり：縁の上から真上へ出る引っぱり（rise）と、石の面に沿って先へ届く引っぱり（lean）の強さ */
+const BEND = { rise: 0.25, lean: 0.4 };
 /**
  * V 字の爪の、角を包む板（上から見て V の字）。thick：板の厚み ＝ 爪の太さ × この値（足より少し薄い板が、角に沿って折れる）。
  * below：縁の下から下へ、爪の太さの何本分まで包むか。round：上下の端の丸みの高さ（板の厚みの半分に対する倍率）。
@@ -436,24 +436,25 @@ function along(s: Sample): V3 {
 }
 
 /**
- * 爪の先の曲がり。縁の上（g）から真上へ出て、石の上側の面に沿うように曲がり、先の中心 e へ届く。
- * 先の中心 e は、石の上側の、先の高さ tz の点から、面に直角に外へ「先の厚みの半分」だけ離れた所。
- * 返すのは曲線の上の点（g は含めない）と、先の中心
+ * 爪の先の曲がり。縁の上（g）から真上へ出て、内へ曲がり、石の上側の面に沿って少し登って先の中心 e へ届く。
+ * e は、石の上側の面から、先の断面の半径（halfThickness）だけ外に離れた所（爪の内側が石に触れる）。
+ * 先の丸いふた（長さ capLength）の端が、ちょうど先の高さ tz に届くよう、e をふたの長さの分だけ下げてある。
+ * 返すのは曲線の上の点（g は含めない）
  */
 function clawBend(f: Frame, s: Sample, g: V3, tz: number, halfThickness: number, capLength: number): V3[] {
   const eps = 0.02;
-  // 石の上側の面を、上へ登る向き（内向きに倒れている）
+  // 石の上側の面を、上へ登る向き（内向きに倒れている）と、面に直角に外を向く向き（外と上の間）
   const up = normalize(sub(onStone(f, s, tz + eps), onStone(f, s, tz - eps)));
-  // 先の丸いふたの端が、ちょうど先の高さ tz に届くように、先の中心をふたの長さの分だけ下げる
-  const c = onStone(f, s, tz - up[2] * capLength);
   const nh: V3 = [s.n.x, s.n.y, 0];
   const out = normalize(sub(nh, scale(up, dot(nh, up))));
+  const c = onStone(f, s, tz - up[2] * capLength);
   const e = add(c, scale(out, halfThickness));
   const span = len(sub(e, g));
+  // 手前の引っぱり：g から真上へ。奥の引っぱり：e から石の面に沿って下へ
   const b1 = add(g, [0, 0, BEND.rise * span]);
   const b2 = sub(e, scale(up, BEND.lean * span));
   const pts: V3[] = [];
-  const steps = 8;
+  const steps = 10;
   for (let q = 1; q <= steps; q++) {
     const u = q / steps;
     const v = 1 - u;
@@ -674,7 +675,7 @@ export function buildSetting(params: SettingParams): SettingResult {
           {
             sides: PRONG_SIDES,
             side: side(tipAt),
-            // 先へ向かって、石に直角な向きに薄く、横に少し細く
+            // 先へ向かって、石に直角な向きに少し薄く、横に少し細く（強く薄くすると、先と曲がりの間がくぼんで見える）
             radius: (j) => {
               const w = smoothstep(1 - rest[j] / (TIP.taper * r));
               return [r * (1 - w * (1 - TIP.normal)), r * (1 - w * (1 - TIP.side))];

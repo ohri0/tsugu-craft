@@ -172,7 +172,7 @@ export class Viewer {
       ior: look.colorless ? 2.2 : 1.76,
       dispersion: look.colorless ? 0.9 : 0.35,
       attenuationColor: tint,
-      attenuationDistance: look.colorless ? Infinity : Math.max(1.5, depthMm * 1.2),
+      attenuationDistance: look.colorless ? Infinity : Math.max(2.5, depthMm * 2),
       specularIntensity: 1,
       envMapIntensity: 1.4,
       flatShading: true,
@@ -206,7 +206,7 @@ export class Viewer {
       this.framedFor === kind ? this.camera.position.clone().sub(this.controls.target).normalize() : firstDir.clone().normalize();
     this.framedFor = kind;
     this.controls.target.copy(sphere.center);
-    this.camera.position.copy(sphere.center).addScaledVector(dir, sphere.radius * 4.1);
+    this.camera.position.copy(sphere.center).addScaledVector(dir, sphere.radius * 3.6);
     this.controls.update();
     this.dirty = true;
   }
@@ -328,8 +328,8 @@ function studioScene(): THREE.Scene {
       fragmentShader: `varying vec3 vDir;
         void main() {
           float h = vDir.z;
-          vec3 low = vec3(0.025, 0.024, 0.022);
-          vec3 mid = vec3(0.16, 0.155, 0.15);
+          vec3 low = vec3(0.05, 0.048, 0.045);
+          vec3 mid = vec3(0.2, 0.195, 0.19);
           vec3 high = vec3(0.62, 0.61, 0.60);
           vec3 c = h < 0.0 ? mix(mid, low, smoothstep(0.0, 0.6, -h)) : mix(mid, high, smoothstep(0.0, 0.8, h));
           gl_FragColor = vec4(c, 1.0);
@@ -348,6 +348,7 @@ function studioScene(): THREE.Scene {
   box(30, 6, 5.0, [0, 26, 14]); // 奥：縁を光らせる
   box(16, 16, 6.0, [0, 0, 40]); // 真上
   box(6, 22, 3.0, [-8, 28, -4]); // 奥の低い所：下側の縁に細い光
+  box(40, 40, 0.5, [0, 0, -30]); // 床の白い板：下を向いた面の暗さを少しやわらげる
   return s;
 }
 
