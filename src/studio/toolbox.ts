@@ -50,9 +50,17 @@ const S = {
     title: "中央職業能力開発協会：技能五輪全国大会「貴金属装身具」職種 競技実施要領（第 62 回）",
     url: "https://www.javada.or.jp/jigyou/gino/zenkoku/n_62/kadai/23/23_01_jisshiyouryou2_20241022_yu8g9dfxc4.pdf",
   },
-  javadaTask62: {
-    title: "中央職業能力開発協会：技能五輪全国大会「貴金属装身具」職種 競技課題（第 62 回）",
-    url: "https://www.javada.or.jp/jigyou/gino/zenkoku/n_62/kadai/23/23_02_kyougikadai2_20241022_aser45tguh.pdf",
+  javadaQa54: {
+    title: "中央職業能力開発協会：技能五輪全国大会「貴金属装身具」職種 Q＆A（第 54 回）",
+    url: "https://www.javada.or.jp/jigyou/gino/zenkoku/n_54/kadai/23/23_02qa_2016541004.pdf",
+  },
+  javadaTask58: {
+    title: "中央職業能力開発協会：技能五輪全国大会「貴金属装身具」職種 競技課題（第 58 回）",
+    url: "https://www.javada.or.jp/jigyou/gino/zenkoku/n_58/kadai/23/23_01kyougikadai_5820201106.pdf",
+  },
+  bunkaTankin: {
+    title: "文化遺産オンライン：鍛金",
+    url: "https://online.bunka.go.jp/heritages/detail/215349",
   },
   wazaInterview: {
     title: "厚生労働省 技能振興の頁：貴金属装身具製作の技能士の話",
@@ -158,6 +166,10 @@ const S = {
     title: "米国ワシントン州 保健局：宝飾・金工の害と防ぎ方",
     url: "https://doh.wa.gov/community-and-environment/contaminants/art-hazards/jewelry-and-metalsmithing",
   },
+  umassdSafety: {
+    title: "米国の州立大学：宝飾・金工の工房の安全の手引き",
+    url: "https://www.umassd.edu/cvpa/student/health--safety-manual/jewelry-metals/",
+  },
   stcSafety: {
     title: "米国の公立カレッジ：宝飾・金工の工房の安全の決まり",
     url: "https://www.southtexascollege.edu/academics/visual-arts/safety/jewelry.html",
@@ -211,7 +223,7 @@ export const TOOLS: Tool[] = [
       "関節を通り、つけたときにちょうどよい輪の号を選ぶ。",
       "幅の広い指輪なら、幅の広い輪で測る。",
     ],
-    watch: "指の太さは指ごと・時間ごとに変わるので、何度か測る。",
+    watch: "指ごとに太さがちがうので、指輪をつける指で測る。",
     sources: [S.giaRingSize, S.giaQabFinger],
   },
   {
@@ -298,7 +310,7 @@ export const TOOLS: Tool[] = [
       "内側は甲丸の丸い面で、丸みに沿って削る。",
     ],
     watch: "ヤスリの目に別の地金が残っていると、地金にまざるので落としてから使う。",
-    sources: [S.javadaTools, S.yamanashiTeacher],
+    sources: [S.javadaTools, S.javadaTask58, S.yamanashiTeacher],
   },
   {
     id: "needle-file",
@@ -334,14 +346,14 @@ export const TOOLS: Tool[] = [
     name: "圧延ローラー",
     reading: "あつえんろーらー",
     kind: "shape",
-    what: "2 本のローラーの間に地金を通して、板や角線を薄く・細くのばす。",
+    what: "向かい合うローラーの間に地金を通して、板や角線を薄く・細くのばす。",
     how: [
       "ローラーのすき間を、地金より少しせまくする。",
       "地金をまっすぐ差しこみ、ハンドルを回して通す。",
       "少しずつすき間をせばめて、くり返す。",
     ],
     watch: "地金は叩いたりのばしたりすると硬くなるので、途中で焼きなます。",
-    sources: [S.manitoba],
+    sources: [S.manitoba, S.bunkaTankin],
   },
   {
     id: "draw-plate",
@@ -355,7 +367,7 @@ export const TOOLS: Tool[] = [
       "穴を一つずつ小さくして、ほしい太さまでくり返す。",
     ],
     watch: "硬くなった線は切れやすいので、途中で焼きなます。",
-    sources: [S.waMuseum, S.manitoba],
+    sources: [S.waMuseum, S.manitoba, S.bunkaTankin],
   },
   {
     id: "pliers",
@@ -382,7 +394,7 @@ export const TOOLS: Tool[] = [
       "横から木槌で軽く叩き、指輪を回してくり返す。",
       "目盛りのある芯金なら、指輪の号を読む。",
     ],
-    watch: "芯金は先が細いので、ときどき指輪を裏返して、内側が片方だけ広がらないようにする。",
+    watch: "内側が真円でないと、号を正しく読めない。",
     sources: [S.javadaTools, S.giaQabSizingDown, S.giaRingSize],
   },
   {
@@ -453,7 +465,7 @@ export const TOOLS: Tool[] = [
       "熱して流し、継ぎ目にすき間なく入ったか見る。",
     ],
     watch: "多すぎても少なすぎてもいけない。鉛やアンチモンをふくまないロウを使う。",
-    sources: [S.giaTip8, S.giaQabSizing, S.javadaTask62, S.waDoh],
+    sources: [S.giaTip8, S.giaQabSizing, S.javadaQa54, S.waDoh],
   },
   {
     id: "flux",
@@ -463,11 +475,10 @@ export const TOOLS: Tool[] = [
     what: "継ぎ目に塗る薬で、熱で地金が黒くなるのを防ぎ、ロウを流れやすくする。",
     how: [
       "ロウ付けの前に、継ぎ目に塗る。",
-      "ロウにも付けておく。",
       "ロウ付けのあと、酸洗いで落とす。",
     ],
     watch: "ふっ素をふくまないものを選び、出る煙は換気で外に出す。",
-    sources: [S.giaTip8, S.javadaTools, S.waDoh],
+    sources: [S.giaTip8, S.giaDurability, S.javadaTools, S.waDoh],
   },
   {
     id: "tweezers",
@@ -479,8 +490,7 @@ export const TOOLS: Tool[] = [
       "ロウ付けのときに、小さな部品やロウの位置を直す。",
       "熱いうちの地金をつまんで、酸洗いの液に移す。",
     ],
-    watch: "酸の液には鉄のピンセットを入れない（銅などのものを使う）。",
-    sources: [S.javadaTools, S.yamanashiMetal, S.stcSafety],
+    sources: [S.javadaTools, S.yamanashiMetal],
   },
   {
     id: "pickle",
@@ -601,7 +611,6 @@ export const TOOLS: Tool[] = [
       "刃をよく研いでおく。",
       "地金を固定し、刃を浅い角度で当てて押し進める。",
     ],
-    watch: "よく研げていないと刃が入らず、すべって手を傷つける。",
     sources: [S.giaDurability, S.javadaTools],
   },
 
@@ -613,7 +622,7 @@ export const TOOLS: Tool[] = [
     kind: "wax",
     what: "鋳造の原型を作る、削れて溶ける材料。",
     how: [
-      "ワックスの塊を糸鋸で切り、ヤスリで削って形にする。",
+      "ワックスの塊を、ヤスリで削って形にする。",
       "ナイフなどでも削れる。",
       "できた原型は、湯道を付けて鋳造に出す。",
     ],
@@ -630,7 +639,6 @@ export const TOOLS: Tool[] = [
       "ペン先の温度を、ワックスに合わせる。",
       "ワックスを溶かして盛り、冷えて固まったら削って整える。",
     ],
-    watch: "温度が高すぎると、ワックスに泡ができる。",
     sources: [S.yamanashiWax],
   },
   {
@@ -658,7 +666,7 @@ export const TOOLS: Tool[] = [
       "温めた道具でワックスを少し溶かして、すき間なく付ける。",
       "湯道のもう一方の端を、ゴム台に立てる。",
     ],
-    watch: "細すぎる湯道や、細い所に付けた湯道は、地金が回らず巣（小さな穴）の元になる。",
+    watch: "湯道の太さや付ける所が合わないと、地金が回らなかったり、巣（小さな穴）ができたりする。",
     sources: [S.spruingForum, S.castNotes, S.vccCourse],
   },
   {
@@ -701,7 +709,7 @@ export const TOOLS: Tool[] = [
       "糸鋸、ハンドピース、研磨、ロウ付けのときにかける。",
       "髪はまとめ、たれる物は外してから作業する。",
     ],
-    sources: [S.javadaTools, S.stcSafety, S.waDoh],
+    sources: [S.javadaTools, S.stcSafety, S.umassdSafety, S.waDoh],
   },
 ];
 
@@ -768,7 +776,7 @@ export const STEP_TOOLS: Record<string, string[]> = {
   "石を入れて、覆輪を倒す": ["ring-clamp", "loupe", "handpiece", "ball-bur", "setting-punch", "burnisher", "safety-glasses"],
   仕上げ: ["file", "needle-file", "handpiece", "buff", "loupe", "safety-glasses"],
   // 鋳造
-  原型を作る: ["calipers", "wax", "saw", "file", "wax-pen", "wax-printer"],
+  原型を作る: ["calipers", "wax", "file", "wax-pen", "wax-printer"],
   湯道を付ける: ["sprue", "wax-pen", "sprue-base", "scale"],
   鋳造する: ["scale", "loupe"],
   "湯道を切り、整える": ["saw", "file", "mandrel", "mallet", "handpiece", "loupe", "safety-glasses"],
