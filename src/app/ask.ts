@@ -13,6 +13,7 @@ import { esc, store, today } from "./store";
 import { bindVoice } from "./voice";
 import { askPassword, resetPassword } from "./password";
 import { masterName, ruleQuote } from "./master";
+import { getVideo } from "./video-store";
 
 const SUGGEST = ["ロウ付けの前、両端はどう削る？", "ヤスリをかけるとき、角度はどうする？", "どこまで削ればいい？", "金属を持つ手は、どうしておく？"];
 
@@ -74,6 +75,7 @@ export function mountAsk(root: HTMLElement): { refresh(): void } {
     return `<div class="evidence">
       ${q ? `<blockquote>「${esc(q)}」</blockquote>` : ""}
       <p class="ev-rule">決まり：${esc(r.title)}</p>
+      <div class="ev-video" data-rule="${esc(r.id)}" hidden></div>
       <p class="ev-src">${esc(r.source.kind === "craftsman" ? `${r.source.name}さん` : r.source.kind === "public" ? `公開情報：${r.source.title}` : "仮の目安")} ・ ${esc(r.date)}</p>
     </div>`;
   }
@@ -86,7 +88,18 @@ export function mountAsk(root: HTMLElement): { refresh(): void } {
       <p class="a-meta">${asked ? `<span class="tag gold">${esc(name)}さんに回しました ・ 残す に届きます</span>` : ""}${via === "local" ? `<span class="tag">Claude なし ・ 目安帳から探しました</span>` : ""}${rules.length ? `<span>決まり ${rules.length} つから</span>` : ""}</p>`;
   }
 
+  /** 職人が動画で見せた答えがあれば、なぜ？の中に出す */
+  async function attachVideos(el: HTMLElement) {
+    for (const box of el.querySelectorAll<HTMLElement>(".ev-video")) {
+      const blob = await getVideo(`rule:${box.dataset.rule}`);
+      if (!blob) continue;
+      box.hidden = false;
+      box.innerHTML = `<p class="small">${esc(masterName(store.ledger()))}さんが見せた動画</p><video src="${URL.createObjectURL(blob)}" controls playsinline muted></video>`;
+    }
+  }
+
   function wireWhy(el: HTMLElement) {
+    void attachVideos(el);
     const b = el.querySelector<HTMLButtonElement>(".why-btn");
     const w = el.querySelector<HTMLElement>(".a-why");
     if (!b || !w) return;

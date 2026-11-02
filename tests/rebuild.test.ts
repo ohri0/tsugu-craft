@@ -443,3 +443,34 @@ describe("サーバーが組み立て直すの道具を通す", () => {
     expect(isAllowedToolName("web_search")).toBe(false);
   });
 });
+
+describe("赤ペン", () => {
+  it("印の座標を 0〜1 におさめ、目安帳にない決まりの id は外す", async () => {
+    const { parseRedPen, marksSvg } = await import("../src/claude/redpen");
+    const r = parseRedPen(
+      {
+        marks: [
+          { on: "you", kind: "circle", x1: 0.5, y1: 1.4, x2: 0.9, y2: 0, label: "動いている" },
+          { on: "master", kind: "arrow", x1: 0.1, y1: 0.1, x2: 0.3, y2: 0.3, label: "ここ" },
+          { on: "x", kind: "circle", x1: 0, y1: 0, x2: 0, y2: 0, label: "" },
+        ],
+        comment: "金属を持つ手を、すり板に押し付けて止めましょう。",
+        rule_id: "nai",
+        ask_master: "",
+      },
+      ["hold"],
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.marks).toHaveLength(2);
+    expect(r.value.marks[0].y1).toBe(1);
+    expect(r.value.marks[0].x2).toBe(0.3);
+    expect(r.value.rule_id).toBe("");
+    expect(marksSvg(r.value.marks, "you", 9 / 16)).toContain("ellipse");
+    expect(marksSvg(r.value.marks, "master", 9 / 16)).toContain("marker-end");
+  });
+  it("ひとことがないものは受け付けない", async () => {
+    const { parseRedPen } = await import("../src/claude/redpen");
+    expect(parseRedPen({ marks: [], comment: " ", rule_id: "", ask_master: "" }, []).ok).toBe(false);
+  });
+});

@@ -17,6 +17,9 @@ import { bindVoice, canListen } from "./voice";
 
 const MIC = `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-2.1A7 7 0 0 0 19 12h-2Z" fill="currentColor"/></svg>`;
 
+/** 答える欄ごとに、職人が見せた動画 */
+const shownVideo = new WeakMap<HTMLElement, File>();
+
 export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void } = {}): { refresh(): void } {
   root.innerHTML = `
   <section class="view keep">
@@ -72,13 +75,24 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
     const slot = li.querySelector<HTMLElement>(".answer-slot") ?? li;
     slot.innerHTML = `<div class="answer-box">
       <textarea rows="3" placeholder="${canListen() ? "マイクを押して話すと、ここに文字が入ります。書いてもかまいません。" : "答えを書いてください。"}"></textarea>
-      <div class="row"><button type="button" class="mic">${MIC}話す</button><button type="button" class="primary make">決まりにする</button></div>
+      <div class="row"><button type="button" class="mic">${MIC}話す</button><label class="ghost btnlike show-vid">動画で見せる<input type="file" accept="video/*" capture="environment" hidden></label><button type="button" class="primary make">決まりにする</button></div>
+      <p class="small vid-name" hidden></p>
       <p class="small box-status"></p>
       <div class="proposal-slot"></div>
     </div>`;
     const field = slot.querySelector("textarea")!;
     const st = (t: string) => (slot.querySelector(".box-status")!.textContent = t);
     const voice = bindVoice(slot.querySelector<HTMLButtonElement>(".mic")!, field, { onError: st });
+    // 言葉で言いにくいことは、10 秒ほど動画で見せて答えられる（決まりと一緒に残り、「言葉で聞く」の答えに出る）
+    slot.querySelector<HTMLInputElement>(".show-vid input")!.addEventListener("change", (e) => {
+      const f = (e.target as HTMLInputElement).files?.[0];
+      if (!f) return;
+      shownVideo.set(slot, f);
+      const n = slot.querySelector<HTMLElement>(".vid-name")!;
+      n.hidden = false;
+      n.textContent = `動画をつけました：${f.name}（決まりと一緒に残ります）`;
+      if (!field.value.trim()) field.value = "（動画で見せた）";
+    });
     if (canListen()) slot.querySelector<HTMLButtonElement>(".mic")!.click();
     slot.querySelector<HTMLButtonElement>(".make")!.addEventListener("click", () => {
       voice.stop();
@@ -148,6 +162,10 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
           const ed = { title: read("title"), text: read("text"), reason: read("reason") };
           const next = addRule(store.ledger(), { ...ed, example: p.example, quote: p.quote, param: p.param, value: p.value, source: { kind: "craftsman", name: masterName(store.ledger()) }, date: today() });
           const id = next.rules[next.rules.length - 1].id;
+          let holder: HTMLElement | null = slot;
+          while (holder && !shownVideo.has(holder)) holder = holder.parentElement;
+          const vid = holder ? shownVideo.get(holder) : undefined;
+          if (vid) void putVideo(`rule:${id}`, vid);
           store.setLedger(next);
           if (g) store.setQueue(markAnswered(store.queue(), g.ids, id));
           const changed = ed.title !== p.title || ed.text !== p.text || ed.reason !== p.reason;

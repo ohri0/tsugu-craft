@@ -8,3 +8,6 @@ dist/
 coverage/
 .claude/worktrees/
 out/
+
+# 見本の動画（作者が公開してよいと決めるまで、リポジトリに入れない）
+public/samples/
