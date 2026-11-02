@@ -16,7 +16,7 @@ import { mountLedger } from "./ledger-ui";
 import { mountTeach } from "./teach-ui";
 import { groupQuestions, type QuestionGroup } from "../rules/teacher-queue";
 import { bookHtml } from "../rules/book";
-import { sourceLabel } from "../rules/ledger";
+import { activeRules, sourceLabel } from "../rules/ledger";
 import { drawWhole, drawZoom, eventToPhoto, imageToCanvas, loadPhoto } from "./photo";
 import { drawSampleStone, SAMPLE } from "./sample";
 import { Viewer } from "./viewer";
@@ -42,37 +42,69 @@ interface State {
   built?: Built;
 }
 
+/** 帳面の上の数字を出してよいか（教えるの画面ができてから） */
+let statsReady = false;
 const state: State = { busy: false, longMm: SAMPLE.longMm, depthMm: SAMPLE.depthMm, count: "single", design: { ...DEFAULT_DESIGN }, history: [] };
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
-<div class="app">
-  <aside class="steps">
-    <header>
-      <h1>継ぐ <small style="font-weight:normal;font-size:12px;color:var(--muted)">つぐ</small></h1>
-      <p>職人の判断を、聞き取り、使い、次の人へ。題材：一粒石の指輪</p>
-    </header>
+<div class="shell">
+  <header class="top">
+    <div class="brand">
+      <span class="mark" aria-hidden="true">継</span>
+      <div><h1>継ぐ</h1><p>職人の判断と手を、次の人へ。</p></div>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button role="tab" data-tab="book" aria-selected="true"><span>帳面</span><small>ためる</small></button>
+      <button role="tab" data-tab="keep" aria-selected="false"><span>残す</span><small>聞き取り・手の記録</small></button>
+      <button role="tab" data-tab="check" aria-selected="false"><span>確かめる</span><small>設計を決まりで</small></button>
+      <button role="tab" data-tab="teach" aria-selected="false"><span>教える</span><small>生徒の「なぜ？」<b class="count" id="teachCount">0</b></small></button>
+    </nav>
+  </header>
 
-    <section class="step core">
-      <h2><span class="n">★</span>目安帳（この工房の決まり）</h2>
-      <div id="ledgerRoot"></div>
-      <div class="row" style="margin-top:8px">
+  <main class="pane" id="tab-book">
+    <section class="hero">
+      <p class="eyebrow">技の帳面</p>
+      <h2>一人いなくなっても、判断の理由は残る。</h2>
+      <p class="lead">職人が「何を見て・どこまでなら・なぜ」そう決めるのかを、名前と日付つきで残します。確かめも教えるのも、すべてこの帳面を読みます。アプリがなくても読める 1 枚に印刷できます。</p>
+      <div class="stats" id="stats"></div>
+      <div class="row">
         <button id="bookPrint" class="primary">技の帳面を印刷</button>
-        <button id="bookSave">技の帳面を保存（HTML）</button>
+        <button id="bookSave">保存（HTML）</button>
       </div>
-      <p class="note">もしも教える人がいなくなっても読めるように、決まり・先生に聞いて分かったこと・手の記録を、アプリなしで読める 1 枚にまとめます。</p>
     </section>
-
-    <section class="step core">
-      <h2><span class="n">★</span>教える（生徒の「なぜ？」）<span class="badge" id="teachCount">0</span></h2>
-      <div id="teachRoot"></div>
+    <section class="card">
+      <div id="ledgerRoot"></div>
     </section>
+  </main>
 
+  <main class="pane" id="tab-keep" hidden>
+    <section class="hero small">
+      <p class="eyebrow">残す</p>
+      <h2>作業のついでに、判断と手を残す。</h2>
+      <p class="lead">Claude が一つずつ質問し、答えを決まりにまとめます。職人が確かめてから帳面に入ります。</p>
+    </section>
+    <section class="card" id="keepInterview"></section>
+    <section class="card">
+      <h3 class="card-title">手の記録 <span class="badge">試作中</span></h3>
+      <p class="note">作業中の手を撮ると、手の骨格を追いかけて、動きのリズム・振れ幅・間を記録し、職人の一言を動画の何秒目かと一緒に残します。手本と比べて、違いを数字で見られます。</p>
+      <div id="motionRoot"></div>
+    </section>
+    <section class="card" id="keepManual"></section>
+  </main>
+
+  <main class="pane check" id="tab-check" hidden>
+    <aside class="steps">
+      <section class="hero small">
+        <p class="eyebrow">確かめる　題材：ジュエリー（一粒石の指輪）</p>
+        <h2>設計を、職人の決まりで確かめる。</h2>
+        <p class="lead">無理な所は赤く、根拠の決まりと、見た目への影響つきの直し方が出ます。</p>
+      </section>
     <section class="step">
       <h2><span class="n">1</span>石の数</h2>
       <div class="row">
         <button data-count="single" aria-pressed="true">1 石</button>
-        <button data-count="batch" aria-pressed="false">まとめて（平たい石）<span class="badge">11/3</span></button>
+        <button data-count="batch" aria-pressed="false">まとめて（平たい石）<span class="badge">これから</span></button>
       </div>
     </section>
 
@@ -104,7 +136,7 @@ app.innerHTML = `
     </section>
 
     <section class="step">
-      <h2><span class="n">5</span>3 案 <span class="badge">決まりごとから・Claude の案は 11/4</span></h2>
+      <h2><span class="n">5</span>3 案 <span class="badge">決まりごとから</span></h2>
       <div class="cards" id="plans"><p class="note">石を読むと、その石に合う 3 案がここに出ます。押すとその案に切り替わります。</p></div>
     </section>
 
@@ -125,26 +157,50 @@ app.innerHTML = `
     </section>
 
     <section class="step">
-      <h2><span class="n">7</span>型紙と指示書 <span class="badge">型紙は試し版・指示書は 11/5</span></h2>
+      <h2><span class="n">7</span>型紙と指示書 </h2>
       <p class="note">原寸（1:1）の型紙：黒が石の縁、赤が覆輪の内側（点線）と外側。「実際のサイズ・100%」で印刷し、10 mm と 50 mm の線を定規で確かめます。印刷した線の上に本物の石を置くと、合っているかが分かります。</p>
       <div class="row" style="margin-top:8px">
         <button id="print" class="primary" disabled>型紙を印刷（原寸）</button>
         <button id="saveSvg" disabled>型紙を保存（SVG）</button>
-        <button disabled>指示書つき PDF</button>
+        
       </div>
     </section>
-  </aside>
-  <main class="view" id="view">
-    <div class="empty" id="empty">石の 3D がここに出ます（ドラッグで回す）</div>
-    <div class="hud" id="hud" hidden></div>
+    </aside>
+    <div class="view" id="view">
+      <div class="empty" id="empty">「見本の石で試す」か写真を選ぶと、指輪の 3D がここに出ます</div>
+      <div class="hud" id="hud" hidden></div>
+    </div>
+  </main>
+
+  <main class="pane" id="tab-teach" hidden>
+    <section class="hero small">
+      <p class="eyebrow">教える</p>
+      <h2>先生が答えるのは、本当に職人にしか答えられない質問だけ。</h2>
+      <p class="lead">生徒の「なぜ？」に、帳面の決まりと理由で答えます。帳面にない質問はまとめて先生へ。先生の答えは、新しい決まりとして帳面に入ります。</p>
+    </section>
+    <section class="card"><div id="teachRoot"></div></section>
   </main>
 </div>`;
+
+// 上の帯の高さ（確かめるのタブで、3D を画面の高さに合わせるため）
+const fitTop = () => document.documentElement.style.setProperty("--top-h", `${document.querySelector<HTMLElement>(".top")!.offsetHeight}px`);
+fitTop();
+window.addEventListener("resize", fitTop);
+
+// ---- タブ ----
+function showTab(name: string) {
+  document.querySelectorAll<HTMLButtonElement>("[data-tab]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === name)));
+  document.querySelectorAll<HTMLElement>(".pane").forEach((p) => (p.hidden = p.id !== `tab-${name}`));
+  if (name === "check") window.dispatchEvent(new Event("resize"));
+}
+document.querySelectorAll<HTMLButtonElement>("[data-tab]").forEach((b) => b.addEventListener("click", () => showTab(b.dataset.tab!)));
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const viewer = new Viewer($("view"));
 let answering: QuestionGroup | null = null;
 const ledgerUI = mountLedger($("ledgerRoot"), (_l, why, addedRuleId) => {
-  $("histNote").textContent = `目安帳：${why}`;
+  $("histNote").textContent = `帳面：${why}`;
+  renderStats();
   // 先生が「先生に聞くこと」に答えて決まりを足したら、その質問のまとまりに結びつける
   if (answering && addedRuleId) {
     teachUI.markAnswered(answering.ids, addedRuleId);
@@ -155,12 +211,21 @@ const ledgerUI = mountLedger($("ledgerRoot"), (_l, why, addedRuleId) => {
     updateRing();
   }
 });
+// 聞き取りと手で足すは「残す」のタブへ（帳面のタブには決まりの一覧だけ）
+$("keepInterview").appendChild(document.getElementById("interview")!);
+$("keepManual").appendChild(document.getElementById("manual")!.closest("details")!);
+(document.getElementById("interview") as HTMLDetailsElement).open = true;
+
 const teachUI = mountTeach($("teachRoot"), {
   ledger: () => ledgerUI.ledger(),
   password: () => document.querySelector<HTMLInputElement>("#ivPass")?.value ?? "",
-  onQueueChange: (n) => ($("teachCount").textContent = String(n)),
+  onQueueChange: (n) => {
+    $("teachCount").textContent = String(n);
+    renderStats();
+  },
   onAnswer: (item) => {
     answering = item;
+    showTab("keep");
     const box = document.querySelector("#manual")?.closest("details");
     if (box) box.open = true;
     const title = document.querySelector<HTMLInputElement>('#manual [data-f="title"]');
@@ -170,6 +235,25 @@ const teachUI = mountTeach($("teachRoot"), {
     }
   },
 });
+/** 帳面の上の数字（教えるの画面ができてから） */
+function renderStats() {
+  if (!statsReady) return;
+  const rules = activeRules(ledgerUI.ledger());
+  const craft = rules.filter((r) => r.source.kind === "craftsman");
+  const names = new Set(craft.map((r) => (r.source.kind === "craftsman" ? r.source.name : "")));
+  const open = groupQuestions(teachUI.queue()).length;
+  const answered = groupQuestions(teachUI.queue(), { includeAnswered: true }).filter((g) => g.answeredRuleId).length;
+  const items: [string, number, string][] = [
+    ["職人の決まり", craft.length, "名前・日付・理由つき"],
+    ["残した職人", names.size, "人"],
+    ["公開情報の目安", rules.length - craft.length, "出典つき"],
+    ["先生への質問", open, answered ? `答えて決まりにした ${answered}` : "まとめて届く"],
+  ];
+  $("stats").innerHTML = items.map(([k, n, sub]) => `<div class="stat"><b>${n}</b><span>${k}</span><small>${sub}</small></div>`).join("");
+}
+statsReady = true;
+renderStats();
+
 function book(): string {
   const answered = groupQuestions(teachUI.queue(), { includeAnswered: true })
     .filter((g) => g.answeredRuleId)

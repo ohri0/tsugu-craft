@@ -85,7 +85,7 @@ export function mountLedger(root: HTMLElement, onChange: LedgerChange): LedgerUI
       </div>
     </details>`;
 
-  const $ = <T extends HTMLElement>(id: string) => root.querySelector<T>(`#${id}`)!;
+  const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
   function set(next: Ledger, why: string, addedRuleId?: string) {
     ledger = next;
@@ -109,13 +109,22 @@ export function mountLedger(root: HTMLElement, onChange: LedgerChange): LedgerUI
     const kind = r.source.kind;
     const value =
       r.param && r.bySize
-        ? `<span class="val">${esc(sizeStepsText(r.bySize, PARAMS[r.param].unit))}</span>`
+        ? esc(sizeStepsText(r.bySize, PARAMS[r.param].unit))
         : r.param && r.value !== undefined
-          ? `<span class="val">${r.value}${PARAMS[r.param].unit}</span>`
+          ? `${r.value}${PARAMS[r.param].unit}`
           : "";
-    return `<li class="${kind}${replaced ? " old" : ""}"><b>${esc(r.title)}</b>${value}<span class="badge src-${kind}">${esc(sourceLabel(r.source))}・${r.date}</span>${
-      replaced ? '<span class="badge">置き換え済み</span>' : ""
-    }<span class="why">${esc(r.text)}／理由：${esc(r.reason)}${r.quote ? `／「${esc(r.quote)}」` : ""}</span></li>`;
+    // 職人の決まりには、名前の一文字目の印（はんこ）。公開情報は「公」、仮は「仮」
+    const seal = kind === "craftsman" ? [...r.source.name][0] ?? "職" : kind === "public" ? "公" : "仮";
+    return `<li class="rule-card ${kind}${replaced ? " old" : ""}">
+      <span class="seal seal-${kind}" aria-hidden="true">${esc(seal)}</span>
+      <div class="rule-body">
+        <div class="rule-head"><b>${esc(r.title)}</b>${value ? `<span class="val">${value}</span>` : ""}${replaced ? '<span class="badge">置き換え済み</span>' : ""}</div>
+        <p class="rule-text">${esc(r.text)}</p>
+        <p class="rule-why">理由：${esc(r.reason)}</p>
+        ${r.quote ? `<p class="rule-quote">「${esc(r.quote)}」</p>` : ""}
+        <p class="rule-src">${esc(sourceLabel(r.source))}・${r.date}</p>
+      </div>
+    </li>`;
   }
 
   $("ruleUndo").addEventListener("click", () => set(removeLastRule(ledger), "最後に足した決まりを外した"));
@@ -140,7 +149,7 @@ export function mountLedger(root: HTMLElement, onChange: LedgerChange): LedgerUI
 
   // ---- 手で足す ----
   $("manualAdd").addEventListener("click", () => {
-    const v = (f: string) => root.querySelector<HTMLInputElement>(`#manual [data-f="${f}"]`)!.value.trim();
+    const v = (f: string) => document.querySelector<HTMLInputElement>(`#manual [data-f="${f}"]`)!.value.trim();
     if (!v("title") || !v("text") || !v("reason") || !v("name")) {
       alert("短い名前・決まり・理由・職人の名前を書いてください");
       return;
@@ -167,7 +176,7 @@ export function mountLedger(root: HTMLElement, onChange: LedgerChange): LedgerUI
         date: today(),
       });
     set(next, `決まり「${v("title")}」を足した`, next.rules[next.rules.length - 1].id);
-    root.querySelectorAll<HTMLInputElement>("#manual [data-f]").forEach((el) => (el.value = ""));
+    document.querySelectorAll<HTMLInputElement>("#manual [data-f]").forEach((el) => (el.value = ""));
   });
 
   // ---- 聞き取り ----
@@ -202,8 +211,8 @@ export function mountLedger(root: HTMLElement, onChange: LedgerChange): LedgerUI
       ${p.quote ? `<p class="quote">「${esc(p.quote)}」</p>` : ""}
       <div class="row"><button class="primary" data-a="ok">目安帳に足す</button><button data-a="no">見送る</button></div>
     </div>`;
-    const read = (k: string) => root.querySelector<HTMLInputElement>(`#ivProposal [data-p="${k}"]`)?.value.trim() ?? "";
-    root.querySelectorAll<HTMLButtonElement>("#ivProposal [data-a]").forEach((b) =>
+    const read = (k: string) => document.querySelector<HTMLInputElement>(`#ivProposal [data-p="${k}"]`)?.value.trim() ?? "";
+    document.querySelectorAll<HTMLButtonElement>("#ivProposal [data-a]").forEach((b) =>
       b.addEventListener("click", () => {
         if (!pending) return;
         const done = pending;
