@@ -85,7 +85,7 @@ app.innerHTML = `
   <header class="tb">
     <div class="tb-l"><a class="brand" href="./"><span class="logo">継</span>継ぐ</a><span class="doc"><span class="word-name">新しい作品</span></span></div>
     <nav class="tabs" aria-label="場面">${MODES.map((m) => `<button type="button" data-mode="${m.id}" title="${m.sub}（${m.key}）">${m.word}<span class="k">${m.key}</span></button>`).join("")}</nav>
-    <div class="tb-r"><button type="button" class="btn quiet act-why">なぜ継ぐ</button><a class="btn quiet hide-sm" href="app.html#rebuild">組み立て直す</a><button type="button" class="btn act-sheet hide-sm">図面・指示書</button><button type="button" class="btn primary act-stl">STL</button><button type="button" class="book-btn">帳面<i class="book-n"></i></button></div>
+    <div class="tb-r"><button type="button" class="btn quiet act-why">なぜ継ぐ</button><a class="btn quiet hide-sm" href="app.html#rebuild">組み立て直す</a><a class="btn quiet hide-sm" href="cad.html" title="木目金・魚々子・布目象嵌・鎚目">技法の面</a><button type="button" class="btn act-sheet hide-sm">図面・指示書</button><button type="button" class="btn primary act-stl">STL</button><button type="button" class="book-btn">帳面<i class="book-n"></i></button></div>
   </header>
   <nav class="tools" aria-label="見る">
     ${(["angle", "top", "side", "front"] as const).map((v) => `<button type="button" class="tool view-btn" data-view="${v}" data-tip="${{ angle: "斜め", top: "上", side: "横", front: "正面" }[v]}" aria-label="${{ angle: "斜め", top: "上", side: "横", front: "正面" }[v]}">${ICON[v]}</button>`).join("")}
