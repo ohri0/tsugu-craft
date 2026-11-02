@@ -222,3 +222,16 @@
 .ts-watch { margin: 10px 0 0; padding: 8px 10px; border-radius: 8px; background: rgba(233, 196, 106, 0.1); color: #e9c46a; font-size: 12px; }
 .ts-src { margin: 10px 0 0; font-size: 10px; color: var(--ivory-3); line-height: 1.7; }
 .ts-src a { color: var(--ivory-2); }
+/* 何を作る */
+.kinds { display: grid; gap: 6px; }
+.kinds button { text-align: left; display: grid; gap: 1px; padding: 9px 12px; border-radius: 12px; border: 1px solid var(--hair); background: rgba(239, 231, 214, 0.03); color: var(--ivory); }
+.kinds button b { font-family: var(--serif); font-weight: 500; font-size: 15px; }
+.kinds button small { font-size: 11px; color: var(--ivory-3); }
+.kinds button[aria-pressed="true"] { border-color: var(--ivory); background: rgba(239, 231, 214, 0.1); }
+.kinds button:disabled { opacity: 0.4; }
+.coming { margin: 0; font-size: 11px; color: var(--ivory-3); }
+.solitaire-only, .band-only { display: flex; flex-direction: column; gap: 10px; }
+.solitaire-only[hidden], .band-only[hidden] { display: none !important; }
+.rhino .make-status { left: auto; right: calc(var(--side-w) + 16px); bottom: calc(var(--bottom-h) + 8px); background: rgba(11, 10, 9, 0.7); padding: 4px 10px; border-radius: 8px; }
+.rhino .make-status:empty { display: none; }
+@media (max-width: 760px) { .rhino .make-status { position: static; right: auto; background: transparent; } }

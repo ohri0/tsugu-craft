@@ -61,8 +61,8 @@ li .w { color: #8a2a1c; font-size: 8.5pt; }
       (s) => `<li><h3>${esc(s.title)}</h3><p>${esc(s.text)}</p>${s.specs.length ? `<table>${s.specs.map((x) => `<tr><td>${esc(x.label)}</td><td>${esc(x.value)}</td></tr>`).join("")}</table>` : ""}${s.watch ? `<p class="w">！ ${esc(s.watch)}</p>` : ""}</li>`,
     )
     .join("")}</ol>
-  <p class="foot">数字は、この石とこの形から計算した目安です。手順は一般的な作り方の例で、最後は職人が決めます。2 枚目は原寸の型紙（「実際のサイズ・100%」で印刷）。</p>
+  <p class="foot">数字は、この石とこの形から計算した目安です。手順は一般的な作り方の例で、最後は職人が決めます。${o.patternSvg ? "2 枚目は原寸の型紙（「実際のサイズ・100%」で印刷）。" : ""}</p>
 </section>
-<section class="page">${o.patternSvg}</section>
+${o.patternSvg ? `<section class="page">${o.patternSvg}</section>` : ""}
 </body></html>`;
 }

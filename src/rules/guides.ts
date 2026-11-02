@@ -72,6 +72,14 @@ export const GUIDES = {
     minFingerGapMm: 0.3,
     options: { low: 0, standard: 0.5, high: 1.0 } as const,
   },
+  /**
+   * 石のない指輪（甲丸・平打ち）の目安。出典は docs/RESEARCH-rules.md の「3. 腕（シャンク）の厚みと幅」（案 8・案 9）：
+   * 腕のいちばん厚い所は 1.2 mm 以上（仕上げで最大 0.2 mm 削れる・1 mm より薄いと持ちが悪い）、幅は 1.7 mm 以上（細い腕は曲がって丸くなくなる）。
+   */
+  band: {
+    minThicknessMm: 1.2,
+    minWidthMm: 1.7,
+  },
   shank: {
     widthMm: 2.2,
     thicknessMm: 1.6,

@@ -112,6 +112,15 @@ export class Viewer {
     }
   }
 
+  /** 地金だけの形（石のない指輪など）。三角形の並び、mm。いちばん下を床（z ＝ 0）に置く */
+  setMetalMesh(positions: Float32Array, metal: MetalId, kind = "metal") {
+    this.clear();
+    const mat = new THREE.MeshPhysicalMaterial({ color: METAL_COLOR[metal], metalness: 1, roughness: 0.1, envMapIntensity: 1.0, side: THREE.DoubleSide });
+    this.content.add(new THREE.Mesh(metalGeometry(positions), mat));
+    this.frame(kind, new THREE.Vector3(0.95, -1.15, 0.55));
+    this.updateShadow();
+  }
+
   /** 石だけ（指輪を組む前） */
   setStone(mesh: StoneMesh, look: StoneLook) {
     this.clear();

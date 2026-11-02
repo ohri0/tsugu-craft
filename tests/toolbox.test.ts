@@ -5,6 +5,7 @@ import { STEP_TOOLS, TOOLS, toolsForStep } from "../src/studio/toolbox";
 const STEP_TITLES = [
   // 手作り
   "材料を用意する",
+  "形を整える",
   "腕を丸めて、つなぐ",
   "石座を組む",
   "覆輪を作る",

@@ -31,6 +31,10 @@ import { howToMake, type Method } from "./howto";
 import { sheetHtml } from "./sheet";
 import { KIND_LABEL, toolById, toolsForStep } from "./toolbox";
 import { animFor } from "./toolanim";
+import { MAKE_BAND, SECTION_LABEL, bandHowTo, bandInnerDiameter, bandMesh, bandPrompt, checkBand, parseBand, type Band, type BandDraft, type SectionKind } from "./band";
+import { metalIdOf } from "./session";
+import { GUIDES } from "../rules/guides";
+import { callTool } from "../rebuild/run";
 
 type Mode = "make" | "refine" | "hand";
 const MODES: { id: Mode; word: string; en: string; sub: string }[] = [
@@ -75,11 +79,21 @@ app.innerHTML = `
   <div class="verdict-chip" hidden></div>
 
   <aside class="side make-panel studio-make">
+    <h3>何を作る</h3>
+    <div class="kinds">
+      <button type="button" data-kind="solitaire" aria-pressed="true"><b>一粒石の指輪</b><small>石の写真から</small></button>
+      <button type="button" data-kind="band" aria-pressed="false"><b>甲丸・平打ちの指輪</b><small>石なし</small></button>
+      <button type="button" disabled><b>覆輪のペンダント</b><small>次に足す</small></button>
+    </div>
+    <p class="coming">これから：ピアス・チェーン・パヴェ・ブローチ</p>
+    <div class="band-only band-ctrl" hidden></div>
+    <div class="solitaire-only">
     <h3>石</h3>
     <label class="in-card stone-card"><canvas class="stone-thumb" width="120" height="120"></canvas><span><b>石の写真</b><small class="stone-sub">撮る・選ぶ</small></span><input type="file" accept="image/*" class="stone-file" hidden></label>
     <div class="in-card size-card"><label>長辺<input type="number" step="0.01" class="in-long" inputmode="decimal"> mm</label><label>深さ<input type="number" step="0.01" class="in-depth" inputmode="decimal"> mm</label></div>
     <h3>デザイン</h3>
     <label class="in-card sketch-card"><span class="sketch-thumb">絵</span><span><b>デザインの絵</b><small class="sketch-sub">なくてもよい</small></span><input type="file" accept="image/*" class="sketch-file" hidden></label>
+    </div>
     <h3>作業の記録</h3>
     <ol class="worklog"><li class="note">下の行に希望を書いて「生む」を押すと、Claude が組み、作れるか確かめて直します。</li></ol>
   </aside>
@@ -238,7 +252,7 @@ $<HTMLInputElement>(".sketch-file").addEventListener("change", async (e) => {
 
 // ---- 組めたら：3D・数字・赤い所 ----
 function onBuilt(b: Built, _why: string) {
-  if (!stone) return;
+  if (!stone || kind !== "solitaire") return;
   viewer.setRing(b.ring, { color: stone.extraction.color, colorless: stone.extraction.colorless }, b.problems);
   const r = b.ring;
   const s = session!.state;
@@ -340,6 +354,7 @@ $(".command").addEventListener("submit", (e) => {
   void make();
 });
 async function make() {
+  if (kind === "band") return makeBand();
   if (!session || !stone || making) return;
   const wish = $<HTMLInputElement>(".wish").value.trim();
   const st = $(".make-status");
@@ -424,6 +439,7 @@ function grouped(b: Built) {
   return [...groups.values()];
 }
 function renderCheck() {
+  if (kind === "band") return renderBandCheck();
   if (!session?.built) return;
   const b = session.built;
   const s = session.state;
@@ -556,6 +572,7 @@ function openPrint(html: string) {
   setTimeout(() => w.print(), 600);
 }
 function renderBuild() {
+  if (kind === "band") return renderBandBuild();
   if (!session?.built || !stone) return;
   const b = session.built;
   const steps = howToMake(howInput(b), method);
@@ -702,6 +719,182 @@ function toast(t: string) {
   el.textContent = t;
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 3200);
+}
+
+// ---- 石のない指輪（甲丸・平打ち・かまぼこ） ----
+type Kind = "solitaire" | "band";
+let kind: Kind = "solitaire";
+let bandMetal: Metal = "k18yg";
+let band: Band = { gou: 12, kind: "kouman", top: { width: 4, thickness: 1.6 }, bottom: { width: 3.2, thickness: 1.4 }, density: GUIDES.metals.k18y.densityGPerCm3, metalLabel: METAL_LABEL.k18yg };
+let bandWeight = 0;
+let bandPositions: Float32Array | null = null;
+
+function setBandMetal(m: Metal) {
+  bandMetal = m;
+  band = { ...band, density: GUIDES.metals[metalIdOf(m)].densityGPerCm3, metalLabel: METAL_LABEL[m] };
+}
+function bandName() {
+  return `${SECTION_LABEL[band.kind]}の指輪`;
+}
+function showBand() {
+  const m = bandMesh(band);
+  bandPositions = m.positions;
+  bandWeight = m.weightG;
+  viewer.setMetalMesh(m.positions, metalIdOf(bandMetal), "band");
+  const probs = checkBand(band);
+  const chip = $(".verdict-chip");
+  chip.hidden = false;
+  chip.className = `verdict-chip ${probs.length ? "ng" : "ok"}`;
+  chip.textContent = probs.length ? `作れない所 ${probs.length}` : "作れます";
+  $(".word-name").textContent = bandName();
+  const rows: [string, string][] = [
+    ["断面", SECTION_LABEL[band.kind]],
+    ["号", `${band.gou} 号 ・ 内径 ${bandInnerDiameter(band.gou).toFixed(1)} mm`],
+    ["上", `${band.top.width} × ${band.top.thickness} mm`],
+    ["下", `${band.bottom.width} × ${band.bottom.thickness} mm`],
+    ["地金", `${band.metalLabel} ・ 約 ${bandWeight.toFixed(1)} g`],
+  ];
+  $(".specs").innerHTML = rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("");
+  if (!$(".studio-refine").hidden) renderBandCheck();
+  if (!$(".build-panel").hidden) renderBandBuild();
+}
+function bandControls(box: HTMLElement) {
+  const slider = (cls: string, label: string, min: number, max: number, step: number, v: number, unit: string) =>
+    `<label><span>${label}</span><input type="range" class="${cls}" min="${min}" max="${max}" step="${step}" value="${v}"><output>${v}${unit}</output></label>`;
+  box.innerHTML = `
+    <div class="pick"><span>断面</span><div>${(Object.keys(SECTION_LABEL) as SectionKind[]).map((k) => `<button type="button" data-sec="${k}" aria-pressed="${band.kind === k}">${SECTION_LABEL[k]}</button>`).join("")}</div></div>
+    <div class="sliders">
+      ${slider("b-gou", "号", 3, 30, 1, band.gou, " 号")}
+      ${slider("b-tw", "上の幅", 1, 12, 0.1, band.top.width, " mm")}
+      ${slider("b-tt", "上の厚み", 0.6, 3.5, 0.1, band.top.thickness, " mm")}
+      ${slider("b-bw", "下の幅", 1, 12, 0.1, band.bottom.width, " mm")}
+      ${slider("b-bt", "下の厚み", 0.6, 3.5, 0.1, band.bottom.thickness, " mm")}
+    </div>
+    <div class="pick"><span>地金</span><div>${(["k18yg", "pt900", "k18wg", "k18pg", "sv925"] as Metal[]).map((m) => `<button type="button" data-metal="${m}" aria-pressed="${bandMetal === m}">${METAL_LABEL[m]}</button>`).join("")}</div></div>`;
+  box.querySelectorAll<HTMLButtonElement>("[data-sec]").forEach((b) => b.addEventListener("click", () => ((band = { ...band, kind: b.dataset.sec as SectionKind }), bandControls(box), showBand())));
+  box.querySelectorAll<HTMLButtonElement>("[data-metal]").forEach((b) => b.addEventListener("click", () => (setBandMetal(b.dataset.metal as Metal), bandControls(box), showBand())));
+  const bind = (cls: string, set: (v: number) => void, unit: string) => {
+    const inp = box.querySelector<HTMLInputElement>(`.${cls}`)!;
+    inp.addEventListener("input", () => {
+      set(Number(inp.value));
+      inp.nextElementSibling!.textContent = `${inp.value}${unit}`;
+      showBand();
+    });
+  };
+  bind("b-gou", (v) => (band = { ...band, gou: v }), " 号");
+  bind("b-tw", (v) => (band = { ...band, top: { ...band.top, width: v } }), " mm");
+  bind("b-tt", (v) => (band = { ...band, top: { ...band.top, thickness: v } }), " mm");
+  bind("b-bw", (v) => (band = { ...band, bottom: { ...band.bottom, width: v } }), " mm");
+  bind("b-bt", (v) => (band = { ...band, bottom: { ...band.bottom, thickness: v } }), " mm");
+}
+function setKind(k: Kind) {
+  kind = k;
+  document.querySelectorAll<HTMLButtonElement>(".kinds [data-kind]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.kind === k)));
+  document.querySelectorAll<HTMLElement>(".solitaire-only").forEach((e) => (e.hidden = k !== "solitaire"));
+  document.querySelectorAll<HTMLElement>(".band-only").forEach((e) => (e.hidden = k !== "band"));
+  showCannot("");
+  $(".worklog").innerHTML = `<li class="note">${k === "band" ? "下の行に希望（例：細めで、手のひら側を薄く）を書いて「生む」。左の数字で手でも変えられます。" : "下の行に希望を書いて「生む」を押すと、Claude が組み、作れるか確かめて直します。"}</li>`;
+  if (k === "band") {
+    bandControls($(".band-ctrl"));
+    showBand();
+  } else if (session) session.build("一粒石の指輪に戻る");
+  if (!$(".studio-refine").hidden) renderCheck();
+  if (!$(".build-panel").hidden) renderBuild();
+}
+document.querySelectorAll<HTMLButtonElement>(".kinds [data-kind]").forEach((b) => b.addEventListener("click", () => setKind(b.dataset.kind as Kind)));
+
+function renderBandCheck() {
+  const box = $(".studio-refine");
+  const probs = checkBand(band);
+  box.innerHTML = `
+    <section class="big-verdict ${probs.length ? "ng" : "ok"}"><b>${probs.length ? "このままでは作れません" : "このまま作れます"}</b><small>${probs.length ? `直す所 ${probs.length}` : "厚み・幅、どちらも目安の内側"}</small></section>
+    ${probs.length ? `<ul class="probs">${probs.map((p, i) => `<li><div class="p-head"><b>${esc(p.title)}</b></div><p class="p-num">${esc(p.current)} <span>→</span> ${esc(p.required)}</p><div class="p-act"><button type="button" class="fix-go" data-i="${i}">${esc(p.fix.label)}</button><details><summary>なぜ</summary><p>${esc(p.why)}</p></details></div></li>`).join("")}</ul>` : ""}
+    <details class="manual" ${probs.length ? "" : "open"}><summary>手で変える</summary><div class="band-ctrl-2"></div></details>
+    <button type="button" class="next-btn to-build">作り方を見る →</button>`;
+  bandControls(box.querySelector(".band-ctrl-2")!);
+  box.querySelectorAll<HTMLButtonElement>(".fix-go").forEach((b) =>
+    b.addEventListener("click", () => {
+      band = probs[Number(b.dataset.i)].fix.apply(band);
+      bandControls($(".band-ctrl"));
+      showBand();
+    }),
+  );
+  box.querySelector(".to-build")!.addEventListener("click", () => setMode("hand"));
+}
+
+function renderBandBuild() {
+  const box = $(".build-panel");
+  const steps = bandHowTo(band, method, bandWeight);
+  const probs = checkBand(band);
+  box.innerHTML = `
+    <div class="seg method"><button type="button" data-m="hand" aria-pressed="${method === "hand"}">手作り</button><button type="button" data-m="cast" aria-pressed="${method === "cast"}">鋳造</button></div>
+    ${probs.length ? `<p class="build-warn">このままでは作れない所が ${probs.length} あります。<button type="button" class="link to-check">確かめる →</button></p>` : ""}
+    <ol class="steps-b">${steps
+      .map(
+        (st, i) => `<li><span class="n">${i + 1}</span><div><b>${esc(st.title)}</b><p>${esc(st.text)}</p>${st.specs.length ? `<dl>${st.specs.map((x) => `<div><dt>${esc(x.label)}</dt><dd>${esc(x.value)}</dd></div>`).join("")}</dl>` : ""}${st.watch ? `<p class="watch">${esc(st.watch)}</p>` : ""}${toolsForStep(st.title).length ? `<div class="tools-row">${toolsForStep(st.title).map((t) => `<button type="button" class="tool-chip${animFor(t.name) ? " has-anim" : ""}" data-tool="${t.id}">${esc(t.name)}</button>`).join("")}</div>` : ""}</div></li>`,
+      )
+      .join("")}</ol>
+    <p class="note-b">数字は、この形から計算した目安。手順は一般的な例で、最後は職人が決める。</p>
+    <div class="row out"><button type="button" class="primary p-instr">指示書を印刷</button><button type="button" class="ghost-d p-stl">3D データ</button></div>`;
+  box.querySelectorAll<HTMLButtonElement>(".method button").forEach((b) => b.addEventListener("click", () => ((method = b.dataset.m as Method), renderBandBuild())));
+  box.querySelector(".to-check")?.addEventListener("click", () => setMode("refine"));
+  box.querySelectorAll<HTMLButtonElement>(".tool-chip").forEach((c) => c.addEventListener("click", () => openTool(c.dataset.tool!)));
+  box.querySelector(".p-instr")!.addEventListener("click", () =>
+    openPrint(
+      sheetHtml({
+        title: bandName(),
+        date: today(),
+        imageDataUrl: viewer.snapshot(),
+        specs: [
+          { label: "断面", value: SECTION_LABEL[band.kind] },
+          { label: "号", value: `${band.gou} 号 ・ 内径 ${bandInnerDiameter(band.gou).toFixed(1)} mm` },
+          { label: "上（見える側）", value: `${band.top.width} × ${band.top.thickness} mm` },
+          { label: "下（手のひら側）", value: `${band.bottom.width} × ${band.bottom.thickness} mm` },
+          { label: "地金", value: `${band.metalLabel} ・ 約 ${bandWeight.toFixed(1)} g` },
+        ],
+        problems: probs.map((p) => `${p.title}（${p.current} → ${p.required}）`),
+        methodLabel: method === "hand" ? "手作り" : "鋳造",
+        steps,
+        patternSvg: "",
+      }),
+    ),
+  );
+  box.querySelector(".p-stl")!.addEventListener("click", () => {
+    if (!bandPositions) return;
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([toStl(bandPositions)], { type: "model/stl" }));
+    a.download = `継ぐ_${bandName()}_${band.gou}号.stl`;
+    a.click();
+  });
+}
+
+async function makeBand() {
+  if (making) return;
+  const wish = $<HTMLInputElement>(".wish").value.trim();
+  const st = $(".make-status");
+  const pass = store.password() || (await askPassword());
+  if (!pass) {
+    st.textContent = "生むには Claude が要ります。左の数字で手で作れます。";
+    return;
+  }
+  making = true;
+  st.innerHTML = `<span class="pulse"></span> Claude が形を考えています…`;
+  const r = await callTool<BandDraft>({ system: bandPrompt(), user: wish || "ふつうの普段使いの指輪", tool: MAKE_BAND, parse: parseBand, password: pass, speed: "fast" });
+  making = false;
+  if (!r.ok) {
+    if (r.code === "wrong_password") resetPassword();
+    st.textContent = r.error;
+    return;
+  }
+  const d = r.value;
+  band = { ...band, kind: d.kind, top: d.top, bottom: d.bottom, gou: d.gou };
+  setBandMetal(d.metal);
+  bandControls($(".band-ctrl"));
+  showBand();
+  $(".worklog").innerHTML = `<li class="tool set_shank">${esc(`${SECTION_LABEL[d.kind]}・上 ${d.top.width}×${d.top.thickness}・下 ${d.bottom.width}×${d.bottom.thickness} mm・${d.gou} 号・${METAL_LABEL[d.metal]}`)}</li><li class="note">${esc(d.reason)}</li>`;
+  showCannot(d.cannotDo);
+  st.innerHTML = `${r.remaining !== undefined ? `今日あと ${r.remaining} 回 ・ ` : ""}<button type="button" class="link go-refine">確かめる →</button>`;
+  st.querySelector(".go-refine")!.addEventListener("click", () => setMode("refine"));
 }
 
 setMode("make");
