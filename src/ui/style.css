@@ -67,3 +67,15 @@ table.read td .why { display: block; color: var(--muted); font-size: 12px; }
   .view { position: sticky; top: 0; height: 46vh; z-index: 2; background: var(--bg); border-bottom: 1px solid var(--line); }
   .steps { border-right: 0; padding: 12px 16px 80px; }
 }
+.controls { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 10px; }
+.controls label { display: grid; gap: 3px; font-size: 12px; color: var(--muted); }
+.controls select { font: inherit; font-size: 14px; color: var(--ink); padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: #fff; }
+button.card { text-align: left; font: inherit; color: inherit; cursor: pointer; }
+button.card:hover { border-color: var(--accent); }
+ul.problems { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 8px; }
+ul.problems li { border-left: 3px solid var(--warn); padding: 4px 0 4px 10px; font-size: 13px; }
+ul.problems .why { display: block; color: var(--muted); font-size: 12px; }
+ul.problems .opts { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+ul.problems .opt { font-size: 12px; background: var(--mock); border-radius: 6px; padding: 2px 8px; }
+ul.problems .opt small { color: var(--muted); }
+.ok-line { color: var(--ok); font-size: 13px; margin: 6px 0; }

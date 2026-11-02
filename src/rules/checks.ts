@@ -123,7 +123,7 @@ export function checkSetting(s: SettingResult, culetGapMm: number = s.heights.cu
   const g = GUIDES;
 
   // 石の一番下と指のすき間
-  if (culetGapMm < g.height.minFingerGapMm) {
+  if (culetGapMm < g.height.minFingerGapMm - 1e-6) {
     out.push({
       id: "finger-gap",
       check: "finger-gap",

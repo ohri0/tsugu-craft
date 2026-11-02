@@ -4,11 +4,14 @@ import { findCorners, type Corner } from "../geometry/corners";
 import { measureOutline, type StoneOutline } from "../geometry/measure";
 import { extent } from "../geometry/polygon";
 import { nameShape } from "../geometry/shape";
-import { buildStone, stoneHeights } from "../geometry/stone";
+import { stoneHeights } from "../geometry/stone";
 import { GUIDE_NOTE, GUIDES } from "../rules/guides";
+import { HOLD_NOTE } from "../rules/checks";
+import { metalName } from "../geometry/ring";
 import { extractStone, NoStoneError, type Extraction } from "../vision/extract";
 import { patternSvg } from "../pattern/sheet";
-import { mockPlans } from "./mock";
+import { build, DEFAULT_DESIGN, rulePlans, type Built, type Design } from "./design";
+import { planThumb } from "./thumb";
 import { drawWhole, drawZoom, eventToPhoto, imageToCanvas, loadPhoto } from "./photo";
 import { drawSampleStone, SAMPLE } from "./sample";
 import { Viewer } from "./viewer";
@@ -28,9 +31,13 @@ interface State {
   depthMm: number;
   widthMm?: number;
   count: "single" | "batch";
+  /** 今の設計（手順 6）と、その履歴（戻すため） */
+  design: Design;
+  history: Design[];
+  built?: Built;
 }
 
-const state: State = { busy: false, longMm: SAMPLE.longMm, depthMm: SAMPLE.depthMm, count: "single" };
+const state: State = { busy: false, longMm: SAMPLE.longMm, depthMm: SAMPLE.depthMm, count: "single", design: { ...DEFAULT_DESIGN }, history: [] };
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
@@ -76,14 +83,25 @@ app.innerHTML = `
       <div id="reading"><p class="note">写真を選ぶと、ここに形と寸法が出ます。</p></div>
     </section>
 
-    <section class="step mock">
-      <h2><span class="n">5</span>3 案 <span class="badge">モック・11/4 に Claude が考える</span></h2>
-      <div class="cards" id="plans"><p class="note">石を読むと、その石に合う 3 案がここに出ます。</p></div>
+    <section class="step">
+      <h2><span class="n">5</span>3 案 <span class="badge">決まりごとから・Claude の案は 11/4</span></h2>
+      <div class="cards" id="plans"><p class="note">石を読むと、その石に合う 3 案がここに出ます。押すとその案に切り替わります。</p></div>
     </section>
 
-    <section class="step mock">
-      <h2><span class="n">6</span>手で微調整 <span class="badge">モック・11/3</span></h2>
-      <div class="mockbody">留め方（覆輪 / 爪）、爪の本数・太さ、高さ（低め / 標準 / 高め）、向き（縦 / 横）、地金、サイズ（号）。すべて履歴に積み、戻せます。</div>
+    <section class="step">
+      <h2><span class="n">6</span>手で微調整</h2>
+      <div class="controls" id="controls">
+        <label>留め方<select data-k="style"><option value="prong">爪</option><option value="bezel">覆輪（ふくりん）</option></select></label>
+        <label>爪の本数<select data-k="prongCount"><option value="0">自動</option>${[3, 4, 5, 6, 8].map((n) => `<option value="${n}">${n} 本</option>`).join("")}</select></label>
+        <label>爪の太さ<select data-k="prongScale">${[0.8, 0.9, 1, 1.1, 1.2, 1.3].map((v) => `<option value="${v}">${v === 1 ? "標準" : `標準 × ${v}`}</option>`).join("")}</select></label>
+        <label>高さ<select data-k="height"><option value="low">低め</option><option value="standard">標準（＋0.5 mm）</option><option value="high">高め（＋1.0 mm）</option></select></label>
+        <label>向き<select data-k="orientation"><option value="along">縦（長辺が指に沿う）</option><option value="across">横</option></select></label>
+        <label>地金<select data-k="metal">${Object.keys(GUIDES.metals).map((m) => `<option value="${m}">${metalName(m as keyof typeof GUIDES.metals)}</option>`).join("")}</select></label>
+        <label>サイズ<select data-k="gou">${Array.from({ length: 30 }, (_, i) => i + 1).map((g) => `<option value="${g}">${g} 号</option>`).join("")}</select></label>
+        <label>石の場所<select data-k="position"><option value="top">指の上</option><option value="side">横（肩）</option><option value="palm">手のひら側寄り</option></select></label>
+      </div>
+      <div class="row" style="margin-top:8px"><button id="undo" disabled>ひとつ戻す</button><span class="note" id="histNote"></span></div>
+      <div id="checks"></div>
     </section>
 
     <section class="step">
@@ -134,6 +152,37 @@ $<HTMLCanvasElement>("whole").addEventListener("click", (ev) => {
   runExtract(eventToPhoto(ev, $("whole"), state.photo));
 });
 for (const el of [longIn, depthIn, widthIn]) el.addEventListener("input", () => (readSizes(), update()));
+
+/** 設計を変える。変える前の設計を履歴に積む（Claude の変更も同じ所を通す） */
+function setDesign(next: Design, why: string) {
+  state.history.push(state.design);
+  state.design = next;
+  $("histNote").textContent = `直前の変更：${why}`;
+  syncControls();
+  updateRing();
+}
+function syncControls() {
+  document.querySelectorAll<HTMLSelectElement>("#controls select").forEach((el) => {
+    el.value = String(state.design[el.dataset.k as keyof Design]);
+  });
+  $<HTMLButtonElement>("undo").disabled = state.history.length === 0;
+}
+document.querySelectorAll<HTMLSelectElement>("#controls select").forEach((el) =>
+  el.addEventListener("change", () => {
+    const k = el.dataset.k as keyof Design;
+    const v = ["prongCount", "prongScale", "gou"].includes(k) ? Number(el.value) : el.value;
+    setDesign({ ...state.design, [k]: v } as Design, `${el.parentElement!.firstChild!.textContent} を ${el.selectedOptions[0].textContent} に`);
+  }),
+);
+$("undo").addEventListener("click", () => {
+  const prev = state.history.pop();
+  if (!prev) return;
+  state.design = prev;
+  $("histNote").textContent = "ひとつ戻しました";
+  syncControls();
+  updateRing();
+});
+syncControls();
 window.addEventListener("resize", () => drawPhotos());
 
 function sheet(): string | undefined {
@@ -228,12 +277,53 @@ function update() {
   drawPhotos();
   renderReading();
   renderPlans();
+  updateRing();
+}
+
+function stoneParams() {
+  const m = state.measured!;
+  return { outlineMm: m.outlineMm, longMm: m.longMm, widthMm: m.widthMm, depthMm: state.depthMm };
+}
+
+function look() {
+  const e = state.extraction!;
+  return { color: e.color, colorless: e.colorless };
+}
+
+/** 今の設計で指輪を組み、確かめて、3D と確かめの結果を出す */
+function updateRing() {
+  if (!state.measured) return;
+  const b = build(stoneParams(), state.design);
+  state.built = b;
+  viewer.setRing(b.ring, look(), b.problems);
   const m = state.measured;
-  const mesh = buildStone({ outlineMm: m.outlineMm, longMm: m.longMm, widthMm: m.widthMm, depthMm: state.depthMm });
-  viewer.setStone(mesh, { color: e.color, colorless: e.colorless });
+  const d = state.design;
   $("empty").hidden = true;
   $("hud").hidden = false;
-  $("hud").textContent = `${m.longMm.toFixed(2)} × ${m.widthMm.toFixed(2)} × ${state.depthMm.toFixed(2)} mm ・ 目盛り 1 mm ・ ドラッグで回す`;
+  $("hud").textContent = `石 ${m.longMm.toFixed(2)} × ${m.widthMm.toFixed(2)} × ${state.depthMm.toFixed(2)} mm ・ ${d.gou} 号（内径 ${b.ring.shank.innerDiameterMm.toFixed(1)} mm）・ ${metalName(d.metal)} 約 ${b.ring.metalWeightG.toFixed(1)} g ・ 目盛り 1 mm`;
+  renderChecks(b);
+}
+
+function renderChecks(b: Built) {
+  const s = b.ring.setting;
+  const prongs = s.prongs.length;
+  const vs = s.prongs.filter((p) => p.isV).length;
+  const summary =
+    b.design.style === "bezel"
+      ? `覆輪：壁の厚み ${s.bezel?.wallMm.toFixed(2)} mm`
+      : `爪 ${prongs} か所（うち V 字 ${vs}）・太さ ${s.prongs[0]?.diameterMm.toFixed(2)} mm（標準 ${s.standardProngMm.toFixed(2)} mm）`;
+  const head = `<p class="note" style="margin-top:10px">${summary}・石の一番下と指のすき間 ${b.ring.culetGapMm.toFixed(2)} mm・地金 約 ${b.ring.metalWeightG.toFixed(1)} g</p>`;
+  if (b.problems.length === 0) {
+    $("checks").innerHTML = `${head}<p class="ok-line">✓ 確かめはすべて目安の内側です。</p><p class="note">${HOLD_NOTE}。数字は${GUIDE_NOTE}。</p>`;
+    return;
+  }
+  $("checks").innerHTML = `${head}<ul class="problems">${b.problems
+    .map(
+      (p) => `<li><b>${p.where}</b>：今 ${p.current}／必要 ${p.required}<span class="why">${p.reason}</span><span class="opts">${p.options
+        .map((o) => `<span class="opt">${o.label}<small>（${o.effectOnLook}）</small></span>`)
+        .join("")}</span></li>`,
+    )
+    .join("")}</ul><p class="note">赤い爪・赤い印が問題の場所。${HOLD_NOTE}。数字は${GUIDE_NOTE}。</p>`;
 }
 
 function drawPhotos() {
@@ -269,15 +359,27 @@ function renderReading() {
 }
 
 function renderPlans() {
-  const plans = mockPlans(state.measured!.outlineMm, state.cornersMm!);
+  const plans = rulePlans(stoneParams(), state.cornersMm!, state.design);
+  const e = state.extraction!;
+  const fill = e.colorless ? "#eef2f6" : `rgb(${e.color.r.toFixed(0)},${e.color.g.toFixed(0)},${e.color.b.toFixed(0)})`;
   $("plans").innerHTML = plans
-    .map(
-      (p) => `<div class="card">${p.svg}<div><h3>${p.name}</h3><p>${p.reason}</p><div class="checks">${p.checks
-        .map((c) => `<span class="${c.ok ? "ok" : "ng"}">${c.ok ? "✓" : "！"} ${c.text}</span>`)
-        .join("<br>")}</div></div></div>`,
-    )
+    .map((p, i) => {
+      const b = build(stoneParams(), p.design);
+      const n = b.problems.length;
+      const checks =
+        n === 0
+          ? `<span class="ok">✓ 確かめ OK（すき間 ${b.ring.culetGapMm.toFixed(1)} mm・約 ${b.ring.metalWeightG.toFixed(1)} g）</span>`
+          : `<span class="ng">！ 気をつける所 ${n} つ：${b.problems.slice(0, 2).map((q) => q.where).join("・")}${n > 2 ? " ほか" : ""}</span>`;
+      return `<button class="card" data-plan="${i}">${planThumb(b.ring, fill)}<div><h3>${p.name}</h3><p>${p.reason}</p><div class="checks">${checks}</div></div></button>`;
+    })
     .join("");
+  $("plans").querySelectorAll<HTMLButtonElement>("[data-plan]").forEach((el) =>
+    el.addEventListener("click", () => {
+      const p = plans[Number(el.dataset.plan)];
+      setDesign({ ...p.design }, `案「${p.name}」に切り替え`);
+    }),
+  );
 }
 
 // 確かめ用（ヘッドレスのブラウザから読む）
-(window as unknown as { __stoneFit: unknown }).__stoneFit = { state, viewer, load: setImage, sheet };
+(window as unknown as { __stoneFit: unknown }).__stoneFit = { state, viewer, load: setImage, sheet, setDesign };

@@ -132,3 +132,11 @@ describe("そのほかの確かめ", () => {
     }
   });
 });
+
+describe("ちょうど目安の値なら問題にしない", () => {
+  it("覆輪・低めで、石の一番下と指のすき間がちょうど 0.3 mm でも「足りない」と言わない", () => {
+    const ring = buildRing({ stone: triangleStone(), setting: { style: "bezel", height: "low" }, shank: { gou: 11 } });
+    expect(ring.culetGapMm).toBeCloseTo(0.3, 6);
+    expect(checkRing(ring).filter((p) => p.check === "finger-gap")).toHaveLength(0);
+  });
+});
