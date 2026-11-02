@@ -218,10 +218,12 @@ export function planProngs(params: SettingParams, corners: readonly Corner[] = f
         .slice(0, count)
         .map((c) => c.t);
   const fixed = [...new Set(chosen)].sort((a, b) => a - b).slice(0, count);
-  const isV = params.vAtCorners ?? true;
+  // 角を包む V 字の爪にするのは、鋭い角（三角・しずく形・舟形の先）だけ。四角い石の直角の角は、丸い爪 1 本を角に立てる
+  const angleAt = (t: number) => corners.find((c) => Math.abs(c.t - t) < 1e-9)?.angleDeg ?? 0;
+  const vFor = (t: number) => params.vAtCorners ?? angleAt(t) < GUIDES.prong.vCornerMaxDeg;
   const rest = spread(fixed, count - fixed.length, longEndT(s.outlineMm));
   return [
-    ...fixed.map((t) => ({ t, isV, diameterMm: d })),
+    ...fixed.map((t) => ({ t, isV: vFor(t), diameterMm: d })),
     ...rest.map((t) => ({ t, isV: false, diameterMm: d })),
   ].sort((a, b) => a.t - b.t);
 }
@@ -941,7 +943,7 @@ function solidHead(f: Frame, plans: ProngPlan[], v: Vertical, tz: number, wire: 
       const ctrl: V3[] = [...down, g1, ...clawBend(f, s0, g1, tz, TIP.normal * r, capLength)];
       const path = smoothPath(ctrl, SOLID.step);
       const rest = lengthsToEnd(path);
-      const radii = path.map((_, j) => r * (1 - smoothstep(1 - rest[j] / (TIP.taper * r)) * (1 - (TIP.normal + TIP.side) / 2)));
+      const radii = path.map((_, j) => r * (1 - smoothstep(1 - rest[j] / (TIP.taper * r)) * 0.3));
       tubes.push({ pts: path, radii, owner: i });
     } else {
       // V 字の爪：石の面から少し離れた所を、角を中心に左右へ包む 1 枚の板。

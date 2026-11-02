@@ -25,10 +25,15 @@ describe("爪の本数（自動）", () => {
     expect(s.prongs).toHaveLength(3);
     expect(s.prongs.every((p) => p.isV && p.legs === 2)).toBe(true);
   });
-  it("四角は 4 本（全部 V 字）", () => {
+  it("四角は 4 本、直角の角に丸い爪を 1 本ずつ（V 字にはしない）", () => {
     const s = buildSetting({ stone: squareStone(), style: "prong" });
     expect(s.corners).toHaveLength(4);
     expect(s.prongs).toHaveLength(4);
+    expect(s.prongs.every((p) => !p.isV)).toBe(true);
+    for (const c of s.corners) expect(Math.min(...s.prongs.map((p) => Math.abs(p.t - c.t)))).toBeLessThan(1e-9);
+  });
+  it("V 字にするかは選べる", () => {
+    const s = buildSetting({ stone: squareStone(), style: "prong", vAtCorners: true });
     expect(s.prongs.every((p) => p.isV)).toBe(true);
   });
   it("楕円は 4 本、均等（いちばん空いた所が周の 25%）", () => {
