@@ -11,6 +11,21 @@ import type { StoneMesh } from "../geometry/stone";
 import type { MetalId } from "../rules/guides";
 import type { Problem } from "../rules/checks";
 
+export type DisplayMode = "render" | "shaded" | "wire";
+
+const isStone = (m: THREE.Material | THREE.Material[]) => !Array.isArray(m) && m instanceof THREE.MeshPhysicalMaterial && m.transmission > 0;
+const SHADED = {
+  metal: new THREE.MeshStandardMaterial({ color: 0xbfc0c4, roughness: 0.6, metalness: 0, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }),
+  warn: new THREE.MeshStandardMaterial({ color: 0xe0504a, roughness: 0.6, metalness: 0, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }),
+  stone: new THREE.MeshStandardMaterial({ color: 0xa9cff2, roughness: 0.35, metalness: 0, transparent: true, opacity: 0.6, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }),
+};
+/** レンダリングの材質 → シェードの材質（地金は灰色、目安を外れた所は赤、石は淡い青） */
+function shadedOf(m: THREE.Material): THREE.Material {
+  if (isStone(m)) return SHADED.stone;
+  if (m instanceof THREE.MeshPhysicalMaterial && m.color.getHex() === WARN) return SHADED.warn;
+  return SHADED.metal;
+}
+
 export interface StoneLook {
   color: { r: number; g: number; b: number };
   colorless: boolean;
@@ -101,6 +116,54 @@ export class Viewer {
     this.frame(this.framedFor, this.camera.position.clone().sub(this.controls.target).normalize());
   }
 
+  /** 表示の仕方：レンダリング（写真のよう）・シェード（灰色の面と線）・ワイヤーフレーム（線だけ） */
+  private mode: DisplayMode = "render";
+  setDisplayMode(m: DisplayMode) {
+    this.mode = m;
+    this.applyMode();
+    this.updateShadow();
+    this.dirty = true;
+  }
+  private applyMode() {
+    const meshes: THREE.Mesh[] = [];
+    this.content.traverse((o) => {
+      if (o instanceof THREE.Mesh) meshes.push(o);
+      else if (o instanceof THREE.LineSegments && o.userData.renderOnly) o.visible = this.mode === "render";
+    });
+    for (const o of meshes) {
+      const ud = o.userData;
+      if (!ud.render) ud.render = o.material;
+      if (!ud.edges) {
+        // 面の折れ目の線（シェードでは濃く、ワイヤーフレームでは明るく）
+        const e = new THREE.LineSegments(new THREE.EdgesGeometry(o.geometry, 14), new THREE.LineBasicMaterial({ color: 0xd8d8dc, transparent: true, opacity: 0.9 }));
+        e.position.copy(o.position);
+        e.rotation.copy(o.rotation);
+        e.scale.copy(o.scale);
+        ud.edges = e;
+        o.parent!.add(e);
+      }
+      const edges = ud.edges as THREE.LineSegments;
+      const lm = edges.material as THREE.LineBasicMaterial;
+      if (this.mode === "render") {
+        o.material = ud.render;
+        o.visible = true;
+        edges.visible = false;
+      } else if (this.mode === "shaded") {
+        o.material = Array.isArray(ud.render) ? (ud.render as THREE.Material[]).map(shadedOf) : shadedOf(ud.render);
+        o.visible = true;
+        edges.visible = true;
+        lm.color.setHex(0x141416);
+        lm.opacity = 0.55;
+      } else {
+        o.visible = false;
+        edges.visible = true;
+        lm.color.setHex(isStone(ud.render) ? 0x8fc3ff : 0xd8d8dc);
+        lm.opacity = 0.9;
+      }
+    }
+    this.dirty = true;
+  }
+
   /** 1 mm の目盛りを出す・隠す */
   setGrid(show: boolean) {
     this.grid.visible = show;
@@ -145,6 +208,7 @@ export class Viewer {
     this.clear();
     const mat = new THREE.MeshPhysicalMaterial({ color: METAL_COLOR[metal], metalness: 1, roughness: 0.1, envMapIntensity: 1.0, side: THREE.DoubleSide });
     this.content.add(new THREE.Mesh(metalGeometry(positions), mat));
+    this.applyMode();
     this.frame(kind, new THREE.Vector3(0.95, -1.15, 0.55));
     this.updateShadow();
   }
@@ -153,6 +217,7 @@ export class Viewer {
   setStone(mesh: StoneMesh, look: StoneLook) {
     this.clear();
     this.addStone(mesh.positions, look, -mesh.heights.culetZ, mesh.heights.tableZ - mesh.heights.culetZ);
+    this.applyMode();
     this.frame("stone", new THREE.Vector3(0.25, -0.75, 1));
     this.updateShadow();
   }
@@ -201,6 +266,7 @@ export class Viewer {
       mark.position.set(q.x * c - q.y * s, q.x * s + q.y * c, ring.transform.translateZ + lift + 0.2);
       this.content.add(mark);
     }
+    this.applyMode();
     this.frame("ring", new THREE.Vector3(0.9, -1.1, 0.75));
     this.updateShadow();
   }
@@ -232,6 +298,7 @@ export class Viewer {
     );
     stone.position.z = z;
     edges.position.z = z;
+    edges.userData.renderOnly = true;
     this.content.add(stone, edges);
   }
 
@@ -241,6 +308,7 @@ export class Viewer {
     const box = new THREE.Box3().setFromObject(this.content);
     if (box.isEmpty()) return;
     this.shadow.render(this.renderer, this.scene, this.content, box);
+    if (this.mode === "wire") this.shadow.plane.visible = false;
     this.dirty = true;
   }
 
@@ -296,6 +364,97 @@ export class Viewer {
     this.camera.lookAt(target);
     this.dirty = true;
     return url;
+  }
+
+  /**
+   * 図面の 1 面：正射（遠近のない）カメラで、白い面と黒い線（輪郭と折れ目）で描いた画像。
+   * pxPerMm：画像の 1 mm が何 px か。project で 3D の点（mm）を画像の点（px）に写せる。
+   */
+  drawing(view: "front" | "side" | "top", pxPerMm: number, marginMm = 4) {
+    this.content.updateMatrixWorld(true);
+    const box = new THREE.Box3();
+    this.content.traverse((o) => {
+      if (o instanceof THREE.Mesh) box.expandByObject(o);
+    });
+    // 見る向き（カメラの前・上）と、画像の右・上に来る軸
+    const dir = { front: new THREE.Vector3(-1, 0, 0), side: new THREE.Vector3(0, 1, 0), top: new THREE.Vector3(0, 0, -1) }[view];
+    const up = view === "top" ? new THREE.Vector3(0, 1, 0) : new THREE.Vector3(0, 0, 1);
+    const right = new THREE.Vector3().crossVectors(dir, up).normalize();
+    const corners: THREE.Vector3[] = [];
+    for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) corners.push(new THREE.Vector3(x, y, z));
+    const rs = corners.map((c) => c.dot(right));
+    const us = corners.map((c) => c.dot(up));
+    const r0 = Math.min(...rs) - marginMm;
+    const r1 = Math.max(...rs) + marginMm;
+    const u0 = Math.min(...us) - marginMm;
+    const u1 = Math.max(...us) + marginMm;
+    const wMm = r1 - r0;
+    const hMm = u1 - u0;
+    const W = Math.round(wMm * pxPerMm);
+    const H = Math.round(hMm * pxPerMm);
+    const center = box.getCenter(new THREE.Vector3());
+    const cam = new THREE.OrthographicCamera(r0, r1, u1, u0, 0.1, 1000);
+    // カメラの座標で r・u がそのまま左右・上下になるよう、原点を通る線の上に置く
+    cam.up.copy(up);
+    cam.position.copy(dir.clone().multiplyScalar(-200).add(center.clone().sub(right.clone().multiplyScalar(center.dot(right))).sub(up.clone().multiplyScalar(center.dot(up)))));
+    cam.lookAt(cam.position.clone().add(dir));
+    cam.updateMatrixWorld(true);
+    cam.updateProjectionMatrix();
+
+    // 線画の場面：白い面（奥の線を隠す）＋ 黒い折れ目の線 ＋ 外へ少しふくらませた裏面（輪郭）
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xffffff);
+    const white = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 2, polygonOffsetUnits: 2 });
+    const ink = new THREE.MeshBasicMaterial({ color: 0x111111, side: THREE.BackSide });
+    const line = new THREE.LineBasicMaterial({ color: 0x111111 });
+    const thin = new THREE.LineBasicMaterial({ color: 0x8a8a8a });
+    const temp: THREE.BufferGeometry[] = [];
+    this.content.traverse((o) => {
+      if (!(o instanceof THREE.Mesh) || o.geometry.type === "SphereGeometry") return;
+      const stone = isStone(o.userData.render ?? o.material);
+      const face = new THREE.Mesh(o.geometry, white);
+      face.applyMatrix4(o.matrixWorld);
+      const eg = new THREE.EdgesGeometry(o.geometry, stone ? 10 : 28);
+      temp.push(eg);
+      const edges = new THREE.LineSegments(eg, stone ? thin : line);
+      edges.applyMatrix4(o.matrixWorld);
+      scene.add(face, edges);
+      if (!stone && o.geometry.getAttribute("normal")) {
+        const g = o.geometry.clone();
+        const pos = g.getAttribute("position");
+        const nor = g.getAttribute("normal");
+        const t = 1.3 / pxPerMm;
+        for (let i = 0; i < pos.count; i++) pos.setXYZ(i, pos.getX(i) + nor.getX(i) * t, pos.getY(i) + nor.getY(i) * t, pos.getZ(i) + nor.getZ(i) * t);
+        temp.push(g);
+        const hull = new THREE.Mesh(g, ink);
+        hull.applyMatrix4(o.matrixWorld);
+        scene.add(hull);
+      }
+    });
+    const rt = new THREE.WebGLRenderTarget(W, H, { samples: 4 });
+    const prevTone = this.renderer.toneMapping;
+    this.renderer.toneMapping = THREE.NoToneMapping;
+    this.renderer.setRenderTarget(rt);
+    this.renderer.render(scene, cam);
+    const buf = new Uint8Array(W * H * 4);
+    this.renderer.readRenderTargetPixels(rt, 0, 0, W, H, buf);
+    this.renderer.setRenderTarget(null);
+    this.renderer.toneMapping = prevTone;
+    rt.dispose();
+    temp.forEach((g) => g.dispose());
+    const c = document.createElement("canvas");
+    c.width = W;
+    c.height = H;
+    const img = c.getContext("2d")!.createImageData(W, H);
+    // 読み出しは下から上なので、上下を返す
+    for (let y = 0; y < H; y++) img.data.set(buf.subarray((H - 1 - y) * W * 4, (H - y) * W * 4), y * W * 4);
+    c.getContext("2d")!.putImageData(img, 0, 0);
+    this.dirty = true;
+    const project = (x: number, y: number, z: number) => {
+      const p = new THREE.Vector3(x, y, z);
+      return { x: (p.dot(right) - r0) * pxPerMm, y: (u1 - p.dot(up)) * pxPerMm };
+    };
+    return { url: c.toDataURL("image/png"), widthMm: wMm, heightMm: hMm, widthPx: W, heightPx: H, project, box: { min: box.min.toArray(), max: box.max.toArray() } };
   }
 
   /** 今の 3D の画像（指示書や look の道具で使う） */
