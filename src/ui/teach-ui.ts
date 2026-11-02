@@ -7,6 +7,7 @@ import { teachPrompt } from "../claude/prompt";
 import { TOOLS, type AskTeacherInput, type AskTeacherResult, type ToolHost } from "../claude/tools";
 import type { ClaudeMessageParam } from "../claude/wire";
 import type { Ledger } from "../rules/ledger";
+import { plainText } from "./plain";
 import {
   addQuestion,
   groupQuestions,
@@ -134,7 +135,7 @@ export function mountTeach(root: HTMLElement, opts: TeachOptions): TeachUI {
   const log = (who: "claude" | "you" | "note", t: string) => {
     const div = document.createElement("div");
     div.className = `msg ${who}`;
-    div.textContent = t;
+    div.textContent = who === "claude" ? plainText(t) : t;
     q("teach-log").appendChild(div);
     div.scrollIntoView({ block: "nearest" });
   };

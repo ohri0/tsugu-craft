@@ -8,6 +8,7 @@ import { activeRules, addRule, PARAMS, removeLastRule, seedLedger, parseSizeStep
 
 
 import repoLedger from "../../ledger/jewelry.json";
+import { plainText } from "./plain";
 
 const STORE = "tsugu.ledger.v1";
 
@@ -193,7 +194,7 @@ export function mountLedger(root: HTMLElement, onChange: LedgerChange): LedgerUI
   const log = (who: "claude" | "you" | "note", t: string) => {
     const div = document.createElement("div");
     div.className = `msg ${who}`;
-    div.textContent = t;
+    div.textContent = who === "claude" ? plainText(t) : t;
     $("ivLog").appendChild(div);
     div.scrollIntoView({ block: "nearest" });
   };

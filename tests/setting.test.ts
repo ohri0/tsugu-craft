@@ -274,5 +274,5 @@ describe("同じ入力なら同じ形", () => {
     expect(a.ringPositions).toEqual(b.ringPositions);
     expect(a.setting.prongs).toEqual(b.setting.prongs);
     expect(a.metalWeightG).toBe(b.metalWeightG);
-  });
+  }, 30_000); // 形を 2 回ずつ作るので重い。ほかの重い処理（ブラウザ）と同時に回すと 5 秒を超えることがある
 });
