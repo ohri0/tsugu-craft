@@ -520,3 +520,12 @@ dialog.sheet input:focus { border-color: var(--accent); }
 .making-rules .rules-mini .where { color: var(--warn); }
 .making-rules .rules-mini li small { display: block; }
 .making-rules .rules-mini li:first-child { border-color: var(--line); }
+
+/* Claude なしで、数字で決まりを書く */
+.manual-rule { margin: 8px 0 4px; }
+.manual-rule .mr-row { display: grid; grid-template-columns: 84px 1fr; gap: 8px; align-items: center; margin-top: 6px; font-size: 11.5px; color: var(--fg-2); }
+.manual-rule select, .manual-rule input { width: 100%; height: 28px; padding: 0 8px; border: 1px solid var(--line-2); border-radius: 5px; background: var(--field); color: var(--fg); font-size: 12px; outline: none; }
+.manual-rule select:focus, .manual-rule input:focus { border-color: var(--accent); }
+.manual-rule .row { margin-top: 8px; }
+.no-works .link, .link.add-samples { padding: 0; border: 0; background: none; color: var(--accent-2); font: inherit; text-decoration: underline; cursor: pointer; }
+.works-panel .w-unsample { margin: 8px 0; }

@@ -3,6 +3,7 @@
 // 整える。作れない所が赤く光り、誰のどの決まりかと、見た目への影響つきの直し方が出る。人も同じつまみで直せる。
 // 渡す。  職人への指示書・原寸の型紙・3D データ。
 // 帳面   職人が声で決まりを足すと、その場で確かめが変わる。
+import { SAMPLE_DESIGNS, SAMPLE_MAKER, SAMPLE_NOTE, isSample, outlineThumb, sampleState, sampleStone, tuneSample } from "./samples";
 import { MAKING_STEPS, isCheckRule, makingRulesFor, stepsOfRule } from "../rules/making";
 import "./pro.css";
 import { findCorners } from "../geometry/corners";
@@ -18,7 +19,7 @@ import { rulePlans } from "../ui/design";
 import { loadPhoto } from "../ui/photo";
 import { Viewer, type DisplayMode } from "../ui/viewer";
 import { extractStone, type Extraction } from "../vision/extract";
-import { PARAMS, activeRules, addRule, sourceLabel, type Rule } from "../rules/ledger";
+import { PARAMS, activeRules, addRule, sourceLabel, type ParamId, type Rule } from "../rules/ledger";
 import { askPassword, resetPassword } from "../app/password";
 import { esc, store, today } from "../app/store";
 import { bindVoice, canListen } from "../app/voice";
@@ -922,8 +923,17 @@ function bindTerms(box: HTMLElement) {
   );
 }
 let method: Method = "hand";
-function howInput(b: Built) {
-  return { ring: b.ring, outlineMm: stone!.measured.outlineMm, longMm: stone!.measured.longMm, widthMm: stone!.measured.widthMm, depthMm: stone!.depthMm, metalLabel: METAL_LABEL[session!.state.metal], alloy: alloyOf(session!.state.metal) };
+/** 作り方や記録に使う石の数字（今の石、または見本の石） */
+interface StoneInfo {
+  shapeName: string;
+  outlineMm: readonly { x: number; y: number }[];
+  longMm: number;
+  widthMm: number;
+  depthMm: number;
+}
+const currentStone = (): StoneInfo => ({ shapeName: stone!.shapeName, outlineMm: stone!.measured.outlineMm, longMm: stone!.measured.longMm, widthMm: stone!.measured.widthMm, depthMm: stone!.depthMm });
+function howInput(b: Built, sess: RingSession = session!, info: StoneInfo = currentStone()) {
+  return { ring: b.ring, outlineMm: info.outlineMm, longMm: info.longMm, widthMm: info.widthMm, depthMm: info.depthMm, metalLabel: METAL_LABEL[sess.state.metal], alloy: alloyOf(sess.state.metal) };
 }
 function sheet(): string | undefined {
   if (!stone) return;
@@ -1068,24 +1078,26 @@ function propose(slot: HTMLElement, p: ProposeRuleInput, name: string): Promise<
       slot.innerHTML = "";
       resolve({ status: "declined", note: "職人が見送った" });
     });
-    slot.querySelector(".ok")!.addEventListener("click", () => {
-      const before = session?.built?.problems.length ?? 0;
-      const next = addRule(store.ledger(), { title: p.title, text: p.text, reason: p.reason, example: p.example, quote: p.quote, param: p.param, value: p.value, steps: p.steps, bySize: p.by_size?.map((x) => ({ upToMm: x.up_to_mm, value: x.value })), source: { kind: "craftsman", name }, date: today() });
-      store.setLedger(next);
-      const id = next.rules[next.rules.length - 1].id;
-      resolve({ status: "accepted", rule_id: id });
-      lastRule = { by: name, quote: p.quote || p.text, before: session?.built ? grouped(session.built).length : before, after: 0, checks: p.param ? [...PARAMS[p.param].checks] : [] };
-      fixLog = [];
-      ruleDraft = "";
-      const after = session ? session.build("帳面が変わった").problems.length : 0;
-      lastRule.after = session?.built ? grouped(session.built).length : after;
-      pastCheck = recheckWorks(lastRule);
-      if (!$(".studio-refine").hidden) renderCheck();
-      toast(p.param ? `${name}さんの決まりで確かめ直しました：作れない所 ${before} → ${after}` : `${name}さんの決まりを帳面に足しました`);
-      flashVerdict();
-      bookCount();
-    });
+    slot.querySelector(".ok")!.addEventListener("click", () => resolve({ status: "accepted", rule_id: acceptRule(p, name) }));
   });
+}
+/** 職人が「これでいい」と言った決まりを帳面に足し、今の設計とこれまでの作品を確かめ直す（Claude の案でも、数字で書いた決まりでも同じ） */
+function acceptRule(p: ProposeRuleInput, name: string): string {
+  const before = session?.built?.problems.length ?? 0;
+  const next = addRule(store.ledger(), { title: p.title, text: p.text, reason: p.reason, example: p.example, quote: p.quote, param: p.param, value: p.value, steps: p.steps, bySize: p.by_size?.map((x) => ({ upToMm: x.up_to_mm, value: x.value })), source: { kind: "craftsman", name }, date: today() });
+  store.setLedger(next);
+  const id = next.rules[next.rules.length - 1].id;
+  lastRule = { by: name, quote: p.quote || p.text, before: session?.built ? grouped(session.built).length : before, after: 0, checks: p.param ? [...PARAMS[p.param].checks] : [] };
+  fixLog = [];
+  ruleDraft = "";
+  const after = session ? session.build("帳面が変わった").problems.length : 0;
+  lastRule.after = session?.built ? grouped(session.built).length : after;
+  pastCheck = recheckWorks(lastRule);
+  if (!$(".studio-refine").hidden) renderCheck();
+  toast(p.param ? `${name}さんの決まりで確かめ直しました：作れない所 ${before} → ${after}` : `${name}さんの決まりを帳面に足しました`);
+  flashVerdict();
+  bookCount();
+  return id;
 }
 // ---- 職人の一言で、設計の決まりが変わる（確かめるの中） ----
 let lastRule: { by: string; quote: string; before: number; after: number; checks: string[] } | null = null;
@@ -1102,11 +1114,20 @@ function rulesSectionHtml(): string {
     <textarea rows="2" class="ar-text" placeholder="例：石の一番下と指の間は 2.5 mm は空ける。汗がたまるから">${esc(ruleDraft)}</textarea>
     <div class="row"><button type="button" class="ghost-d ar-mic">話す</button><button type="button" class="primary ar-go">決まりにする</button></div>
     <div class="ar-proposal"></div>
+    <details class="more manual-rule"><summary>Claude なしで、数字で書く</summary>
+      <label class="mr-row"><span>何の値か</span><select class="mr-param">${(Object.keys(PARAMS) as ParamId[])
+        .map((k) => `<option value="${k}">${esc(PARAMS[k].label)}${PARAMS[k].unit ? `（${esc(PARAMS[k].unit)}）` : ""}</option>`)
+        .join("")}</select></label>
+      <label class="mr-row"><span>値</span><input class="mr-value" type="number" step="0.05" min="0" inputmode="decimal" placeholder="例：2.5"></label>
+      <label class="mr-row"><span>職人の言葉</span><input class="mr-quote" type="text" placeholder="例：指の上は 2.5 mm 空ける。汗がたまるから"></label>
+      <div class="row"><button type="button" class="primary mr-go">決まりにする</button></div>
+    </details>
     ${mine.length ? `<ul class="rules-mini">${mine
       .slice()
       .reverse()
       .map((r) => `<li><b>${esc(r.title)}</b>${r.param && r.value !== undefined ? `<span class="v">${r.value} ${esc(PARAMS[r.param].unit)}</span>` : ""}${r.quote ? `<small>「${esc(r.quote)}」</small>` : ""}<small>${esc(name)} ・ ${esc(r.date)}</small></li>`)
       .join("")}</ul>` : `<p class="hint">確かめに効く職人の決まりは、まだありません（いまは公開の目安で確かめています）。</p>`}
+    ${loadWorks().some((w) => w.design) ? "" : `<p class="hint no-works">記録に作品がないので、決まりを足しても「これまでの作品」は確かめ直せません。<button type="button" class="link add-samples">見本の作品を入れて試す</button></p>`}
     ${making.length ? `<details class="more making-rules"><summary>作り方の決まり ${making.length} 件（作るの工程に出ます）</summary><ul class="rules-mini">${making
       .slice()
       .reverse()
@@ -1133,6 +1154,20 @@ function bindRules(box: HTMLElement) {
     voice.stop();
     ruleDraft = field.value;
     void addRuleFromWords(field.value.trim());
+  });
+  box.querySelector(".mr-go")?.addEventListener("click", () => {
+    const param = box.querySelector<HTMLSelectElement>(".mr-param")!.value as ParamId;
+    const value = Number(box.querySelector<HTMLInputElement>(".mr-value")!.value);
+    const quote = box.querySelector<HTMLInputElement>(".mr-quote")!.value.trim();
+    if (!Number.isFinite(value) || value <= 0) return toast("値を数字で入れてください");
+    const d = PARAMS[param];
+    acceptRule({ title: d.label, text: `${d.label}は ${value}${d.unit ? ` ${d.unit}` : ""}`, reason: quote || "職人が決めた", quote: quote || undefined, param, value }, masterName(store.ledger()));
+  });
+  box.querySelector(".add-samples")?.addEventListener("click", () => {
+    const n = addSampleWorks();
+    toast(`見本の作品を ${n} つ入れました`);
+    if (lastRule) pastCheck = recheckWorks(lastRule);
+    renderCheck();
   });
 }
 // ---- 新しい決まりで、これまでの作品を全部確かめ直す ----
@@ -1584,24 +1619,24 @@ interface WorkData {
   steps: ReturnType<typeof howToMake>;
   design?: WorkRecord["design"];
 }
-function solitaireData(): WorkData {
-  const b = session!.built!;
+function solitaireData(sess: RingSession = session!, info: StoneInfo = currentStone(), route: Method = method): WorkData {
+  const b = sess.built!;
   const r = b.ring;
   const st = r.setting;
   return {
-    title: `${stone!.shapeName}の一粒石の指輪`,
+    title: `${info.shapeName}の一粒石の指輪`,
     kind: "一粒石の指輪",
-    design: { stone: structuredClone(session!.stone), state: session!.snapshot() },
+    design: { stone: structuredClone(sess.stone), state: sess.snapshot() },
     specs: [
-      { label: "石", value: `${stone!.measured.longMm.toFixed(2)} × ${stone!.measured.widthMm.toFixed(2)} × ${stone!.depthMm.toFixed(2)} mm` },
-      { label: "号", value: `${session!.state.gou} 号 ・ 内径 ${r.shank.innerDiameterMm.toFixed(1)} mm` },
+      { label: "石", value: `${info.longMm.toFixed(2)} × ${info.widthMm.toFixed(2)} × ${info.depthMm.toFixed(2)} mm` },
+      { label: "号", value: `${sess.state.gou} 号 ・ 内径 ${r.shank.innerDiameterMm.toFixed(1)} mm` },
       { label: "留め方", value: st.style === "bezel" ? `覆輪 ・ 壁 ${st.bezel?.wallMm.toFixed(2)} mm` : `爪 ${st.prongs.length} ・ ø ${st.prongs[0]?.diameterMm.toFixed(2)} mm` },
       { label: "腕", value: `${r.shank.widthMm.toFixed(1)} × ${r.shank.thicknessMm.toFixed(1)} mm` },
       { label: "石と指のすき間", value: `${r.culetGapMm.toFixed(2)} mm` },
-      { label: "地金", value: `${METAL_LABEL[session!.state.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g` },
+      { label: "地金", value: `${METAL_LABEL[sess.state.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g` },
     ],
     problems: grouped(b).map(({ p }) => `${SHORT[p.check] ?? p.where}（${p.current} → ${p.required}）`),
-    steps: howToMake(howInput(b), method),
+    steps: howToMake(howInput(b, sess, info), route),
   };
 }
 function bandData(): WorkData {
@@ -1687,18 +1722,58 @@ function openSaveWork(slot: HTMLElement, data: WorkData) {
     slot.querySelector(".to-works")?.addEventListener("click", () => setMode("works"));
   });
 }
+/** 見本の作品を記録に入れる（よくある形の石から組んだ設計。職人の作品ではないと、名前と言葉で示す） */
+function addSampleWorks(): number {
+  let n = 0;
+  const have = new Set(loadWorks().filter(isSample).map((w) => w.title));
+  for (const d of SAMPLE_DESIGNS) {
+    const { preset, stone: st } = sampleStone(d.preset);
+    const title = `見本：${preset.name}の一粒石の指輪（${d.label}）`;
+    if (have.has(title)) continue;
+    const s = new RingSession(st, () => store.ledger(), () => undefined, () => "");
+    s.state = sampleState(d);
+    tuneSample(s);
+    if (!s.built) continue;
+    const data = solitaireData(s, { shapeName: preset.name, outlineMm: st.outlineMm, longMm: st.longMm, widthMm: st.widthMm, depthMm: st.depthMm }, "hand");
+    const ok = saveWork({
+      id: newWorkId(),
+      date: today(),
+      title,
+      kind: data.kind,
+      methodLabel: "鍛造",
+      image: outlineThumb(st),
+      specs: data.specs,
+      problems: data.problems,
+      steps: data.steps.map(({ details: _d, ...rest }) => rest),
+      note: SAMPLE_NOTE,
+      maker: SAMPLE_MAKER,
+      design: data.design,
+    });
+    if (ok) n++;
+  }
+  return n;
+}
 function renderWorks() {
   const box = $(".works-panel");
   const works = loadWorks();
   box.innerHTML = `
     <section class="works-head"><b>${works.length} 作品</b><small>作るたびに、形・作れるか・作り方・ひとことが残ります。</small></section>
-    ${works.length ? `<button type="button" class="primary w-print">記録の帳面を印刷</button>` : `<p class="tech-what">まだ記録がありません。「作る。」の下の「この作品の記録を残す」から残せます。</p>`}
+    ${works.length ? `<button type="button" class="primary w-print">記録の帳面を印刷</button>` : `<p class="tech-what">まだ記録がありません。「作る」の下の「この作品の記録を残す」から残せます。</p><p class="tech-what">試すだけなら、よくある形の石から継ぐが組んだ見本の作品を入れられます（職人の作品ではありません）。</p><button type="button" class="next-btn w-samples">見本の作品を 5 つ入れる</button>`}
+    ${works.some(isSample) ? `<button type="button" class="ghost-d w-unsample">見本の作品を消す</button>` : ""}
     <ul class="works-list">${works
       .map(
         (w) => `<li><img alt="" src="${w.image}"><div><b>${esc(w.title)}</b><small>${esc(w.date)}${w.maker ? ` ・ ${esc(w.maker)}` : ""} ・ ${esc(w.methodLabel)}</small>${w.note ? `<p>「${esc(w.note)}」</p>` : ""}${(w.revisions ?? []).map((r) => `<p class="rev">${esc(r.by)}さんの決まりで直した：${esc(r.change)}</p>`).join("")}<span class="${w.problems.length ? "ng" : "ok"}">${w.problems.length ? "作れない所あり" : "作れる形"}</span></div><button type="button" class="w-del" data-id="${w.id}" aria-label="消す">×</button></li>`,
       )
       .join("")}</ul>`;
   box.querySelector(".w-print")?.addEventListener("click", () => openPrint(worksBookHtml(loadWorks(), today())));
+  box.querySelector(".w-samples")?.addEventListener("click", () => {
+    addSampleWorks();
+    renderWorks();
+  });
+  box.querySelector(".w-unsample")?.addEventListener("click", () => {
+    for (const w of loadWorks()) if (isSample(w)) removeWork(w.id);
+    renderWorks();
+  });
   box.querySelectorAll<HTMLButtonElement>(".w-del").forEach((b) =>
     b.addEventListener("click", () => {
       removeWork(b.dataset.id!);
