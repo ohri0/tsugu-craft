@@ -22,9 +22,24 @@ export interface Box {
   owner: number;
 }
 
+/** 距離を自分で計算する形（石の面に沿う板など）。bbox の外は調べない */
+export interface Field {
+  dist: (x: number, y: number, z: number) => number;
+  min: V3;
+  max: V3;
+  owner: number;
+}
+
+/** なめらかな最大（なめらかな最小の裏返し） */
+export function smax(a: number, b: number, k: number): number {
+  return -smin(-a, -b, k);
+}
+
 export interface SolidOptions {
   /** 角の丸い箱（板など） */
   boxes?: readonly Box[];
+  /** 距離を自分で計算する形 */
+  fields?: readonly Field[];
   /** 格子の間隔（mm） */
   cell: number;
   /** つなぎ目の丸みの大きさ（mm） */
@@ -104,6 +119,15 @@ export function buildSolid(tubes: readonly Tube[], o: SolidOptions): SolidMesh {
     });
   });
   const boxes = o.boxes ?? [];
+  const fields = o.fields ?? [];
+  for (const fd of fields) {
+    x0 = Math.min(x0, fd.min[0]);
+    y0 = Math.min(y0, fd.min[1]);
+    z0 = Math.min(z0, fd.min[2]);
+    x1 = Math.max(x1, fd.max[0]);
+    y1 = Math.max(y1, fd.max[1]);
+    z1 = Math.max(z1, fd.max[2]);
+  }
   for (const bx of boxes) {
     const ext = [0, 1, 2].map((a) => Math.abs(bx.u[a]) * bx.half[0] + Math.abs(bx.v[a]) * bx.half[1] + Math.abs(bx.w[a]) * bx.half[2] + bx.round);
     x0 = Math.min(x0, bx.center[0] - ext[0]);
@@ -154,6 +178,16 @@ export function buildSolid(tubes: readonly Tube[], o: SolidOptions): SolidMesh {
     const iz1 = Math.min(bz - 1, Math.floor((b.center[2] + ext[2] - z0) / B));
     for (let iz = iz0; iz <= iz1; iz++) for (let iy = iy0; iy <= iy1; iy++) for (let ix = ix0; ix <= ix1; ix++) bins[(iz * by + iy) * bx + ix].push(-(bi + 1));
   });
+  // 自分で計算する形も、箱のあとの番号で振り分ける
+  fields.forEach((fd, fi) => {
+    const ix0 = Math.max(0, Math.floor((fd.min[0] - reach - x0) / B));
+    const ix1 = Math.min(bx - 1, Math.floor((fd.max[0] + reach - x0) / B));
+    const iy0 = Math.max(0, Math.floor((fd.min[1] - reach - y0) / B));
+    const iy1 = Math.min(by - 1, Math.floor((fd.max[1] + reach - y0) / B));
+    const iz0 = Math.max(0, Math.floor((fd.min[2] - reach - z0) / B));
+    const iz1 = Math.min(bz - 1, Math.floor((fd.max[2] + reach - z0) / B));
+    for (let iz = iz0; iz <= iz1; iz++) for (let iy = iy0; iy <= iy1; iy++) for (let ix = ix0; ix <= ix1; ix++) bins[(iz * by + iy) * bx + ix].push(-(boxes.length + fi + 1));
+  });
   const boxDist = (b: Box, x: number, y: number, z: number) => {
     const px = x - b.center[0];
     const py = y - b.center[1];
@@ -169,8 +203,8 @@ export function buildSolid(tubes: readonly Tube[], o: SolidOptions): SolidMesh {
   const FAR = 10;
   const val = new Float32Array(nx * ny * nz);
   const own = new Int16Array(nx * ny * nz);
-  const perTube = new Float64Array(tubes.length + boxes.length).fill(NaN);
-  const ownerOf = (g: number) => (g < tubes.length ? tubes[g].owner : boxes[g - tubes.length].owner);
+  const perTube = new Float64Array(tubes.length + boxes.length + fields.length).fill(NaN);
+  const ownerOf = (g: number) => (g < tubes.length ? tubes[g].owner : g < tubes.length + boxes.length ? boxes[g - tubes.length].owner : fields[g - tubes.length - boxes.length].owner);
   const touched: number[] = [];
   let owner = -1;
   /** 点の、形の表面までの距離（内側は負）。いちばん近い管の持ち主を owner に入れる */
@@ -186,7 +220,8 @@ export function buildSolid(tubes: readonly Tube[], o: SolidOptions): SolidMesh {
         let dd: number;
         if (si < 0) {
           g = tubes.length - si - 1;
-          dd = boxDist(boxes[-si - 1], x, y, z);
+          const e = -si - 1;
+          dd = e < boxes.length ? boxDist(boxes[e], x, y, z) : fields[e - boxes.length].dist(x, y, z);
         } else {
           const sg = segs[si];
           g = sg.tube;

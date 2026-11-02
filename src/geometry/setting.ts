@@ -5,7 +5,7 @@ import { GUIDES, minProngMm, standardProngMm, stoneSizeMm, type HeightOption } f
 import { findCorners, type Corner } from "./corners";
 import { add, closedPart, closedParts, concat, dot, len, normalize, ringsToTube, scale, smoothPath, stackLoops, sub, sweepTube, type V3 } from "./mesh";
 import { outwardNormals } from "./offset";
-import { buildSolid, type Box, type Tube } from "./sdf";
+import { buildSolid, smax, type Box, type Field, type Tube } from "./sdf";
 import { perimeter, resample, toCounterClockwise, type Point } from "./polygon";
 import { girdleCenter, stoneHeights, stoneKnots, stoneScaleAt, type StoneHeights, type StoneParams } from "./stone";
 
@@ -856,26 +856,15 @@ const STAND_DEG = 76;
 /** 一体の形の格子の間隔と、つなぎ目の丸み（mm） */
 const SOLID = { cell: 0.075, blend: 0.16, step: 0.4 };
 const RING_OWNER = 100;
-
-/** 縁の点 s の、縁の高さ z0 の点から、起こした角度で下へまっすぐ下ろした線の、高さ z の所（石の外側は割らない） */
-function standing(f: Frame, s: Sample, z0: number, dTop: number, z: number, dMin: number): V3 {
-  const g = at(f, s, z0, dTop);
-  const ux = f.center.x - g[0];
-  const uy = f.center.y - g[1];
-  const ul = Math.hypot(ux, uy) || 1;
-  const run = (z0 - z) / Math.tan((STAND_DEG * Math.PI) / 180);
-  const p: V3 = [g[0] + (ux / ul) * run, g[1] + (uy / ul) * run, z];
-  // 石の下側に近づきすぎないよう、石の面から dMin より内へは入れない
-  const safe = at(f, s, z, dMin);
-  const rp = Math.hypot(p[0] - f.center.x, p[1] - f.center.y);
-  const rs = Math.hypot(safe[0] - f.center.x, safe[1] - f.center.y);
-  return rp >= rs ? p : safe;
-}
+/** 足の曲がり方（1 でまっすぐ。大きいほど縁の下で縦に立ち、足もと近くで寄る） */
+const LEG_CURVE = 2.2;
+/** 輪の高さ：縁から足もとまでの、上からこの割合の所 */
+const RING_AT = 0.4;
 
 /** 石の表面までの距離（おおよそ、内側は負）。座を彫るのに使う。高さごとの縁の形は覚えておく */
 function stoneDistanceFn(f: Frame): (x: number, y: number, z: number) => number {
   const h = f.h;
-  const pts = f.pts.filter((_, i) => i % 2 === 0);
+  const pts = f.pts;
   const n = pts.length;
   let lastZ = NaN;
   const poly = new Float64Array(n * 2);
@@ -917,85 +906,84 @@ function solidHead(f: Frame, plans: ProngPlan[], v: Vertical, tz: number, wire: 
   const seat = GUIDES.prong.seatCutRatio;
   const tubes: Tube[] = [];
   const boxes: Box[] = [];
-  const footAt = (s: Sample, z: number, dd: number): V3 => {
-    const q = at(f, s, z, dd);
-    return [f.center.x + (q[0] - f.center.x) * FOOT_PULL, f.center.y + (q[1] - f.center.y) * FOOT_PULL, z];
+  const fields: Field[] = [];
+  const stoneDistance = stoneDistanceFn(f);
+  const atGirdle = stoneDistanceFn(f);
+  const girdleDistance = (x: number, y: number) => atGirdle(x, y, k.girdleBottom);
+  // 足：縁の下から、腕の中の足もとへまっすぐ寄り合う（上から下へ、爪が細く集まる石座）。石の下側は割らない
+  const footZAll = Math.min(v.baseZ + 0.4, v.lowerRingZ);
+  // 足の形：腕の上の足もとから、外へなめらかに開いて、縁の下でまっすぐ立つ曲線（チューリップの形）
+  const legLine = (s: Sample, dTop: number, r: number, z: number): V3 => {
+    const g = at(f, s, k.girdleBottom, dTop);
+    const q = at(f, s, footZAll, cl + r);
+    const foot: V3 = [f.center.x + (q[0] - f.center.x) * FOOT_PULL, f.center.y + (q[1] - f.center.y) * FOOT_PULL, footZAll];
+    const t = (k.girdleBottom - z) / (k.girdleBottom - footZAll);
+    // 水平の位置は、縁から下へ行くほど、はじめはゆっくり、足もと近くで急に寄る（縁の下では縦に近い）
+    const w = Math.pow(t, LEG_CURVE);
+    const p: V3 = [g[0] + (foot[0] - g[0]) * w, g[1] + (foot[1] - g[1]) * w, z];
+    const safe = at(f, s, z, cl + r);
+    const rp = Math.hypot(p[0] - f.center.x, p[1] - f.center.y);
+    const rs = Math.hypot(safe[0] - f.center.x, safe[1] - f.center.y);
+    return z > f.h.culetZ && rp < rs ? safe : p;
   };
-  // 起こした足：縁の下から下の輪まで、まっすぐ
   const leg = (s: Sample, dTop: number, r: number): V3[] => {
-    const zs = [k.girdleBottom, (k.girdleBottom + v.upperRingZ) / 2, v.upperRingZ, (v.upperRingZ + v.lowerRingZ) / 2, v.lowerRingZ];
-    return zs.map((z) => standing(f, s, k.girdleBottom, dTop, z, cl + r));
+    const zs = Array.from({ length: 11 }, (_, q) => k.girdleBottom + ((footZAll - k.girdleBottom) * q) / 10);
+    return zs.map((z) => legLine(s, dTop, r, z));
   };
   plans.forEach((plan, i) => {
     const r = plan.diameterMm / 2;
     const dSeat = cl + plan.diameterMm * (0.5 - seat);
     const s0 = sampleAt(f, plan.t);
-    const footZ = Math.min(v.baseZ + r, v.lowerRingZ - 0.3 * wire);
     if (!plan.isV) {
       const down = leg(s0, dSeat, r).reverse();
       const g1 = at(f, s0, k.girdleTop, dSeat);
       const capLength = (TIP.cap * r * (TIP.normal + TIP.side)) / 2;
-      const ctrl: V3[] = [footAt(s0, footZ, cl + r), ...down, g1, ...clawBend(f, s0, g1, tz, TIP.normal * r, capLength)];
+      const ctrl: V3[] = [...down, g1, ...clawBend(f, s0, g1, tz, TIP.normal * r, capLength)];
       const path = smoothPath(ctrl, SOLID.step);
       const rest = lengthsToEnd(path);
       const radii = path.map((_, j) => r * (1 - smoothstep(1 - rest[j] / (TIP.taper * r)) * (1 - (TIP.normal + TIP.side) / 2)));
       tubes.push({ pts: path, radii, owner: i });
     } else {
-      // V 字の爪：角をはさむ 2 枚の板（角の丸い箱）が角で合わさり、上の縁が石の上側へかぶさる（つなぎ目は丸みで一体に）。
+      // V 字の爪：石の面から少し離れた所を、角を中心に左右へ包む 1 枚の板。
+      // 縁より上は石の上側に沿って内へ倒れて石を押さえ、縁より下は爪と同じ角度でまっすぐ下りる（えぐれない）。
       // 板の下からは、角の両側の 2 本の足が起きて下りる
-      const spreadT = (GUIDES.prong.vLegSpreadRatio * plan.diameterMm) / total;
       const hw = (V_WALL.thick * plan.diameterMm) / 2;
       const dS = cl + plan.diameterMm * (0.5 - seat);
       const zb = k.girdleBottom - V_WALL.below * plan.diameterMm;
-      const zt = tz - hw * 1.3;
-      const zm = (zb + zt) / 2;
-      const C = at(f, s0, zm, dS);
+      // 板は角から左右へ、爪の太さの 0.65 倍ずつ（仮の目安。本物の V 字の爪は辺に沿って短い）
+      const reachL = 0.65 * plan.diameterMm;
+      const round = hw * 0.6;
+      const cot = 1 / Math.tan((STAND_DEG * Math.PI) / 180);
+      const cg = at(f, s0, k.girdleBottom, 0);
+      const plate = (x: number, y: number, z: number) => {
+        // 石の面（縁より下は、起こした円すいの面）からの距離
+        const ds = z >= k.girdleBottom ? stoneDistance(x, y, z) : girdleDistance(x, y) + (k.girdleBottom - z) * cot;
+        const shell = Math.abs(ds - (cl + hw)) - hw;
+        // 角からの広がり：角の点（高さに合わせて石と同じに縮む）からの水平の距離
+        const sc = settingScaleAt(f.h, Math.max(z, k.girdleBottom));
+        const kx = f.center.x + (cg[0] - f.center.x) * sc;
+        const ky = f.center.y + (cg[1] - f.center.y) * sc;
+        const side = Math.hypot(x - kx, y - ky) - reachL;
+        const vert = Math.max(zb - z, z - tz);
+        return smax(smax(shell, side, round), vert, round);
+      };
+      const R = reachL + 2 * hw + 0.3;
+      fields.push({ dist: plate, min: [cg[0] - R, cg[1] - R, zb - 0.3], max: [cg[0] + R, cg[1] + R, tz + 0.3], owner: i });
       for (const sgn of [-1, 1]) {
-        const s = sampleAt(f, wrap(plan.t + sgn * spreadT));
-        const E = at(f, s, zm, dS);
-        let ux = E[0] - C[0];
-        let uy = E[1] - C[1];
-        const L = Math.hypot(ux, uy) || 1;
-        ux /= L;
-        uy /= L;
-        // 角の側へ少しのばして、2 枚が角で重なるように（外側の角にすき間を作らない）
-        const ext = hw * 0.6;
-        boxes.push({
-          center: [(C[0] + E[0]) / 2 - ux * ext * 0.5, (C[1] + E[1]) / 2 - uy * ext * 0.5, zm],
-          u: [ux, uy, 0],
-          v: [-uy, ux, 0],
-          w: [0, 0, 1],
-          half: [L / 2 + ext * 0.5, hw * 0.55, (zt - zb) / 2],
-          round: hw * 0.45,
-          owner: i,
-        });
+        const s = sampleAt(f, wrap(plan.t + (sgn * reachL * 0.6) / total));
         const down = leg(s, dS, r).reverse();
-        const path = smoothPath([footAt(s0, footZ, cl + r), ...down], SOLID.step);
+        const path = smoothPath([...down.slice(0, -1), at(f, s, zb + hw, dS)], SOLID.step);
         tubes.push({ pts: path, radii: path.map(() => r), owner: i });
       }
-      // 角の外側を丸く埋める柱（縁の下から上の縁まで）
-      const post = smoothPath([at(f, s0, zb, dS), at(f, s0, k.girdleTop, dS), at(f, s0, tz - hw, cl + hw * 0.6)], SOLID.step / 2);
-      tubes.push({ pts: post, radii: post.map(() => hw * 0.8), owner: i });
-      // 上の縁：角をまたいで、石の上側にかぶさる
-      const lip: V3[] = [];
-      const lipR: number[] = [];
-      for (let q = 0; q <= 12; q++) {
-        const a = -1 + (2 * q) / 12;
-        lip.push(at(f, sampleAt(f, wrap(plan.t + a * spreadT * 0.95)), tz - hw, cl + hw * 0.6));
-        // 両端へ細く（耳のようにふくらまない）
-        lipR.push(hw * (1 - 0.45 * a * a));
-      }
-      tubes.push({ pts: lip, radii: lipR, owner: i });
     }
   });
-  // 石座の輪：起こした足と同じ円すいの上（上の輪は縁のすぐ下で石を受け、下の輪は腕のすぐ上）
+  // 石座の輪：縁と腕の間に細い 1 本（爪どうしをつなぐ）。足と同じ曲線の上
   const dRing = cl + meanD * (0.5 - seat);
-  [v.upperRingZ, v.lowerRingZ].forEach((z, q) => {
-    const pts = f.pts.filter((_, i) => i % 2 === 0).map((p, i) => standing(f, { p, n: f.normals[i * 2] }, k.girdleBottom, dRing, z, cl + wire / 2));
-    pts.push(pts[0]);
-    tubes.push({ pts, radii: pts.map(() => wire / 2), owner: RING_OWNER + q });
-  });
-  const stoneDistance = stoneDistanceFn(f);
+  const ringR = wire * 0.36;
+  const zRing = k.girdleBottom - (k.girdleBottom - footZAll) * RING_AT;
+  const ringPts = f.pts.filter((_, i) => i % 2 === 0).map((p, i) => legLine({ p, n: f.normals[i * 2] }, dRing, ringR, zRing));
+  ringPts.push(ringPts[0]);
+  tubes.push({ pts: ringPts, radii: ringPts.map(() => ringR), owner: RING_OWNER });
   // 石から遠い点は、石までの距離を細かく測らない（石を囲む円の外なら、その円までの距離で足りる）
   let rMax = 0;
   for (const p of f.pts) rMax = Math.max(rMax, Math.hypot(p.x - f.center.x, p.y - f.center.y));
@@ -1003,7 +991,7 @@ function solidHead(f: Frame, plans: ProngPlan[], v: Vertical, tz: number, wire: 
     const far = Math.max(Math.hypot(x - f.center.x, y - f.center.y) - rMax, z - f.h.tableZ, f.h.culetZ - z);
     return (far > 0.3 ? far : stoneDistance(x, y, z)) - cl;
   };
-  return buildSolid(tubes, { cell: SOLID.cell, blend: SOLID.blend, subtract, boxes });
+  return buildSolid(tubes, { cell: SOLID.cell, blend: SOLID.blend, subtract, boxes, fields });
 }
 
 function wrap(t: number): number {
