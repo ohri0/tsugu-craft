@@ -1,0 +1,135 @@
+// MCP サーバーの道具の中身を、標準入出力を通さず関数のまま確かめる。
+// 目安帳は一時フォルダのファイルに書くので、リポジトリの ledger/jewelry.json は変わらない。
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { initLedgerFile, readLedger } from "../mcp/ledger-file";
+import { presetOutline, readyStone } from "../mcp/stone-input";
+import { checkRingTool, ledgerAsText, listRules, patternSvgTool, proposeRule, type ToolContext } from "../mcp/tools";
+import { centroid } from "../src/geometry/polygon";
+import { seedLedger } from "../src/rules/ledger";
+
+let dir: string;
+let ctx: ToolContext;
+
+beforeEach(() => {
+  dir = mkdtempSync(join(tmpdir(), "tsugu-mcp-"));
+  ctx = { ledgerPath: join(dir, "ledger", "jewelry.json"), outDir: join(dir, "out"), today: () => "2026-11-03" };
+});
+afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+const gapRule = {
+  craftsman: "試しの職人",
+  title: "石の先はもっと離す",
+  text: "石の一番下は、指から 2.5 mm 以上離す",
+  reason: "石の先が指に当たると痛い",
+  quote: "指に当たったら、つけてもらえない",
+  param: "height.minFingerGapMm" as const,
+  value: 2.5,
+};
+const triangle = { preset: "triangle" as const, long_mm: 8.88, depth_mm: 4.35 };
+
+describe("目安帳のファイル", () => {
+  it("ledger:init はなければ作り、あればそのまま", () => {
+    expect(initLedgerFile(ctx.ledgerPath)).toBe(true);
+    expect(readLedger(ctx.ledgerPath)).toEqual(seedLedger());
+    proposeRule(ctx, gapRule);
+    expect(initLedgerFile(ctx.ledgerPath)).toBe(false);
+    expect(readLedger(ctx.ledgerPath).rules).toHaveLength(seedLedger().rules.length + 1);
+  });
+  it("リポジトリの目安帳は、出発点の目安帳と同じ形で読める", () => {
+    const repo = readLedger(join(__dirname, "..", "ledger", "jewelry.json"));
+    expect(repo.craft).toBe(seedLedger().craft);
+    expect(repo.rules.length).toBeGreaterThanOrEqual(seedLedger().rules.length);
+  });
+});
+
+describe("propose_rule", () => {
+  it("ファイルに書き、同じ値の決まりを置き換える（古い決まりは履歴に残る）", () => {
+    const out = proposeRule(ctx, gapRule);
+    expect(out.replaced?.id).toBe("finger-gap");
+    expect(existsSync(ctx.ledgerPath)).toBe(true);
+
+    const saved = JSON.parse(readFileSync(ctx.ledgerPath, "utf8"));
+    const added = saved.rules.find((r: { id: string }) => r.id === out.rule_id);
+    expect(added).toMatchObject({
+      replaces: "finger-gap",
+      value: 2.5,
+      source: { kind: "craftsman", name: "試しの職人" },
+      date: "2026-11-03",
+      quote: "指に当たったら、つけてもらえない",
+      checks: ["finger-gap"],
+    });
+
+    const listed = listRules(ctx, { include_history: true });
+    expect(listed.rules.map((r) => r.id)).toContain(out.rule_id);
+    expect(listed.rules.map((r) => r.id)).not.toContain("finger-gap");
+    expect(listed.history?.[0]).toMatchObject({ id: "finger-gap", replaced_by: out.rule_id });
+    expect(ledgerAsText(ctx)).toContain("職人：試しの職人");
+  });
+  it("言葉だけの決まりは置き換えずに足す", () => {
+    const out = proposeRule(ctx, { craftsman: "試しの職人", title: "爪の先は丸める", text: "爪の先は丸く仕上げる", reason: "服に引っかからない" });
+    expect(out.replaced).toBeNull();
+    expect(out.active_rules).toBe(seedLedger().rules.length + 1);
+  });
+  it("param と value は両方そろえる", () => {
+    expect(() => proposeRule(ctx, { ...gapRule, value: undefined })).toThrow(/両方/);
+    expect(existsSync(ctx.ledgerPath)).toBe(false);
+  });
+});
+
+describe("check_ring", () => {
+  it("職人の決まりを足すと、その決まりを根拠に問題が出る", () => {
+    const before = checkRingTool(ctx, { stone: triangle });
+    expect(before.problems.find((p) => p.id === "finger-gap")).toBeUndefined();
+
+    proposeRule(ctx, gapRule);
+    const after = checkRingTool(ctx, { stone: triangle });
+    const gap = after.problems.find((p) => p.id === "finger-gap");
+    expect(gap?.rule).toMatchObject({ title: "石の先はもっと離す", source: "職人：試しの職人", date: "2026-11-03" });
+    expect(gap?.required).toBe("2.50 mm 以上");
+    expect(gap?.options[0].effect_on_look).toBeTruthy();
+  });
+  it("三角の石は V 字の爪 3 つで、すき間と地金の重さも返す", () => {
+    const r = checkRingTool(ctx, { stone: triangle });
+    expect(r.ok).toBe(true);
+    expect(r.design.v_prong_count).toBe(3);
+    expect(r.culet_gap_mm).toBeGreaterThan(0.3);
+    expect(r.metal_weight_g).toBeGreaterThan(0);
+  });
+  it("爪を細くすると、公開情報の決まりを根拠に赤くなる", () => {
+    const r = checkRingTool(ctx, { stone: triangle, design: { prong_scale: 0.8 } });
+    const thin = r.problems.filter((p) => p.id.startsWith("prong-thin"));
+    expect(thin).toHaveLength(3);
+    expect(thin[0].rule?.source).toMatch(/^公開情報/);
+  });
+});
+
+describe("pattern_svg", () => {
+  it("A4 の原寸の SVG を返し、out/ に書き出せる", () => {
+    const r = patternSvgTool(ctx, { stone: { preset: "oval", long_mm: 7, width_mm: 5.6, depth_mm: 4.2 }, save_as: "oval" });
+    expect(r.svg).toContain('width="210mm"');
+    expect(r.saved_to).toBeDefined();
+    expect(readFileSync(join(ctx.outDir, "oval.svg"), "utf8")).toBe(r.svg);
+  });
+  it("out/ の外へは書かない", () => {
+    expect(() => patternSvgTool(ctx, { stone: triangle, save_as: "../escape.svg" })).toThrow(/out\//);
+  });
+});
+
+describe("石の入力", () => {
+  it("簡単な形は、長辺を左右・幅を上下に置き、重心が真ん中", () => {
+    const pts = presetOutline("triangle", 8, 7);
+    const xs = pts.map((p) => p.x);
+    const ys = pts.map((p) => p.y);
+    expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(8, 6);
+    expect(Math.max(...ys) - Math.min(...ys)).toBeCloseTo(7, 6);
+    expect(Math.abs(centroid(pts).y)).toBeLessThan(1e-9);
+  });
+  it("輪郭の点は、真ん中と向きをそろえ、長辺に合わせる", () => {
+    const s = readyStone({ outline_mm: [{ x: 10, y: 10 }, { x: 13, y: 10 }, { x: 11.5, y: 12.5 }], long_mm: 6, depth_mm: 3.5 });
+    expect(s.params.longMm).toBeCloseTo(6, 6);
+    expect(s.corners).toHaveLength(3);
+  });
+});
