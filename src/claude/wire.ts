@@ -28,6 +28,8 @@ export interface ClaudeRequestBody {
   messages: ClaudeMessageParam[];
   system?: string;
   tools: ClaudeTool[];
+  /** fast＝考える量を少なくして速く返す（画面の前で待つ作業）。なければ ふつう */
+  speed?: "fast";
 }
 
 /** うまくいかなかったときの理由。画面はこれを見て出し方を変える。 */

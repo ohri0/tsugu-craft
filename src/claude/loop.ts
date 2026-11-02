@@ -73,6 +73,8 @@ export interface LoopOptions<S> {
   tools?: ClaudeTool[];
   /** 公開ページの合言葉 */
   password?: string;
+  /** fast＝考える量を少なくして速く返す */
+  speed?: "fast";
   endpoint?: string;
   fetch?: typeof fetch;
   maxTurns?: number;
@@ -300,7 +302,7 @@ export async function runClaude<S>(opts: LoopOptions<S>): Promise<LoopResult> {
   for (let turn = 1; turn <= maxTurns; turn++) {
     if (opts.signal?.aborted) return finish("aborted", { message: MESSAGES.aborted });
 
-    const outcome = await callOnce(fetchImpl, endpoint, { messages, system, tools: opts.tools ?? TOOLS }, opts.password, opts.signal);
+    const outcome = await callOnce(fetchImpl, endpoint, { messages, system, tools: opts.tools ?? TOOLS, ...(opts.speed ? { speed: opts.speed } : {}) }, opts.password, opts.signal);
     if (outcome.remaining !== undefined) remaining = outcome.remaining;
     if (!outcome.ok) {
       return finish(outcome.kind === "offline" ? "offline" : outcome.kind, { code: outcome.code, message: outcome.message });

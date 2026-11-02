@@ -23,6 +23,8 @@ export interface CallToolOptions<T> {
   parse: (input: unknown) => { ok: true; value: T; warnings?: string[] } | { ok: false; error: string };
   /** 公開ページの合言葉 */
   password?: string;
+  /** fast＝考える量を少なくして速く返す */
+  speed?: "fast";
   endpoint?: string;
   fetch?: typeof fetch;
   signal?: AbortSignal;
@@ -106,7 +108,7 @@ export async function callTool<T>(opts: CallToolOptions<T>): Promise<CallToolRes
   // 最初の 1 回 ＋ 文だけの返事への頼み直し 1 回 ＋ 形の直し 1 回 ＝ 多くて 3 回
   for (;;) {
     if (opts.signal?.aborted) return { ok: false, error: MESSAGES.aborted, code: "aborted", remaining };
-    const out = await post(fetchImpl, endpoint, { messages, system: opts.system, tools: [opts.tool] }, opts.password, opts.signal);
+    const out = await post(fetchImpl, endpoint, { messages, system: opts.system, tools: [opts.tool], ...(opts.speed ? { speed: opts.speed } : {}) }, opts.password, opts.signal);
     if (out.remaining !== undefined) remaining = out.remaining;
     if (!out.ok) return { ...out, remaining };
     const message = out.message;

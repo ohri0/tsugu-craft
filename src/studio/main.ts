@@ -301,6 +301,8 @@ async function make() {
     system: designPrompt(store.ledger()),
     tools: TOOLS.filter((t) => ["set_setting", "set_shank", "check", "look"].includes(t.name)),
     password: pass,
+    speed: "fast",
+    maxTurns: 8,
     onLog: logLine,
   });
   making = false;
@@ -526,7 +528,7 @@ async function addRuleFromWords(said: string) {
     restore: () => undefined,
     proposeRule: (p) => propose(slot, p, name),
   };
-  const r = await runClaude({ host, messages: [{ role: "user", content: `${name}さんが話したこと：${said}` }], system: keepPrompt(store.ledger(), name), tools: TOOLS.filter((t) => t.name === "propose_rule"), password: pass, maxTurns: 3 });
+  const r = await runClaude({ host, messages: [{ role: "user", content: `${name}さんが話したこと：${said}` }], system: keepPrompt(store.ledger(), name), tools: TOOLS.filter((t) => t.name === "propose_rule"), password: pass, maxTurns: 3, speed: "fast" });
   if (r.offline || (r.error && !r.log.length)) {
     if (r.error?.code === "wrong_password") resetPassword();
     slot.innerHTML = `<p class="tech-what">Claude につながりませんでした。${esc(r.error?.message ?? "")}</p>`;

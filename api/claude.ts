@@ -76,12 +76,13 @@ function decodeHeader(v: string | null): string {
   }
 }
 
-type ParsedBody = { messages: ClaudeMessageParam[]; system?: string; tools: ClaudeTool[] };
+type ParsedBody = { messages: ClaudeMessageParam[]; system?: string; tools: ClaudeTool[]; speed?: "fast" };
 
 /** 受け取った中身を確かめる。画面以外から好きな道具や指示を混ぜて使われないよう、道具は「継ぐ」のものだけ通す。 */
 function parseBody(raw: unknown): { ok: true; body: ParsedBody } | { ok: false; message: string } {
   if (typeof raw !== "object" || raw === null) return { ok: false, message: "送られた中身の形が正しくありません。" };
-  const { messages, system, tools } = raw as Record<string, unknown>;
+  const { messages, system, tools, speed } = raw as Record<string, unknown>;
+  if (speed !== undefined && speed !== "fast") return { ok: false, message: "speed の形が正しくありません。" };
   if (!Array.isArray(messages) || messages.length === 0) return { ok: false, message: "会話（messages）がありません。" };
   if (messages.length > LIMITS.messages) return { ok: false, message: "会話が長すぎます。新しく始めてください。" };
   for (const m of messages) {
@@ -104,7 +105,7 @@ function parseBody(raw: unknown): { ok: true; body: ParsedBody } | { ok: false; 
   }
   return {
     ok: true,
-    body: { messages: messages as ClaudeMessageParam[], system: system as string | undefined, tools: tools as ClaudeTool[] },
+    body: { messages: messages as ClaudeMessageParam[], system: system as string | undefined, tools: tools as ClaudeTool[], speed: speed as "fast" | undefined },
   };
 }
 
@@ -230,6 +231,8 @@ export function createHandler(deps: HandlerDeps = {}): (request: Request) => Pro
     try {
       const message = await makeCreate(apiKey)({
         ...REQUEST_SETTINGS,
+        // 画面の前で待つ作業は、考える量を少なくして速く返す
+        ...(parsed.body.speed === "fast" ? { output_config: { effort: "low" as const } } : {}),
         messages: parsed.body.messages,
         tools: parsed.body.tools,
         ...(parsed.body.system ? { system: parsed.body.system } : {}),

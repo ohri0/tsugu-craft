@@ -318,7 +318,7 @@ async function make() {
   }
   making = true;
   st.innerHTML = `<span class="pulse"></span> Claude が形を考えています…`;
-  const r = await callTool<Design>({ system: designPrompt(ledgerText(store.ledger())), user: text, tool: MAKE_DESIGN, parse: (x) => designFromTool(x, d.tp.seed), password: pass });
+  const r = await callTool<Design>({ system: designPrompt(ledgerText(store.ledger())), user: text, tool: MAKE_DESIGN, parse: (x) => designFromTool(x, d.tp.seed), password: pass, speed: "fast" });
   making = false;
   if (!r.ok) {
     if (r.code === "wrong_password") resetPassword();
