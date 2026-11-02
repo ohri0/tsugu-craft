@@ -120,7 +120,7 @@ export function seedLedger(): Ledger {
       {
         id: "prong-thickness",
         title: "爪の太さ",
-        text: `1 カラット（約 6.5 mm）で 1.0〜1.3 mm、小さな石では 0.5 mm まで（Skyjems）。間を埋める式「最低 ＝ ${g.prong.minBase} ＋ ${g.prong.perMm} ×（石の大きさ − ${g.prong.sizeOffset}）mm」は、この範囲に合わせた仮の目安（式そのものは出典にない）`,
+        text: `爪の最低の太さは石の大きさで変わる：${g.prong.minByStoneSize.map(([s, d]) => `${s} mm の石で ${d} mm`).join("、")}。点の間はまっすぐつなぐ。標準は最低 × ${g.prong.standardFactor}。点はメーカーの CAD 基準・職人のフォーラム・Skyjems から、つなぐ線は仮の目安`,
         reason: "細い爪は曲がりやすく、石が抜ける",
         checks: ["prong-thin"],
         source: SKYJEMS,

@@ -12,10 +12,19 @@ export const GUIDES = {
     defaultCrownPavilion: [3, 7] as const,
   },
   prong: {
-    /** 最低の太さ ＝ minBase ＋ perMm ×（石の大きさ − sizeOffset）mm */
-    minBase: 0.5,
-    perMm: 0.1,
-    sizeOffset: 1.5,
+    /**
+     * 最低の太さ：公開情報の 4 つの点 [石の大きさ mm, 爪の太さ mm] を、まっすぐな線でつなぐ（点の間は比例で）。
+     * 最初の点より小さい石は最初の値、最後の点より大きい石は最後の 2 点の傾きのまま伸ばす。
+     * 出どころ（docs/RESEARCH-rules.md）：メレの爪留め 0.45 mm 以上（メーカーの CAD 基準）、
+     * 約 0.25 ct（約 4 mm）で約 0.6 mm（職人のフォーラム）、1 ct（約 6.4 mm）で 1.0〜1.3 mm の下の端（Skyjems）、
+     * 2 ct（約 8 mm）で 1.2 mm 以上（職人のフォーラム）。点をつなぐ線は、作者の求めで作った仮の目安。
+     */
+    minByStoneSize: [
+      [2.5, 0.45],
+      [4.0, 0.6],
+      [6.4, 1.0],
+      [8.0, 1.2],
+    ] as const,
     /** 標準の太さ ＝ 最低 × この倍率 */
     standardFactor: 1.15,
     /** 爪の先の高さ：石の上面までの高さに対する割合 */
@@ -112,7 +121,17 @@ export function stoneSizeMm(longMm: number, widthMm: number): number {
 /** 爪の最低の太さ（mm） */
 export function minProngMm(sizeMm: number): number {
   const p = GUIDES.prong;
-  return p.minBase + p.perMm * (sizeMm - p.sizeOffset);
+  const pts = p.minByStoneSize;
+  if (sizeMm <= pts[0][0]) return pts[0][1];
+  for (let i = 1; i < pts.length; i++) {
+    const [x0, y0] = pts[i - 1];
+    const [x1, y1] = pts[i];
+    if (sizeMm <= x1) return y0 + ((y1 - y0) * (sizeMm - x0)) / (x1 - x0);
+  }
+  // 最後の点より大きい石：最後の 2 点の傾きのまま
+  const [x0, y0] = pts[pts.length - 2];
+  const [x1, y1] = pts[pts.length - 1];
+  return y1 + ((y1 - y0) * (sizeMm - x1)) / (x1 - x0);
 }
 
 /** 爪の標準の太さ（mm） */
