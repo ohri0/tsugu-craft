@@ -474,7 +474,7 @@ describe("api/claude の関数", () => {
     expect((await setup({ DEMO_PASSWORD: "" }).handler(post(body, ""))).status).toBe(500);
   });
 
-  it("POST 以外・JSON でない・Stone Fit の道具でないものは断る", async () => {
+  it("POST 以外・JSON でない・「継ぐ」の道具でないものは断る", async () => {
     const { handler, sent } = setup();
     expect((await handler(new Request("http://localhost/api/claude"))).status).toBe(405);
     expect((await handler(post("{ broken"))).status).toBe(400);

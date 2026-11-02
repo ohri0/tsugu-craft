@@ -5,7 +5,7 @@ import { defineConfig } from "vitest/config";
 // 開発のときだけ、/api/claude を api/claude.ts の関数につなぐ（公開先では Vercel が同じ関数を動かす）。
 function claudeApiForDev(): Plugin {
   return {
-    name: "stone-fit-claude-api-dev",
+    name: "tsugu-claude-api-dev",
     apply: "serve",
     configureServer(server) {
       // .env の値は、この関数（サーバー側）にだけ渡す。画面に出るのは VITE_ で始まるものだけで、キーは出ない。

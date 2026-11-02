@@ -18,10 +18,10 @@ export const CLAUDE_ENDPOINT = "/api/claude";
  * 公開ページの合言葉を入れるヘッダー。
  * ヘッダーには日本語をそのまま入れられないので、encodeURIComponent してから入れる（受け取る側で戻す）。
  */
-export const PASSWORD_HEADER = "x-stone-fit-password";
+export const PASSWORD_HEADER = "x-tsugu-password";
 
 /** 今日あと何回呼べるか（返事に付ける） */
-export const REMAINING_HEADER = "x-stone-fit-remaining";
+export const REMAINING_HEADER = "x-tsugu-remaining";
 
 /** 画面から関数へ送る中身 */
 export interface ClaudeRequestBody {

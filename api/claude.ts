@@ -78,7 +78,7 @@ function decodeHeader(v: string | null): string {
 
 type ParsedBody = { messages: ClaudeMessageParam[]; system?: string; tools: ClaudeTool[] };
 
-/** 受け取った中身を確かめる。画面以外から好きな道具や指示を混ぜて使われないよう、道具は Stone Fit のものだけ通す。 */
+/** 受け取った中身を確かめる。画面以外から好きな道具や指示を混ぜて使われないよう、道具は「継ぐ」のものだけ通す。 */
 function parseBody(raw: unknown): { ok: true; body: ParsedBody } | { ok: false; message: string } {
   if (typeof raw !== "object" || raw === null) return { ok: false, message: "送られた中身の形が正しくありません。" };
   const { messages, system, tools } = raw as Record<string, unknown>;
@@ -99,7 +99,7 @@ function parseBody(raw: unknown): { ok: true; body: ParsedBody } | { ok: false; 
     const tool = t as { name?: unknown; type?: unknown; input_schema?: unknown } | null;
     const custom = tool?.type === undefined || tool?.type === null || tool?.type === "custom";
     if (!custom || typeof tool?.name !== "string" || !isToolName(tool.name) || typeof tool.input_schema !== "object") {
-      return { ok: false, message: "Stone Fit の道具ではないものが入っています。" };
+      return { ok: false, message: "「継ぐ」の道具ではないものが入っています。" };
     }
   }
   return {

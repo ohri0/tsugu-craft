@@ -1,4 +1,4 @@
-# RESEARCH — Stone Fit の物語のための公開データ
+# RESEARCH — 「継ぐ」の物語のための公開データ
 
 調査日: 2026-11-02。
 調べ方: 検索結果の要約から拾った（WebSearch のみ）。この作業環境のネットワーク設定では各サイトを直接開けなかった（meti.go.jp, yano.co.jp, gold.tanaka.co.jp, isejingu.or.jp, mint.go.jp などは接続拒否）。そのため数字は、**動画で使う前に下の URL を自分の目で開いて確かめること**。

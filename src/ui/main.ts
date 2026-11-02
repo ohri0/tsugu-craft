@@ -218,7 +218,7 @@ $("saveSvg").addEventListener("click", () => {
   if (!svg) return;
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml" }));
-  a.download = `stone-fit-pattern-${state.measured!.longMm.toFixed(2)}mm.svg`;
+  a.download = `tsugu-pattern-${state.measured!.longMm.toFixed(2)}mm.svg`;
   a.click();
   URL.revokeObjectURL(a.href);
 });
@@ -382,4 +382,4 @@ function renderPlans() {
 }
 
 // 確かめ用（ヘッドレスのブラウザから読む）
-(window as unknown as { __stoneFit: unknown }).__stoneFit = { state, viewer, load: setImage, sheet, setDesign };
+(window as unknown as { __tsugu: unknown }).__tsugu = { state, viewer, load: setImage, sheet, setDesign };
