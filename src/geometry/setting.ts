@@ -934,17 +934,17 @@ function solidHead(f: Frame, plans: ProngPlan[], v: Vertical, tz: number, wire: 
   };
   plans.forEach((plan, i) => {
     const r = plan.diameterMm / 2;
-    const dSeat = cl + plan.diameterMm * (0.5 - seat);
     const s0 = sampleAt(f, plan.t);
     if (!plan.isV) {
-      const down = leg(s0, dSeat, r).reverse();
-      const g1 = at(f, s0, k.girdleTop, dSeat);
-      const capLength = (TIP.cap * r * (TIP.normal + TIP.side)) / 2;
-      const ctrl: V3[] = [...down, g1, ...clawBend(f, s0, g1, tz, TIP.normal * r, capLength)];
-      const path = smoothPath(ctrl, SOLID.step);
-      const rest = lengthsToEnd(path);
-      const radii = path.map((_, j) => r * (1 - smoothstep(1 - rest[j] / (TIP.taper * r)) * 0.3));
-      tubes.push({ pts: path, radii, owner: i });
+      // 同じ太さの一本の曲線：足もと → 外へ開いて縁の外に沿って立つ → 縁の上で少し内へ曲がり、先は石の上側に軽く乗る。
+      // 縁では石に軽く触れるだけにして（座は見えない内側だけ）、外から見てくびれないようにする
+      const dTouch = cl + r * 0.85;
+      const down = leg(s0, dTouch, r).reverse();
+      const g1 = at(f, s0, k.girdleTop, dTouch);
+      const up = at(f, s0, (k.girdleTop + tz) / 2, cl + r * 0.95);
+      const tipP = at(f, s0, tz - r * 0.6, cl + r * 0.75);
+      const path = smoothPath([...down, g1, up, tipP], SOLID.step / 2);
+      tubes.push({ pts: path, radii: path.map(() => r), owner: i });
     } else {
       // V 字の爪：石の面から少し離れた所を、角を中心に左右へ包む 1 枚の板。
       // 縁より上は石の上側に沿って内へ倒れて石を押さえ、縁より下は爪と同じ角度でまっすぐ下りる（えぐれない）。
