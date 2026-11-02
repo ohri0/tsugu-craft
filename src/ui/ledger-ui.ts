@@ -279,7 +279,7 @@ export function mountLedger(root: HTMLElement, onChange: LedgerChange): LedgerUI
     messages = r.messages;
     $<HTMLButtonElement>("ivSend").disabled = false;
     $("ivStatus").textContent = r.offline
-      ? "Claude につながりません。聞き取りには API キーの設定が要ります。決まりは下の「手で決まりを足す」からも足せます。"
+      ? `Claude につながりません。${r.error?.message ? `（${r.error.message}）` : ""}決まりは「手で決まりを足す」からも足せます。`
       : r.error
         ? r.error.message
         : r.remaining !== undefined

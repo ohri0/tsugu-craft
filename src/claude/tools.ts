@@ -3,9 +3,9 @@
 // 教える画面で、目安帳では答えられない生徒の質問を「先生に聞くこと」に回す ask_teacher。
 // 道具は人のボタンと同じ関数で動く。その関数は画面が ToolHost として用意する（ここでは形だけ決める）。
 // 道具の入力と結果は Claude とやり取りするので、名前は snake_case にそろえる。
-import { GUIDE_NOTE, GUIDES } from "../rules/guides";
-import { PARAMS, type ParamId } from "../rules/ledger";
-import type { ClaudeTool } from "./wire";
+import { GUIDE_NOTE, GUIDES } from "../rules/guides.js";
+import { PARAMS, type ParamId } from "../rules/ledger.js";
+import type { ClaudeTool } from "./wire.js";
 
 export const TOOL_NAMES = ["set_setting", "set_shank", "check", "look", "propose_rule", "ask_teacher"] as const;
 export type ToolName = (typeof TOOL_NAMES)[number];

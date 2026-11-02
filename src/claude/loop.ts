@@ -161,7 +161,7 @@ async function callOnce(
     return { ok: false, kind, code, message, remaining };
   }
   // 関数が置かれていない（404）、公開先そのものが落ちている（5xx）などは、つながらないのと同じに扱う
-  if (res.status === 404 || res.status >= 500) return { ok: false, kind: "offline", message: MESSAGES.offline, remaining };
+  if (res.status === 404 || res.status >= 500) return { ok: false, kind: "offline", message: `${MESSAGES.offline}（サーバーの返事 ${res.status}）`, remaining };
   return { ok: false, kind: "error", message: `Claude とのやり取りに失敗しました（${res.status}）。`, remaining };
 }
 

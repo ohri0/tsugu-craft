@@ -7,7 +7,7 @@
 //   Claude Console 側でも使える金額の上限を決めておく（docs/SPEC.md「公開しても安全にするための決まり」）。
 import Anthropic from "@anthropic-ai/sdk";
 import { timingSafeEqual } from "node:crypto";
-import { isToolName } from "../src/claude/tools";
+import { isToolName } from "../src/claude/tools.js";
 import {
   PASSWORD_HEADER,
   REMAINING_HEADER,
@@ -16,7 +16,7 @@ import {
   type ClaudeMessage,
   type ClaudeMessageParam,
   type ClaudeTool,
-} from "../src/claude/wire";
+} from "../src/claude/wire.js";
 
 /** 使うモデル */
 export const MODEL = "claude-opus-5-5";
