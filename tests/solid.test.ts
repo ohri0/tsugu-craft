@@ -54,21 +54,3 @@ describe("指輪：断面を回した形", () => {
     expect(buf.byteLength).toBe(84 + (r.indices.length / 3) * 50);
   });
 });
-
-describe("技法の起伏", async () => {
-  const { nanakoRelief, tsuchimeRelief, engraveRelief } = await import("../src/cad/relief");
-  it("魚々子：粒の真ん中が高く、粒と粒の間は 0 か、ふちの溝で少し低い", () => {
-    const f = nanakoRelief(0.5, 0.65);
-    expect(f(0, 0)).toBeCloseTo(0.06);
-    expect(f(0.325, 0.2)).toBeLessThanOrEqual(0);
-  });
-  it("鎚目：くぼみはいつも 0 以下", () => {
-    const f = tsuchimeRelief(2.4);
-    for (let i = 0; i < 50; i++) expect(f(i * 0.37, i * 0.53)).toBeLessThanOrEqual(0);
-  });
-  it("毛彫り：線の上がいちばん深く、幅の外は 0", () => {
-    const f = engraveRelief([[{ x: 0, y: 0 }, { x: 10, y: 0 }]], 0.4, 0.15);
-    expect(f(5, 0)).toBeCloseTo(-0.15);
-    expect(f(5, 0.3)).toBe(0);
-  });
-});

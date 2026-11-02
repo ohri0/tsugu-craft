@@ -150,7 +150,7 @@ main { overflow: hidden; }
 .chart .src { margin-top: 16px; font-size: 11px; color: var(--fg-3); }
 
 /* 失われた技 */
-.lost { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.lost { display: grid; grid-template-columns: 1fr; gap: 16px; max-width: 640px; }
 .lost-card { display: flex; flex-direction: column; padding: 26px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); text-decoration: none; transition: border-color 0.2s, background 0.2s; }
 .lost-card:hover { border-color: var(--line-2); background: #262628; }
 .lost-card h3 { font-size: 20px; }

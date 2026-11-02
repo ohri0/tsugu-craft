@@ -85,7 +85,7 @@ app.innerHTML = `
   <header class="tb">
     <div class="tb-l"><a class="brand" href="./"><span class="logo">継</span>継ぐ</a><span class="doc"><span class="word-name">新しい作品</span></span></div>
     <nav class="tabs" aria-label="場面">${MODES.map((m) => `<button type="button" data-mode="${m.id}" title="${m.sub}（${m.key}）">${m.word}<span class="k">${m.key}</span></button>`).join("")}</nav>
-    <div class="tb-r"><button type="button" class="btn quiet act-why">なぜ継ぐ</button><a class="btn quiet hide-sm" href="app.html#rebuild">組み立て直す</a><a class="btn quiet hide-sm" href="cad.html" title="木目金・魚々子・布目象嵌・鎚目">技法の面</a><button type="button" class="btn act-sheet hide-sm">図面・指示書</button><button type="button" class="btn primary act-stl">STL</button><button type="button" class="book-btn">帳面<i class="book-n"></i></button></div>
+    <div class="tb-r"><button type="button" class="btn quiet act-why">なぜ継ぐ</button><a class="btn quiet hide-sm" href="app.html#rebuild">組み立て直す</a><button type="button" class="btn act-sheet hide-sm">図面・指示書</button><button type="button" class="btn primary act-stl">STL</button><button type="button" class="book-btn">帳面<i class="book-n"></i></button></div>
   </header>
   <nav class="tools" aria-label="見る">
     ${(["angle", "top", "side", "front"] as const).map((v) => `<button type="button" class="tool view-btn" data-view="${v}" data-tip="${{ angle: "斜め", top: "上", side: "横", front: "正面" }[v]}" aria-label="${{ angle: "斜め", top: "上", side: "横", front: "正面" }[v]}">${ICON[v]}</button>`).join("")}
@@ -1025,7 +1025,7 @@ function renderBook() {
     </div>
     <h4>${esc(name)}さんの決まり（${mine.length}）</h4><ul class="rules-l">${mine.map(item).join("")}</ul>
     <h4>公開情報の目安（${others.length}）</h4><ul class="rules-l">${others.map(item).join("")}</ul>
-    <h4>ほかの道具</h4><p class="tech-what"><a class="link" href="app.html#rebuild">組み立て直す（途切れた技を、手がかりから）</a><br><a class="link" href="app.html#keep">残す（職人が手本を撮る・質問に答える）</a><br><a class="link" href="cad.html">技法の面（木目金・魚々子・布目象嵌・鎚目）</a></p>`;
+    <h4>ほかの道具</h4><p class="tech-what"><a class="link" href="app.html#rebuild">組み立て直す（途切れた技を、手がかりから）</a><br><a class="link" href="app.html#keep">残す（職人が手本を撮る・質問に答える）</a></p>`;
   $(".bp-close").addEventListener("click", () => ($(".book-panel").hidden = true));
   const field = $<HTMLTextAreaElement>(".ar-text");
   const voice = bindVoice($<HTMLButtonElement>(".ar-mic"), field);

@@ -28,7 +28,7 @@
 - `src/vision/` 写真から輪郭を取る処理（Canvas）。
 - `src/rules/` 確かめるルールと目安の値。
 - `src/claude/` Claude に渡す道具の定義と、画面での実行。
-- `src/cad/` かんたん CAD（形の編集・技法の面・作り方）。
+- `src/cad/` 断面を回して作る指輪の形と STL（甲丸・平打ちの指輪が使う）。
 - `src/app/` 継ぐの画面（見る・組み立て直す・残す）。
 - `src/ui/` 前の画面の部品。three.js。PC とスマホの縦画面。
 - `api/` Claude API を呼ぶ serverless 関数（キーはここだけ）。

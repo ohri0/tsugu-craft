@@ -163,11 +163,6 @@ const html = `
         <p>作り方が途切れた技を、残った品物と材料の手がかりだけから Claude が組み立て、隠しておいた本当の作り方と答え合わせをします。最初の題材は木目金（もくめがね）。</p>
         <span class="go">組み立て直す ${icon.arrow}</span>
       </a>
-      <a class="lost-card reveal" href="cad.html">
-        <h3>技法の面</h3>
-        <p>木目金・魚々子（ななこ）・布目象嵌・鎚目を、その技で見た目ができる仕組みから面にします。粒や叩きの起伏は STL にも入ります。</p>
-        <span class="go">技法の面を開く ${icon.arrow}</span>
-      </a>
     </div>
   </section>
 
