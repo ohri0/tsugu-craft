@@ -512,7 +512,7 @@ function updateRing() {
   const d = state.design;
   $("empty").hidden = true;
   $("hud").hidden = false;
-  $("hud").textContent = `石 ${m.longMm.toFixed(2)} × ${m.widthMm.toFixed(2)} × ${state.depthMm.toFixed(2)} mm ・ ${d.gou} 号（内径 ${b.ring.shank.innerDiameterMm.toFixed(1)} mm）・ ${metalName(d.metal)} 約 ${b.ring.metalWeightG.toFixed(1)} g ・ 目盛り 1 mm`;
+  $("hud").textContent = `石 ${m.longMm.toFixed(2)} × ${m.widthMm.toFixed(2)} × ${state.depthMm.toFixed(2)} mm ・ ${d.gou} 号（内径 ${b.ring.shank.innerDiameterMm.toFixed(1)} mm）・ ${metalName(d.metal)} 約 ${b.ring.metalWeightG.toFixed(1)} g`;
   renderChecks(b);
 }
 
