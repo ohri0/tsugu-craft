@@ -1,23 +1,9 @@
-// 設計（形・技法・地金・大きさ）と、Claude が言葉から設計を作る道具 make_design。画面に依存しない。
+// Claude が言葉から設計を作る道具 make_design。画面に依存しない。
 import type { ClaudeTool } from "../claude/wire";
-import { DEFAULT_FORM, FORMS, type FormId, type FormParams } from "./forms";
-import { DEFAULT_PARAMS, METALS, MOKUME_PALETTES, TECHNIQUES, type MetalId, type TechniqueId, type TechniqueParams } from "./techniques";
-
-export interface Design {
-  /** 作品の名前（例：木目金の梅の帯留め） */
-  name: string;
-  form: FormId;
-  fp: FormParams;
-  tech: TechniqueId;
-  metal: MetalId;
-  /** 木目金の重ねる金属の組（MOKUME_PALETTES の番号） */
-  palette: number;
-  tp: TechniqueParams;
-  /** Claude がそう決めた理由（言葉から作ったとき） */
-  reason?: string;
-}
-
-export const DEFAULT_DESIGN: Design = { name: "木目金の梅", form: "ume", fp: { ...DEFAULT_FORM }, tech: "mokume", metal: "copper", palette: 0, tp: { ...DEFAULT_PARAMS } };
+import { FORMS, type FormId } from "./forms";
+import { newDesign, type Design } from "./model";
+import { SECTION_PRESETS } from "./solid";
+import { METALS, MOKUME_PALETTES, TECHNIQUES, type MetalId } from "./techniques";
 
 /** 受け付ける範囲（明らかにおかしい値を通さないため。職人の目安ではない） */
 export const BOUNDS = {
@@ -27,17 +13,13 @@ export const BOUNDS = {
   plateSize: [10, 80],
   plateThick: [0.8, 6],
   layers: [2, 40],
-  depth: [0.1, 0.95],
-  pits: [0, 40],
   dotMm: [0.2, 1.2],
-  pitchMm: [0.25, 1.6],
-  hatchMm: [0.1, 0.6],
   motifMm: [3, 20],
   dentMm: [1, 5],
 } as const;
 
 const clamp = (k: keyof typeof BOUNDS, v: unknown, fallback: number) => {
-  const n = typeof v === "number" && Number.isFinite(v) ? v : fallback;
+  const n = typeof v === "number" && Number.isFinite(v) && v > 0 ? v : fallback;
   return Math.min(BOUNDS[k][1], Math.max(BOUNDS[k][0], n));
 };
 
@@ -52,6 +34,7 @@ export const MAKE_DESIGN: ClaudeTool = {
     properties: {
       name: { type: "string", description: "作品の名前（例：木目金の梅の帯留め）。20 文字まで" },
       form: { type: "string", enum: FORMS.map((f) => f.id), description: FORMS.map((f) => `${f.id}＝${f.name}（${f.use}）`).join("、") },
+      ring_section: { type: "string", enum: ["kouman", "hirauchi", "kamaboko"], description: "指輪の断面：kouman＝甲丸（外が丸い）、hirauchi＝平打ち（外が平ら）、kamaboko＝かまぼこ（ゆるい丸み）。指輪でなければ kouman" },
       technique: { type: "string", enum: TECHNIQUES.map((t) => t.id), description: TECHNIQUES.map((t) => `${t.id}＝${t.name}：${t.what}`).join(" ") },
       metal: { type: "string", enum: Object.keys(METALS), description: Object.entries(METALS).map(([k, m]) => `${k}＝${m.name}（${m.note}）`).join("、") + "。木目金のときは使わない（mokume_palette で決める）" },
       mokume_palette: { type: "integer", enum: MOKUME_PALETTES.map((_, i) => i), description: MOKUME_PALETTES.map((p, i) => `${i}＝${p.name}`).join("、") + "（木目金のときだけ意味がある）" },
@@ -61,45 +44,48 @@ export const MAKE_DESIGN: ClaudeTool = {
       fineness: { type: "number", description: "技法の細かさ。木目金＝層の数、魚々子＝粒の大きさ（mm）、布目象嵌＝模様の大きさ（mm）、鎚目＝叩きの大きさ（mm）、磨き＝0" },
       reason: { type: "string", description: "そう決めた理由（1〜2 文、やさしい日本語）" },
     },
-    required: ["name", "form", "technique", "metal", "mokume_palette", "size_mm", "thickness_mm", "ring_size_gou", "fineness", "reason"],
+    required: ["name", "form", "ring_section", "technique", "metal", "mokume_palette", "size_mm", "thickness_mm", "ring_size_gou", "fineness", "reason"],
     additionalProperties: false,
   },
 };
 
 /** make_design の入力を、確かめて設計にする（範囲の外はおさめる） */
-export function designFromTool(input: unknown, base: Design = DEFAULT_DESIGN): { ok: true; value: Design; warnings?: string[] } | { ok: false; error: string } {
+export function designFromTool(input: unknown, seed = 7): { ok: true; value: Design } | { ok: false; error: string } {
   if (typeof input !== "object" || input === null) return { ok: false, error: "入力の形が正しくありません" };
   const r = input as Record<string, unknown>;
-  const form = FORMS.find((f) => f.id === r.form)?.id;
+  const form = FORMS.find((f) => f.id === r.form)?.id as FormId | undefined;
   const tech = TECHNIQUES.find((t) => t.id === r.technique)?.id;
   if (!form) return { ok: false, error: `form は ${FORMS.map((f) => f.id).join(" / ")} のどれかです` };
   if (!tech) return { ok: false, error: `technique は ${TECHNIQUES.map((t) => t.id).join(" / ")} のどれかです` };
-  const warnings: string[] = [];
-  const metal = (Object.keys(METALS) as MetalId[]).includes(r.metal as MetalId) ? (r.metal as MetalId) : TECHNIQUES.find((t) => t.id === tech)!.metals[0];
-  const palette = typeof r.mokume_palette === "number" && MOKUME_PALETTES[r.mokume_palette] ? r.mokume_palette : 0;
-  const fp: FormParams = { ...base.fp };
+  let d: Design;
   if (form === "ring") {
-    fp.gou = Math.round(clamp("gou", r.ring_size_gou || base.fp.gou, base.fp.gou));
-    fp.ringWidth = clamp("ringWidth", r.size_mm, base.fp.ringWidth);
-    fp.ringThick = clamp("ringThick", r.thickness_mm, base.fp.ringThick);
+    const w = clamp("ringWidth", r.size_mm, 5);
+    const t = clamp("ringThick", r.thickness_mm, 1.6);
+    const sec = (["kouman", "hirauchi", "kamaboko"] as const).find((k) => k === r.ring_section) ?? "kouman";
+    d = newDesign("ring");
+    d.gou = Math.round(clamp("gou", r.ring_size_gou, 12));
+    d.top = SECTION_PRESETS[sec](w, t);
+    d.bottom = SECTION_PRESETS[sec](Math.max(1.5, w * 0.8), Math.max(0.8, t * 0.9));
   } else {
-    fp.plateSize = clamp("plateSize", r.size_mm, base.fp.plateSize);
-    fp.plateThick = clamp("plateThick", r.thickness_mm, base.fp.plateThick);
+    d = newDesign(form, clamp("plateSize", r.size_mm, 30), clamp("plateThick", r.thickness_mm, 2));
   }
-  const tp: TechniqueParams = { ...DEFAULT_PARAMS, seed: base.tp.seed };
+  d.tech = tech;
+  d.metal = (Object.keys(METALS) as MetalId[]).includes(r.metal as MetalId) ? (r.metal as MetalId) : TECHNIQUES.find((t) => t.id === tech)!.metals[0];
+  d.palette = typeof r.mokume_palette === "number" && MOKUME_PALETTES[r.mokume_palette] ? r.mokume_palette : 0;
+  d.tp.seed = seed;
   const f = r.fineness;
   if (typeof f === "number" && f > 0) {
-    if (tech === "mokume") tp.layers = Math.round(clamp("layers", f, tp.layers));
+    if (tech === "mokume") d.tp.layers = Math.round(clamp("layers", f, d.tp.layers));
     if (tech === "nanako") {
-      tp.dotMm = clamp("dotMm", f, tp.dotMm);
-      tp.pitchMm = Math.max(tp.dotMm * 1.25, tp.pitchMm);
+      d.tp.dotMm = clamp("dotMm", f, d.tp.dotMm);
+      d.tp.pitchMm = Math.max(d.tp.dotMm * 1.25, d.tp.pitchMm);
     }
-    if (tech === "nunome") tp.motifMm = clamp("motifMm", f, tp.motifMm);
-    if (tech === "tsuchime") tp.dentMm = clamp("dentMm", f, tp.dentMm);
+    if (tech === "nunome") d.tp.motifMm = clamp("motifMm", f, d.tp.motifMm);
+    if (tech === "tsuchime") d.tp.dentMm = clamp("dentMm", f, d.tp.dentMm);
   }
-  const name = typeof r.name === "string" && r.name.trim() ? r.name.trim().slice(0, 24) : base.name;
-  const reason = typeof r.reason === "string" ? r.reason.trim() : "";
-  return { ok: true, value: { name, form, fp, tech, metal, palette, tp, reason }, ...(warnings.length ? { warnings } : {}) };
+  d.name = typeof r.name === "string" && r.name.trim() ? r.name.trim().slice(0, 24) : "";
+  d.reason = typeof r.reason === "string" ? r.reason.trim() : "";
+  return { ok: true, value: d };
 }
 
 /** 生む。の指示 */

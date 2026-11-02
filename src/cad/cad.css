@@ -100,3 +100,28 @@
   .sheet-preview { grid-template-columns: 96px 1fr; }
   .sheet-preview img { width: 96px; }
 }
+
+/* 整える。のタブと図面 */
+.tabs-cad { display: flex; gap: 4px; padding: 3px; border-radius: 12px; background: rgba(239, 231, 214, 0.06); border: 1px solid var(--hair); position: sticky; top: -16px; z-index: 2; backdrop-filter: blur(8px); }
+.tabs-cad button { flex: 1; border: 0; background: transparent; color: var(--ivory-2); font-family: var(--serif); font-size: 14px; letter-spacing: 0.12em; padding: 7px 4px; border-radius: 9px; }
+.tabs-cad button[aria-selected="true"] { background: var(--ivory); color: #14110e; }
+.tab-body { display: grid; gap: 18px; }
+.plan-host { display: grid; gap: 6px; }
+.plan { width: 100%; aspect-ratio: 1; border-radius: 12px; background: #15130f; border: 1px solid var(--hair); touch-action: none; display: block; }
+.plan.section { aspect-ratio: 2.2; }
+.plan .g1 { stroke: rgba(239, 231, 214, 0.06); }
+.plan .g5 { stroke: rgba(239, 231, 214, 0.16); }
+.plan .body { fill: rgba(233, 196, 106, 0.1); stroke: #e9c46a; cursor: copy; }
+.plan .cp { fill: #14110e; stroke: #efe7d6; stroke-width: 0.25%; cursor: grab; vector-effect: non-scaling-stroke; }
+.plan .cp:hover { fill: #e9c46a; }
+.plan .eng { fill: none; stroke: #e0412b; stroke-linecap: round; stroke-linejoin: round; opacity: 0.9; }
+.plan .dim { fill: var(--ivory-2); font-family: var(--sans); }
+.plan .dim.faint { fill: var(--ivory-3); }
+.plan-hint { margin: 0; font-size: 11px; color: var(--ivory-3); line-height: 1.6; }
+.seg { display: flex; gap: 4px; margin-bottom: 6px; }
+.seg button, .chip-d, .ghost-d { border: 1px solid var(--hair); background: transparent; color: var(--ivory-2); border-radius: 999px; padding: 5px 12px; font-size: 12px; }
+.seg button[aria-pressed="true"] { border-color: var(--ivory); color: var(--ivory); background: rgba(239, 231, 214, 0.1); }
+.presets { margin-top: 6px; }
+.busy { position: absolute; left: 50%; top: 84px; transform: translateX(-50%); z-index: 6; margin: 0; padding: 6px 14px; border-radius: 999px; background: var(--glass); border: 1px solid var(--hair); font-size: 12px; color: var(--ivory-2); }
+.hand-panel .row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.plan { user-select: none; -webkit-user-select: none; }
