@@ -441,3 +441,33 @@ dialog.sheet input:focus { border-color: var(--accent); }
 .steps-b .past p { margin: 3px 0 0; font-size: 12px; color: var(--fg); display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
 .past p span { font-size: 10.5px; color: var(--fg-3); }
 .save-form .hint { margin: 0; }
+
+/* 職人の一言で、決まりが変わる */
+.rule-flash { margin: 0; padding: 12px 14px; border-bottom: 1px solid var(--line); background: linear-gradient(90deg, rgba(10, 132, 255, 0.16), rgba(10, 132, 255, 0.02)); animation: ruleIn 0.6s ease both; display: grid; gap: 3px; }
+.rule-flash small { font-size: 11px; color: var(--accent-2); font-weight: 600; }
+.rule-flash b { font-size: 14px; font-weight: 600; line-height: 1.5; }
+.rule-flash span { font-size: 12px; color: var(--fg-2); }
+.rule-flash em { font-style: normal; font-family: var(--mono); font-size: 14px; color: var(--fg); }
+.rule-flash em.ng { color: #ff6b61; }
+.rule-flash em.ok { color: var(--ok); }
+@keyframes ruleIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+.probs li.fresh { background: rgba(255, 69, 58, 0.07); animation: ruleIn 0.6s ease 0.15s both; }
+.new-tag { font-style: normal; font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 3px; background: var(--accent-weak); color: var(--accent-2); }
+.rules-sec textarea { width: 100%; margin: 4px 0 6px; padding: 6px 8px; border: 1px solid var(--line-2); border-radius: 5px; background: var(--field); font-size: 12px; outline: none; resize: vertical; }
+.rules-sec textarea:focus { border-color: var(--accent); }
+.rules-sec .row button { height: 28px; padding: 0 12px; border-radius: var(--r); font-size: 12px; font-weight: 600; border: 1px solid var(--line-2); background: var(--panel-2); }
+.rules-sec .row .primary { border-color: transparent; background: var(--accent); flex: 1; }
+.rules-mini { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; }
+.rules-mini li { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--field); font-size: 12px; }
+.rules-mini li:first-child { border-color: rgba(10, 132, 255, 0.45); }
+.rules-mini .v { font-family: var(--mono); color: var(--accent-2); }
+.rules-mini small { grid-column: 1 / -1; font-size: 10.5px; color: var(--fg-3); }
+.proposal-d { margin-top: 8px; padding: 10px; border: 1px solid rgba(10, 132, 255, 0.5); border-radius: 7px; background: rgba(10, 132, 255, 0.07); animation: ruleIn 0.4s ease both; }
+.proposal-d b { display: block; font-size: 13px; }
+.proposal-d p { margin: 4px 0; font-size: 12px; color: var(--fg-2); }
+.proposal-d .row { margin-top: 8px; }
+.proposal-d .row button { height: 28px; padding: 0 12px; border-radius: var(--r); font-size: 12px; font-weight: 600; border: 1px solid var(--line-2); background: var(--panel-2); }
+.proposal-d .row .primary { border-color: transparent; background: var(--accent); }
+.fix-log { margin: 10px 14px 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--field); }
+.verdict-chip.flash { animation: chipFlash 1.2s ease; }
+@keyframes chipFlash { 0% { transform: scale(1); } 20% { transform: scale(1.12); box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.08); } 100% { transform: scale(1); } }

@@ -20,7 +20,7 @@ const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
 <div class="app">
   <header class="bar">
-    <a class="brand" href="#see" aria-label="継ぐ"><span class="seal">継</span><span class="name">継ぐ</span></a>
+    <a class="brand" href="./" aria-label="継ぐ（始めの画面へ）" title="始めの画面へ"><span class="seal">継</span><span class="name">継ぐ</span></a>
     <nav class="nav" aria-label="画面">${VIEWS.filter((v) => !v.hidden).map((v) => `<a href="#${v.id}" data-view="${v.id}"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">${v.icon}</svg><span>${v.label}</span><i class="badge" hidden></i></a>`).join("")}</nav>
     <button type="button" class="ghost help" aria-label="使い方">使い方</button>
   </header>

@@ -17,7 +17,7 @@ import { rulePlans } from "../ui/design";
 import { loadPhoto } from "../ui/photo";
 import { Viewer, type DisplayMode } from "../ui/viewer";
 import { extractStone, type Extraction } from "../vision/extract";
-import { activeRules, addRule, sourceLabel, type Rule } from "../rules/ledger";
+import { PARAMS, activeRules, addRule, sourceLabel, type Rule } from "../rules/ledger";
 import { askPassword, resetPassword } from "../app/password";
 import { esc, store, today } from "../app/store";
 import { bindVoice, canListen } from "../app/voice";
@@ -462,6 +462,11 @@ function logLine(e: LogEntry) {
   const ol = $(".worklog");
   ol.hidden = false;
   const li = document.createElement("li");
+  logLineTo(li, e);
+  ol.appendChild(li);
+  ol.scrollTop = ol.scrollHeight;
+}
+function logLineTo(li: HTMLLIElement, e: LogEntry) {
   if (e.kind === "note") {
     li.className = "note";
     li.textContent = e.text.replace(/\*\*/g, "").split("\n")[0].slice(0, 120);
@@ -483,8 +488,6 @@ function logLine(e: LogEntry) {
     }
     li.textContent = text;
   }
-  ol.appendChild(li);
-  ol.scrollTop = ol.scrollHeight;
 }
 
 function stoneText(): string {
@@ -593,13 +596,15 @@ function renderCheck() {
   const box = $(".studio-refine");
   const pick = <T extends string | number>(name: string, cur: T, list: [T, string][]) =>
     `<div class="pick"><span>${name}</span><div>${list.map(([v, l]) => `<button type="button" data-k="${name}" data-v="${v}" aria-pressed="${v === cur}">${l}</button>`).join("")}</div></div>`;
+  const fresh = lastRule ? new Set<string>(lastRule.checks) : new Set<string>();
   box.innerHTML = `
+    ${lastRule ? `<section class="rule-flash"><small>${esc(lastRule.by)}さんの決まりで、確かめ直しました</small><b>「${esc(lastRule.quote)}」</b><span>作れない所 <em>${lastRule.before}</em> → <em class="${lastRule.after ? "ng" : "ok"}">${lastRule.after}</em>${lastRule.after && probs.length < lastRule.after ? ` → 直して <em class="${probs.length ? "ng" : "ok"}">${probs.length}</em>` : ""}</span></section>` : ""}
     <section class="big-verdict ${probs.length ? "ng" : "ok"}"><b>${probs.length ? "このままでは作れません" : "このまま作れます"}</b><small>${probs.length ? `直す所 ${probs.length}` : `爪・留まり・すき間・角、すべて目安の内側`}</small></section>
     ${
       probs.length
         ? `<ul class="probs">${probs
             .map(
-              ({ p, n }, i) => `<li><div class="p-head"><b>${esc(SHORT[p.check] ?? p.where)}</b>${n > 1 ? `<small>${n} か所</small>` : ""}</div>
+              ({ p, n }, i) => `<li class="${fresh.has(p.check) ? "fresh" : ""}"><div class="p-head"><b>${esc(SHORT[p.check] ?? p.where)}</b>${n > 1 ? `<small>${n} か所</small>` : ""}${fresh.has(p.check) ? `<i class="new-tag">新しい決まり</i>` : ""}</div>
               <p class="p-num">${esc(p.current)} <span>→</span> ${esc(p.required)}</p>
               <div class="p-act"><button type="button" class="fix-go" data-p="${i}">${esc(p.options[0]?.label ?? "直す")}</button><details><summary>なぜ</summary><p>${esc(p.reason)}</p></details></div></li>`,
             )
@@ -617,7 +622,12 @@ function renderCheck() {
         <label><span>号</span><input type="range" class="r-gou" min="5" max="25" step="1" value="${s.gou}"><output>${s.gou} 号</output></label>
       </div>
     </details>
+    ${probs.length ? `<button type="button" class="next-btn claude-fix">Claude に直してもらう</button>` : ""}
+    ${fixLog.length ? `<ol class="worklog fix-log">${fixLog.map((l) => `<li class="${l.cls}">${esc(l.text)}</li>`).join("")}</ol>` : ""}
+    ${rulesSectionHtml()}
     <button type="button" class="next-btn to-build">作り方を見る →</button>`;
+  bindRules(box);
+  box.querySelector(".claude-fix")?.addEventListener("click", () => void fixWithClaude());
   box.querySelectorAll<HTMLButtonElement>(".fix-go").forEach((btn) =>
     btn.addEventListener("click", () => {
       const { p } = probs[Number(btn.dataset.p)];
@@ -917,13 +927,89 @@ function propose(slot: HTMLElement, p: ProposeRuleInput, name: string): Promise<
       store.setLedger(next);
       const id = next.rules[next.rules.length - 1].id;
       resolve({ status: "accepted", rule_id: id });
+      lastRule = { by: name, quote: p.quote || p.text, before: session?.built ? grouped(session.built).length : before, after: 0, checks: p.param ? [...PARAMS[p.param].checks] : [] };
+      fixLog = [];
+      ruleDraft = "";
       const after = session ? session.build("帳面が変わった").problems.length : 0;
+      lastRule.after = session?.built ? grouped(session.built).length : after;
+      if (!$(".studio-refine").hidden) renderCheck();
       toast(p.param ? `${name}さんの決まりで確かめ直しました：作れない所 ${before} → ${after}` : `${name}さんの決まりを帳面に足しました`);
+      flashVerdict();
       bookCount();
-      renderBook();
     });
   });
 }
+// ---- 職人の一言で、設計の決まりが変わる（確かめるの中） ----
+let lastRule: { by: string; quote: string; before: number; after: number; checks: string[] } | null = null;
+let fixLog: { text: string; cls: string }[] = [];
+let ruleDraft = "";
+function rulesSectionHtml(): string {
+  const name = masterName(store.ledger());
+  const mine = activeRules(store.ledger()).filter((r) => r.source.kind === "craftsman");
+  return `<section class="sec rules-sec"><h4>職人の決まり<small>${mine.length} 件</small></h4>
+    <p class="hint">話すと、Claude が決まりの案にします。「これでいい」を押すと、その場で確かめ直します。</p>
+    <textarea rows="2" class="ar-text" placeholder="例：石の一番下と指の間は 2.5 mm は空ける。汗がたまるから">${esc(ruleDraft)}</textarea>
+    <div class="row"><button type="button" class="ghost-d ar-mic">話す</button><button type="button" class="primary ar-go">決まりにする</button></div>
+    <div class="ar-proposal"></div>
+    ${mine.length ? `<ul class="rules-mini">${mine
+      .slice()
+      .reverse()
+      .map((r) => `<li><b>${esc(r.title)}</b>${r.param && r.value !== undefined ? `<span class="v">${r.value} ${esc(PARAMS[r.param].unit)}</span>` : ""}${r.quote ? `<small>「${esc(r.quote)}」</small>` : ""}<small>${esc(name)} ・ ${esc(r.date)}</small></li>`)
+      .join("")}</ul>` : ""}
+  </section>`;
+}
+function bindRules(box: HTMLElement) {
+  const field = box.querySelector<HTMLTextAreaElement>(".ar-text");
+  if (!field) return;
+  field.addEventListener("input", () => (ruleDraft = field.value));
+  const voice = bindVoice(box.querySelector<HTMLButtonElement>(".ar-mic")!, field);
+  box.querySelector(".ar-go")!.addEventListener("click", () => {
+    voice.stop();
+    ruleDraft = field.value;
+    void addRuleFromWords(field.value.trim());
+  });
+}
+function flashVerdict() {
+  const c = $(".verdict-chip");
+  c.classList.remove("flash");
+  void c.offsetWidth;
+  c.classList.add("flash");
+}
+/** 新しい決まりに合うように、Claude に直してもらう（作業は確かめるの中に一行ずつ） */
+async function fixWithClaude() {
+  if (!session || !stone || making) return;
+  const pass = store.password() || (await askPassword());
+  if (!pass) return;
+  making = true;
+  fixLog = [{ text: "Claude が、帳面の決まりに合うように直しています…", cls: "note" }];
+  renderCheck();
+  const r = await runClaude({
+    host: session,
+    messages: [{ role: "user", content: `${stoneText()}\n今の形のまま、帳面の決まりに合わない所だけを直してください。まず check で確かめ、直したらもう一度 check で確かめます。見た目はなるべく変えません。最後に、何をなぜ変えたかを 1〜2 行で書いてください。` }],
+    system: designPrompt(store.ledger()),
+    tools: TOOLS.filter((t) => ["set_setting", "set_shank", "check"].includes(t.name)),
+    password: pass,
+    speed: "fast",
+    maxTurns: 6,
+    onLog: (e) => {
+      if (e.kind === "note") fixLog.push({ text: e.text.replace(/\*\*/g, "").split("\n")[0].slice(0, 120), cls: "note" });
+      else {
+        const li = document.createElement("li");
+        logLineTo(li, e);
+        fixLog.push({ text: li.textContent ?? "", cls: li.className });
+      }
+      renderCheck();
+    },
+  });
+  making = false;
+  if (r.offline || (r.error && !r.log.length)) {
+    if (r.error?.code === "wrong_password") resetPassword();
+    fixLog.push({ text: `Claude につながりませんでした。${r.error?.message ?? ""}`, cls: "ng" });
+  }
+  renderCheck();
+  flashVerdict();
+}
+
 function toast(t: string) {
   const el = document.createElement("div");
   el.className = "toast";
@@ -1393,7 +1479,12 @@ $(".act-why").addEventListener("click", () => {
 });
 if (location.hash === "#why") openWhy();
 // 動画を 1 コマずつ撮るとき（?rec）：3D をページの外から回せるようにする
-if (new URLSearchParams(location.search).has("rec")) (window as unknown as { __viewer: Viewer }).__viewer = viewer;
+if (new URLSearchParams(location.search).has("rec")) {
+  const w = window as unknown as { __viewer: Viewer; __propose: (p: ProposeRuleInput) => Promise<ProposeRuleResult> };
+  w.__viewer = viewer;
+  // 画面の確かめ用：Claude の決まりの案の代わりに、案を直接出す（本番の動画には使わない）
+  w.__propose = (p) => propose($(".ar-proposal"), p, masterName(store.ledger()));
+}
 
 setMode("make");
 bookCount();
