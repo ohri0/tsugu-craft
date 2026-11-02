@@ -1,6 +1,7 @@
-// かんたん CAD：生む。（言葉から形）→ 整える。（点を動かす・断面を描く・技法・彫る）→ 渡す。（3D データ・図面・作り方）
-// 黒い撮影台の真ん中に品を置き、言葉と数字は少なく、静かに。
-import "../app/app.css";
+// 技法の面（かんたん CAD）：生む（言葉から形）→ 整える（点を動かす・断面を描く・技法・彫る）→ 渡す（3D データ・図面）
+// 見た目は継ぐのエディター（studio.html）と同じ：上の帯・左の道具・真ん中の 3D・右の性質・下の希望の欄と状態の帯。
+// 色の名前と部品の形は src/studio/pro.css をそのまま使い、この画面だけの部品を cad.css に足す。
+import "../studio/pro.css";
 import "./cad.css";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
@@ -19,11 +20,24 @@ import { DEFAULT_PARAMS, METALS, MOKUME_PALETTES, TECHNIQUES, makeSurface, type 
 
 type Mode = "make" | "refine" | "hand";
 type Tab = "shape" | "tech" | "engrave";
-const MODES: { id: Mode; word: string; sub: string }[] = [
-  { id: "make", word: "生む。", sub: "言葉から形へ" },
-  { id: "refine", word: "整える。", sub: "点を動かし、技法を選ぶ" },
-  { id: "hand", word: "渡す。", sub: "3D データと図面" },
+type View = "angle" | "top" | "front" | "side";
+type Disp = "wire" | "shaded" | "render";
+const MODES: { id: Mode; word: string; key: string; sub: string }[] = [
+  { id: "make", word: "生む", key: "1", sub: "言葉から形へ" },
+  { id: "refine", word: "整える", key: "2", sub: "点を動かし、技法を選ぶ" },
+  { id: "hand", word: "渡す", key: "3", sub: "3D データと図面" },
 ];
+const VIEWS: Record<View, string> = { angle: "斜め", top: "上", front: "正面", side: "横" };
+const DISPS: Record<Disp, string> = { wire: "ワイヤー", shaded: "シェード", render: "レンダー" };
+/** 左の道具の絵（線だけ） */
+const ICON = {
+  angle: `<svg viewBox="0 0 20 20"><path d="M10 2.5 17 6.3v7.4L10 17.5 3 13.7V6.3z"/><path d="M3 6.3 10 10l7-3.7M10 10v7.5"/></svg>`,
+  top: `<svg viewBox="0 0 20 20"><rect x="3.5" y="3.5" width="13" height="13" rx="1.5"/><circle cx="10" cy="10" r="1.2"/></svg>`,
+  front: `<svg viewBox="0 0 20 20"><rect x="3.5" y="6" width="13" height="8" rx="1.5"/><path d="M3.5 10h13"/></svg>`,
+  side: `<svg viewBox="0 0 20 20"><rect x="7" y="3.5" width="6" height="13" rx="1.5"/><path d="M10 3.5v13"/></svg>`,
+  spin: `<svg viewBox="0 0 20 20"><path d="M16 10a6 6 0 1 1-2-4.5"/><path d="M14.5 2.8 14 5.6l-2.8-.4"/></svg>`,
+  fit: `<svg viewBox="0 0 20 20"><path d="M3.5 7.5v-4h4M12.5 3.5h4v4M16.5 12.5v4h-4M7.5 16.5h-4v-4"/></svg>`,
+};
 const EXAMPLES = ["銅と赤銅の木目金で、梅の帯留め", "赤銅に魚々子を打った、丸いペンダント", "鉄に金の布目象嵌、角丸の鍔の地板", "銀の鎚目の、幅広の平打ちの指輪"];
 
 let d: Design = initial();
@@ -39,28 +53,42 @@ function initial(): Design {
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
-<div class="cad dark">
-  <div class="gl"></div>
-  <header class="cad-top">
-    <a class="brand" href="./"><span class="seal">継</span><span class="name">継ぐ</span></a>
-    <nav class="modes">${MODES.map((m) => `<button type="button" data-mode="${m.id}">${m.word}</button>`).join("")}</nav>
+<div class="pro cad" data-mode="make">
+  <header class="tb">
+    <div class="tb-l"><a class="brand" href="./"><span class="logo">継</span>継ぐ</a><span class="doc"><span class="doc-k">技法の面</span><span class="word-name"></span></span></div>
+    <nav class="tabs" aria-label="場面">${MODES.map((m) => `<button type="button" data-mode="${m.id}" title="${m.sub}（${m.key}）">${m.word}<span class="k">${m.key}</span></button>`).join("")}</nav>
+    <div class="tb-r"><a class="btn quiet" href="studio.html" title="一粒石の指輪のエディターへ">エディター</a><button type="button" class="btn act-svg hide-sm">原寸の図面</button><button type="button" class="btn primary act-stl">STL</button></div>
   </header>
-  <div class="word"><h1></h1><p class="word-sub"></p><p class="word-name"></p></div>
-  <dl class="specs"></dl>
-  <div class="reason" hidden></div>
-  <p class="busy" hidden><span class="pulse"></span><span class="busy-t"></span></p>
-  <div class="make-bar">
-    <form class="prompt"><input type="text" placeholder="どんな品を作りますか" aria-label="作りたい品"><button type="submit">生む</button></form>
-    <div class="ideas"></div>
-    <p class="make-status"></p>
-  </div>
-  <aside class="refine-panel" hidden>
-    <div class="tabs-cad" role="tablist">
-      <button type="button" data-tab="shape">形</button><button type="button" data-tab="tech">技法</button><button type="button" data-tab="engrave">彫る</button>
+  <nav class="tools" aria-label="見る">
+    ${(Object.keys(VIEWS) as View[]).map((v) => `<button type="button" class="tool view-btn" data-view="${v}" data-tip="${VIEWS[v]}" aria-label="${VIEWS[v]}">${ICON[v]}</button>`).join("")}
+    <hr>
+    <button type="button" class="tool t-spin" data-tip="回す" aria-label="回す" aria-pressed="false">${ICON.spin}</button>
+    <button type="button" class="tool t-fit" data-tip="全体を見る" aria-label="全体を見る">${ICON.fit}</button>
+  </nav>
+  <section class="vp">
+    <div class="gl"></div>
+    <div class="vp-tl"><b class="vp-view">斜め</b><div class="disp" role="group" aria-label="表示">${(Object.keys(DISPS) as Disp[]).map((k) => `<button type="button" data-disp="${k}" aria-pressed="${k === "render"}">${DISPS[k]}</button>`).join("")}</div></div>
+    <div class="verdict-chip none" title="この技法の職人の決まりは、まだ帳面にありません。職人に聞いて残すと、ここで確かめられます。">決まりはまだ帳面にない</div>
+    <p class="busy" hidden><span class="pulse"></span><span class="busy-t"></span></p>
+  </section>
+  <aside class="insp">
+    <div class="insp-head"><b class="vp-mode"></b><small class="word-sub"></small></div>
+    <div class="pane make-panel">
+      <section class="sec"><h4>例</h4><div class="presets ideas"></div><p class="hint">下の欄に作りたい品を書いて「生む」。Claude が形・技法・地金を決めます。合言葉がなくても「整える」で手で作れます。</p></section>
+      <section class="sec reason-sec" hidden><h4>Claude の考え</h4><div class="reason"></div></section>
+      <section class="sec"><h4>いまの形</h4><dl class="spec-list"></dl></section>
+      <p class="make-note" hidden></p>
     </div>
-    <div class="tab-body"></div>
+    <div class="pane refine-panel" hidden>
+      <div class="seg tabs-cad" role="group" aria-label="整える">
+        <button type="button" data-tab="shape">形</button><button type="button" data-tab="tech">技法</button><button type="button" data-tab="engrave">彫る</button>
+      </div>
+      <div class="tab-body"></div>
+    </div>
+    <div class="pane hand-panel" hidden></div>
   </aside>
-  <div class="hand-panel" hidden></div>
+  <div class="cmd-wrap"><form class="prompt command"><span class="cmd-label">希望</span><input type="text" class="wish" placeholder="例：銅と赤銅の木目金で、梅の帯留め" aria-label="作りたい品"><kbd>⏎</kbd><button type="submit">生む</button></form></div>
+  <footer class="sb"><p class="make-status"></p><dl class="specs"></dl></footer>
 </div>`;
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector<T>(s)!;
 
@@ -74,7 +102,7 @@ host.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 const pmrem = new THREE.PMREMGenerator(renderer);
 scene.environment = pmrem.fromScene(studioScene(), 0.015).texture;
-scene.background = stageTexture();
+scene.background = new THREE.Color(0x1b1c1e);
 const camera = new THREE.PerspectiveCamera(28, 1, 0.1, 2000);
 camera.up.set(0, 0, 1);
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -87,16 +115,12 @@ rim.position.set(-30, 40, 30);
 scene.add(rim);
 let dirty = true;
 controls.addEventListener("change", () => (dirty = true));
-/** スマホで下から板が出ている間は、品を上に寄せて見せる */
-let lift = 0;
 let framedFor = "";
 function resize() {
   const w = host.clientWidth || 1;
   const h = host.clientHeight || 1;
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
-  if (lift > 0) camera.setViewOffset(w, h, 0, h * lift, w, h);
-  else camera.clearViewOffset();
   camera.updateProjectionMatrix();
   dirty = true;
 }
@@ -113,25 +137,35 @@ new ResizeObserver(() => {
   requestAnimationFrame(loop);
 })();
 
-function stageTexture(): THREE.Texture {
-  const c = document.createElement("canvas");
-  c.width = c.height = 512;
-  const g = c.getContext("2d")!;
-  const grad = g.createRadialGradient(256, 230, 10, 256, 256, 400);
-  grad.addColorStop(0, "#2a2724");
-  grad.addColorStop(1, "#0b0a09");
-  g.fillStyle = grad;
-  g.fillRect(0, 0, 512, 512);
-  const t = new THREE.CanvasTexture(c);
-  t.colorSpace = THREE.SRGBColorSpace;
-  return t;
-}
-
 // ---- 形を作って置く ----
 let surfaceKey = "";
 let surface: Surface | null = null;
+/** いまの面の絵が、つまみを動かしている間の粗い絵か */
+let surfaceDraft = false;
 let mesh: THREE.Mesh | null = null;
 let lastVolume = 0;
+let disp: Disp = "render";
+let view: View = "angle";
+/** シェード（灰色の面）とワイヤー（網目の線）の材質。エディターの表示と同じ色 */
+const SHADED = new THREE.MeshStandardMaterial({ color: 0x9c9da2, roughness: 0.65, metalness: 0, envMapIntensity: 0.15, side: THREE.DoubleSide });
+const WIRE = new THREE.MeshBasicMaterial({ color: 0xd8d8dc, wireframe: true, transparent: true, opacity: 0.07, depthWrite: false });
+const EDGE = new THREE.LineBasicMaterial({ color: 0xd8d8dc, transparent: true, opacity: 0.9 });
+/** ワイヤーで見せる線。本当の網目（0.1〜0.2 mm）は細かすぎて面に見えるので、動かしている間の粗い網目（0.5 mm ほど、起伏なし）から、
+ *  折れ目の線（ふち・角）をはっきり、網目をうすく見せる */
+let wireMesh: THREE.Group | null = null;
+function wireOf(): THREE.Group {
+  if (wireMesh) return wireMesh;
+  const b = buildDesign(d, true);
+  let g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(b.positions, 3));
+  if (b.indices) g.setIndex(new THREE.BufferAttribute(b.indices, 1));
+  else g = mergeVertices(g, 1e-4);
+  wireMesh = new THREE.Group();
+  wireMesh.add(new THREE.Mesh(g, WIRE), new THREE.LineSegments(new THREE.EdgesGeometry(g, d.kind === "ring" ? 20 : 40), EDGE));
+  wireMesh.rotation.copy(mesh!.rotation);
+  content.add(wireMesh);
+  return wireMesh;
+}
 
 function texture(c: HTMLCanvasElement, srgb: boolean, s: Surface) {
   const t = new THREE.CanvasTexture(c);
@@ -150,10 +184,12 @@ function build(coarse = false) {
   if (b.indices) geo.setIndex(new THREE.BufferAttribute(b.indices, 1));
   else if (!coarse) geo = mergeVertices(geo, 1e-4);
   geo.computeVertexNormals();
+  // 面の絵：つまみを動かしている間は粗く速く、止まったら細かく作り直す
   const k = JSON.stringify([d.tech, d.metal, d.palette, d.tp]);
-  if (k !== surfaceKey) {
-    surface = makeSurface(d.tech, d.metal, d.tp, MOKUME_PALETTES[d.palette].colors);
+  if (k !== surfaceKey || (surfaceDraft && !coarse)) {
+    surface = makeSurface(d.tech, d.metal, d.tp, MOKUME_PALETTES[d.palette].colors, coarse);
     surfaceKey = k;
+    surfaceDraft = coarse;
   }
   const s = surface!;
   // 粒・叩きは形そのものに入っているので、凹凸の絵は使わない
@@ -171,11 +207,18 @@ function build(coarse = false) {
   if (mesh) {
     content.remove(mesh);
     mesh.geometry.dispose();
-    (mesh.material as THREE.Material).dispose();
+    (mesh.userData.render as THREE.Material).dispose();
+  }
+  if (wireMesh) {
+    content.remove(wireMesh);
+    wireMesh.traverse((o) => (o as THREE.Mesh).geometry?.dispose());
+    wireMesh = null;
   }
   mesh = new THREE.Mesh(geo, mat);
+  mesh.userData.render = mat;
   if (d.kind === "plate") mesh.rotation.x = Math.PI * 0.32;
   content.add(mesh);
+  applyDisp();
   if (!coarse) {
     // 体積：番号つき（指輪）は三角形に開いて測る
     let tris = b.positions;
@@ -190,16 +233,22 @@ function build(coarse = false) {
   specs();
 }
 
+/** 見る向き（品の向きで決める。板は斜めに起こして置いているので、その分も回す） */
+function viewDir(): THREE.Vector3 {
+  if (view === "angle") return d.kind === "ring" ? new THREE.Vector3(0.95, -1.15, 0.55) : new THREE.Vector3(0.25, -1.3, 0.35);
+  const local = { top: new THREE.Vector3(0, -0.002, 1), front: new THREE.Vector3(0, -1, 0.002), side: new THREE.Vector3(1, 0, 0.002) }[view];
+  return mesh && d.kind === "plate" ? local.applyQuaternion(mesh.quaternion) : local;
+}
 function frame() {
   if (!mesh) return;
-  const fk = `${d.kind}-${d.shape}-${lift}`;
+  const fk = `${d.kind}-${d.shape}-${view}`;
   if (framedFor === fk) return;
   framedFor = fk;
   const box = new THREE.Box3().setFromObject(mesh);
   const size = box.getSize(new THREE.Vector3()).length();
   const c = box.getCenter(new THREE.Vector3());
   controls.target.copy(c);
-  const dir = d.kind === "ring" ? new THREE.Vector3(0.95, -1.15, 0.55) : new THREE.Vector3(0.25, -1.3, 0.35);
+  const dir = viewDir();
   const fit = camera.aspect < 1 ? Math.min(2.2, 1 / camera.aspect) : 1;
   camera.position.copy(c).add(dir.normalize().multiplyScalar(size * 2.3 * fit));
   camera.near = size / 50;
@@ -207,6 +256,41 @@ function frame() {
   camera.updateProjectionMatrix();
   dirty = true;
 }
+
+/** 表示の仕方：レンダー（写真のよう）・シェード（灰色の面）・ワイヤー（形を作っている三角形の線） */
+function applyDisp() {
+  if (!mesh) return;
+  mesh.material = disp === "shaded" ? SHADED : (mesh.userData.render as THREE.Material);
+  mesh.visible = disp !== "wire";
+  if (disp === "wire") wireOf().visible = true;
+  else if (wireMesh) wireMesh.visible = false;
+  dirty = true;
+}
+document.querySelectorAll<HTMLButtonElement>(".disp button").forEach((b) =>
+  b.addEventListener("click", () => {
+    disp = b.dataset.disp as Disp;
+    document.querySelectorAll<HTMLButtonElement>(".disp button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    applyDisp();
+  }),
+);
+function setView(v: View) {
+  view = v;
+  $(".vp-view").textContent = VIEWS[v];
+  document.querySelectorAll<HTMLButtonElement>(".view-btn").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === v)));
+  if (v !== "angle") setSpin(false);
+  framedFor = "";
+  frame();
+}
+function setSpin(on: boolean) {
+  controls.autoRotate = on;
+  $(".t-spin").setAttribute("aria-pressed", String(on));
+}
+document.querySelectorAll<HTMLButtonElement>(".view-btn").forEach((b) => b.addEventListener("click", () => setView(b.dataset.view as View)));
+$(".t-spin").addEventListener("click", () => setSpin(!controls.autoRotate));
+$(".t-fit").addEventListener("click", () => {
+  framedFor = "";
+  frame();
+});
 
 // ---- 数字（少なく、単位つき） ----
 function weightG() {
@@ -230,7 +314,9 @@ function specs() {
   }
   rows.push(...techSpec());
   rows.push(["重さ", `約 ${weightG().toFixed(1)} g`]);
-  $(".specs").innerHTML = rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("");
+  const html = rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("");
+  $(".specs").innerHTML = html;
+  document.querySelectorAll(".spec-list").forEach((el) => (el.innerHTML = html));
   $(".word-name").textContent = d.name || autoName();
 }
 function techSpec(): [string, string][] {
@@ -274,27 +360,38 @@ function busy(on: boolean, text = "") {
 }
 
 // ---- 場面 ----
+let mode: Mode = "make";
 function setMode(m: Mode) {
+  mode = m;
   const w = MODES.find((x) => x.id === m)!;
-  $(".word h1").textContent = w.word;
+  $(".vp-mode").textContent = w.word;
   $(".word-sub").textContent = w.sub;
-  document.querySelectorAll<HTMLButtonElement>(".modes button").forEach((b) => b.setAttribute("aria-current", String(b.dataset.mode === m)));
-  $(".make-bar").hidden = m !== "make";
+  document.querySelectorAll<HTMLButtonElement>(".tabs button").forEach((b) => b.setAttribute("aria-current", String(b.dataset.mode === m)));
+  $(".make-panel").hidden = m !== "make";
   $(".refine-panel").hidden = m !== "refine";
   $(".hand-panel").hidden = m !== "hand";
   $(".cad").setAttribute("data-mode", m);
-  $(".reason").style.display = m === "make" ? "" : "none";
-  controls.autoRotate = m === "make";
-  lift = m === "refine" && window.innerWidth <= 760 ? 0.24 : 0;
-  resize();
-  framedFor = "";
-  frame();
+  setSpin(m === "make" && view === "angle");
   if (m === "refine") renderTab();
   if (m === "hand") renderHand();
 }
-document.querySelectorAll<HTMLButtonElement>(".modes button").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode as Mode)));
+document.querySelectorAll<HTMLButtonElement>(".tabs button").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode as Mode)));
+// 1・2・3 で場面を変える（文字を打っている間は使わない）
+window.addEventListener("keydown", (e) => {
+  const t = e.target as HTMLElement;
+  if (e.metaKey || e.ctrlKey || e.altKey || t.closest("input, textarea, select, [contenteditable]")) return;
+  const m = MODES.find((x) => x.key === e.key);
+  if (m) setMode(m.id);
+});
+/** Claude の様子（机では下の帯、スマホでは右の欄にも） */
+function status(html: string) {
+  $(".make-status").innerHTML = html;
+  const note = $(".make-note");
+  note.innerHTML = html;
+  note.hidden = !html;
+}
 
-// ---- 生む。 ----
+// ---- 生む ----
 $(".ideas").innerHTML = EXAMPLES.map((e) => `<button type="button">${esc(e)}</button>`).join("");
 document.querySelectorAll<HTMLButtonElement>(".ideas button").forEach((b) =>
   b.addEventListener("click", () => {
@@ -310,33 +407,33 @@ let making = false;
 async function make() {
   const text = $<HTMLInputElement>(".prompt input").value.trim();
   if (!text || making) return;
-  const st = $(".make-status");
   const pass = store.password() || (await askPassword());
   if (!pass) {
-    st.textContent = "生むには Claude が要ります。合言葉を入れてください（整える。では手で作れます）。";
+    status("生むには Claude が要ります。合言葉を入れてください（「整える」では手で作れます）。");
     return;
   }
   making = true;
-  st.innerHTML = `<span class="pulse"></span> Claude が形を考えています…`;
+  status(`<span class="pulse"></span> Claude が形を考えています…`);
   const r = await callTool<Design>({ system: designPrompt(ledgerText(store.ledger())), user: text, tool: MAKE_DESIGN, parse: (x) => designFromTool(x, d.tp.seed), password: pass, speed: "fast" });
   making = false;
   if (!r.ok) {
     if (r.code === "wrong_password") resetPassword();
-    st.textContent = r.error;
+    status(esc(r.error));
     return;
   }
   history.push(d);
   d = r.value;
   framedFor = "";
   rebuild(false);
-  st.textContent = r.remaining !== undefined ? `今日あと ${r.remaining} 回` : "";
+  status(r.remaining !== undefined ? `今日あと ${r.remaining} 回` : "");
+  if (mode !== "make") setMode("make");
   showReason();
 }
 function showReason() {
   const box = $(".reason");
-  box.hidden = !d.reason;
+  $(".reason-sec").hidden = !d.reason;
   box.innerHTML = d.reason
-    ? `<p>${esc(d.reason)}</p>${d.cannotDo ? `<p class="cannot">まだ作れないこと：${esc(d.cannotDo)}</p>` : ""}<button type="button" class="link to-refine">整える →</button>${history.length ? `<button type="button" class="link undo">ひとつ前に戻す</button>` : ""}`
+    ? `<p>${esc(d.reason)}</p>${d.cannotDo ? `<p class="cannot">まだ作れないこと：${esc(d.cannotDo)}</p>` : ""}<div class="row"><button type="button" class="link to-refine">整える →</button>${history.length ? `<button type="button" class="link undo">ひとつ前に戻す</button>` : ""}</div>`
     : "";
   box.querySelector(".to-refine")?.addEventListener("click", () => setMode("refine"));
   box.querySelector(".undo")?.addEventListener("click", () => {
@@ -347,7 +444,7 @@ function showReason() {
   });
 }
 
-// ---- 整える。 ----
+// ---- 整える ----
 document.querySelectorAll<HTMLButtonElement>(".tabs-cad button").forEach((b) =>
   b.addEventListener("click", () => {
     tab = b.dataset.tab as Tab;
@@ -363,7 +460,7 @@ function formIcon(id: FormId): string {
 const swatches = new Map<TechniqueId, string>();
 function swatch(t: TechniqueId): string {
   if (swatches.has(t)) return swatches.get(t)!;
-  const s = makeSurface(t, TECHNIQUES.find((x) => x.id === t)!.metals[0], { ...DEFAULT_PARAMS }, MOKUME_PALETTES[0].colors);
+  const s = makeSurface(t, TECHNIQUES.find((x) => x.id === t)!.metals[0], { ...DEFAULT_PARAMS }, MOKUME_PALETTES[0].colors, true);
   const c = document.createElement("canvas");
   c.width = c.height = 96;
   const g = c.getContext("2d")!;
@@ -406,14 +503,14 @@ let planEditor: ReturnType<typeof mountOutlineEditor> | null = null;
 function renderTab() {
   if (tab === "engrave" && d.kind === "ring") tab = "shape";
   document.querySelectorAll<HTMLButtonElement>(".tabs-cad button").forEach((b) => {
-    b.setAttribute("aria-selected", String(b.dataset.tab === tab));
+    b.setAttribute("aria-pressed", String(b.dataset.tab === tab));
     b.hidden = b.dataset.tab === "engrave" && d.kind === "ring";
   });
   const body = $(".tab-body");
   planEditor = null;
   if (tab === "shape") {
-    body.innerHTML = `<section><h3>元の形</h3><div class="forms">${FORMS.map((f) => `<button type="button" data-f="${f.id}" aria-pressed="${f.id === d.shape}"><span class="ico">${formIcon(f.id)}</span><b>${f.name}</b></button>`).join("")}</div></section>
-      <section class="editor-sec"></section><section class="size-sec"></section>`;
+    body.innerHTML = `<section class="sec"><h4>元の形</h4><div class="forms">${FORMS.map((f) => `<button type="button" data-f="${f.id}" aria-pressed="${f.id === d.shape}"><span class="ico">${formIcon(f.id)}</span><b>${f.name}</b></button>`).join("")}</div></section>
+      <section class="sec editor-sec"></section><section class="sec size-sec"></section>`;
     body.querySelectorAll<HTMLButtonElement>(".forms button").forEach((b) =>
       b.addEventListener("click", () => {
         const f = b.dataset.f as FormId;
@@ -436,7 +533,7 @@ function renderTab() {
 
 function shapePlate(body: HTMLElement) {
   const ed = body.querySelector<HTMLElement>(".editor-sec")!;
-  ed.innerHTML = `<h3>図面（上から）</h3><div class="plan-host"></div>`;
+  ed.innerHTML = `<h4>図面（上から）</h4><div class="plan-host"></div>`;
   planEditor = mountOutlineEditor(ed.querySelector(".plan-host")!, () => d, (live) => rebuild(live), (): EditMode => "shape");
   planEditor.refresh();
   let base = measureOutline(outlineOf(d)).long;
@@ -459,18 +556,18 @@ function shapePlate(body: HTMLElement) {
     { label: "ふちの丸め", min: 0, max: 1.5, step: 0.05, unit: " mm", get: () => d.edgeRadius, set: (v) => (d.edgeRadius = Math.min(v, d.thickness * 0.45)) },
   ];
   const sz = body.querySelector<HTMLElement>(".size-sec")!;
-  sz.innerHTML = `<h3>大きさ</h3>${sliders(list)}`;
+  sz.innerHTML = `<h4>大きさ</h4>${sliders(list)}`;
   wireSliders(sz, list, () => planEditor?.refresh());
 }
 
 function shapeRing(body: HTMLElement) {
   const ed = body.querySelector<HTMLElement>(".editor-sec")!;
   const sec = () => (ringSide === "top" ? d.top : d.bottom);
-  ed.innerHTML = `<h3>断面</h3>
-    <div class="seg"><button type="button" data-side="top">上（飾りの側）</button><button type="button" data-side="bottom">下（手のひらの側）</button></div>
+  ed.innerHTML = `<h4>断面</h4>
+    <div class="seg side-seg"><button type="button" data-side="top">上（飾りの側）</button><button type="button" data-side="bottom">下（手のひらの側）</button></div>
     <div class="sec-host"></div>
-    <div class="row presets">${(["kouman", "hirauchi", "kamaboko"] as const).map((k) => `<button type="button" class="chip-d" data-p="${k}">${{ kouman: "甲丸", hirauchi: "平打ち", kamaboko: "かまぼこ" }[k]}</button>`).join("")}</div>`;
-  ed.querySelectorAll<HTMLButtonElement>(".seg button").forEach((b) => {
+    <div class="presets">${(["kouman", "hirauchi", "kamaboko"] as const).map((k) => `<button type="button" data-p="${k}">${{ kouman: "甲丸", hirauchi: "平打ち", kamaboko: "かまぼこ" }[k]}</button>`).join("")}</div>`;
+  ed.querySelectorAll<HTMLButtonElement>(".side-seg button").forEach((b) => {
     b.setAttribute("aria-pressed", String(b.dataset.side === ringSide));
     b.addEventListener("click", () => ((ringSide = b.dataset.side as "top" | "bottom"), renderTab()));
   });
@@ -491,7 +588,7 @@ function shapeRing(body: HTMLElement) {
     { label: "上の断面の広さ", min: 0, max: 300, step: 5, unit: "°", get: () => d.blendDeg, set: (v) => (d.blendDeg = v) },
   ];
   const sz = body.querySelector<HTMLElement>(".size-sec")!;
-  sz.innerHTML = `<h3>大きさ</h3>${sliders(list)}<p class="tech-what">上と下で断面を変えると、その間はなめらかにつながります。</p>`;
+  sz.innerHTML = `<h4>大きさ</h4>${sliders(list)}<p class="tech-what">上と下で断面を変えると、その間はなめらかにつながります。</p>`;
   wireSliders(sz, list, () => se.refresh());
 }
 
@@ -501,7 +598,7 @@ function techTab(body: HTMLElement) {
   const techList: Record<TechniqueId, Slider[]> = {
     plain: [],
     mokume: [
-      { label: "層の数", min: 4, max: 40, step: 1, unit: " 層", get: () => tp.layers, set: (v) => (tp.layers = v) },
+      { label: "層の数", min: 4, max: 60, step: 1, unit: " 層", get: () => tp.layers, set: (v) => (tp.layers = v) },
       { label: "彫る深さ", min: 0.1, max: 0.95, step: 0.05, unit: "%", get: () => tp.depth, set: (v) => (tp.depth = v) },
       { label: "彫る数", min: 4, max: 40, step: 1, unit: " か所", get: () => tp.pits, set: (v) => (tp.pits = v) },
     ],
@@ -522,10 +619,10 @@ function techTab(body: HTMLElement) {
           .concat((["k18", "pt", "sv", "copper", "shakudo", "shibuichi", "iron"] as MetalId[]).filter((m) => !t.metals.includes(m)))
           .map((m) => `<button type="button" data-m="${m}" aria-pressed="${m === d.metal}"><span class="dots"><i style="background:${METALS[m].color}"></i></span>${METALS[m].name}</button>`)
           .join("");
-  body.innerHTML = `<section><h3>技法</h3><div class="techs-grid">${TECHNIQUES.map((x) => `<button type="button" data-t="${x.id}" aria-pressed="${x.id === d.tech}"><img alt="" src="${swatch(x.id)}"><b>${x.name}</b></button>`).join("")}</div><p class="tech-what">${esc(t.what)}</p></section>
-    <section><h3>${d.tech === "mokume" ? "重ねる金属" : "地金"}</h3><div class="metals">${metalsHtml}</div></section>
-    ${techList[d.tech].length ? `<section class="tsl"><h3>技法の細かさ</h3>${sliders(techList[d.tech])}${d.tech === "mokume" ? `<button type="button" class="link reseed">彫る場所を変える</button>` : ""}</section>` : ""}
-    <section><h3>職人の決まり</h3><p class="tech-what">${esc(t.name)}の決まりは、まだ帳面にありません。職人に聞いて残すと、ここで確かめられます。</p></section>`;
+  body.innerHTML = `<section class="sec"><h4>技法</h4><div class="techs-grid">${TECHNIQUES.map((x) => `<button type="button" data-t="${x.id}" aria-pressed="${x.id === d.tech}"><img alt="" src="${swatch(x.id)}"><b>${x.name}</b></button>`).join("")}</div><p class="tech-what">${esc(t.what)}</p></section>
+    <section class="sec"><h4>${d.tech === "mokume" ? "重ねる金属" : "地金"}</h4><div class="metals">${metalsHtml}</div></section>
+    ${techList[d.tech].length ? `<section class="sec tsl"><h4>技法の細かさ</h4>${sliders(techList[d.tech])}${d.tech === "mokume" ? `<p class="tech-what">層が多いほど線は細く多く、深く彫るほど目の輪が増えます（見た目の模型。作るときの値は職人が決める）。</p><button type="button" class="link reseed">彫る場所を変える</button>` : ""}</section>` : ""}
+    <section class="sec"><h4>職人の決まり</h4><p class="tech-what">${esc(t.name)}の決まりは、まだ帳面にありません。職人に聞いて残すと、ここで確かめられます。</p></section>`;
   body.querySelectorAll<HTMLButtonElement>(".techs-grid button").forEach((b) =>
     b.addEventListener("click", () => {
       d.tech = b.dataset.t as TechniqueId;
@@ -550,9 +647,9 @@ function techTab(body: HTMLElement) {
 }
 
 function engraveTab(body: HTMLElement) {
-  body.innerHTML = `<section><h3>毛彫り（線を彫る）</h3><div class="plan-host"></div>
+  body.innerHTML = `<section class="sec"><h4>毛彫り（線を彫る）</h4><div class="plan-host"></div>
     <div class="row"><button type="button" class="chip-d undo-line">最後の線を消す</button><button type="button" class="chip-d clear-lines">全部消す</button></div></section>
-    <section class="esl"></section>`;
+    <section class="sec esl"></section>`;
   planEditor = mountOutlineEditor(body.querySelector(".plan-host")!, () => d, (live) => rebuild(live), (): EditMode => "engrave");
   planEditor.refresh();
   const list: Slider[] = [
@@ -560,7 +657,7 @@ function engraveTab(body: HTMLElement) {
     { label: "線の深さ", min: 0.03, max: 0.5, step: 0.01, unit: " mm", get: () => d.engraveDepth, set: (v) => (d.engraveDepth = v) },
   ];
   const esl = body.querySelector<HTMLElement>(".esl")!;
-  esl.innerHTML = `<h3>溝の大きさ</h3>${sliders(list)}<p class="tech-what">V 字の溝として、形そのものに彫ります（3D データにも入ります）。</p>`;
+  esl.innerHTML = `<h4>溝の大きさ</h4>${sliders(list)}<p class="tech-what">V 字の溝として、形そのものに彫ります（3D データにも入ります）。</p>`;
   wireSliders(esl, list);
   body.querySelector(".undo-line")!.addEventListener("click", () => (d.engraves.pop(), planEditor?.redraw(), rebuild(false)));
   body.querySelector(".clear-lines")!.addEventListener("click", () => ((d.engraves = []), planEditor?.redraw(), rebuild(false)));
@@ -574,20 +671,33 @@ function download(name: string, data: BlobPart, type: string) {
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
+function stl() {
+  const b = buildDesign(d);
+  download(`${d.name || autoName()}.stl`, toStl(b.positions, b.indices), "model/stl");
+}
+function svg() {
+  download(`${d.name || autoName()}_原寸.svg`, planSvg(), "image/svg+xml");
+}
+$(".act-stl").addEventListener("click", stl);
+$(".act-svg").addEventListener("click", svg);
 function renderHand() {
+  // 3D の絵は、写真のような表示で撮る
+  const keep = disp;
+  disp = "render";
+  applyDisp();
+  renderer.render(scene, camera);
   const img = renderer.domElement.toDataURL("image/png");
+  disp = keep;
+  applyDisp();
   const t = TECHNIQUES.find((x) => x.id === d.tech)!;
-  $(".hand-panel").innerHTML = `<div class="sheet-preview">
-    <img alt="" src="${img}">
-    <div><h3>${esc(d.name || autoName())}</h3><p>${esc(t.what)}</p>
-    <div class="row"><button type="button" class="primary stl">3D データ（STL）</button><button type="button" class="ghost-d plan-svg">原寸の図面（SVG）</button></div>
-    <p class="note">STL は 3D プリンターや、鋳造の原型づくりにそのまま渡せる、すき間のない形です（単位 mm）。粒・叩き・彫った線も形に入っています。作り方の手順は、これから足します。</p></div>
-  </div>`;
-  $(".hand-panel .stl").addEventListener("click", () => {
-    const b = buildDesign(d);
-    download(`${d.name || autoName()}.stl`, toStl(b.positions, b.indices), "model/stl");
-  });
-  $(".hand-panel .plan-svg").addEventListener("click", () => download(`${d.name || autoName()}_原寸.svg`, planSvg(), "image/svg+xml"));
+  $(".hand-panel").innerHTML = `<section class="sec"><h4>渡すもの</h4>
+    <div class="sheet-preview"><img alt="" src="${img}"><div><b>${esc(d.name || autoName())}</b><p>${esc(t.what)}</p></div></div></section>
+    <div class="row out"><button type="button" class="primary stl">3D データ（STL）</button><button type="button" class="plan-svg">原寸の図面（SVG）</button></div>
+    <p class="note-b">STL は 3D プリンターや、鋳造の原型づくりにそのまま渡せる、すき間のない形です（単位 mm）。粒・叩き・彫った線も形に入っています。図面は「実際のサイズ」で印刷すると原寸です。作り方の手順は、これから足します。</p>
+    <section class="sec"><h4>いまの形</h4><dl class="spec-list"></dl></section>`;
+  $(".hand-panel .stl").addEventListener("click", stl);
+  $(".hand-panel .plan-svg").addEventListener("click", svg);
+  specs();
 }
 
 /** 原寸の図面（上から見た輪郭・彫った線・寸法）。印刷は「実際のサイズ」で */
@@ -610,6 +720,8 @@ function planSvg(): string {
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}mm" height="${H}mm" viewBox="${minX} ${-maxY} ${W} ${H}"><path d="${path}" fill="none" stroke="#000" stroke-width="0.15"/>${eng}<text x="${minX + 2}" y="${-maxY + 5}" font-size="3">${esc(d.name || autoName())}　${m.width.toFixed(1)} × ${m.height.toFixed(1)} mm・厚み ${d.thickness} mm（原寸）</text></svg>`;
 }
 
+setView("angle");
 setMode("make");
 build();
 resize();
+showReason();
