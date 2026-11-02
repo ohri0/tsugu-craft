@@ -316,10 +316,7 @@ async function loadPreset(p: StonePreset) {
   g.fillStyle = grad;
   g.fill();
   document.querySelectorAll<HTMLButtonElement>(".presets button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.preset === p.id)));
-  // 読み取りの「長辺」は、輪郭のいちばん長い差し渡し（四角い石では対角）。それに合わせて渡す
-  let span = 0;
-  for (const q of pts) for (const r of pts) span = Math.max(span, Math.hypot(q.x - r.x, q.y - r.y));
-  await loadStone(g.getImageData(0, 0, W, W), `${p.name}の石`, Math.round(span * 100) / 100, p.depthMm, { intro: false });
+  await loadStone(g.getImageData(0, 0, W, W), `${p.name}の石`, p.longMm, p.depthMm, { intro: false });
   $(".make-status").textContent = `${p.name}（${p.longMm} × ${p.widthMm} mm、深さは例）。ノギスの値があれば、長辺と深さを直してください。`;
 }
 document.querySelectorAll<HTMLButtonElement>(".presets button").forEach((b) => b.addEventListener("click", () => void loadPreset(PRESETS.find((p) => p.id === b.dataset.preset)!)));

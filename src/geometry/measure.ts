@@ -1,5 +1,5 @@
 // 写真の輪郭（px）を、長辺 1 つの実寸で mm に直す。
-import { centroid, extent, toCounterClockwise, transform, type Point } from "./polygon";
+import { boxExtent, centroid, convexHull, extent, signedArea, toCounterClockwise, transform, type Point } from "./polygon";
 
 export interface StoneOutline {
   /** 縁の形（mm）。重心が原点、長辺が x 軸、y は上向き、反時計回り */
@@ -26,7 +26,11 @@ export interface MeasureInput {
 }
 
 export function measureOutline({ outlinePx, longMm, widthMm }: MeasureInput): StoneOutline {
-  const e = extent(outlinePx);
+  // 四角い石（囲む長方形をほぼ埋める形）は辺の長さ、そのほかはいちばん長い差し渡し
+  const far = extent(outlinePx);
+  const box = boxExtent(outlinePx);
+  const fill = Math.abs(signedArea(convexHull(outlinePx))) / (box.long * box.width);
+  const e = fill > 0.88 && box.long < far.long * 0.97 ? box : far;
   const mmPerPx = longMm / e.long;
   const c = centroid(outlinePx);
   // 画像座標（y 下向き）→ 重心を原点に → 長辺を x 軸に → y を上向きに

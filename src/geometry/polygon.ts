@@ -112,6 +112,40 @@ export function extent(pts: readonly Point[]): Extent {
   return { long: Math.sqrt(best), width: hi - lo, angle, ends: [a, b] };
 }
 
+/**
+ * 石の「長さ × 幅」：輪郭を囲むいちばん小さい長方形の、長い辺と短い辺。
+ * ノギスで石を測るときの長さ × 幅に合わせる（四角い石は対角ではなく辺の長さ）。
+ * 丸・楕円・三角・しずく形などでは、いちばん長い差し渡しとほぼ同じになる。
+ */
+export function boxExtent(pts: readonly Point[]): { long: number; width: number; angle: number } {
+  const h = convexHull(pts);
+  let best = { area: Infinity, long: 0, width: 0, angle: 0 };
+  for (let i = 0; i < h.length; i++) {
+    const a = h[i];
+    const b = h[(i + 1) % h.length];
+    const ang = Math.atan2(b.y - a.y, b.x - a.x);
+    const ux = Math.cos(ang);
+    const uy = Math.sin(ang);
+    let u0 = Infinity;
+    let u1 = -Infinity;
+    let v0 = Infinity;
+    let v1 = -Infinity;
+    for (const p of h) {
+      const u = p.x * ux + p.y * uy;
+      const v = -p.x * uy + p.y * ux;
+      u0 = Math.min(u0, u);
+      u1 = Math.max(u1, u);
+      v0 = Math.min(v0, v);
+      v1 = Math.max(v1, v);
+    }
+    const du = u1 - u0;
+    const dv = v1 - v0;
+    // 面積が同じくらい（1 % 以内）なら、細長い方を選ぶ（丸い石で向きがふらつかないよう、元の向きを残す）
+    if (du * dv < best.area * 0.99) best = du >= dv ? { area: du * dv, long: du, width: dv, angle: ang } : { area: du * dv, long: dv, width: du, angle: ang + Math.PI / 2 };
+  }
+  return { long: best.long, width: best.width, angle: best.angle };
+}
+
 /** 周に沿って等間隔に n 点を取り直す */
 export function resample(pts: readonly Point[], n: number): Point[] {
   const total = perimeter(pts);
