@@ -326,7 +326,14 @@ async function make() {
     content.push({ type: "text", text: "デザイナーの絵：この雰囲気に近づけてください。絵から分かることと分からないことを分けて書いてください。" });
     content.push({ type: "image", source: { type: "base64", media_type: sketch.media, data: sketch.base64 } });
   }
-  content.push({ type: "text", text: "この石で指輪を組み、check で確かめ、作れない所があれば直してください。最後に、やったこと・確かめたこと・残っていることを短く書いてください。" });
+  content.push({
+    type: "text",
+    text:
+      "この石で指輪を組み、check で確かめ、作れない所があれば直してください。\n" +
+      "この道具で変えられるのは、石座（留め方・爪の本数と太さと位置・高さ・向き）と腕（幅・厚み・号・地金）だけです。" +
+      "希望や絵のうち、これで表せないこと（透かし・彫り・飾りの模様・ゴシック調などの装飾、石の数を増やす など）は、できたふりをせず、最後に「まだできないこと：」の行に正直に書いてください。すべて表せたときは「まだできないこと：なし」と書いてください。\n" +
+      "最後に、やったこと・確かめたこと・残っていること・まだできないことを、それぞれ短く 1 行ずつ書いてください。",
+  });
   const r = await runClaude({
     host: session,
     messages: [{ role: "user", content }],
@@ -345,12 +352,26 @@ async function make() {
     return;
   }
   reason = r.finalText.replace(/\*\*/g, "");
+  // 表せなかった希望を、目立つ所に出す（できたふりをさせない）
+  const cannot = /まだできないこと[：:]\s*(.+)/.exec(reason)?.[1]?.trim() ?? "";
+  showCannot(cannot && !/^(なし|ありません|特になし)/.test(cannot) ? cannot : "");
   st.innerHTML = `${r.remaining !== undefined ? `今日あと ${r.remaining} 回 ・ ` : ""}<button type="button" class="link go-refine">整える →</button><button type="button" class="link undo-claude">Claude の作業を戻す</button>`;
   st.querySelector(".go-refine")!.addEventListener("click", () => setMode("refine"));
   st.querySelector(".undo-claude")!.addEventListener("click", () => {
     undoClaude?.();
     st.textContent = "Claude の作業を戻しました。";
   });
+}
+
+function showCannot(text: string) {
+  let el = document.querySelector<HTMLElement>(".cannot-chip");
+  if (!el) {
+    el = document.createElement("p");
+    el.className = "cannot-chip";
+    $(".cad").appendChild(el);
+  }
+  el.hidden = !text;
+  el.textContent = text ? `まだできないこと：${text}` : "";
 }
 
 // ---- 整える。 ----

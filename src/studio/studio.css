@@ -97,3 +97,8 @@
 @keyframes trace { to { stroke-dashoffset: 0; } }
 @keyframes pop { from { opacity: 0; transform-box: fill-box; transform-origin: center; transform: scale(0.2); } to { opacity: 1; transform-box: fill-box; transform-origin: center; transform: scale(1); } }
 .intro-cap { position: absolute; bottom: 12vh; margin: 0; font-family: var(--serif); font-size: 18px; letter-spacing: 0.1em; color: var(--ivory); text-align: center; padding: 0 16px; }
+.cannot-chip { position: absolute; left: 50%; transform: translateX(-50%); bottom: 236px; z-index: 5; width: min(760px, calc(100vw - 32px)); margin: 0; padding: 8px 12px; border-radius: 10px; background: rgba(224, 65, 43, 0.14); border-left: 2px solid #e0412b; color: #ffb4a6; font-size: 13px; line-height: 1.6; }
+.cad.studio[data-mode="make"] .specs { display: none; }
+.cad.studio:not([data-mode="make"]) .cannot-chip { display: none; }
+.worklog { max-height: calc(100vh - 640px); }
+@media (max-width: 760px) { .cannot-chip { bottom: 296px; font-size: 12px; } }
