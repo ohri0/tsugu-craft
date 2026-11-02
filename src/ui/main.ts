@@ -13,6 +13,8 @@ import { patternSvg } from "../pattern/sheet";
 import { build, DEFAULT_DESIGN, rulePlans, type Built, type Design } from "./design";
 import { planThumb } from "./thumb";
 import { mountLedger } from "./ledger-ui";
+import { mountTeach } from "./teach-ui";
+import type { QuestionGroup } from "../rules/teacher-queue";
 import { sourceLabel } from "../rules/ledger";
 import { drawWhole, drawZoom, eventToPhoto, imageToCanvas, loadPhoto } from "./photo";
 import { drawSampleStone, SAMPLE } from "./sample";
@@ -53,6 +55,11 @@ app.innerHTML = `
     <section class="step core">
       <h2><span class="n">★</span>目安帳（この工房の決まり）</h2>
       <div id="ledgerRoot"></div>
+    </section>
+
+    <section class="step core">
+      <h2><span class="n">★</span>教える（生徒の「なぜ？」）<span class="badge" id="teachCount">0</span></h2>
+      <div id="teachRoot"></div>
     </section>
 
     <section class="step">
@@ -129,12 +136,33 @@ app.innerHTML = `
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const viewer = new Viewer($("view"));
-const ledgerUI = mountLedger($("ledgerRoot"), (_l, why) => {
+let answering: QuestionGroup | null = null;
+const ledgerUI = mountLedger($("ledgerRoot"), (_l, why, addedRuleId) => {
   $("histNote").textContent = `目安帳：${why}`;
+  // 先生が「先生に聞くこと」に答えて決まりを足したら、その質問のまとまりに結びつける
+  if (answering && addedRuleId) {
+    teachUI.markAnswered(answering.ids, addedRuleId);
+    answering = null;
+  }
   if (state.measured) {
     renderPlans();
     updateRing();
   }
+});
+const teachUI = mountTeach($("teachRoot"), {
+  ledger: () => ledgerUI.ledger(),
+  password: () => document.querySelector<HTMLInputElement>("#ivPass")?.value ?? "",
+  onQueueChange: (n) => ($("teachCount").textContent = String(n)),
+  onAnswer: (item) => {
+    answering = item;
+    const box = document.querySelector("#manual")?.closest("details");
+    if (box) box.open = true;
+    const title = document.querySelector<HTMLInputElement>('#manual [data-f="title"]');
+    if (title) {
+      title.value = item.question;
+      title.focus();
+    }
+  },
 });
 const longIn = $<HTMLInputElement>("long");
 const depthIn = $<HTMLInputElement>("depth");

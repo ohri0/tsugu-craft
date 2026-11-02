@@ -36,7 +36,10 @@ export interface LedgerUI {
   ledger(): Ledger;
 }
 
-export function mountLedger(root: HTMLElement, onChange: (l: Ledger, why: string) => void): LedgerUI {
+/** 目安帳が変わったとき。手で足したときは、足した決まりの id も渡す */
+export type LedgerChange = (l: Ledger, why: string, addedRuleId?: string) => void;
+
+export function mountLedger(root: HTMLElement, onChange: LedgerChange): LedgerUI {
   let ledger = loadLedger();
   let messages: ClaudeMessageParam[] = [];
   let pending: ((r: ProposeRuleResult) => void) | null = null;
@@ -82,11 +85,11 @@ export function mountLedger(root: HTMLElement, onChange: (l: Ledger, why: string
 
   const $ = <T extends HTMLElement>(id: string) => root.querySelector<T>(`#${id}`)!;
 
-  function set(next: Ledger, why: string) {
+  function set(next: Ledger, why: string, addedRuleId?: string) {
     ledger = next;
     saveLedger(ledger);
     render();
-    onChange(ledger, why);
+    onChange(ledger, why, addedRuleId);
   }
 
   function render() {
@@ -141,8 +144,7 @@ export function mountLedger(root: HTMLElement, onChange: (l: Ledger, why: string
       alert("機械で確かめる値を選んだときは、値も書いてください");
       return;
     }
-    set(
-      addRule(ledger, {
+    const next = addRule(ledger, {
         title: v("title"),
         text: v("text"),
         reason: v("reason"),
@@ -150,9 +152,8 @@ export function mountLedger(root: HTMLElement, onChange: (l: Ledger, why: string
         value,
         source: { kind: "craftsman", name: v("name") },
         date: today(),
-      }),
-      `決まり「${v("title")}」を足した`,
-    );
+      });
+    set(next, `決まり「${v("title")}」を足した`, next.rules[next.rules.length - 1].id);
     root.querySelectorAll<HTMLInputElement>("#manual [data-f]").forEach((el) => (el.value = ""));
   });
 
