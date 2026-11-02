@@ -133,6 +133,12 @@ export class Viewer {
     for (const o of meshes) {
       const ud = o.userData;
       if (!ud.render) ud.render = o.material;
+      if (this.mode === "render" && !ud.edges) {
+        // 写真のような表示では線を使わない。折れ目の線は、シェード・ワイヤーにしたときに初めて作る（一体の石座では重い）
+        o.material = ud.render;
+        o.visible = true;
+        continue;
+      }
       if (!ud.edges) {
         // 面の折れ目の線（シェードでは濃く、ワイヤーフレームでは明るく）
         const e = new THREE.LineSegments(new THREE.EdgesGeometry(o.geometry, o.geometry.userData.smooth ? 60 : 14), new THREE.LineBasicMaterial({ color: 0xd8d8dc, transparent: true, opacity: 0.9 }));

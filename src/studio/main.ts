@@ -31,7 +31,7 @@ import { whyHtml } from "./why";
 import { SORT_TIPS, parseTips, tipsFor, tipsPrompt, type Tip } from "./tips";
 import { PRESETS, presetOutline, type StonePreset } from "./presets";
 import { drawingPage, type DrawingView } from "./drawing";
-import { loadWorks, newWorkId, removeWork, saveWork, worksBookHtml } from "./works";
+import { loadWorks, newWorkId, removeWork, saveWork, updateWork, worksBookHtml, type WorkRecord } from "./works";
 import { KIND_LABEL, toolById, toolsForStep } from "./toolbox";
 import { NOTE, TERMS, type AlloyId } from "./process";
 import type { Step } from "./howto";
@@ -698,11 +698,13 @@ function renderCheck() {
         <label><span>号</span><input type="range" class="r-gou" min="5" max="25" step="1" value="${s.gou}"><output>${s.gou} 号</output></label>
       </div>
     </details>
+    ${pastCheckHtml()}
     ${probs.length ? `<button type="button" class="next-btn claude-fix">Claude に直してもらう</button>` : ""}
     ${fixLog.length ? `<ol class="worklog fix-log">${fixLog.map((l) => `<li class="${l.cls}">${esc(l.text)}</li>`).join("")}</ol>` : ""}
     ${rulesSectionHtml()}
     <button type="button" class="next-btn to-build">作り方を見る →</button>`;
   bindRules(box);
+  box.querySelector(".past-fix")?.addEventListener("click", () => fixPastWorks());
   box.querySelector(".claude-fix")?.addEventListener("click", () => void fixWithClaude());
   box.querySelectorAll<HTMLButtonElement>(".fix-go").forEach((btn) =>
     btn.addEventListener("click", () => {
@@ -731,13 +733,21 @@ function renderCheck() {
   box.querySelector<HTMLInputElement>(".r-gou")?.addEventListener("change", (e) => session!.setShank({ gou: Number((e.target as HTMLInputElement).value), reason: "手で" }));
   box.querySelector(".to-build")!.addEventListener("click", () => setMode("hand"));
 }
-function applyFix(id: string) {
+function applyFix(id: string, sess: RingSession = session!) {
+  const session = sess;
   const s = session!.state;
   const std = session!.built!.ring.setting.standardProngMm;
   switch (id) {
-    case "raise":
-      session!.setSetting({ height: s.height === "low" ? "standard" : "high", reason: "直し方から" });
+    case "raise": {
+      // 決まりのすき間まで上げる（高めでも足りないときは、すき間を直接その値に）
+      const fg = session!.built!.problems.find((p) => p.check === "finger-gap");
+      if (s.height !== "high" && !fg) session!.setSetting({ height: s.height === "low" ? "standard" : "high", reason: "直し方から" });
+      else if (fg) {
+        s.culetGapMm = Math.ceil((fg.requiredValue + 0.05) * 100) / 100;
+        session!.build("直し方から");
+      } else session!.build("直し方から");
       break;
+    }
     case "lower":
       session!.setSetting({ height: s.height === "high" ? "standard" : "low", reason: "直し方から" });
       break;
@@ -1008,6 +1018,7 @@ function propose(slot: HTMLElement, p: ProposeRuleInput, name: string): Promise<
       ruleDraft = "";
       const after = session ? session.build("帳面が変わった").problems.length : 0;
       lastRule.after = session?.built ? grouped(session.built).length : after;
+      pastCheck = recheckWorks(lastRule);
       if (!$(".studio-refine").hidden) renderCheck();
       toast(p.param ? `${name}さんの決まりで確かめ直しました：作れない所 ${before} → ${after}` : `${name}さんの決まりを帳面に足しました`);
       flashVerdict();
@@ -1045,6 +1056,90 @@ function bindRules(box: HTMLElement) {
     void addRuleFromWords(field.value.trim());
   });
 }
+// ---- 新しい決まりで、これまでの作品を全部確かめ直す ----
+interface PastRow {
+  work: WorkRecord;
+  probs: string[];
+  fixed?: string;
+  after?: number;
+  ok?: boolean;
+}
+let pastCheck: { rule: string; by: string; total: number; rows: PastRow[] } | null = null;
+function workSession(w: WorkRecord): RingSession | null {
+  if (!w.design) return null;
+  const s = new RingSession(w.design.stone, () => store.ledger(), () => undefined, () => "");
+  s.state = structuredClone(w.design.state);
+  s.build("記録を確かめ直す");
+  return s;
+}
+const probLabels = (b: Built) => grouped(b).map(({ p }) => `${SHORT[p.check] ?? p.where}（${p.current} → ${p.required}）`);
+function recheckWorks(rule: { by: string; quote: string }) {
+  const works = loadWorks().filter((w) => w.design);
+  const rows: PastRow[] = [];
+  for (const w of works) {
+    const s = workSession(w);
+    if (!s?.built) continue;
+    const labels = probLabels(s.built);
+    if (labels.length) rows.push({ work: w, probs: labels });
+  }
+  return works.length ? { rule: rule.quote, by: rule.by, total: works.length, rows } : null;
+}
+function pastCheckHtml(): string {
+  if (!pastCheck) return "";
+  const { total, rows } = pastCheck;
+  const left = rows.filter((r) => !r.ok).length;
+  return `<section class="sec past-check"><h4>これまでの作品<small>${total} 作品を確かめ直しました</small></h4>
+    ${rows.length ? `<p class="pc-sum"><em class="${left ? "ng" : "ok"}">${left ? `${left} 作品が、この決まりでは作れません` : "すべて、この決まりで作れる形に直しました"}</em></p>
+    <ul class="pc-list">${rows
+      .map(
+        (r, i) => `<li class="${r.ok ? "ok" : "ng"}" style="animation-delay:${i * 0.12}s">${r.work.image ? `<img alt="" src="${r.work.image}">` : "<span></span>"}<div><b>${esc(r.work.title)}</b><small>${esc(r.work.date)}${r.work.maker ? ` ・ ${esc(r.work.maker)}` : ""}</small><p>${esc(r.fixed ?? r.probs.join("、"))}</p></div><i>${r.ok ? "直した" : r.fixed ? "職人へ" : "作れない"}</i></li>`,
+      )
+      .join("")}</ul>
+    ${rows.some((r) => !r.fixed) ? `<button type="button" class="next-btn past-fix">直し方で、まとめて直す</button>` : left ? `<p class="hint">直し方だけでは直らない作品は、職人が見て決めます。次に作る人の設計にも、この決まりが効きます。</p>` : `<p class="hint">次に作る人の設計にも、この決まりが効きます。</p>`}` : `<p class="pc-sum"><em class="ok">どの作品も、この決まりで作れる形でした</em></p>`}
+  </section>`;
+}
+/** 記録の作品を、直し方のボタンと同じ直し方で直す。何を変えたかを記録に残す */
+function fixPastWorks() {
+  if (!pastCheck) return;
+  for (const row of pastCheck.rows) {
+    if (row.ok) continue;
+    const s = workSession(row.work);
+    if (!s?.built) continue;
+    const before = structuredClone(s.state);
+    const beforeMm = s.built.ring.setting.prongs[0]?.diameterMm;
+    // 問題を 1 つずつ、最初の直し方で直す（形が変わらなければ次の問題へ）
+    for (let i = 0; i < 8 && s.built!.problems.length; i++) {
+      const key = JSON.stringify(s.state);
+      const p = s.built!.problems.find((q) => q.options[0]);
+      if (!p) break;
+      applyFix(p.options[0].id, s);
+      if (JSON.stringify(s.state) === key) break;
+    }
+    const st = s.state;
+    const H = { low: "低め", standard: "標準", high: "高め" } as const;
+    const changes: string[] = [];
+    if (st.culetGapMm !== undefined && st.culetGapMm !== before.culetGapMm) changes.push(`石と指のすき間 ${s.built!.ring.culetGapMm.toFixed(2)} mm に`);
+    else if (st.height !== before.height) changes.push(`高さ ${H[before.height]} → ${H[st.height]}`);
+    const afterMm = s.built!.ring.setting.prongs[0]?.diameterMm;
+    if (beforeMm && afterMm && Math.abs(afterMm - beforeMm) > 0.005) changes.push(`爪 ø${beforeMm.toFixed(2)} → ø${afterMm.toFixed(2)} mm`);
+    if (st.prongCount !== before.prongCount) changes.push(`爪 ${s.built!.ring.setting.prongs.length} 本`);
+    if (st.style !== before.style) changes.push(st.style === "bezel" ? "覆輪に" : "爪留めに");
+    const change = changes.join("、") || "直し方で直した";
+    const left = probLabels(s.built!);
+    row.fixed = left.length ? `${change}（まだ：${left.join("、")}）` : change;
+    row.ok = !left.length;
+    row.after = left.length;
+    updateWork({
+      ...row.work,
+      design: { stone: row.work.design!.stone, state: structuredClone(st) },
+      problems: left,
+      revisions: [...(row.work.revisions ?? []), { date: today(), by: pastCheck.by, rule: pastCheck.rule, change }],
+    });
+  }
+  renderCheck();
+  flashVerdict();
+}
+
 function flashVerdict() {
   const c = $(".verdict-chip");
   c.classList.remove("flash");
@@ -1407,6 +1502,7 @@ interface WorkData {
   specs: { label: string; value: string }[];
   problems: string[];
   steps: ReturnType<typeof howToMake>;
+  design?: WorkRecord["design"];
 }
 function solitaireData(): WorkData {
   const b = session!.built!;
@@ -1415,6 +1511,7 @@ function solitaireData(): WorkData {
   return {
     title: `${stone!.shapeName}の一粒石の指輪`,
     kind: "一粒石の指輪",
+    design: { stone: structuredClone(session!.stone), state: session!.snapshot() },
     specs: [
       { label: "石", value: `${stone!.measured.longMm.toFixed(2)} × ${stone!.measured.widthMm.toFixed(2)} × ${stone!.depthMm.toFixed(2)} mm` },
       { label: "号", value: `${session!.state.gou} 号 ・ 内径 ${r.shank.innerDiameterMm.toFixed(1)} mm` },
@@ -1496,6 +1593,7 @@ function openSaveWork(slot: HTMLElement, data: WorkData) {
       note: said,
       maker,
       tips,
+      design: data.design,
     });
     if (!ok) {
       slot.innerHTML = `<p class="build-warn">このブラウザにはもう入りません。「記録」で古い物を消してください。</p>`;
@@ -1517,7 +1615,7 @@ function renderWorks() {
     ${works.length ? `<button type="button" class="primary w-print">記録の帳面を印刷</button>` : `<p class="tech-what">まだ記録がありません。「作る。」の下の「この作品の記録を残す」から残せます。</p>`}
     <ul class="works-list">${works
       .map(
-        (w) => `<li><img alt="" src="${w.image}"><div><b>${esc(w.title)}</b><small>${esc(w.date)}${w.maker ? ` ・ ${esc(w.maker)}` : ""} ・ ${esc(w.methodLabel)}</small>${w.note ? `<p>「${esc(w.note)}」</p>` : ""}<span class="${w.problems.length ? "ng" : "ok"}">${w.problems.length ? "作れない所あり" : "作れる形"}</span></div><button type="button" class="w-del" data-id="${w.id}" aria-label="消す">×</button></li>`,
+        (w) => `<li><img alt="" src="${w.image}"><div><b>${esc(w.title)}</b><small>${esc(w.date)}${w.maker ? ` ・ ${esc(w.maker)}` : ""} ・ ${esc(w.methodLabel)}</small>${w.note ? `<p>「${esc(w.note)}」</p>` : ""}${(w.revisions ?? []).map((r) => `<p class="rev">${esc(r.by)}さんの決まりで直した：${esc(r.change)}</p>`).join("")}<span class="${w.problems.length ? "ng" : "ok"}">${w.problems.length ? "作れない所あり" : "作れる形"}</span></div><button type="button" class="w-del" data-id="${w.id}" aria-label="消す">×</button></li>`,
       )
       .join("")}</ul>`;
   box.querySelector(".w-print")?.addEventListener("click", () => openPrint(worksBookHtml(loadWorks(), today())));

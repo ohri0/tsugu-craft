@@ -485,3 +485,20 @@ dialog.sheet input:focus { border-color: var(--accent); }
 .intro-sheet b { display: block; font-size: 13px; }
 .intro-sheet small { font-size: 11px; color: var(--fg-2); }
 @keyframes sheetIn { from { opacity: 0; transform: translateY(16px) scale(0.96); } to { opacity: 1; transform: none; } }
+
+/* これまでの作品を、新しい決まりで確かめ直す */
+.past-check { background: rgba(255, 255, 255, 0.02); }
+.pc-sum { margin: 0 0 8px; font-size: 13px; }
+.pc-sum em { font-style: normal; font-weight: 600; }
+.pc-sum em.ng { color: #ff6b61; }
+.pc-sum em.ok { color: var(--ok); }
+.pc-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.pc-list li { display: grid; grid-template-columns: 40px 1fr auto; gap: 8px; align-items: center; padding: 6px; border-radius: 6px; border: 1px solid rgba(255, 69, 58, 0.45); background: var(--ng-weak); animation: ruleIn 0.45s ease both; transition: background 0.5s, border-color 0.5s; }
+.pc-list li.ok { border-color: rgba(48, 209, 88, 0.45); background: var(--ok-weak); }
+.pc-list img, .pc-list span { width: 40px; height: 40px; border-radius: 4px; object-fit: cover; background: #111; }
+.pc-list b { display: block; font-size: 12px; }
+.pc-list small { display: block; font-size: 10.5px; color: var(--fg-3); }
+.pc-list p { margin: 2px 0 0; font-size: 11px; color: var(--fg-2); }
+.pc-list i { font-style: normal; font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: 4px; background: rgba(255, 69, 58, 0.2); color: #ff8a82; }
+.pc-list li.ok i { background: rgba(48, 209, 88, 0.2); color: var(--ok); }
+.works-list p.rev { color: var(--accent-2); }

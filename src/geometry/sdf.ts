@@ -50,6 +50,8 @@ export interface SolidOptions {
   minZ?: number;
   /** ならす回数（既定 6） */
   smooth?: number;
+  /** 頂点の向きを、距離の場の傾きで測るか（既定）、まわりの面の向きの平均で済ますか（速い。動かしている間の粗い形に） */
+  normalsFrom?: "field" | "mesh";
 }
 
 export interface SolidMesh {
@@ -91,6 +93,89 @@ function segDist(s: Seg, x: number, y: number, z: number): number {
   const py = s.ay + dy * t - y;
   const pz = s.az + dz * t - z;
   return Math.sqrt(px * px + py * py + pz * pz) - (s.ra + (s.rb - s.ra) * t);
+}
+
+/**
+ * 格子の面の 4 隅が「内・外・内・外」と市松になる所（細い 2 つの部分が触れる所）をなくす。
+ * そのままだと、その面をはさむ 2 つの頂点の辺を 4 枚の三角形が使い、STL が閉じた一つの形にならない。
+ * 面の真ん中の値（双一次の鞍点）で、内どうしがつながるか外どうしがつながるかを決め、
+ * それに合うよう、表面にいちばん近い隅の符号だけを裏返す（動くのは 1 目以内）。裏返すと隣の面が変わるので、なくなるまで繰り返す。
+ * 返り値は裏返した隅の数
+ */
+export function resolveAmbiguousFaces(val: Float32Array, nx: number, ny: number, nz: number, cell = Infinity, maxRounds = 16): number {
+  const stride = [1, nx, nx * ny];
+  const size = [nx, ny, nz];
+  const TINY = 1e-6;
+  // 表面から 3 目より遠い隅の面は、4 隅とも同じ側（距離は動いた分しか変わらない。余裕をみて 3 目）
+  const far = 3 * cell;
+  // 面の向き：軸 a と軸 b で張る面（x-y・x-z・y-z）
+  const AXES: [number, number][] = [
+    [0, 1],
+    [0, 2],
+    [1, 2],
+  ];
+  const co = [0, 0, 0];
+  const coords = (idx: number) => {
+    co[0] = idx % nx;
+    co[1] = Math.floor(idx / nx) % ny;
+    co[2] = Math.floor(idx / (nx * ny));
+  };
+  /** 隅 i00 から軸 a・b へ張る面が市松なら、隅を 1 つ裏返して、その番号を返す（なければ -1） */
+  const fix = (i00: number, da: number, db: number): number => {
+    const v00 = val[i00];
+    const v11 = val[i00 + da + db];
+    const s00 = v00 < 0;
+    if (s00 !== v11 < 0) return -1;
+    const v10 = val[i00 + da];
+    const v01 = val[i00 + db];
+    if (v10 < 0 === s00 || v01 < 0 === s00) return -1;
+    // 市松：鞍点の値で、どちらの対角がつながっているかを決める
+    const den = v00 + v11 - v10 - v01;
+    const insideJoined = (den !== 0 ? (v00 * v11 - v10 * v01) / den : 0) < 0;
+    // つながる側に合わせて、つながらない側の隅のうち表面に近い方を裏返す
+    let ia: number, ib: number, va: number, vb: number;
+    if (s00 !== insideJoined) [ia, ib, va, vb] = [i00, i00 + da + db, v00, v11];
+    else [ia, ib, va, vb] = [i00 + da, i00 + db, v10, v01];
+    const [ix, vx] = Math.abs(va) <= Math.abs(vb) ? [ia, va] : [ib, vb];
+    val[ix] = vx < 0 ? TINY : -TINY;
+    return ix;
+  };
+  // 1 回目：表面の近くの隅から張る面を全部調べる
+  let work: number[] = [];
+  for (let k = 0; k < nz; k++)
+    for (let j = 0; j < ny; j++)
+      for (let i = 0; i < nx; i++) {
+        const idx = (k * ny + j) * nx + i;
+        const v = val[idx];
+        if (v > far || v < -far) continue;
+        co[0] = i;
+        co[1] = j;
+        co[2] = k;
+        for (const [a, b] of AXES) {
+          if (co[a] >= size[a] - 1 || co[b] >= size[b] - 1) continue;
+          const f = fix(idx, stride[a], stride[b]);
+          if (f >= 0) work.push(f);
+        }
+      }
+  let flips = work.length;
+  // 裏返した隅のまわりの 12 の面だけを、市松がなくなるまで調べ直す
+  for (let round = 0; round < maxRounds && work.length; round++) {
+    const next: number[] = [];
+    for (const p of work) {
+      coords(p);
+      for (const [a, b] of AXES)
+        for (let q = 0; q < 4; q++) {
+          const oa = co[a] - (q & 1);
+          const ob = co[b] - ((q >> 1) & 1);
+          if (oa < 0 || ob < 0 || oa >= size[a] - 1 || ob >= size[b] - 1) continue;
+          const f = fix(p - (q & 1) * stride[a] - ((q >> 1) & 1) * stride[b], stride[a], stride[b]);
+          if (f >= 0) next.push(f);
+        }
+    }
+    flips += next.length;
+    work = next;
+  }
+  return flips;
 }
 
 /** 管をなめらかにつないだ形を、三角形の面にする */
@@ -257,15 +342,13 @@ export function buildSolid(tubes: readonly Tube[], o: SolidOptions): SolidMesh {
   const coarse = new Float32Array(cx * cy * cz);
   const band = Math.sqrt(3) * S * c * 1.1;
   for (let k = 0; k < cz; k++) for (let j = 0; j < cy; j++) for (let i = 0; i < cx; i++) coarse[(k * cy + j) * cx + i] = evalAt(x0 + i * S * c, y0 + j * S * c, z0 + k * S * c, band + 2 * c);
-  for (let k = 0; k < nz; k++) {
-    const z = z0 + k * c;
-    const ck = Math.min(cz - 2, Math.floor(k / S));
-    for (let j = 0; j < ny; j++) {
-      const y = y0 + j * c;
-      const cj = Math.min(cy - 2, Math.floor(j / S));
-      for (let i = 0; i < nx; i++) {
-        const ci = Math.min(cx - 2, Math.floor(i / S));
-        // まわりの粗い 8 点がどれも表面から遠く、同じ側なら、その値で足りる
+  // 粗い箱ごとに：まわりの粗い 8 点がどれも表面から遠く、同じ側なら、その値（近い方）で足りる。そうでなければ NaN
+  const ccx = cx - 1;
+  const ccy = cy - 1;
+  const farVal = new Float32Array(ccx * ccy * (cz - 1));
+  for (let ck = 0; ck < cz - 1; ck++)
+    for (let cj = 0; cj < ccy; cj++)
+      for (let ci = 0; ci < ccx; ci++) {
         let far = true;
         let sign = 0;
         let near = Infinity;
@@ -276,9 +359,19 @@ export function buildSolid(tubes: readonly Tube[], o: SolidOptions): SolidMesh {
           sign = sg;
           near = Math.min(near, Math.abs(v));
         }
+        farVal[(ck * ccy + cj) * ccx + ci] = far ? sign * near : NaN;
+      }
+  for (let k = 0; k < nz; k++) {
+    const z = z0 + k * c;
+    const ck = Math.min(cz - 2, Math.floor(k / S));
+    for (let j = 0; j < ny; j++) {
+      const y = y0 + j * c;
+      const row = (ck * ccy + Math.min(cy - 2, Math.floor(j / S))) * ccx;
+      for (let i = 0; i < nx; i++) {
+        const fv = farVal[row + Math.min(cx - 2, Math.floor(i / S))];
         const idx = (k * ny + j) * nx + i;
-        if (far) {
-          val[idx] = sign * near;
+        if (fv === fv) {
+          val[idx] = fv;
           own[idx] = -1;
           continue;
         }
@@ -287,6 +380,8 @@ export function buildSolid(tubes: readonly Tube[], o: SolidOptions): SolidMesh {
       }
     }
   }
+
+  resolveAmbiguousFaces(val, nx, ny, nz, c);
 
   // surface nets：0 をまたぐ格子の箱ごとに頂点を 1 つ（またぐ辺の 0 の所の平均）
   const vid = new Int32Array((nx - 1) * (ny - 1) * (nz - 1)).fill(-1);
@@ -402,20 +497,51 @@ export function buildSolid(tubes: readonly Tube[], o: SolidOptions): SolidMesh {
     step(-0.53);
   }
 
-  // 頂点ごとの向き：距離の場の傾き（小さくずらした 6 点の差）
+  // 頂点ごとの向き：距離の場の傾き（小さくずらした 6 点の差）。速く済ますときは、まわりの四角の向き（面積の重み）の平均
   const N = new Float64Array(P.length);
-  const e = c * 0.5;
-  for (let v = 0; v < nv; v++) {
-    const x = P[v * 3];
-    const y = P[v * 3 + 1];
-    const z = P[v * 3 + 2];
-    const gx = evalAt(x + e, y, z, 1) - evalAt(x - e, y, z, 1);
-    const gy = evalAt(x, y + e, z, 1) - evalAt(x, y - e, z, 1);
-    const gz = evalAt(x, y, z + e, 1) - evalAt(x, y, z - e, 1);
-    const l = Math.hypot(gx, gy, gz) || 1;
-    N[v * 3] = gx / l;
-    N[v * 3 + 1] = gy / l;
-    N[v * 3 + 2] = gz / l;
+  if (o.normalsFrom === "mesh") {
+    for (const l of byOwner.values())
+      for (let q = 0; q < l.length; q += 4) {
+        const a = l[q] * 3;
+        const b = l[q + 1] * 3;
+        const cc = l[q + 2] * 3;
+        const d = l[q + 3] * 3;
+        // 対角線どうしの外積（四角の面積の 2 倍の大きさで、外向き）
+        const ux = P[cc] - P[a];
+        const uy = P[cc + 1] - P[a + 1];
+        const uz = P[cc + 2] - P[a + 2];
+        const wx = P[d] - P[b];
+        const wy = P[d + 1] - P[b + 1];
+        const wz = P[d + 2] - P[b + 2];
+        const nx_ = uy * wz - uz * wy;
+        const ny_ = uz * wx - ux * wz;
+        const nz_ = ux * wy - uy * wx;
+        for (const v of [a, b, cc, d]) {
+          N[v] += nx_;
+          N[v + 1] += ny_;
+          N[v + 2] += nz_;
+        }
+      }
+    for (let v = 0; v < nv; v++) {
+      const l = Math.hypot(N[v * 3], N[v * 3 + 1], N[v * 3 + 2]) || 1;
+      N[v * 3] /= l;
+      N[v * 3 + 1] /= l;
+      N[v * 3 + 2] /= l;
+    }
+  } else {
+    const e = c * 0.5;
+    for (let v = 0; v < nv; v++) {
+      const x = P[v * 3];
+      const y = P[v * 3 + 1];
+      const z = P[v * 3 + 2];
+      const gx = evalAt(x + e, y, z, 1) - evalAt(x - e, y, z, 1);
+      const gy = evalAt(x, y + e, z, 1) - evalAt(x, y - e, z, 1);
+      const gz = evalAt(x, y, z + e, 1) - evalAt(x, y, z - e, 1);
+      const l = Math.hypot(gx, gy, gz) || 1;
+      N[v * 3] = gx / l;
+      N[v * 3 + 1] = gy / l;
+      N[v * 3 + 2] = gz / l;
+    }
   }
 
   let total = 0;

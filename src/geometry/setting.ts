@@ -49,7 +49,11 @@ export interface SettingParams {
    * 画面と STL 用。確かめに使う数（爪の位置・長さなど）は変わらない。重いのでテストでは使わない
    */
   solid?: boolean;
+  /** 一体の形の細かさ。preview は粗い格子で速く（つまみを動かしている間）、final は細かく（既定） */
+  solidQuality?: SolidQuality;
 }
+
+export type SolidQuality = "preview" | "final";
 
 export interface ProngInfo {
   /** 縁の上の位置（0〜1）。V 字の爪は包む角の位置 */
@@ -784,7 +788,7 @@ export function buildSetting(params: SettingParams): SettingResult {
       rings.push({ z, wireMm: wire, triangles: addPart(closedPart(tris)) });
     }
     if (params.solid) {
-      const solid = solidHead(f, plans, v, tz, wire, meanD, total);
+      const solid = solidHead(f, plans, v, tz, wire, meanD, total, params.solidQuality ?? "final");
       solidNormals = solid.normals;
       parts.length = 0;
       parts.push(solid.positions);
@@ -859,6 +863,8 @@ export function buildSetting(params: SettingParams): SettingResult {
 const STAND_DEG = 76;
 /** 一体の形の格子の間隔と、つなぎ目の丸み（mm） */
 const SOLID = { cell: 0.075, blend: 0.16, step: 0.4 };
+/** 動かしている間の粗い一体の形：格子を粗く、ならす回数を減らす（形の線・太さは同じ。面の細かさだけ違う） */
+const SOLID_PREVIEW = { cell: 0.13, smooth: 3 };
 const RING_OWNER = 100;
 /** 一体の石座の足もとを中心へ寄せる割合（足が腕の幅の中に入る） */
 const SOLID_FOOT_PULL = 0.14;
@@ -867,29 +873,34 @@ const LEG_CURVE = 2.2;
 /** 輪の高さ：縁から足もとまでの、上からこの割合の所 */
 const RING_AT = 0.4;
 
-/** 石の表面までの距離（おおよそ、内側は負）。座を彫るのに使う。高さごとの縁の形は覚えておく */
-function stoneDistanceFn(f: Frame): (x: number, y: number, z: number) => number {
+/** 座を彫る距離を、石からこの距離（mm）より近い所だけ正確に測る。遠い所は下の格子から、表面に近い側へ控えめに見積もる */
+const SEAT_EXACT_MM = 0.4;
+/** 縁の形（縮める前）の距離を覚えておく格子の間隔と、縁の外へのはみ出し（mm） */
+const SEAT_GRID = { step: 0.08, margin: 1 };
+
+/**
+ * 石の表面までの距離（おおよそ、内側は負）。座を彫るのに使う。高さごとの縁の形は覚えておく。
+ * exactWithin を渡すと、石からその距離より遠い所は、縁の形の距離の格子から「本当の値より 0 に近い」値を返す（速い）。
+ * 遠い所の値は面の位置に効かない（座の面は石から cl の所）ので、形は変わらない
+ */
+function stoneDistanceFn(f: Frame, exactWithin?: number): (x: number, y: number, z: number) => number {
   const h = f.h;
   const pts = f.pts;
   const n = pts.length;
+  const cx = f.center.x;
+  const cy = f.center.y;
   let lastZ = NaN;
+  let scale = 1;
   const poly = new Float64Array(n * 2);
-  return (x, y, z) => {
-    if (z !== lastZ) {
-      lastZ = z;
-      const k = stoneScaleAt(h, Math.min(Math.max(z, h.culetZ), h.tableZ));
-      for (let i = 0; i < n; i++) {
-        poly[i * 2] = f.center.x + (pts[i].x - f.center.x) * k;
-        poly[i * 2 + 1] = f.center.y + (pts[i].y - f.center.y) * k;
-      }
-    }
+  /** 多角形（xy の組の並び）までの、符号つきの距離 */
+  const polyDist = (xy: Float64Array, x: number, y: number) => {
     let inside = false;
     let best = Infinity;
     for (let i = 0, j = n - 1; i < n; j = i++) {
-      const ax = poly[j * 2];
-      const ay = poly[j * 2 + 1];
-      const bx = poly[i * 2];
-      const by = poly[i * 2 + 1];
+      const ax = xy[j * 2];
+      const ay = xy[j * 2 + 1];
+      const bx = xy[i * 2];
+      const by = xy[i * 2 + 1];
       if (by > y !== ay > y && x < ((ax - bx) * (y - by)) / (ay - by || 1e-12) + bx) inside = !inside;
       const dx = bx - ax;
       const dy = by - ay;
@@ -902,11 +913,80 @@ function stoneDistanceFn(f: Frame): (x: number, y: number, z: number) => number 
       if (d2 < best) best = d2;
     }
     const d = Math.sqrt(best);
-    return Math.max(inside ? -d : d, z - h.tableZ, h.culetZ - z);
+    return inside ? -d : d;
+  };
+  const setZ = (z: number) => {
+    if (z === lastZ) return;
+    lastZ = z;
+    scale = stoneScaleAt(h, Math.min(Math.max(z, h.culetZ), h.tableZ));
+    for (let i = 0; i < n; i++) {
+      poly[i * 2] = cx + (pts[i].x - cx) * scale;
+      poly[i * 2 + 1] = cy + (pts[i].y - cy) * scale;
+    }
+  };
+  const exact = (x: number, y: number, z: number) => {
+    setZ(z);
+    return Math.max(polyDist(poly, x, y), z - h.tableZ, h.culetZ - z);
+  };
+  if (exactWithin === undefined) return exact;
+
+  // 縁の形（縮める前）の距離の格子。高さ z の縁は、縮める前の縁を中心から scale 倍したもの → 距離も scale 倍
+  const base = new Float64Array(n * 2);
+  let x0 = Infinity,
+    y0 = Infinity,
+    x1 = -Infinity,
+    y1 = -Infinity;
+  pts.forEach((p, i) => {
+    base[i * 2] = p.x;
+    base[i * 2 + 1] = p.y;
+    x0 = Math.min(x0, p.x);
+    y0 = Math.min(y0, p.y);
+    x1 = Math.max(x1, p.x);
+    y1 = Math.max(y1, p.y);
+  });
+  const G = SEAT_GRID.step;
+  const gx0 = x0 - SEAT_GRID.margin;
+  const gy0 = y0 - SEAT_GRID.margin;
+  const gw = Math.ceil((x1 - x0 + 2 * SEAT_GRID.margin) / G) + 1;
+  const gh = Math.ceil((y1 - y0 + 2 * SEAT_GRID.margin) / G) + 1;
+  let grid: Float32Array | null = null;
+  const gridAt = (u: number, v: number): number => {
+    if (!grid) {
+      grid = new Float32Array(gw * gh);
+      for (let j = 0; j < gh; j++) for (let i = 0; i < gw; i++) grid[j * gw + i] = polyDist(base, gx0 + i * G, gy0 + j * G);
+    }
+    const fu = (u - gx0) / G;
+    const fv = (v - gy0) / G;
+    const i = Math.floor(fu);
+    const j = Math.floor(fv);
+    if (i < 0 || j < 0 || i >= gw - 1 || j >= gh - 1) return NaN;
+    const a = fu - i;
+    const b = fv - j;
+    const q = j * gw + i;
+    return (grid[q] * (1 - a) + grid[q + 1] * a) * (1 - b) + (grid[q + gw] * (1 - a) + grid[q + gw + 1] * a) * b;
+  };
+  return (x, y, z) => {
+    setZ(z);
+    const cap = Math.max(z - h.tableZ, h.culetZ - z);
+    // 上面より上・一番下より下で遠い所：本当の値は cap 以上
+    if (cap > exactWithin) return cap;
+    if (scale > 0.05) {
+      const u = cx + (x - cx) / scale;
+      const v = cy + (y - cy) / scale;
+      // 縁を囲む四角の外なら、その四角までの距離が下限
+      const ox = Math.max(x0 - u, u - x1, 0);
+      const oy = Math.max(y0 - v, v - y1, 0);
+      const box = Math.hypot(ox, oy) * scale;
+      if (box > exactWithin) return Math.max(box, cap);
+      const g = gridAt(u, v);
+      // 格子の補間の誤差は 1 目より小さい（距離は動いた分しか変わらない）。その分だけ 0 に寄せる
+      if (g === g && Math.abs(g) * scale - G * scale > exactWithin) return Math.max(Math.sign(g) * (Math.abs(g) - G) * scale, cap);
+    }
+    return Math.max(polyDist(poly, x, y), cap);
   };
 }
 
-function solidHead(f: Frame, plans: ProngPlan[], v: Vertical, tz: number, wire: number, meanD: number, total: number) {
+function solidHead(f: Frame, plans: ProngPlan[], v: Vertical, tz: number, wire: number, meanD: number, total: number, quality: SolidQuality) {
   const k = stoneKnots(f.h);
   const cl = GUIDES.bezel.clearanceMm;
   const seat = GUIDES.prong.seatCutRatio;
@@ -915,6 +995,8 @@ function solidHead(f: Frame, plans: ProngPlan[], v: Vertical, tz: number, wire: 
   const fields: Field[] = [];
   const stoneDistance = stoneDistanceFn(f);
   const atGirdle = stoneDistanceFn(f);
+  // 座を彫る距離（石から遠い所は速く見積もる。面の位置は変わらない）
+  const seatDistance = stoneDistanceFn(f, SEAT_EXACT_MM);
   const girdleDistance = (x: number, y: number) => atGirdle(x, y, k.girdleBottom);
   // 足：縁の下から、腕の中の足もとへまっすぐ寄り合う（上から下へ、爪が細く集まる石座）。石の下側は割らない
   const footZAll = Math.min(v.baseZ + 0.4, v.lowerRingZ);
@@ -996,9 +1078,12 @@ function solidHead(f: Frame, plans: ProngPlan[], v: Vertical, tz: number, wire: 
   for (const p of f.pts) rMax = Math.max(rMax, Math.hypot(p.x - f.center.x, p.y - f.center.y));
   const subtract = (x: number, y: number, z: number) => {
     const far = Math.max(Math.hypot(x - f.center.x, y - f.center.y) - rMax, z - f.h.tableZ, f.h.culetZ - z);
-    return (far > 0.3 ? far : stoneDistance(x, y, z)) - cl;
+    return (far > 0.3 ? far : seatDistance(x, y, z)) - cl;
   };
-  return buildSolid(tubes, { cell: SOLID.cell, blend: SOLID.blend, subtract, boxes, fields });
+  const fine = quality === "final";
+  return fine
+    ? buildSolid(tubes, { cell: SOLID.cell, blend: SOLID.blend, subtract, boxes, fields })
+    : buildSolid(tubes, { cell: SOLID_PREVIEW.cell, blend: SOLID.blend, smooth: SOLID_PREVIEW.smooth, normalsFrom: "mesh", subtract, boxes, fields });
 }
 
 function wrap(t: number): number {

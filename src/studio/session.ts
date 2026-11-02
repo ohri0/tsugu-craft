@@ -1,7 +1,7 @@
 // 指輪の設計の場：石と設計を持ち、Claude の道具（set_setting / set_shank / check / look）を、
 // 人のボタンと同じ関数で実行する。確かめは、いつも今の帳面（職人の決まり）で行う。画面には依存しない（look の画像だけ外から受け取る）。
 import { buildRing, type RingDesign } from "../geometry/ring";
-import { tAtOutlineIndex } from "../geometry/setting";
+import { tAtOutlineIndex, type SolidQuality } from "../geometry/setting";
 import type { StoneParams } from "../geometry/stone";
 import { FIXES, checkRing, holdRatio, type FixId, type Problem } from "../rules/checks";
 import { GUIDES, requiredHold, standardProngMm, stoneSizeMm, type HeightOption, type MetalId, type StonePosition } from "../rules/guides";
@@ -36,8 +36,13 @@ export interface RingState {
   gou: number;
   shankWidthMm?: number;
   shankThicknessMm?: number;
+  /** 石の一番下と指のすき間（mm）を直接決める（高さの選択より優先。職人の決まりに合わせて直すとき） */
+  culetGapMm?: number;
   position: StonePosition;
 }
+
+/** つまみや Claude の set_setting が止まってから、細かい一体の形を作り直すまでの待ち（ms） */
+export const FINAL_DELAY_MS = 250;
 
 export const DEFAULT_STATE: RingState = { style: "prong", height: "standard", orientation: "along", metal: "k18yg", gou: 11, position: "top" };
 
@@ -102,13 +107,62 @@ export class RingSession implements ToolHost<RingState> {
 
   /** 石座を継ぎ目のない一体の形で作る（画面と STL。重いのでテストでは使わない） */
   solid = false;
+  /**
+   * 一体の形を、動かしている間は粗く速く作り、止まって FINAL_DELAY_MS たったら細かく作り直すか。
+   * 既定は、画面（window がある）のときだけ。テストでは同期のまま（いつも細かい形）
+   */
+  deferFinal = typeof window !== "undefined";
+  /** 細かい一体の形を一度作ったか（最初の 1 回は、粗い形を見せずに細かく作る） */
+  private hadFinal = false;
+  private finalTimer: ReturnType<typeof setTimeout> | null = null;
+  private finalWhy = "";
 
   private sizeMm() {
     return stoneSizeMm(this.stone.longMm, this.stone.widthMm);
   }
 
-  /** 今の設計で組んで、今の帳面で確かめる */
+  /**
+   * 今の設計で組んで、今の帳面で確かめる。
+   * 一体の形で、続けて動かしているときは、まず粗い形ですぐ返し、少し待って細かい形で作り直して、同じ onChange をもう一度呼ぶ。
+   * 確かめ（problems）は形の網目を使わないので、粗くても細かくても同じ
+   */
   build(why = ""): Built {
+    const preview = this.solid && this.deferFinal && this.hadFinal;
+    if (this.solid) this.cancelFinal();
+    this.built = this.compose(preview ? "preview" : "final");
+    if (this.solid && !preview) this.hadFinal = true;
+    if (preview) {
+      this.finalWhy = why;
+      this.finalTimer = setTimeout(() => this.finish(), FINAL_DELAY_MS);
+    }
+    this.onChange(this.built, why);
+    return this.built;
+  }
+
+  /** 細かい形への作り直しを待っているか */
+  get pendingFinal(): boolean {
+    return this.finalTimer !== null;
+  }
+
+  /** 待っている細かい形への作り直しを、今すぐ済ませる（look の画像・書き出しの前など） */
+  flush(): void {
+    if (this.finalTimer === null) return;
+    this.cancelFinal();
+    this.finish();
+  }
+
+  private cancelFinal() {
+    if (this.finalTimer !== null) clearTimeout(this.finalTimer);
+    this.finalTimer = null;
+  }
+
+  private finish() {
+    this.finalTimer = null;
+    this.built = this.compose("final");
+    this.onChange(this.built, this.finalWhy);
+  }
+
+  private compose(quality: SolidQuality): Built {
     const s = this.state;
     const outline = this.stone.outlineMm;
     const ring = buildRing({
@@ -116,10 +170,12 @@ export class RingSession implements ToolHost<RingState> {
       setting: {
         style: s.style,
         height: s.height,
+        culetGapMm: s.culetGapMm,
         prongCount: s.prongCount,
         prongDiameterMm: s.prongMm,
         prongs: s.prongPositions?.length ? s.prongPositions.map((i) => ({ t: tAtOutlineIndex(outline, i) })) : undefined,
         solid: this.solid,
+        solidQuality: quality,
         // 角は丸い爪で押さえる普通の爪留め（作者の判断）。V 字の爪は使わない
         vAtCorners: false,
       },
@@ -128,9 +184,7 @@ export class RingSession implements ToolHost<RingState> {
     });
     const ledger = this.ledger();
     const problems = checkRing(ring, { position: s.position, guides: effectiveGuides(ledger, this.sizeMm()) }).map((p) => ({ ...p, rule: ruleForCheck(ledger, p.check) }));
-    this.built = { ring, problems };
-    this.onChange(this.built, why);
-    return this.built;
+    return { ring, problems };
   }
 
   private settingState(): SettingState {
@@ -158,7 +212,10 @@ export class RingSession implements ToolHost<RingState> {
     }
     if (input.prong_positions) s.prongPositions = input.prong_positions;
     if (input.prong_mm !== undefined) s.prongMm = input.prong_mm;
-    if (input.height) s.height = input.height;
+    if (input.height) {
+      s.height = input.height;
+      s.culetGapMm = undefined;
+    }
     if (input.orientation) s.orientation = input.orientation;
     const b = this.build(input.reason);
     return {
@@ -214,6 +271,8 @@ export class RingSession implements ToolHost<RingState> {
   }
 
   async look(input: LookInput): Promise<LookResult> {
+    // Claude には、細かい形の画像を見せる
+    this.flush();
     const data = await this.shoot(input.view);
     return { view: input.view, media_type: "image/png", data };
   }
