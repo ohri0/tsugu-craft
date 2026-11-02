@@ -22,6 +22,8 @@ npm run dev     # 画面
 npm test        # 形の処理・写真の読み取り・目安の式のテスト
 ```
 
+Claude を使うときは `.env.example` を `.env` に写し、`ANTHROPIC_API_KEY` と `DEMO_PASSWORD`（公開ページの合言葉）を入れる。`npm run dev` で `/api/claude` も動く（公開先では Vercel の関数として動く）。
+
 ## Claude の使い方
 
 | 機能 | 何に使ったか | なぜ |
@@ -41,6 +43,8 @@ npm test        # 形の処理・写真の読み取り・目安の式のテス�
 | [Vite](https://github.com/vitejs/vite) | 開発用のサーバーと組み立て | MIT |
 | [TypeScript](https://github.com/microsoft/TypeScript) | 言語 | Apache-2.0 |
 | [Vitest](https://github.com/vitest-dev/vitest) | テスト | MIT |
+| [Anthropic TypeScript SDK](https://github.com/anthropics/anthropic-sdk-typescript)（`@anthropic-ai/sdk`） | Claude API を呼ぶ（`api/claude.ts`）。画面は型だけ使う | Apache-2.0 |
+| [@types/node](https://github.com/DefinitelyTyped/DefinitelyTyped) | serverless 関数（Node）の型 | MIT |
 
 ## ライセンス
 
