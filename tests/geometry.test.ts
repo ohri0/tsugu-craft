@@ -4,7 +4,12 @@ import { measureOutline } from "../src/geometry/measure";
 import { convexHull, extent, perimeter, resample, signedArea } from "../src/geometry/polygon";
 import { nameShape } from "../src/geometry/shape";
 import { buildStone, meshVolume, stoneHeights } from "../src/geometry/stone";
+import { readFileSync } from "node:fs";
+import type { Point } from "../src/geometry/polygon";
 import { ellipse, regular, rounded, triangle } from "./helpers/synth";
+
+/** 作者が撮った三角の石の拡大写真から取った輪郭（px）。2026-11-02 */
+const realTriangle = JSON.parse(readFileSync(new URL("./fixtures/real-triangle-outline.json", import.meta.url), "utf8")) as Point[];
 
 describe("多角形の基本", () => {
   const sq = [{ x: 0, y: 0 }, { x: 2, y: 0 }, { x: 2, y: 1 }, { x: 0, y: 1 }];
@@ -32,6 +37,9 @@ describe("多角形の基本", () => {
 describe("尖った角を探す", () => {
   it("三角は 3 か所", () => expect(findCorners(triangle(0, 0, 9, 7.5))).toHaveLength(3));
   it("角を少し丸めた三角も 3 か所", () => expect(findCorners(rounded(triangle(0, 0, 9, 7.5), 0.4))).toHaveLength(3));
+  it("角を大きく丸めた三角も 3 か所", () => expect(findCorners(rounded(triangle(0, 0, 9, 7.5), 1.0))).toHaveLength(3));
+  it("本物の三角の石の写真（丸い角が 1 つある）も 3 か所", () => expect(findCorners(realTriangle)).toHaveLength(3));
+  it("八角形（エメラルドカット風）の角は尖った角にしない", () => expect(findCorners(regular(0, 0, 5, 8))).toHaveLength(0));
   it("四角は 4 か所", () => expect(findCorners(regular(0, 0, 5, 4, 0.3))).toHaveLength(4));
   it("六角は 6 か所", () => expect(findCorners(regular(0, 0, 5, 6))).toHaveLength(6));
   it("丸と楕円は 0", () => {

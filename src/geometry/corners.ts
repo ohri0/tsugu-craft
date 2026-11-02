@@ -16,8 +16,17 @@ export function findCorners(outline: readonly Point[], opts = DETECTION.corners)
   const n = pts.length;
   const k = Math.max(2, Math.round(n * opts.armRatio));
   const angles = pts.map((_, i) => interiorAngle(pts, i, k));
+  // 2 つ目の見方：少し長い腕で測り、両隣がまっすぐなのに、そこだけ曲がっている所
+  const kw = Math.max(k + 1, Math.round(n * opts.wideArmRatio));
+  const wide = pts.map((_, i) => interiorAngle(pts, i, kw));
+  const f = Math.max(1, Math.round(n * opts.flankRatio));
+  const isCorner = (i: number) => {
+    if (angles[i] < opts.maxInteriorDeg) return true;
+    const flank = Math.min(wide[(i + f) % n], wide[(i - f + n) % n]);
+    return wide[i] < opts.wideMaxInteriorDeg && flank - wide[i] >= opts.contrastDeg;
+  };
   const minSep = Math.max(1, Math.round(n * opts.minSeparationRatio));
-  const order = [...angles.keys()].filter((i) => angles[i] < opts.maxInteriorDeg).sort((i, j) => angles[i] - angles[j]);
+  const order = [...angles.keys()].filter(isCorner).sort((i, j) => wide[i] - wide[j]);
   const picked: number[] = [];
   for (const i of order) {
     if (picked.every((j) => Math.min(Math.abs(i - j), n - Math.abs(i - j)) >= minSep)) picked.push(i);

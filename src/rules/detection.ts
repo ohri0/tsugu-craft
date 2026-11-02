@@ -11,6 +11,16 @@ export const DETECTION = {
     reportArmRatio: 0.08,
     /** これより小さい内角（度）を「尖った角」とみなす */
     maxInteriorDeg: 130,
+    /**
+     * 丸みの大きい角を拾うための 2 つ目の見方：少し長い腕で測った内角がこれより小さく、
+     * 両隣（周の flankRatio 先）の縁がそれより contrastDeg 以上まっすぐなら、角とみなす。
+     * 本物の三角の石で、丸い角（短い腕で 145°）を見落としたため足した（docs/LOG.md）。
+     * 細長い楕円の端（両隣も曲がっている）は角にしない。
+     */
+    wideArmRatio: 0.05,
+    wideMaxInteriorDeg: 140,
+    flankRatio: 0.1,
+    contrastDeg: 40,
     /** 角どうしの最小の間隔 ÷ 周 */
     minSeparationRatio: 0.08,
   },
