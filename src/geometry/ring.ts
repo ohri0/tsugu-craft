@@ -56,7 +56,8 @@ export function buildRing(p: RingParams): RingDesign {
   const ringStone = applyTransform(stone.positions, transform);
   const ringSetting = applyTransform(setting.positions, transform);
   // 石座の足が腕の中へ入る所の広さから、腕のいちばん上の肩を決めて、腕を作り直す
-  const shank = buildShank({ ...p.shank, head: p.shank.head ?? headFootprint(ringSetting, plain) });
+  // 一体の石座は足もとが腕の幅の中に入るので、腕の上をふくらませない（丸い線のまま石座につなぐ）
+  const shank = setting.normals ? plain : buildShank({ ...p.shank, head: p.shank.head ?? headFootprint(ringSetting, plain) });
   const culetGapMm = stone.heights.culetZ + transform.translateZ - shank.innerRadiusMm;
   const metal = shank.metal;
   return {

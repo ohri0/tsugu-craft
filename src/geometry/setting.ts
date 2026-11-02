@@ -858,6 +858,8 @@ const STAND_DEG = 76;
 /** 一体の形の格子の間隔と、つなぎ目の丸み（mm） */
 const SOLID = { cell: 0.075, blend: 0.16, step: 0.4 };
 const RING_OWNER = 100;
+/** 一体の石座の足もとを中心へ寄せる割合（足が腕の幅の中に入る） */
+const SOLID_FOOT_PULL = 0.14;
 /** 足の曲がり方（1 でまっすぐ。大きいほど縁の下で縦に立ち、足もと近くで寄る） */
 const LEG_CURVE = 2.2;
 /** 輪の高さ：縁から足もとまでの、上からこの割合の所 */
@@ -918,7 +920,8 @@ function solidHead(f: Frame, plans: ProngPlan[], v: Vertical, tz: number, wire: 
   const legLine = (s: Sample, dTop: number, r: number, z: number): V3 => {
     const g = at(f, s, k.girdleBottom, dTop);
     const q = at(f, s, footZAll, cl + r);
-    const foot: V3 = [f.center.x + (q[0] - f.center.x) * FOOT_PULL, f.center.y + (q[1] - f.center.y) * FOOT_PULL, footZAll];
+    // 足もとは腕の幅の中に収まるよう、中心へ強く寄せる（腕を石座の下でふくらませない）
+    const foot: V3 = [f.center.x + (q[0] - f.center.x) * SOLID_FOOT_PULL, f.center.y + (q[1] - f.center.y) * SOLID_FOOT_PULL, footZAll];
     const t = (k.girdleBottom - z) / (k.girdleBottom - footZAll);
     // 水平の位置は、縁から下へ行くほど、はじめはゆっくり、足もと近くで急に寄る（縁の下では縦に近い）
     const w = Math.pow(t, LEG_CURVE);
