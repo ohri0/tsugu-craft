@@ -5,6 +5,7 @@ import { buildRing, type Orientation, type RingDesign } from "../geometry/ring";
 import { autoProngCount, type SettingStyle } from "../geometry/setting";
 import type { StoneParams } from "../geometry/stone";
 import { checkRing, type Problem } from "../rules/checks";
+import { effectiveGuides, ruleForCheck, seedLedger, type Ledger, type Rule } from "../rules/ledger";
 import { standardProngMm, stoneSizeMm, type HeightOption, type MetalId, type StonePosition } from "../rules/guides";
 
 export interface Design {
@@ -32,13 +33,16 @@ export const DEFAULT_DESIGN: Design = {
   position: "top",
 };
 
+/** 確かめの結果に、根拠の決まりを添えたもの */
+export type CitedProblem = Problem & { rule?: Rule };
+
 export interface Built {
   design: Design;
   ring: RingDesign;
-  problems: Problem[];
+  problems: CitedProblem[];
 }
 
-export function build(stone: StoneParams, d: Design): Built {
+export function build(stone: StoneParams, d: Design, ledger: Ledger = seedLedger()): Built {
   const std = standardProngMm(stoneSizeMm(stone.longMm, stone.widthMm));
   const ring = buildRing({
     stone,
@@ -51,7 +55,8 @@ export function build(stone: StoneParams, d: Design): Built {
     shank: { gou: d.gou, metal: d.metal },
     orientation: d.orientation,
   });
-  return { design: d, ring, problems: checkRing(ring, { position: d.position }) };
+  const problems = checkRing(ring, { position: d.position, guides: effectiveGuides(ledger) });
+  return { design: d, ring, problems: problems.map((p) => ({ ...p, rule: ruleForCheck(ledger, p.check) })) };
 }
 
 export interface Plan {

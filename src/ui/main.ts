@@ -12,6 +12,8 @@ import { extractStone, NoStoneError, type Extraction } from "../vision/extract";
 import { patternSvg } from "../pattern/sheet";
 import { build, DEFAULT_DESIGN, rulePlans, type Built, type Design } from "./design";
 import { planThumb } from "./thumb";
+import { mountLedger } from "./ledger-ui";
+import { sourceLabel } from "../rules/ledger";
 import { drawWhole, drawZoom, eventToPhoto, imageToCanvas, loadPhoto } from "./photo";
 import { drawSampleStone, SAMPLE } from "./sample";
 import { Viewer } from "./viewer";
@@ -47,6 +49,11 @@ app.innerHTML = `
       <h1>継ぐ <small style="font-weight:normal;font-size:12px;color:var(--muted)">つぐ</small></h1>
       <p>職人の判断を、聞き取り、使い、次の人へ。題材：一粒石の指輪</p>
     </header>
+
+    <section class="step core">
+      <h2><span class="n">★</span>目安帳（この工房の決まり）</h2>
+      <div id="ledgerRoot"></div>
+    </section>
 
     <section class="step">
       <h2><span class="n">1</span>石の数</h2>
@@ -122,6 +129,13 @@ app.innerHTML = `
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const viewer = new Viewer($("view"));
+const ledgerUI = mountLedger($("ledgerRoot"), (_l, why) => {
+  $("histNote").textContent = `目安帳：${why}`;
+  if (state.measured) {
+    renderPlans();
+    updateRing();
+  }
+});
 const longIn = $<HTMLInputElement>("long");
 const depthIn = $<HTMLInputElement>("depth");
 const widthIn = $<HTMLInputElement>("width");
@@ -293,7 +307,7 @@ function look() {
 /** 今の設計で指輪を組み、確かめて、3D と確かめの結果を出す */
 function updateRing() {
   if (!state.measured) return;
-  const b = build(stoneParams(), state.design);
+  const b = build(stoneParams(), state.design, ledgerUI.ledger());
   state.built = b;
   viewer.setRing(b.ring, look(), b.problems);
   const m = state.measured;
@@ -319,7 +333,9 @@ function renderChecks(b: Built) {
   }
   $("checks").innerHTML = `${head}<ul class="problems">${b.problems
     .map(
-      (p) => `<li><b>${p.where}</b>：今 ${p.current}／必要 ${p.required}<span class="why">${p.reason}</span><span class="opts">${p.options
+      (p) => `<li><b>${p.where}</b>：今 ${p.current}／必要 ${p.required}<span class="why">${p.reason}</span>${
+        p.rule ? `<span class="cite">根拠：${p.rule.title}（${sourceLabel(p.rule.source)}・${p.rule.date}）</span>` : ""
+      }<span class="opts">${p.options
         .map((o) => `<span class="opt">${o.label}<small>（${o.effectOnLook}）</small></span>`)
         .join("")}</span></li>`,
     )
@@ -364,7 +380,7 @@ function renderPlans() {
   const fill = e.colorless ? "#eef2f6" : `rgb(${e.color.r.toFixed(0)},${e.color.g.toFixed(0)},${e.color.b.toFixed(0)})`;
   $("plans").innerHTML = plans
     .map((p, i) => {
-      const b = build(stoneParams(), p.design);
+      const b = build(stoneParams(), p.design, ledgerUI.ledger());
       const n = b.problems.length;
       const checks =
         n === 0

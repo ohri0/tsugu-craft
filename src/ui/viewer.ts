@@ -26,6 +26,8 @@ export class Viewer {
   private content = new THREE.Group();
   private grid: THREE.GridHelper;
   private framedFor = "";
+  /** 描き直しが要るか（動いていない間は描かない。スマホの電池のため） */
+  private dirty = true;
 
   constructor(private host: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
@@ -45,9 +47,14 @@ export class Viewer {
     this.scene.add(this.grid, this.content);
     new ResizeObserver(() => this.resize()).observe(host);
     this.resize();
+    this.controls.addEventListener("change", () => (this.dirty = true));
     const loop = () => {
-      this.controls.update();
-      this.renderer.render(this.scene, this.camera);
+      // 回している間（慣性で動いている間を含む）と、中身が変わったときだけ描く
+      const moved = this.controls.update();
+      if (moved || this.dirty) {
+        this.renderer.render(this.scene, this.camera);
+        this.dirty = false;
+      }
       requestAnimationFrame(loop);
     };
     loop();
@@ -59,6 +66,7 @@ export class Viewer {
     this.renderer.setSize(w, h, false);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
+    this.dirty = true;
   }
 
   private clear() {
@@ -158,6 +166,7 @@ export class Viewer {
     this.controls.target.copy(sphere.center);
     this.camera.position.copy(sphere.center).addScaledVector(dir, sphere.radius * 3.6);
     this.controls.update();
+    this.dirty = true;
   }
 
   /** 今の 3D の画像（指示書や look の道具で使う） */

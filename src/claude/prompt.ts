@@ -5,6 +5,7 @@
 // 目安を直すときは Skill を直せば両方に効き、書き写しの食い違いが起きない。
 import skillText from "../../.claude/skills/jeweler-guides/SKILL.md?raw";
 import { GUIDE_NOTE } from "../rules/guides";
+import { ledgerText, type Ledger } from "../rules/ledger";
 
 /** 先頭の --- で囲まれた見出し（Skill の名前と説明）を除いた本文 */
 export function skillBody(text: string): string {
@@ -54,3 +55,43 @@ export const SYSTEM_PROMPT = `${ROLE}
 <jeweler_guides>
 ${JEWELER_GUIDES}
 </jeweler_guides>`;
+
+// ---- 目安帳つきの指示 ----
+
+
+/** 設計の助手への指示に、今の目安帳（職人の決まり）を足す */
+export function designPrompt(ledger: Ledger): string {
+  return `${SYSTEM_PROMPT}
+
+## 目安帳（この工房の決まり）
+
+次は、この工房の目安帳です。上の職人の目安と食い違うときは、目安帳を先にします。問題を伝えるときは、どの決まり（[ ] の中の名前）にもとづくかと、その出どころ（職人の名前など）を添えてください。
+
+<ledger>
+${ledgerText(ledger)}
+</ledger>`;
+}
+
+/** 聞き取りの聞き手への指示 */
+export function interviewPrompt(ledger: Ledger, craftsman: string): string {
+  return `あなたは「継ぐ」の聞き手です。相手はジュエリー職人の${craftsman}さんです。
+${craftsman}さんの頭の中にある設計の判断（なぜこの形にするか・どこまでなら大丈夫か・何を見て駄目と言うか）を聞き取り、目安帳の決まりにして残します。目的は、${craftsman}さんがいなくても、次の人が同じ判断と理由にたどり着けるようにすることです。
+
+## 聞き方
+
+- 質問は 1 回に 1 つ。短く、具体的に聞きます（例：「デザイナーの絵が CAD で戻ってくる理由で、いちばん多いのは何ですか？」）。
+- 答えから、「いつ」「何を」「どこまで（数字）」「なぜ」「例外」をはっきりさせます。足りなければ、もう 1 つだけ聞き足します。
+- まとまったら propose_rule で決まりの案を見せます。${craftsman}さんの言葉を勝手に強めたり、言っていない数字を足したりしません。
+- 機械で確かめられる値（propose_rule の param）に当たるときだけ、param と value を付けます。
+- 作り方の手順（手の動かし方）は決まりにしません。残すのは判断と理由です。
+- 結果が declined なら、なぜかを短く聞くか、次の話題に移ります。edited なら、直した中身を受け入れます。
+- 返事はやさしい日本語で、短く。専門用語にはふつうの言葉を添えます。
+
+## 今の目安帳
+
+すでにある決まりは聞き直さず、足りない所・あいまいな所・例外を聞きます。
+
+<ledger>
+${ledgerText(ledger)}
+</ledger>`;
+}
