@@ -164,6 +164,31 @@ export class Viewer {
     this.dirty = true;
   }
 
+  /** 下から上へ、形を少しずつ見せる（組み上がっていくように）。ms ミリ秒 */
+  reveal(ms: number): Promise<void> {
+    this.content.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(this.content);
+    if (box.isEmpty()) return Promise.resolve();
+    const plane = new THREE.Plane(new THREE.Vector3(0, 0, -1), box.min.z);
+    this.renderer.clippingPlanes = [plane];
+    const t0 = performance.now();
+    return new Promise((done) => {
+      const step = () => {
+        const u = Math.min(1, (performance.now() - t0) / ms);
+        const e = 1 - Math.pow(1 - u, 3);
+        plane.constant = box.min.z + (box.max.z - box.min.z + 0.5) * e;
+        this.dirty = true;
+        if (u < 1) requestAnimationFrame(step);
+        else {
+          this.renderer.clippingPlanes = [];
+          this.dirty = true;
+          done();
+        }
+      };
+      requestAnimationFrame(step);
+    });
+  }
+
   /** 1 mm の目盛りを出す・隠す */
   setGrid(show: boolean) {
     this.grid.visible = show;

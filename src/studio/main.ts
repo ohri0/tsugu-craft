@@ -100,7 +100,7 @@ app.innerHTML = `
     <svg class="gizmo" viewBox="0 0 60 60" aria-hidden="true"></svg>
     <div class="vp-tl"><b class="vp-view">斜め</b><div class="disp" role="group" aria-label="表示">${(["wire", "shaded", "render"] as const).map((d) => `<button type="button" data-disp="${d}" aria-pressed="${d === "render"}">${{ wire: "ワイヤー", shaded: "シェード", render: "レンダー" }[d]}</button>`).join("")}</div></div>
     <div class="verdict-chip" hidden></div>
-    <div class="intro-stage" hidden><canvas class="intro-photo"></canvas><svg class="intro-line" preserveAspectRatio="none"></svg><p class="intro-cap"></p></div>
+    <div class="intro-stage" hidden><div class="intro-frame"><canvas class="intro-photo"></canvas><svg class="intro-line" preserveAspectRatio="none"></svg></div><p class="intro-cap"></p></div>
   </section>
 
   <aside class="insp">
@@ -145,12 +145,18 @@ viewer.setDark(true);
 // ---- 寸法の線と軸の印（3D を描き直すたびに合わせる） ----
 let dims: Dim[] = [];
 let showDims = true;
+/** 見せ場の間は寸法を出さない（最後に 1 本ずつ出す） */
+let holdDims = false;
 viewer.onFrame(() => {
-  $(".dims").innerHTML = showDims ? dimsSvg(dims, (x, y, z) => viewer.project(x, y, z)) : "";
+  $(".dims").innerHTML = showDims && !holdDims ? dimsSvg(dims, (x, y, z) => viewer.project(x, y, z)) : "";
   $(".gizmo").innerHTML = gizmoSvg(viewer.axes());
 });
 function setDims(d: Dim[]) {
   dims = d;
+  if (holdDims) {
+    $(".dims").innerHTML = "";
+    return;
+  }
   $(".dims").innerHTML = showDims ? dimsSvg(dims, (x, y, z) => viewer.project(x, y, z)) : "";
 }
 /** 一粒石の指輪の寸法：内径・石の長辺・石と指のすき間・指から石座の上まで */
@@ -237,7 +243,7 @@ async function loadStone(img: ImageData, label: string, longMm: number, depthMm:
   session.state.height = plan.design.height;
   reason = `${plan.name}：${plan.reason}（決まりごとから）`;
   if (opts.intro) await intro();
-  session.build("最初の案");
+  else session.build("最初の案");
 }
 
 /** 最初の見せ場：写真に輪郭が描かれ → 石が立体になり → まわりに指輪が組み上がる */
@@ -264,9 +270,60 @@ async function intro() {
   await wait(1100);
   viewer.setStone(buildStone(session.stone), { color: stone.extraction.color, colorless: stone.extraction.colorless });
   box.classList.add("out");
-  await wait(1300);
+  await wait(900);
   box.hidden = true;
   box.classList.remove("draw", "out");
+  // 線だけで組み上がる → 灰色の面 → 金。寸法を 1 本ずつ入れ、最後に図面と作り方
+  const t0 = performance.now();
+  const timer = document.createElement("div");
+  timer.className = "intro-timer";
+  $(".vp").appendChild(timer);
+  let label = "";
+  const draw = () => (timer.innerHTML = `<b>${label}</b><span>${((performance.now() - t0) / 1000).toFixed(1)} 秒</span>`);
+  const tick = (l: string) => {
+    label = l;
+    draw();
+  };
+  const clock = setInterval(draw, 100);
+  holdDims = true;
+  setDisp("wire");
+  tick("組んでいます");
+  session.build("最初の案");
+  await viewer.reveal(1500);
+  tick("確かめています");
+  setDisp("shaded");
+  await wait(700);
+  setDisp("render");
+  holdDims = false;
+  const all = dims;
+  for (let i = 1; i <= all.length; i++) {
+    dims = all.slice(0, i);
+    $(".dims").innerHTML = showDims ? dimsSvg(dims, (x, y, z) => viewer.project(x, y, z)) : "";
+    await wait(260);
+  }
+  dims = all;
+  // 図面と作り方ができたことを、小さな札で見せる
+  const b = session.built!;
+  const steps = howToMake(howInput(b), method);
+  const sheetImg = viewer.drawing("front", 14);
+  const card = document.createElement("div");
+  card.className = "intro-sheet";
+  card.innerHTML = `<img alt="" src="${sheetImg.url}"><div><b>図面と作り方</b><small>正面図ほか ・ ${steps.length} 工程 ・ ${grouped(b).length ? `直す所 ${grouped(b).length}` : "作れる形"}</small></div>`;
+  $(".vp").appendChild(card);
+  tick("写真 1 枚 → 図面と作り方");
+  clearInterval(clock);
+  timer.classList.add("done");
+  await wait(3200);
+  card.classList.add("out");
+  timer.classList.add("out");
+  await wait(700);
+  card.remove();
+  timer.remove();
+}
+/** 表示の切り替え（ボタンの見た目もそろえる） */
+function setDisp(m: DisplayMode) {
+  viewer.setDisplayMode(m);
+  document.querySelectorAll<HTMLButtonElement>(".disp button").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.disp === m)));
 }
 
 function drawThumb() {

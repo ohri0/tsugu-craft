@@ -218,9 +218,9 @@ export function planProngs(params: SettingParams, corners: readonly Corner[] = f
         .slice(0, count)
         .map((c) => c.t);
   const fixed = [...new Set(chosen)].sort((a, b) => a - b).slice(0, count);
-  // 角を包む V 字の爪にするのは、鋭い角（三角・しずく形・舟形の先）だけ。四角い石の直角の角は、丸い爪 1 本を角に立てる
+  // 角を V 字の爪で包むのは、三角・しずく形・舟形の先のような尖った角。四角い石（角が 4 つ以上で、直角に近い）は、丸い爪 1 本を角に立てる
   const angleAt = (t: number) => corners.find((c) => Math.abs(c.t - t) < 1e-9)?.angleDeg ?? 0;
-  const vFor = (t: number) => params.vAtCorners ?? angleAt(t) < GUIDES.prong.vCornerMaxDeg;
+  const vFor = (t: number) => params.vAtCorners ?? !(corners.length >= 4 && angleAt(t) >= GUIDES.prong.squareCornerMinDeg);
   const rest = spread(fixed, count - fixed.length, longEndT(s.outlineMm));
   return [
     ...fixed.map((t) => ({ t, isV: vFor(t), diameterMm: d })),

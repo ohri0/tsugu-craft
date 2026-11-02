@@ -106,7 +106,8 @@ line.ax-z { stroke: #4ea1ff; } text.ax-z { fill: #4ea1ff; }
 /* 最初の見せ場：写真に輪郭が描かれる */
 .intro-stage { position: absolute; inset: 0; z-index: 10; display: grid; place-items: center; background: #111113; transition: opacity 1.2s ease; }
 .intro-stage.out { opacity: 0; }
-.intro-photo { max-width: 72%; max-height: 72%; border-radius: 4px; filter: grayscale(0.15) brightness(0.92); }
+.intro-frame { position: relative; width: min(72%, 72vh); line-height: 0; }
+.intro-photo { width: 100%; height: auto; border-radius: 4px; filter: grayscale(0.15) brightness(0.92); }
 .intro-line { position: absolute; inset: 0; width: 100%; height: 100%; }
 .intro-line path { fill: none; stroke: var(--accent-2); stroke-width: 3; vector-effect: non-scaling-stroke; stroke-dasharray: 1000; stroke-dashoffset: 1000; }
 .intro-line circle { fill: none; stroke: #fff; stroke-width: 2; vector-effect: non-scaling-stroke; opacity: 0; }
@@ -471,3 +472,16 @@ dialog.sheet input:focus { border-color: var(--accent); }
 .fix-log { margin: 10px 14px 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--field); }
 .verdict-chip.flash { animation: chipFlash 1.2s ease; }
 @keyframes chipFlash { 0% { transform: scale(1); } 20% { transform: scale(1.12); box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.08); } 100% { transform: scale(1); } }
+
+/* 最初の見せ場：経過時間と、図面と作り方の札 */
+.intro-timer { position: absolute; left: 50%; top: 54px; transform: translateX(-50%); display: flex; gap: 10px; align-items: baseline; padding: 6px 14px; border-radius: 16px; background: rgba(16, 16, 18, 0.85); border: 1px solid var(--line-2); font-size: 12px; z-index: 6; transition: opacity 0.6s; }
+.intro-timer b { font-weight: 600; }
+.intro-timer span { font: 600 13px var(--mono); color: var(--accent-2); }
+.intro-timer.done { border-color: rgba(48, 209, 88, 0.5); }
+.intro-timer.done span { color: var(--ok); }
+.intro-timer.out, .intro-sheet.out { opacity: 0; }
+.intro-sheet { position: absolute; right: 16px; bottom: 16px; display: flex; gap: 12px; align-items: center; padding: 10px; border-radius: 10px; background: rgba(20, 20, 22, 0.92); border: 1px solid var(--line-2); z-index: 6; animation: sheetIn 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both; transition: opacity 0.6s; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45); }
+.intro-sheet img { width: 120px; height: auto; border-radius: 4px; background: #fff; }
+.intro-sheet b { display: block; font-size: 13px; }
+.intro-sheet small { font-size: 11px; color: var(--fg-2); }
+@keyframes sheetIn { from { opacity: 0; transform: translateY(16px) scale(0.96); } to { opacity: 1; transform: none; } }
