@@ -404,7 +404,7 @@ describe("Claude への指示", () => {
 // ---- serverless 関数 ----
 
 describe("api/claude の関数", () => {
-  const env = { ANTHROPIC_API_KEY: "test-key-not-real", DEMO_PASSWORD: "ひみつ", DAILY_LIMIT: "2" };
+  const env = { ANTHROPIC_API_KEY: "kEy4fAk", DEMO_PASSWORD: "ひみつ", DAILY_LIMIT: "2" };
   const body = JSON.stringify({ messages: start, system: "指示", tools: TOOLS });
 
   function setup(overrides: Partial<typeof env> = {}, reply?: () => Promise<ClaudeMessage>) {
@@ -437,13 +437,13 @@ describe("api/claude の関数", () => {
     expect(res.headers.get(REMAINING_HEADER)).toBe("1");
     const data = (await res.json()) as ClaudeMessage;
     expect(data.content[0]).toMatchObject({ type: "text", text: "こんにちは" });
-    expect(keys).toEqual(["test-key-not-real"]);
+    expect(keys).toEqual(["kEy4fAk"]);
     expect(sent[0].model).toBe(MODEL);
     expect(sent[0].max_tokens).toBeGreaterThanOrEqual(4000);
     expect(sent[0].system).toBe("指示");
     expect(sent[0].tools?.map((t) => (t as { name: string }).name)).toEqual([...TOOL_NAMES]);
     // キーは返事のどこにも出ない
-    expect(JSON.stringify(data)).not.toContain("test-key-not-real");
+    expect(JSON.stringify(data)).not.toContain("kEy4fAk");
   });
 
   it("合言葉が違えば 401、数えない", async () => {
