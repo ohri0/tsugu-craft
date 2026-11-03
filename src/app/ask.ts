@@ -15,7 +15,7 @@ import { askPassword, resetPassword } from "./password";
 import { masterName, ruleQuote } from "./master";
 import { getVideo } from "./video-store";
 
-const SUGGEST = ["ロウ付けの前、両端はどう削る？", "ヤスリをかけるとき、角度はどうする？", "どこまで削ればいい？", "金属を持つ手は、どうしておく？"];
+const SUGGEST = ["9 mm くらいの石の爪は、何 mm にする？", "メレの爪の太さは？", "三角の石は、爪 3 本で留まる？", "大きい石の爪は、太くする？"];
 
 export function mountAsk(root: HTMLElement): { refresh(): void } {
   root.innerHTML = `

@@ -21,10 +21,10 @@ describe("聞くの返事を分ける", () => {
 
 describe("目安帳から近い決まりを探す", () => {
   const rules = activeRules(repo as Ledger);
-  it("ロウ付けの前の削り方の質問で、石川さんの決まりが見つかる", () => {
-    const found = findRules("ロウ付けの前に、どう削ればいい？", rules);
+  it("爪の太さの質問で、石川さんの決まりが見つかる", () => {
+    const found = findRules("メレの爪の太さは？", rules);
     expect(found.length).toBeGreaterThan(0);
-    expect(found[0].text + found[0].title).toMatch(/ロウ付け|削/);
+    expect(found[0].text + found[0].title).toMatch(/爪/);
   });
   it("関係のない質問では見つからない", () => {
     expect(findRules("今日の天気は？", rules)).toEqual([]);

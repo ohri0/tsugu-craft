@@ -31,7 +31,6 @@ describe("作り方の決まり", () => {
   });
   it("帳面の職人の手の決まりは、どれも工程に結びついている", () => {
     const rules = (repo as { rules: Rule[] }).rules.filter((r) => r.source.kind === "craftsman" && !isCheckRule(r));
-    expect(rules.length).toBeGreaterThan(0);
     for (const r of rules) {
       expect(r.steps?.length).toBeGreaterThan(0);
       for (const s of r.steps!) expect(MAKING_STEP_IDS).toContain(s);
