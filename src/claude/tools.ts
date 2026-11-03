@@ -83,14 +83,22 @@ export interface SetSettingInput {
   prong_positions?: number[];
   prong_count?: number;
   prong_mm?: number;
+  /** 尖った角を V 字の爪で包むか */
+  v_corners?: boolean;
   height?: HeightChoice;
   orientation?: Orientation;
   reason: string;
 }
 
+/** 腕の断面。free は画面で手で描いた形（Claude の道具からは選ばない） */
+export type ShankSectionChoice = "kouman" | "hirauchi" | "hangouman" | "kaku" | "free";
+
 export interface SetShankInput {
   width_mm?: number;
   thickness_mm?: number;
+  section?: ShankSectionChoice;
+  /** 手で描いた断面の点（画面だけが使う。片側、真ん中のいちばん上 → 端の内側、0〜1） */
+  section_points?: { x: number; y: number }[];
   gou?: number;
   metal?: Metal;
   reason: string;
@@ -118,6 +126,8 @@ export interface SettingState {
   v_prong_count: number;
   prong_mm: number | null;
   prong_positions: number[];
+  /** 尖った角を V 字の爪で包む設定か */
+  v_corners: boolean;
   height: HeightChoice;
   orientation: Orientation;
   /** 覆輪の壁の厚み（爪のときは null） */
@@ -133,6 +143,7 @@ export interface SetSettingResult {
 export interface ShankState {
   width_mm: number;
   thickness_mm: number;
+  section: ShankSectionChoice;
   gou: number;
   inner_diameter_mm: number;
   metal: Metal;
@@ -247,6 +258,11 @@ export const TOOLS: ClaudeTool[] = [
           type: "number",
           description: `爪の太さ（mm、${range("prong_mm", " mm")}）。省くと石の大きさから出した標準の太さ。太いほど強いが、少し重く見える`,
         },
+        v_corners: {
+          type: "boolean",
+          description:
+            "尖った角を V 字の爪で包むか。true＝角の先を V の字の爪で包む（角が欠けにくく、角の形がくっきり見える）、false＝角に丸い爪を立てる普通の爪留め（既定）。尖った角のある石の爪留めのときだけ使う",
+        },
         height: { type: "string", enum: ["low", "standard", "high"], description: `石座の高さ。${heightText}` },
         orientation: {
           type: "string",
@@ -265,11 +281,17 @@ export const TOOLS: ClaudeTool[] = [
   {
     name: "set_shank",
     description:
-      "腕（リングの輪の部分、甲丸）を変える。書いた項目だけが変わり、省いた項目は今のまま。変えたあとの寸法と、指輪のおおよその重さを返す。",
+      "腕（リングの輪の部分）を変える。書いた項目だけが変わり、省いた項目は今のまま。変えたあとの寸法と、指輪のおおよその重さを返す。",
     strict: true,
     input_schema: {
       type: "object",
       properties: {
+        section: {
+          type: "string",
+          enum: ["kouman", "hirauchi", "hangouman", "kaku"],
+          description:
+            "腕の断面。kouman＝甲丸（内側が平らで外側が丸い。既定）、hirauchi＝平打ち（外側が平らで角が丸い）、hangouman＝半甲丸（端に少し壁があり、上がゆるい丸み）、kaku＝角（四角に近く、角だけ少し丸い。厚みを書かなければ幅と同じ）",
+        },
         width_mm: { type: "number", description: `腕の幅（mm、${range("width_mm", " mm")}）。目安の初期値は ${GUIDES.shank.widthMm} mm` },
         thickness_mm: {
           type: "number",
@@ -400,7 +422,7 @@ export type ParsedToolCall =
 export type ParseResult = { ok: true; call: ParsedToolCall } | { ok: false; error: string };
 
 interface PropSchema {
-  type: "string" | "number" | "integer" | "array";
+  type: "string" | "number" | "integer" | "array" | "boolean";
   enum?: readonly string[];
   items?: { type: "integer" } | { type: "object" };
 }
@@ -432,6 +454,8 @@ function checkProp(key: string, s: PropSchema, v: unknown): string | null {
       if (typeof v !== "string") return `${key} は文字で書いてください`;
       if (s.enum && !s.enum.includes(v)) return `${key} は ${s.enum.join(" / ")} のどれかです（今は ${v}）`;
       return null;
+    case "boolean":
+      return typeof v === "boolean" ? null : `${key} は true か false で書いてください`;
     case "number":
       return checkNumber(key, v, false);
     case "integer":

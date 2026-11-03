@@ -66,9 +66,19 @@ const designShape = z
       .describe(`地金：${metalIds.map((m) => `${m}＝${GUIDES.metals[m].name}`).join("、")}`),
     gou: z.number().int().min(1).max(30).optional().describe("指輪のサイズ（日本の号数）"),
     position: z.enum(["top", "side", "palm"]).optional().describe("石の場所：top＝上（ふつう）、side＝横（肩）、palm＝手のひら側寄り。必要な留まりが変わる"),
+    v_corners: z
+      .boolean()
+      .optional()
+      .describe("尖った角を V 字の爪で包むか。true＝V 字の爪、false＝角に丸い爪を立てる普通の爪留め（継ぐの画面の既定）。省略すると形の処理の既定（V 字）"),
+    shank_section: z
+      .enum(["kouman", "hirauchi", "hangouman", "kaku"])
+      .optional()
+      .describe("腕の断面：kouman＝甲丸（既定）、hirauchi＝平打ち、hangouman＝半甲丸、kaku＝角（厚みを書かなければ幅と同じ）"),
+    shank_width_mm: z.number().min(1).max(10).optional().describe(`腕の幅（mm）。省略で ${GUIDES.shank.widthMm} mm`),
+    shank_thickness_mm: z.number().min(0.5).max(5).optional().describe(`腕の厚み（mm）。省略で ${GUIDES.shank.thicknessMm} mm（角は幅と同じ）`),
   })
   .optional()
-  .describe("指輪の設計。省略した所は、爪・自動の本数・標準の太さ・標準の高さ・縦・K18 イエロー・11 号・上");
+  .describe("指輪の設計。省略した所は、爪・自動の本数・標準の太さ・標準の高さ・縦・K18 イエロー・11 号・上・甲丸の腕");
 
 export const listRulesShape = {
   include_history: z.boolean().optional().describe("true なら、置き換えられた古い決まりも履歴として返す"),
@@ -218,6 +228,10 @@ export function checkRingTool(ctx: ToolContext, input: CheckRingInput) {
     metal: d.metal ?? DEFAULT_DESIGN.metal,
     gou: d.gou ?? DEFAULT_DESIGN.gou,
     position: d.position ?? DEFAULT_DESIGN.position,
+    vCorners: d.v_corners,
+    section: d.shank_section,
+    shankWidthMm: d.shank_width_mm,
+    shankThicknessMm: d.shank_thickness_mm,
   };
   const built = build(stone.params, design, ledger);
   const { ring } = built;
@@ -246,6 +260,7 @@ export function checkRingTool(ctx: ToolContext, input: CheckRingInput) {
       metal: metalName(design.metal),
       gou: design.gou,
       position: design.position,
+      shank: { section: ring.shank.section, width_mm: round(ring.shank.widthMm), thickness_mm: round(ring.shank.thicknessMm) },
     },
     culet_gap_mm: round(ring.culetGapMm),
     metal_weight_g: round(ring.metalWeightG),

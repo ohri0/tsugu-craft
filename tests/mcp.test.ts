@@ -97,6 +97,17 @@ describe("check_ring", () => {
     expect(gap?.required).toBe("2.50 mm 以上");
     expect(gap?.options[0].effect_on_look).toBeTruthy();
   });
+  it("留め方（V 字の爪の有無）と腕の断面を、画面と同じ言葉で選べる。細い腕は確かめで出る", () => {
+    const plain = checkRingTool(ctx, { stone: triangle, design: { v_corners: false } });
+    expect(plain.design.v_prong_count).toBe(0);
+    const v = checkRingTool(ctx, { stone: triangle, design: { v_corners: true } });
+    expect(v.design.v_prong_count).toBe(3);
+    const flat = checkRingTool(ctx, { stone: triangle, design: { shank_section: "hirauchi" } });
+    expect(flat.design.shank.section).toBe("hirauchi");
+    expect(flat.metal_weight_g).toBeGreaterThan(v.metal_weight_g);
+    const thin = checkRingTool(ctx, { stone: triangle, design: { shank_thickness_mm: 1.0, shank_width_mm: 1.5 } });
+    expect(thin.problems.map((p) => p.id)).toEqual(expect.arrayContaining(["band-thin", "band-narrow"]));
+  });
   it("三角の石は V 字の爪 3 つで、すき間と地金の重さも返す", () => {
     const r = checkRingTool(ctx, { stone: triangle });
     expect(r.ok).toBe(true);

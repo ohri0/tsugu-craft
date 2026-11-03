@@ -60,9 +60,14 @@ export class Viewer {
     this.renderer.toneMapping = THREE.NeutralToneMapping;
     this.renderer.toneMappingExposure = 1.0;
     host.appendChild(this.renderer.domElement);
-    const pmrem = new THREE.PMREMGenerator(this.renderer);
-    this.scene.environment = pmrem.fromScene(studioScene(), 0.015).texture;
-    pmrem.dispose();
+    const makeEnv = () => {
+      const pmrem = new THREE.PMREMGenerator(this.renderer);
+      this.scene.environment = pmrem.fromScene(studioScene(), 0.015).texture;
+      pmrem.dispose();
+    };
+    makeEnv();
+    // スマホなどで描く力が足りず、3D の描画がいったん消えて戻ったとき、映り込みの光を作り直す（作り直さないと金属が真っ黒になる）
+    this.renderer.domElement.addEventListener("webglcontextrestored", () => makeEnv());
     this.scene.background = backdropTexture();
     this.camera.up.set(0, 0, 1);
     this.camera.position.set(14, -18, 14);
@@ -319,13 +324,18 @@ export class Viewer {
     const warn = new THREE.MeshPhysicalMaterial({ color: WARN, metalness: 0.35, roughness: 0.3, clearcoat: 0.6, side: THREE.DoubleSide });
     // 問題のある爪の三角形だけ、赤い材質の組に分ける
     const badProngs = new Set(problems.flatMap((p) => (p.target.kind === "prong" ? [p.target.index] : [])));
-    this.warnMat = badProngs.size > 0 || problems.some((p) => p.target.kind === "corner") ? warn : null;
+    // 覆輪の壁が薄いときは石座ぜんぶ、腕が細い・薄いときは腕を赤く
+    const badBezel = problems.some((p) => p.target.kind === "bezel");
+    const badShank = problems.some((p) => p.target.kind === "shank");
+    this.warnMat = badProngs.size > 0 || badBezel || badShank || problems.some((p) => p.target.kind === "corner" || p.target.kind === "gap") ? warn : null;
     const settingGeo = ring.ringPositions.settingNormals ? smoothGeometry(ring.ringPositions.setting, ring.ringPositions.settingNormals) : metalGeometry(ring.ringPositions.setting);
-    const ranges = ring.setting.prongs
-      .map((pr, i) => ({ ...pr.triangles, bad: badProngs.has(i) }))
-      .filter((r) => r.bad)
-      .sort((a, b) => a.start - b.start);
     const total = ring.ringPositions.setting.length / 9;
+    const ranges = badBezel
+      ? [{ start: 0, count: total, bad: true }]
+      : ring.setting.prongs
+          .map((pr, i) => ({ ...pr.triangles, bad: badProngs.has(i) }))
+          .filter((r) => r.bad)
+          .sort((a, b) => a.start - b.start);
     let cursor = 0;
     for (const r of ranges) {
       if (r.start > cursor) settingGeo.addGroup(cursor * 3, (r.start - cursor) * 3, 0);
@@ -334,7 +344,7 @@ export class Viewer {
     }
     if (cursor < total) settingGeo.addGroup(cursor * 3, (total - cursor) * 3, 0);
     const setting = new THREE.Mesh(settingGeo, [metal, warn]);
-    const shank = new THREE.Mesh(metalGeometry(ring.ringPositions.shank), metal);
+    const shank = new THREE.Mesh(metalGeometry(ring.ringPositions.shank), badShank ? warn : metal);
     setting.position.z = lift;
     shank.position.z = lift;
     this.content.add(setting, shank);
@@ -342,8 +352,9 @@ export class Viewer {
     const c = Math.cos(ring.transform.rotationZ);
     const s = Math.sin(ring.transform.rotationZ);
     for (const p of problems) {
-      if (p.target.kind !== "corner") continue;
-      const q = p.target.point;
+      // 守られていない角と、爪の間が空きすぎの所（縁の上の真ん中）
+      if (p.target.kind !== "corner" && !(p.target.kind === "gap" && p.target.point)) continue;
+      const q = p.target.point!;
       const mark = new THREE.Mesh(new THREE.SphereGeometry(0.35, 24, 16), warn);
       mark.position.set(q.x * c - q.y * s, q.x * s + q.y * c, ring.transform.translateZ + lift + 0.2);
       this.content.add(mark);
