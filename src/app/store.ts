@@ -3,9 +3,11 @@
 import { loadLedger } from "../ui/ledger-ui";
 import { loadTeacherQueue, TEACHER_QUEUE_STORE } from "../ui/teach-ui";
 import type { Ledger } from "../rules/ledger";
+import { activeLedger, MAIN, parseWorkshops, putLedger, type Workshops } from "../rules/workshops";
 import type { TeacherQueue } from "../rules/teacher-queue";
 
 const LEDGER_STORE = "tsugu.ledger.v1";
+const WORKSHOP_STORE = "tsugu.workshops.v1";
 const PASS_STORE = "tsugu.password.v1";
 const SEEN_STORE = "tsugu.introSeen.v1";
 
@@ -34,13 +36,28 @@ export function onStoreChange(fn: Listener): void {
 const changed = () => listeners.forEach((fn) => fn());
 
 let ledger: Ledger = loadLedger();
+let workshops: Workshops = parseWorkshops(get(WORKSHOP_STORE) || null);
 let queue: TeacherQueue = loadTeacherQueue();
 
 export const store = {
-  ledger: () => ledger,
+  /** 使っている帳面（工房ごとの帳面を選んでいれば、その帳面） */
+  ledger: () => activeLedger(workshops, ledger),
+  /** はじめの帳面（石川さんの帳面） */
+  mainLedger: () => ledger,
   setLedger(l: Ledger) {
-    ledger = l;
-    put(LEDGER_STORE, JSON.stringify(l));
+    if (workshops.active === MAIN) {
+      ledger = l;
+      put(LEDGER_STORE, JSON.stringify(l));
+    } else {
+      workshops = putLedger(workshops, workshops.active, l);
+      put(WORKSHOP_STORE, JSON.stringify(workshops));
+    }
+    changed();
+  },
+  workshops: () => workshops,
+  setWorkshops(w: Workshops) {
+    workshops = w;
+    put(WORKSHOP_STORE, JSON.stringify(w));
     changed();
   },
   queue: () => queue,

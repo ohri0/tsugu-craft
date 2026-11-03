@@ -3,7 +3,8 @@
 // 整える。作れない所が赤く光り、誰のどの決まりかと、見た目への影響つきの直し方が出る。人も同じつまみで直せる。
 // 渡す。  職人への指示書・原寸の型紙・3D データ。
 // 帳面   職人が声で決まりを足すと、その場で確かめが変わる。
-import { summarize, sweepDesigns, sweepOne, type SweepDesign, type SweepResult } from "./sweep";
+import { MAIN, addWorkshop, setActive } from "../rules/workshops";
+import { side, summarize, sweepDesigns, sweepOne, type SweepDesign, type SweepResult } from "./sweep";
 import { SAMPLE_DESIGNS, SAMPLE_MAKER, SAMPLE_NOTE, isSample, outlineThumb, sampleState, sampleStone, tuneSample } from "./samples";
 import { MAKING_STEPS, isCheckRule, makingRulesFor, stepsOfRule } from "../rules/making";
 import "./pro.css";
@@ -20,7 +21,7 @@ import { rulePlans } from "../ui/design";
 import { loadPhoto } from "../ui/photo";
 import { Viewer, type DisplayMode } from "../ui/viewer";
 import { extractStone, type Extraction } from "../vision/extract";
-import { PARAMS, activeRules, addRule, seedLedger, valueFor, type ParamId, type Rule } from "../rules/ledger";
+import { PARAMS, activeRules, addRule, seedLedger, valueFor, type Ledger, type ParamId, type Rule } from "../rules/ledger";
 import { askPassword, resetPassword } from "../app/password";
 import { esc, store, today } from "../app/store";
 import { bindVoice } from "../app/voice";
@@ -773,6 +774,61 @@ function setCompare(on: boolean) {
   }
   renderCheck();
 }
+// ---- 工房ごとの帳面：使う帳面を切り替える・工房を足す・同じ指輪を工房ごとに比べる ----
+function workshopBarHtml(): string {
+  if (kind !== "solitaire") return "";
+  const ws = store.workshops();
+  const mainName = masterName(store.mainLedger());
+  const opts = [`<option value="${MAIN}"${ws.active === MAIN ? " selected" : ""}>${esc(mainName)}さんの帳面</option>`, ...ws.list.map((w) => `<option value="${esc(w.id)}"${ws.active === w.id ? " selected" : ""}>${esc(w.name)}の帳面</option>`)];
+  return `<section class="ws-bar"><label><span>使う帳面</span><select class="ws-pick">${opts.join("")}<option value="__new">＋ 工房の帳面を作る</option></select></label>
+    <div class="ws-new" hidden><input class="ws-name" type="text" placeholder="工房の名前（例：工房 B）"><button type="button" class="primary ws-make">作る</button></div>
+    ${ws.list.length ? `<button type="button" class="ghost-d ws-cmp">同じ指輪を、帳面ごとに比べる</button>` : `<p class="hint">工房ごとに決まりはちがいます。工房の帳面を作ると、同じ指輪をそれぞれの決まりで確かめられます。</p>`}
+    <div class="ws-table"></div></section>`;
+}
+function switchLedger(id: string) {
+  store.setWorkshops(setActive(store.workshops(), id));
+  if (!session) return;
+  session.state.prongMm = undefined;
+  tuneProngs();
+  session.build("帳面を切り替えた");
+  lastRule = null;
+  pastCheck = null;
+  renderCheck();
+  const ws = store.workshops();
+  const label = ws.active === MAIN ? `${masterName(store.mainLedger())}さんの帳面` : `${ws.list.find((w) => w.id === ws.active)?.name ?? "工房"}の帳面`;
+  toast(`${label}で確かめ直しました`);
+}
+function workshopTable(): string {
+  if (!session?.built) return "";
+  const state = { ...session.snapshot(), prongMm: undefined };
+  const rows: [string, Ledger][] = [["公開情報だけ", seedLedger()], [`${masterName(store.mainLedger())}さん`, store.mainLedger()], ...store.workshops().list.map((w) => [w.name, w.ledger] as [string, Ledger])];
+  return `<table><thead><tr><th>帳面</th><th>爪</th><th>地金</th><th>作れない所</th></tr></thead><tbody>${rows
+    .map(([name, led]) => {
+      const r = side(session!.stone, state, led, session!.solid);
+      return `<tr><th>${esc(name)}</th><td>${r.prongMm.toFixed(2)} mm</td><td>約 ${r.weightG.toFixed(1)} g</td><td>${r.problems}</td></tr>`;
+    })
+    .join("")}</tbody></table><p class="hint">同じ石・同じ形を、帳面だけ替えて組んだ結果です（爪はそれぞれの帳面の標準から）。</p>`;
+}
+function bindWorkshops(box: HTMLElement) {
+  const pick = box.querySelector<HTMLSelectElement>(".ws-pick");
+  if (!pick) return;
+  pick.addEventListener("change", () => {
+    if (pick.value === "__new") {
+      box.querySelector<HTMLElement>(".ws-new")!.hidden = false;
+      box.querySelector<HTMLInputElement>(".ws-name")!.focus();
+      return;
+    }
+    switchLedger(pick.value);
+  });
+  box.querySelector(".ws-make")?.addEventListener("click", () => {
+    const name = box.querySelector<HTMLInputElement>(".ws-name")!.value.trim() || "新しい工房";
+    store.setWorkshops(addWorkshop(store.workshops(), name, seedLedger()));
+    switchLedger(store.workshops().active);
+  });
+  box.querySelector(".ws-cmp")?.addEventListener("click", () => {
+    box.querySelector(".ws-table")!.innerHTML = workshopTable();
+  });
+}
 function compareHtml(): string {
   if (kind !== "solitaire") return "";
   const has = activeRules(store.ledger()).some((r) => r.source.kind === "craftsman" && r.param);
@@ -893,6 +949,7 @@ function renderCheck() {
   box.innerHTML = `
     ${lastRule ? `<section class="rule-flash"><small>${esc(lastRule.by)}さんの決まりで、確かめ直しました</small><b>${lastRule.spoken ? `「${esc(lastRule.quote)}」` : esc(lastRule.quote)}</b><span>作れない所 <em>${lastRule.before}</em> → <em class="${lastRule.after ? "ng" : "ok"}">${lastRule.after}</em>${lastRule.after && probs.length < lastRule.after ? ` → 直して <em class="${probs.length ? "ng" : "ok"}">${probs.length}</em>` : ""}</span></section>` : ""}
     <section class="big-verdict ${probs.length ? "ng" : "ok"}"><b>${probs.length ? "このままでは作れません" : "このまま作れます"}</b><small>${probs.length ? `直す所 ${probs.length}` : `爪・留まり・すき間・角、すべて目安の内側`}</small></section>
+    ${workshopBarHtml()}
     ${compareHtml()}
     ${
       probs.length
@@ -922,6 +979,7 @@ function renderCheck() {
     ${rulesSectionHtml()}
     <button type="button" class="next-btn to-build">作り方を見る →</button>`;
   bindRules(box);
+  bindWorkshops(box);
   box.querySelector(".compare-btn")?.addEventListener("click", () => setCompare(true));
   box.querySelector(".sweep-btn")?.addEventListener("click", () => openSweep());
   box.querySelector(".compare-back")?.addEventListener("click", () => setCompare(false));

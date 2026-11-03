@@ -3,6 +3,7 @@ import { activeRules, type Ledger, type Rule } from "../rules/ledger";
 
 /** 目安帳でいちばん多く決まりを残した職人の名前。いなければ「職人」 */
 export function masterName(ledger: Ledger): string {
+  if (ledger.owner?.trim()) return ledger.owner.trim();
   const count = new Map<string, number>();
   for (const r of activeRules(ledger)) if (r.source.kind === "craftsman") count.set(r.source.name, (count.get(r.source.name) ?? 0) + 1);
   let best = "職人";

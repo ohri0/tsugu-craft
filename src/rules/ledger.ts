@@ -112,6 +112,8 @@ export interface Ledger {
   craft: string;
   /** 足した順。置き換えられた決まりも履歴として残す */
   rules: Rule[];
+  /** 誰の帳面か（工房ごとの帳面の名前。なければ、決まりをいちばん多く残した職人の名前） */
+  owner?: string;
 }
 
 const SKYJEMS = { kind: "public", title: "Prong wire（Skyjems）", url: "https://skyjems.ca/pages/encyclopedia-prong-wire" } as const;

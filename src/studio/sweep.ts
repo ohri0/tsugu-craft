@@ -42,8 +42,10 @@ export interface SweepResult {
 }
 
 /** 爪の太さは帳面の標準から。留まりが足りなければ、画面と同じように少しずつ太くする */
-function side(stone: StoneParams, state: RingState, ledger: Ledger): SweepSide {
+export function side(stone: StoneParams, state: RingState, ledger: Ledger, solid = false): SweepSide {
   const s = new RingSession(stone, () => ledger, () => undefined, () => "");
+  // 重さは形で少し変わるので、画面と同じ形（一体の石座）で比べたいときは solid
+  s.solid = solid;
   s.state = structuredClone(state);
   let b = s.build("比べる");
   for (let i = 0; i < 6 && b.problems.some((p) => p.check === "hold" || p.check === "prong-thin"); i++) {
