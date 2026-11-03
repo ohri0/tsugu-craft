@@ -529,3 +529,8 @@ dialog.sheet input:focus { border-color: var(--accent); }
 .no-works .link, .link.add-samples { padding: 0; border: 0; background: none; color: var(--accent-2); font: inherit; text-decoration: underline; cursor: pointer; }
 .works-panel .w-unsample { margin: 8px 0; }
 .works-list .sample-note { font-size: 11px; color: var(--fg-3); }
+
+/* ほかの場所（学ぶ・残す・組み立て直す）：どの画面からも同じ名前・同じ順で */
+.places { display: flex; align-items: center; gap: 2px; margin-right: 6px; padding-right: 8px; border-right: 1px solid var(--line); }
+.places a { height: 26px; padding: 0 9px; display: inline-flex; align-items: center; border-radius: 5px; color: var(--fg-2); font-size: 12px; text-decoration: none; }
+.places a:hover { background: var(--panel-2); color: var(--fg); }

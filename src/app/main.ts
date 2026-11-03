@@ -10,10 +10,10 @@ import { groupQuestions } from "../rules/teacher-queue";
 
 type ViewId = "see" | "ask" | "rebuild" | "keep";
 const VIEWS: { id: ViewId; label: string; sub: string; icon: string; hidden?: boolean }[] = [
-  { id: "see", label: "見る", sub: "学ぶ人", icon: `<path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/>` },
+  { id: "see", label: "学ぶ", sub: "次の人", icon: `<path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/>` },
   { id: "ask", label: "言葉で聞く", sub: "学ぶ人", hidden: true, icon: `<path d="M4 5h16v11H8l-4 4V5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>` },
-  { id: "rebuild", label: "組み立て直す", sub: "途切れた技", icon: `<path d="M4 18h16M6 14h12M8 10h8M10 6h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>` },
   { id: "keep", label: "残す", sub: "職人", icon: `<path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm6-3a6 6 0 0 1-12 0M12 18v3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>` },
+  { id: "rebuild", label: "組み立て直す", sub: "途切れた技", icon: `<path d="M4 18h16M6 14h12M8 10h8M10 6h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>` },
 ];
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
@@ -21,8 +21,8 @@ app.innerHTML = `
 <div class="app">
   <header class="bar">
     <a class="brand" href="./" aria-label="継ぐ（始めの画面へ）" title="始めの画面へ"><span class="seal">継</span><span class="name">継ぐ</span></a>
-    <nav class="nav" aria-label="画面">${VIEWS.filter((v) => !v.hidden).map((v) => `<a href="#${v.id}" data-view="${v.id}"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">${v.icon}</svg><span>${v.label}</span><i class="badge" hidden></i></a>`).join("")}</nav>
-    <div class="bar-r"><a class="to-studio" href="studio.html">設計の画面へ</a><button type="button" class="ghost help" aria-label="使い方">使い方</button></div>
+    <nav class="nav" aria-label="画面"><a href="studio.html" class="to-design"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="14" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 4h6l-3 4Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span>設計</span></a>${VIEWS.filter((v) => !v.hidden).map((v) => `<a href="#${v.id}" data-view="${v.id}"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">${v.icon}</svg><span>${v.label}</span><i class="badge" hidden></i></a>`).join("")}</nav>
+    <div class="bar-r"><button type="button" class="ghost help" aria-label="使い方">使い方</button></div>
   </header>
   <main>${VIEWS.map((v) => `<div class="screen" id="screen-${v.id}" hidden></div>`).join("")}</main>
 </div>

@@ -64,7 +64,7 @@ export function mountSee(root: HTMLElement): { refresh(): void } {
   root.innerHTML = `
   <section class="view see">
     <header class="view-head">
-      <p class="eyebrow">見て覚える</p>
+      <p class="eyebrow">学ぶ</p>
       <h2 class="see-title"></h2>
       <p class="lead">言葉ではなく、手の動きで比べます。手本と同じ仕事を撮ると、どの瞬間がどれだけ違うかを見せます。</p>
       <a class="ask-link" href="#ask">言葉で聞く（決まりと理由）→</a>
@@ -117,7 +117,8 @@ export function mountSee(root: HTMLElement): { refresh(): void } {
     sampleLearner = samples?.learner;
     $(".try-sample").hidden = !sampleLearner;
     if (!examples.length) {
-      $(".examples").innerHTML = `<div class="no-example"><p>まだ手本がありません。</p><p class="small">「残す」の「手本を撮る」で、職人が作業を撮ると、ここに手本として出ます。</p><a class="primary btnlike" href="#keep">手本を撮る</a></div>`;
+      $(".examples").innerHTML = `<div class="no-example"><p>まだ手本の動画がありません。</p><p class="small">「残す」の「手本を撮る」で職人が作業を撮ると、ここに手本として出ます。それまでは、職人が残した決まりに「なぜ？」と聞いて学べます。</p><div class="row"><a class="primary btnlike" href="#ask">言葉で聞く</a><a class="ghost btnlike to-motion" href="#keep">手本を撮る（職人）</a></div></div>`;
+      $(".examples").querySelector(".to-motion")?.addEventListener("click", () => setTimeout(() => document.querySelector<HTMLButtonElement>('[data-open="motion"]')?.click(), 60));
       $(".master-stage").hidden = true;
       $(".cta").hidden = true;
       return;
