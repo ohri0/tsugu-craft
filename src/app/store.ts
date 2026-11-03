@@ -5,11 +5,33 @@ import { loadTeacherQueue, TEACHER_QUEUE_STORE } from "../ui/teach-ui";
 import type { Ledger } from "../rules/ledger";
 import { activeLedger, MAIN, parseWorkshops, putLedger, type Workshops } from "../rules/workshops";
 import type { TeacherQueue } from "../rules/teacher-queue";
+import { seedNanakoLedger, type NanakoLedger } from "../rules/nanako";
 
 const LEDGER_STORE = "tsugu.ledger.v1";
 const WORKSHOP_STORE = "tsugu.workshops.v1";
 const PASS_STORE = "tsugu.password.v1";
 const SEEN_STORE = "tsugu.introSeen.v1";
+const NANAKO_STORE = "tsugu.ledger.nanako.v1";
+
+/**
+ * 魚々子の帳面：このブラウザに残したものがあればそれ。はじめの帳面（資料から入れた決まり）にあって
+ * まだ入っていない決まりは後ろに足す（指輪の帳面の loadLedger と同じ考え方）。
+ */
+export function parseNanakoLedger(raw: string | null): NanakoLedger {
+  const seed = seedNanakoLedger();
+  try {
+    if (raw) {
+      const l = JSON.parse(raw) as NanakoLedger;
+      if (Array.isArray(l.rules)) {
+        const have = new Set(l.rules.map((r) => r.id));
+        return { ...seed, ...l, technique: seed.technique, rules: [...l.rules, ...seed.rules.filter((r) => !have.has(r.id))] };
+      }
+    }
+  } catch {
+    // 読めなければはじめの帳面から
+  }
+  return seed;
+}
 
 function put(key: string, value: string) {
   try {
@@ -38,6 +60,7 @@ const changed = () => listeners.forEach((fn) => fn());
 let ledger: Ledger = loadLedger();
 let workshops: Workshops = parseWorkshops(get(WORKSHOP_STORE) || null);
 let queue: TeacherQueue = loadTeacherQueue();
+let nanako: NanakoLedger = parseNanakoLedger(get(NANAKO_STORE) || null);
 
 export const store = {
   /** 使っている帳面（工房ごとの帳面を選んでいれば、その帳面） */
@@ -64,6 +87,13 @@ export const store = {
   setQueue(q: TeacherQueue) {
     queue = q;
     put(TEACHER_QUEUE_STORE, JSON.stringify(q));
+    changed();
+  },
+  /** 魚々子の帳面 */
+  nanakoLedger: () => nanako,
+  setNanakoLedger(l: NanakoLedger) {
+    nanako = l;
+    put(NANAKO_STORE, JSON.stringify(l));
     changed();
   },
   password: () => get(PASS_STORE),

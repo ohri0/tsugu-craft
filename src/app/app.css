@@ -396,3 +396,79 @@ input[type="range"]::-moz-range-thumb { width: 13px; height: 13px; border-radius
 .empty-run p + p { border: 0; padding: 8px 16px 0; }
 .published-note { margin: 0 0 12px; padding: 8px 12px; border-left: 2px solid var(--accent); background: rgba(10, 132, 255, 0.07); border-radius: 0 6px 6px 0; font-size: 12px; line-height: 1.7; color: var(--fg-2); }
 .no-example .row { justify-content: center; gap: 8px; }
+
+/* ---- 技（ほかの技にも）・聞き取り・魚々子 ---- */
+.linklike { padding: 0; border: 0; background: none; color: var(--accent-2); font-size: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.waza .tech { padding: 0; gap: 0; }
+.tech-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 10px 12px; color: var(--fg); text-decoration: none; }
+.tech-sub { flex: none; margin-right: 10px; min-height: 28px; gap: 6px; }
+.tech-sub .tech-meta { color: var(--fg-2); }
+.tech-body b .entry { font-style: normal; font-weight: 500; font-size: 10px; color: var(--fg-2); border: 1px solid var(--line-2); border-radius: 3px; padding: 0 5px; margin-left: 6px; vertical-align: 1px; }
+.ask-card { background: var(--panel); border: 1px solid var(--line-2); border-left: 2px solid var(--accent); border-radius: var(--radius); padding: 12px 14px; }
+.ask-card .iv-q { margin: 2px 0 10px; }
+.iv-mode { font-weight: 500; color: var(--fg-3); margin-left: 6px; padding: 0 6px; border: 1px solid var(--line-2); border-radius: 3px; }
+.iv-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.iv-count { font: 11px var(--mono); color: var(--fg-3); white-space: nowrap; }
+.iv-q { margin: 4px 0 4px; font-size: 15px; font-weight: 500; line-height: 1.6; }
+.iv-q.pending { color: var(--fg-2); }
+.iv-why { margin: 0 0 10px; font-size: 11px; color: var(--fg-3); line-height: 1.6; }
+.iv-kind { display: inline-block; margin-right: 6px; padding: 0 6px; border-radius: 3px; background: var(--caution-weak); color: var(--caution); font-weight: 600; }
+.iv-name { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; font-size: 11px; color: var(--fg-3); }
+.iv-name input { width: 7em; min-height: 28px; padding: 0 8px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--field); font-size: 12px; }
+.iv .mic { gap: 6px; }
+.iv-foot { margin: 10px 0 0; font-size: 11px; color: var(--fg-3); line-height: 1.6; }
+.iv-done { margin: 6px 0 0; font-size: 13px; color: var(--fg-2); }
+.iv-follow { margin: 6px 0 0; padding: 8px 10px; border-left: 2px solid var(--caution); background: var(--caution-weak); border-radius: 0 5px 5px 0; font-size: 13px; }
+.iv-rule { margin: 0; display: flex; gap: 8px; align-items: baseline; font-size: 13px; }
+.iv-text { margin: 0; font-size: 13px; }
+.val { font: 600 12px var(--mono); font-variant-numeric: tabular-nums; color: var(--fg); background: var(--field); border: 1px solid var(--line); border-radius: 3px; padding: 0 6px; }
+.gap-list, .nk-gaps, .nk-rules, .nk-findings { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.gap-item { width: 100%; display: grid; gap: 1px; text-align: left; padding: 8px 12px; border-radius: var(--r); border: 1px dashed var(--line-2); background: transparent; }
+.gap-item:hover { background: var(--hover); }
+.gap-item b { font-size: 12px; font-weight: 600; }
+.gap-item small { font-size: 11px; color: var(--fg-3); line-height: 1.55; }
+.nk-rule { padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); }
+.nk-rule.craftsman { border-color: var(--line-2); }
+.nk-rule-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
+.nk-rule-head b { font-size: 13px; font-weight: 600; }
+.nk-rule p { margin: 2px 0 0; font-size: 12px; color: var(--fg-2); }
+.nk-rule a, .nk-f a, .src { color: var(--fg-2); text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 2px; }
+.src { margin-left: 4px; font-size: 11px; color: var(--fg-3); }
+.nk-rule blockquote small { display: block; margin-top: 2px; font-size: 11px; color: var(--fg-3); }
+.nk-gap-h { margin-top: 16px !important; }
+.nanako .panel-head h3 { margin: 0; }
+.nk-preview { display: grid; gap: 10px; }
+.nk-layout { display: flex; padding: 2px; gap: 2px; background: var(--field); border: 1px solid var(--line); border-radius: 7px; }
+.nk-layout button { flex: 1; min-height: 28px; border: 0; border-radius: 5px; background: transparent; color: var(--fg-2); font-size: 12px; }
+.nk-layout button[aria-checked="true"] { background: var(--panel-2); color: var(--fg); box-shadow: 0 0 0 1px var(--line-2); }
+.nk-svg { width: 100%; height: auto; max-height: 340px; display: block; }
+.nk-side { width: 100%; height: auto; max-height: 90px; display: block; }
+.nk-ctrl label { grid-template-columns: 96px 1fr 72px; }
+.nk-ctrl input[type="range"] { height: 32px; touch-action: none; }
+.nk-ctrl input[type="range"]::-webkit-slider-thumb { width: 20px; height: 20px; margin-top: -8.5px; }
+.nk-ctrl input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; }
+.nk-findings { margin-top: 10px; }
+.nk-f { display: flex; gap: 10px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); }
+.nk-f .dot { flex: none; width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: var(--ok); }
+.nk-f.ng { border-color: rgba(255, 69, 58, 0.45); background: var(--ng-weak); }
+.nk-f.ng .dot { background: var(--ng); }
+.nk-f.none { border-style: dashed; border-color: var(--line-2); background: transparent; }
+.nk-f.none .dot { background: transparent; border: 1px solid var(--fg-3); }
+.nk-f b { font-size: 13px; font-weight: 600; margin-right: 8px; }
+.nk-f .now { font: 11px var(--mono); color: var(--fg-3); }
+.nk-f p { margin: 2px 0 0; font-size: 12px; }
+.nk-f .why { color: var(--ng-2); font-weight: 500; }
+.nk-f .tag { margin-left: 6px; }
+@media (max-width: 480px) {
+  .iv-name { margin-left: 0; }
+  .nk-ctrl label { grid-template-columns: 84px 1fr 70px; }
+}
+.nk-gaps.inner { margin-top: 8px; }
+.nk-gaps details.free { margin-top: 2px; }
+.nk-verdict { margin: 0; padding: 8px 10px; border-radius: var(--r); font-size: 12px; font-weight: 500; }
+.nk-verdict.ng { color: var(--ng-2); background: var(--ng-weak); }
+.nk-verdict.ok { color: var(--fg-2); background: var(--field); }
+.nk-side-wrap { display: grid; gap: 2px; justify-items: center; }
+.nk-side { max-width: 420px; }
+.nk-side-cap { margin: 0; text-align: center; }
+.waza .techs { margin-top: 12px; }
