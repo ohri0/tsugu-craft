@@ -26,7 +26,7 @@ export function loadLedger(): Ledger {
         const have = new Set(l.rules.map((r) => r.id));
         // リポジトリで外した決まり（retired）は、このブラウザに残っていても出さない
         const retired = new Set((repoLedger as { retired?: string[] }).retired ?? []);
-        return { ...l, rules: [...l.rules.filter((r) => !retired.has(r.id)), ...repo.rules.filter((r) => !have.has(r.id))] };
+        return { ...l, owner: repo.owner ?? l.owner, rules: [...l.rules.filter((r) => !retired.has(r.id)), ...repo.rules.filter((r) => !have.has(r.id))] };
       }
     }
   } catch {

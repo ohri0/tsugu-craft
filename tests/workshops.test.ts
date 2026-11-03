@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { activeLedger, addWorkshop, emptyWorkshops, MAIN, parseWorkshops, putLedger, removeWorkshop, setActive } from "../src/rules/workshops";
 import { addRule, seedLedger } from "../src/rules/ledger";
-import { masterName } from "../src/app/master";
+import { bookLabel } from "../src/app/master";
 
 const main = addRule(seedLedger(), { title: "爪", text: "爪", reason: "落ちる", param: "prong.minDiameterMm", value: 0.7, source: { kind: "craftsman", name: "石川" }, date: "2026-11-03" });
 
@@ -13,8 +13,9 @@ describe("工房ごとの帳面", () => {
     const b = activeLedger(ws, main);
     expect(b).not.toBe(main);
     expect(b.rules.filter((r) => r.source.kind === "craftsman")).toHaveLength(0);
-    expect(masterName(b)).toBe("工房 B");
-    expect(masterName(main)).toBe("石川");
+    expect(bookLabel(b)).toBe("工房 B");
+    expect(bookLabel(main)).toBe("石川さん");
+    expect(bookLabel({ ...main, owner: "工房 A" })).toBe("工房 A");
   });
   it("工房の帳面に決まりを足しても、はじめの帳面は変わらない。切り替え・消すができる", () => {
     let ws = addWorkshop(emptyWorkshops(), "工房 B", seedLedger());

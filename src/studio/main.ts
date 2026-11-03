@@ -25,7 +25,7 @@ import { PARAMS, activeRules, addRule, seedLedger, valueFor, type Ledger, type P
 import { askPassword, resetPassword } from "../app/password";
 import { esc, store, today } from "../app/store";
 import { bindVoice } from "../app/voice";
-import { masterName } from "../app/master";
+import { bookLabel, masterName, sourceName } from "../app/master";
 import { toStl } from "../cad/solid";
 import { buildStone } from "../geometry/stone";
 import { METAL_LABEL, RingSession, type Built } from "./session";
@@ -778,8 +778,8 @@ function setCompare(on: boolean) {
 function workshopBarHtml(): string {
   if (kind !== "solitaire") return "";
   const ws = store.workshops();
-  const mainName = masterName(store.mainLedger());
-  const opts = [`<option value="${MAIN}"${ws.active === MAIN ? " selected" : ""}>${esc(mainName)}さんの帳面</option>`, ...ws.list.map((w) => `<option value="${esc(w.id)}"${ws.active === w.id ? " selected" : ""}>${esc(w.name)}の帳面</option>`)];
+  const mainName = bookLabel(store.mainLedger());
+  const opts = [`<option value="${MAIN}"${ws.active === MAIN ? " selected" : ""}>${esc(mainName)}の帳面</option>`, ...ws.list.map((w) => `<option value="${esc(w.id)}"${ws.active === w.id ? " selected" : ""}>${esc(w.name)}の帳面</option>`)];
   return `<section class="ws-bar"><label><span>使う帳面</span><select class="ws-pick">${opts.join("")}<option value="__new">＋ 工房の帳面を作る</option></select></label>
     <div class="ws-new" hidden><input class="ws-name" type="text" placeholder="工房の名前（例：工房 B）"><button type="button" class="primary ws-make">作る</button></div>
     ${ws.list.length ? `<button type="button" class="ghost-d ws-cmp">同じ指輪を、帳面ごとに比べる</button>` : `<p class="hint">工房ごとに決まりはちがいます。工房の帳面を作ると、同じ指輪をそれぞれの決まりで確かめられます。</p>`}
@@ -795,17 +795,17 @@ function switchLedger(id: string) {
   pastCheck = null;
   renderCheck();
   const ws = store.workshops();
-  const label = ws.active === MAIN ? `${masterName(store.mainLedger())}さんの帳面` : `${ws.list.find((w) => w.id === ws.active)?.name ?? "工房"}の帳面`;
+  const label = ws.active === MAIN ? `${bookLabel(store.mainLedger())}の帳面` : `${ws.list.find((w) => w.id === ws.active)?.name ?? "工房"}の帳面`;
   toast(`${label}で確かめ直しました`);
 }
 function workshopTable(): string {
   if (!session?.built) return "";
   const state = { ...session.snapshot(), prongMm: undefined };
-  const rows: [string, Ledger][] = [["公開情報だけ", seedLedger()], [`${masterName(store.mainLedger())}さん`, store.mainLedger()], ...store.workshops().list.map((w) => [w.name, w.ledger] as [string, Ledger])];
-  return `<table><thead><tr><th>帳面</th><th>爪</th><th>地金</th><th>作れない所</th></tr></thead><tbody>${rows
+  const rows: [string, Ledger][] = [["公開情報だけ", seedLedger()], [bookLabel(store.mainLedger()), store.mainLedger()], ...store.workshops().list.map((w) => [w.name, w.ledger] as [string, Ledger])];
+  return `<table><thead><tr><th>帳面</th><th>爪の太さ</th><th>作れない所</th></tr></thead><tbody>${rows
     .map(([name, led]) => {
       const r = side(session!.stone, state, led, session!.solid);
-      return `<tr><th>${esc(name)}</th><td>${r.prongMm.toFixed(2)} mm</td><td>約 ${r.weightG.toFixed(1)} g</td><td>${r.problems}</td></tr>`;
+      return `<tr><th>${esc(name)}</th><td>${r.prongMm.toFixed(2)} mm × ${session!.built!.ring.setting.prongs.length}</td><td>${r.problems}</td></tr>`;
     })
     .join("")}</tbody></table><p class="hint">同じ石・同じ形を、帳面だけ替えて組んだ結果です（爪はそれぞれの帳面の標準から）。</p>`;
 }
@@ -838,8 +838,8 @@ function compareHtml(): string {
   const c = compare.nums;
   const row = (k: string, a: string, b: string) => `<tr${a !== b ? ` class="diff"` : ""}><th>${k}</th><td>${esc(b)}</td><td>${esc(a)}</td></tr>`;
   return `<section class="compare"><p class="cmp-k">いまは、公開情報の目安だけで組んでいます（職人の決まりを外しています）</p>
-    ${pub ? `<table><thead><tr><th></th><th>公開情報だけ</th><th>${esc(masterName(store.ledger()))}さんの決まり</th></tr></thead><tbody>${row("爪", c.prong, pub.prong)}${row("指から上", c.height, pub.height)}${row("石と指のすき間", c.gap, pub.gap)}${row("地金の重さ", c.weight, pub.weight)}${row("作れない所", String(c.probs), String(pub.probs))}</tbody></table>` : ""}
-    <button type="button" class="primary compare-back">${esc(masterName(store.ledger()))}さんの決まりに戻す</button></section>`;
+    ${pub ? `<table><thead><tr><th></th><th>公開情報だけ</th><th>${esc(bookLabel(store.ledger()))}の決まり</th></tr></thead><tbody>${row("爪", c.prong, pub.prong)}${row("指から上", c.height, pub.height)}${row("石と指のすき間", c.gap, pub.gap)}${row("地金の重さ", c.weight, pub.weight)}${row("作れない所", String(c.probs), String(pub.probs))}</tbody></table>` : ""}
+    <button type="button" class="primary compare-back">${esc(bookLabel(store.ledger()))}の決まりに戻す</button></section>`;
 }
 // ---- 一言が、どこまで効くか：よくある 270 の設計に、職人の決まりを当てる ----
 const SW = { w: 720, h: 260, l: 44, r: 16, t: 14, b: 34, x0: 1.5, x1: 14, y0: 0.3, y1: 2.0 };
@@ -864,7 +864,7 @@ function sweepChartHtml(): string {
     ${ticksX}${ticksY}
     <text class="ax" x="${SW.w - SW.r}" y="${SW.h - 4}" text-anchor="end">石の大きさ（mm）</text><text class="ax" x="${SW.l}" y="${SW.t - 3}">爪の太さ（mm）</text>
     <path class="pub" d="${pub}"/>${lab(11.2, Math.min(SW.y1, minProngMm(11.2)) + 0.08, "公開情報の最低", "lp")}
-    ${craft ? `<path class="craft" d="${craft}"/>${lab(11.2, (valueFor(rule!, 11.2) ?? 0) - 0.12, `${masterName(store.ledger())}さんの最低`, "lc")}` : ""}
+    ${craft ? `<path class="craft" d="${craft}"/>${lab(11.2, (valueFor(rule!, 11.2) ?? 0) - 0.12, `${bookLabel(store.ledger())}の最低`, "lc")}` : ""}
     <g class="sw-dots"></g>
     ${pts.map((p) => `<circle class="said" cx="${swX(p.upToMm!)}" cy="${swY(p.value)}" r="5"/><text class="ls" x="${swX(p.upToMm!) + 8}" y="${swY(p.value) - 8}">「${p.upToMm! < 4 ? "メレだと" : "このサイズなら"} ${p.value} mm」</text>`).join("")}
   </svg><figcaption>職人が言った 2 つの点（●）から、どの大きさの石にも効く線ができます。小さな点は、270 の設計の爪（この線から組んだ太さ）。言葉が増えるほど、線は細かくなります。</figcaption></figure>`;
@@ -879,15 +879,15 @@ function openSweep() {
     document.body.appendChild(el);
   }
   const ds = sweepDesigns();
-  const name = masterName(store.ledger());
+  const name = bookLabel(store.ledger());
   const poly = (d: SweepDesign) => {
     const k = 15 / Math.max(d.preset.longMm, d.preset.widthMm);
     return d.stone.outlineMm.map((p) => `${(20 + (p.x / d.scale) * k).toFixed(1)},${(20 - (p.y / d.scale) * k).toFixed(1)}`).join(" ");
   };
   el.innerHTML = `<div class="sw-in"><button type="button" class="sw-close" aria-label="閉じる">×</button>
-    <p class="sw-k">${esc(name)}さんの決まりを、よくある設計に当てる</p>
+    <p class="sw-k">${esc(name)}の決まりを、よくある設計に当てる</p>
     <h2>石の形 6 × 大きさ 5 × 高さ 3 × 号 3 ＝ ${ds.length} の設計</h2>
-    <p class="sw-sub">それぞれを、公開情報の目安だけで組んだときと、${esc(name)}さんの決まりで組んだときで比べます（どちらも同じ計算。爪の太さは帳面の標準から）。</p>
+    <p class="sw-sub">それぞれを、公開情報の目安だけで組んだときと、${esc(name)}の決まりで組んだときで比べます（どちらも同じ計算。爪の太さは帳面の標準から）。</p>
     <div class="sw-stats"><div><b class="sw-n">0</b><small>確かめた設計</small></div><div><b class="sw-c">0</b><small>爪が細くなった ・ 太くなった</small></div><div><b class="sw-p">—</b><small>爪の太さの平均</small></div><div><b class="sw-w">—</b><small>地金の重さの合計</small></div></div>
     ${sweepChartHtml()}
     <div class="sw-grid">${ds.map((d, i) => `<i class="t" data-i="${i}" title="${esc(d.preset.name)} ${d.stone.longMm.toFixed(1)} mm ・ ${({ low: "低め", standard: "標準", high: "高め" } as const)[d.height]} ・ ${d.gou} 号"><svg viewBox="0 0 40 40"><polygon points="${poly(d)}"/></svg><span></span></i>`).join("")}</div>
@@ -947,7 +947,7 @@ function renderCheck() {
     `<div class="pick"><span>${name}</span><div>${list.map(([v, l]) => `<button type="button" data-k="${name}" data-v="${v}" aria-pressed="${v === cur}">${l}</button>`).join("")}</div></div>`;
   const fresh = lastRule ? new Set<string>(lastRule.checks) : new Set<string>();
   box.innerHTML = `
-    ${lastRule ? `<section class="rule-flash"><small>${esc(lastRule.by)}さんの決まりで、確かめ直しました</small><b>${lastRule.spoken ? `「${esc(lastRule.quote)}」` : esc(lastRule.quote)}</b><span>作れない所 <em>${lastRule.before}</em> → <em class="${lastRule.after ? "ng" : "ok"}">${lastRule.after}</em>${lastRule.after && probs.length < lastRule.after ? ` → 直して <em class="${probs.length ? "ng" : "ok"}">${probs.length}</em>` : ""}</span></section>` : ""}
+    ${lastRule ? `<section class="rule-flash"><small>${esc(lastRule.by)}の決まりで、確かめ直しました</small><b>${lastRule.spoken ? `「${esc(lastRule.quote)}」` : esc(lastRule.quote)}</b><span>作れない所 <em>${lastRule.before}</em> → <em class="${lastRule.after ? "ng" : "ok"}">${lastRule.after}</em>${lastRule.after && probs.length < lastRule.after ? ` → 直して <em class="${probs.length ? "ng" : "ok"}">${probs.length}</em>` : ""}</span></section>` : ""}
     <section class="big-verdict ${probs.length ? "ng" : "ok"}"><b>${probs.length ? "このままでは作れません" : "このまま作れます"}</b><small>${probs.length ? `直す所 ${probs.length}` : `爪・留まり・すき間・角、すべて目安の内側`}</small></section>
     ${workshopBarHtml()}
     ${compareHtml()}
@@ -1269,12 +1269,15 @@ function propose(slot: HTMLElement, p: ProposeRuleInput, name: string): Promise<
   });
 }
 /** 職人が「これでいい」と言った決まりを帳面に足し、今の設計とこれまでの作品を確かめ直す（Claude の案でも、数字で書いた決まりでも同じ） */
-function acceptRule(p: ProposeRuleInput, name: string): string {
+function acceptRule(p: ProposeRuleInput, _said: string): string {
+  // 出どころは、はじめの帳面なら職人の名前、工房の帳面なら工房の名前。知らせには帳面の呼び名（工房 A など）
+  const name = sourceName(store.ledger(), store.workshops().active === MAIN);
+  const by = bookLabel(store.ledger());
   const before = session?.built?.problems.length ?? 0;
   const next = addRule(store.ledger(), { title: p.title, text: p.text, reason: p.reason, example: p.example, quote: p.quote, param: p.param, value: p.value, steps: p.steps, bySize: p.by_size?.map((x) => ({ upToMm: x.up_to_mm, value: x.value })), source: { kind: "craftsman", name }, date: today() });
   store.setLedger(next);
   const id = next.rules[next.rules.length - 1].id;
-  lastRule = { by: name, quote: p.quote || p.text, spoken: Boolean(p.quote), before: session?.built ? grouped(session.built).length : before, after: 0, checks: p.param ? [...PARAMS[p.param].checks] : [] };
+  lastRule = { by, quote: p.quote || p.text, spoken: Boolean(p.quote), before: session?.built ? grouped(session.built).length : before, after: 0, checks: p.param ? [...PARAMS[p.param].checks] : [] };
   fixLog = [];
   ruleDraft = "";
   const after = session ? session.build("帳面が変わった").problems.length : 0;
@@ -1285,7 +1288,7 @@ function acceptRule(p: ProposeRuleInput, name: string): string {
     // 決まりを足したら、上の「〇〇さんの決まりで、確かめ直しました」まで戻して見せる
     requestAnimationFrame(() => document.querySelector(".rule-flash")?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
-  toast(p.param ? `${name}さんの決まりで確かめ直しました：作れない所 ${before} → ${after}` : `${name}さんの決まりを帳面に足しました`);
+  toast(p.param ? `${by}の決まりで確かめ直しました：作れない所 ${before} → ${after}` : `${by}の帳面に決まりを足しました`);
   flashVerdict();
   return id;
 }
