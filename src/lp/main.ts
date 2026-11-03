@@ -155,6 +155,19 @@ const html = `
 
   <section class="sec">
     <div class="sec-head reveal">
+      <p class="k">使い方</p>
+      <h2><span class="ib">判断の流れは、継ぐで。</span><br><span class="ib">手の感覚は、</span><span class="ib">これまでどおり人から。</span></h2>
+    </div>
+    <ul class="uses reveal">
+      <li><b>若い職人に</b><p>先輩の手を止めずに、作れるかの判断と、作り方の流れを先に知る。分からない所は「なぜ？」で、職人の言葉まで戻れる。</p></li>
+      <li><b>学校や教室で</b><p>教える人の数は限られる。生徒は、自分の設計を職人の決まりで手元で確かめられる。答えられないことは、職人への質問として届く。</p></li>
+      <li><b>めったに作らない技も</b><p>一生に数回しか作らない技も、前に作った人の判断から始められる。</p></li>
+    </ul>
+    <p class="uses-note">数字は目安。最後は職人が決めます。</p>
+  </section>
+
+  <section class="sec">
+    <div class="sec-head reveal">
       <p class="k">失われた技も</p>
       <h2>手がかりから、作り方を組み立て直す。</h2>
     </div>
