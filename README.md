@@ -119,6 +119,8 @@ Claude Desktop に足す（設定の「開発者」→ 設定ファイル `claud
 | [Zod](https://github.com/colinhacks/zod) | MCP の道具の入力の形を決めて確かめる | MIT |
 | [tsx](https://github.com/privatenumber/tsx) | MCP サーバーと目安帳を作る小さな処理を、TypeScript のまま動かす | MIT |
 | [Playwright](https://github.com/microsoft/playwright) | デモ動画の素材を撮る（継ぐの画面を動かして録る・指輪を 1 こまずつ撮る。`video/`）。アプリには入らない | Apache-2.0 |
+| [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) と [kokoro-onnx](https://github.com/thewh1teagle/kokoro-onnx) | 仮の動画の声（人に近い機械の声、jm_kumo）。`video/tts_kokoro.py`。重みと声はリポジトリに入れない | Apache-2.0（重み）・MIT（kokoro-onnx） |
+| [misaki](https://github.com/hexgrad/misaki) と [unidic-lite](https://github.com/polm/unidic-lite) | 声のための、日本語の読み方 | Apache-2.0・MIT（辞書は UniDic の BSD） |
 | [MediaPipe Tasks Vision](https://github.com/google-ai-edge/mediapipe)（`@mediapipe/tasks-vision`） | 手の記録：動画から手の位置（21 点）をブラウザの中で読む。wasm はこのパッケージのものを一緒に配る | Apache-2.0 |
 | [MediaPipe の手の点を読むモデル](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker)（`hand_landmarker.task`、float16） | 手の記録で使うモデル。使うときに Google の配布先から読み込む（リポジトリには入れない） | Apache-2.0 |
 

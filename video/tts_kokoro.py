@@ -1,0 +1,34 @@
+# 仮の動画の声を、人に近い機械の声で読ませる（本番は作者の声に替えるかもしれない）。
+# 使い方：python -I tts_kokoro.py <scenes.json> <出力の前置き> <出力のフォルダ> [声]   例：python -I tts_kokoro.py scenes11.json k_ work/voice jm_kumo
+# 要るもの：kokoro-onnx（MIT）と Kokoro-82M の重みと声（Apache-2.0。work/kokoro/ に置く。リポジトリには入れない）、misaki[ja]、unidic-lite
+import json, subprocess, sys, os
+import soundfile as sf
+from kokoro_onnx import Kokoro
+from misaki import ja
+
+scenes, prefix, out = sys.argv[1], sys.argv[2], sys.argv[3]
+voice = sys.argv[4] if len(sys.argv) > 4 else "jm_kumo"
+here = os.path.dirname(os.path.abspath(__file__))
+k = Kokoro(f"{here}/work/kokoro/kokoro-v1.0.onnx", f"{here}/work/kokoro/voices-v1.0.bin")
+g2p = ja.JAG2P()
+# 数字・名前・英字の読み（機械が読み違えるもの）
+R = [("Claude Code", "クロード・コード"), ("Claude", "クロード"), ("AI", "エーアイ"), ("CAD", "キャド"),
+     ("1.66 ミリ", "いってんろくろくミリ"), ("0.7 ミリ", "れいてんななミリ"), ("0.8 から 1 ミリ", "れいてんはちから、いちミリ"),
+     ("20 年", "にじゅうねん"), ("2 回ほど", "にかいほど"), ("1 時間", "いちじかん"),
+     ("伊勢神宮", "いせじんぐう"), ("式年遷宮", "しきねんせんぐう"), ("御装束神宝", "おしょうぞくしんぽう"),
+     ("宝飾", "ほうしょく"), ("彫金", "ちょうきん"), ("継ぐ", "つぐ"), ("鋳造", "ちゅうぞう"), ("暗黙知", "あんもくち"), ("帳面", "ちょうめん"), ("工房", "こうぼう"), ("石留め", "いしどめ"), ("爪", "つめ")]
+for i, s in enumerate(json.load(open(scenes))):
+    text = s["say"].strip()
+    dst = f"{out}/{prefix}{i}.wav"
+    if not text:
+        subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-t", "0.2", dst], check=True)
+        continue
+    for a, b in R:
+        text = text.replace(a, b)
+    ph, _ = g2p(text)
+    a, sr = k.create(ph, voice=voice, speed=1.17, lang="ja", is_phonemes=True)
+    tmp = f"{out}/_k.wav"
+    sf.write(tmp, a, sr)
+    subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", tmp, "-af", "loudnorm=I=-16:TP=-1.5", "-ar", "48000", "-ac", "2", dst], check=True)
+    os.remove(tmp)
+    print(i, s["name"])

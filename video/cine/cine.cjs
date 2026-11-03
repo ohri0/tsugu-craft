@@ -36,15 +36,27 @@ const shot = process.argv[2]; const N = Number(process.argv[3] || 60);
     for (let k = 0; k < 50; k++, i++) { await turn(0.006); await snap(i); }
   }
   if (shot === 'morph') {
+    // 右に、爪の太さの読み（grow.cjs と同じ見た目）。数字は組んだ指輪から読む
+    await p.evaluate(() => {
+      const st = document.createElement('style');
+      st.textContent = `.gr{position:fixed;left:1480px;top:50%;transform:translateY(-50%);width:360px;font-family:"Helvetica Neue","Hiragino Sans",sans-serif;font-weight:300;color:#f5f5f7;-webkit-font-smoothing:antialiased;z-index:99}
+      .gr .l{font-size:15px;color:#86868b;letter-spacing:.04em}.gr b{display:block;margin-top:10px;font-weight:300;font-size:64px;font-variant-numeric:tabular-nums}.gr b small{font-size:24px;color:#86868b;margin-left:8px}
+      .gr .s{margin-top:22px;font-size:20px;color:#86868b;transition:color .3s}.gr .s.on{color:#f5f5f7}.gr .bar{height:1px;background:#2c2c2e;margin-top:26px}`;
+      document.head.appendChild(st);
+      const g = document.createElement('div'); g.className = 'gr';
+      g.innerHTML = '<div class="l">爪の太さ</div><b><span class="v">-</span><small>mm</small></b><div class="bar"></div><div class="s s1">ネットの公開情報だけ</div><div class="s s2">職人の一言 ・ 最低 0.7 mm</div>';
+      document.body.appendChild(g);
+      window.__read = () => { const d = window.__studio.session.built.ring.setting.prongs[0].diameterMm; document.querySelector('.gr .v').textContent = d.toFixed(2); document.querySelector('.s1').classList.toggle('on', d > 1.2); document.querySelector('.s2').classList.toggle('on', d < 0.9); };
+    });
     // 爪が 1.66 mm から 0.80 mm へ、なめらかに細くなる
     const s0 = 1.66, s1 = 0.80; let i = 0;
     await p.evaluate((d) => { const s = window.__studio.session; s.state.prongMm = d; s.build('cine'); s.flush?.(); }, s0);
-    await p.waitForTimeout(1500);
+    await p.waitForTimeout(1500); await p.evaluate(() => window.__read());
     for (let k = 0; k < 20; k++, i++) { await turn(0.005); await snap(i); }
     for (let k = 0; k < N; k++, i++) {
       const u = k / (N - 1); const e = u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
       await p.evaluate((d) => { const s = window.__studio.session; s.state.prongMm = d; s.build('cine'); s.flush?.(); }, Math.round((s0 + (s1 - s0) * e) * 100) / 100);
-      await turn(0.005); await snap(i);
+      await p.evaluate(() => window.__read()); await turn(0.005); await snap(i);
     }
     for (let k = 0; k < 40; k++, i++) { await turn(0.005); await snap(i); }
   }
