@@ -34,7 +34,7 @@ import { sheetHtml } from "./sheet";
 import { whyHtml } from "./why";
 import { SORT_TIPS, parseTips, tipsFor, tipsPrompt, type Tip } from "./tips";
 import { PRESETS, presetOutline, type StonePreset } from "./presets";
-import { drawingPage, type DrawingView } from "./drawing";
+import { drawingPage, type DrawingView, DRAWING_CSS } from "./drawing";
 import { loadWorks, newWorkId, removeWork, saveWork, updateWork, worksBookHtml, type WorkRecord } from "./works";
 import { KIND_LABEL, toolById, toolsForStep } from "./toolbox";
 import { NOTE, TERMS, type AlloyId } from "./process";
@@ -102,7 +102,7 @@ app.innerHTML = `
     <div class="gl"></div>
     <svg class="dims" aria-hidden="true"></svg>
     <svg class="gizmo" viewBox="0 0 60 60" aria-hidden="true"></svg>
-    <div class="vp-tl"><b class="vp-view">斜め</b><div class="disp" role="group" aria-label="表示">${(["wire", "shaded", "render"] as const).map((d) => `<button type="button" data-disp="${d}" aria-pressed="${d === "render"}">${{ wire: "ワイヤー", shaded: "シェード", render: "レンダー" }[d]}</button>`).join("")}</div></div>
+    <div class="vp-tl"><b class="vp-view">斜め</b><div class="disp" role="group" aria-label="表示">${(["wire", "shaded", "render", "draw"] as const).map((d) => `<button type="button" data-disp="${d}" aria-pressed="${d === "render"}">${{ wire: "ワイヤー", shaded: "シェード", render: "レンダー", draw: "図面" }[d]}</button>`).join("")}</div></div>
     <div class="verdict-chip" hidden></div>
     <div class="intro-stage" hidden><div class="intro-frame"><canvas class="intro-photo"></canvas><svg class="intro-line" preserveAspectRatio="none"></svg></div><p class="intro-cap"></p></div>
   </section>
@@ -487,8 +487,13 @@ function tuneProngs() {
   tuning = false;
 }
 
+let sheetTimer = 0;
 function onBuilt(b: Built, _why: string) {
   if (tuning || !stone || kind !== "solitaire") return;
+  if (sheetOn) {
+    clearTimeout(sheetTimer);
+    sheetTimer = window.setTimeout(() => sheetOn && showSheet(), 400);
+  }
   viewer.setRing(b.ring, { color: stone.extraction.color, colorless: stone.extraction.colorless }, b.problems);
   headBox = headBoxOf(b);
   setDims(ringDims(b));
@@ -577,10 +582,45 @@ $(".t-dims").addEventListener("click", (e) => {
 $(".t-fit").addEventListener("click", () => viewer.fit());
 document.querySelectorAll<HTMLButtonElement>(".disp button").forEach((b) =>
   b.addEventListener("click", () => {
-    viewer.setDisplayMode(b.dataset.disp as DisplayMode);
+    if (b.dataset.disp === "draw") showSheet();
+    else {
+      hideSheet();
+      viewer.setDisplayMode(b.dataset.disp as DisplayMode);
+    }
     document.querySelectorAll<HTMLButtonElement>(".disp button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
   }),
 );
+// ---- 図面：3D の所に、そのまま図面（正面・側面・上面・寸法・表題欄）を出す ----
+let sheetOn = false;
+function drawingSheetHtml(): string {
+  if (kind === "band") return bandDrawing(checkBand(band).map((p) => p.title));
+  if (!session?.built) return "";
+  return solitaireDrawing(session.built, grouped(session.built).map(({ p }) => SHORT[p.check] ?? p.where));
+}
+function showSheet() {
+  sheetOn = true;
+  let el = document.querySelector<HTMLElement>(".sheet-view");
+  if (!el) {
+    el = document.createElement("div");
+    el.className = "sheet-view";
+    $(".vp").appendChild(el);
+  }
+  el.hidden = false;
+  $(".pro").classList.add("drawing-on");
+  const body = drawingSheetHtml();
+  el.innerHTML = `<iframe title="図面" srcdoc="${esc(`<!doctype html><meta charset="utf-8"><style>${DRAWING_CSS}
+    html,body{margin:0;height:100%;background:#1c1c1e;overflow:hidden;font-family:-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
+    .wrap{position:absolute;left:50%;top:50%;transform-origin:center}
+    .dw{background:#fff;color:#111;box-shadow:0 20px 60px rgba(0,0,0,.5)}</style>
+    <div class="wrap">${body}</div>
+    <script>const w=document.querySelector('.wrap');function fit(){const r=w.firstElementChild.getBoundingClientRect();const k=Math.min(innerWidth/(r.width/(w._k||1)),innerHeight/(r.height/(w._k||1)))*0.92;w._k=k;w.style.transform='translate(-50%,-50%) scale('+k+')'}addEventListener('resize',fit);requestAnimationFrame(fit);</script>`)}"></iframe>`;
+}
+function hideSheet() {
+  sheetOn = false;
+  const el = document.querySelector<HTMLElement>(".sheet-view");
+  if (el) el.hidden = true;
+  $(".pro").classList.remove("drawing-on");
+}
 // 1〜4 で場面を切り替える（字を書いている間は使わない）
 document.addEventListener("keydown", (e) => {
   const el = e.target as HTMLElement;
