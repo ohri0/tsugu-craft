@@ -13,6 +13,9 @@ function claudeApiForDev(): Plugin {
       for (const k of ["ANTHROPIC_API_KEY", "DEMO_PASSWORD", "DAILY_LIMIT"]) {
         if (process.env[k] === undefined && fileEnv[k] !== undefined) process.env[k] = fileEnv[k];
       }
+      // この開発用のサーバー（自分のパソコンの中だけ）では、合言葉がなければ試し用の「dev-local」を使う。
+      // 公開先（Vercel）はこの関数を通らないので、本当の合言葉が要るのは変わらない
+      if (!process.env.DEMO_PASSWORD) process.env.DEMO_PASSWORD = "dev-local";
       server.middlewares.use("/api/claude", (req: IncomingMessage, res: ServerResponse) => {
         void (async () => {
           const chunks: Buffer[] = [];
