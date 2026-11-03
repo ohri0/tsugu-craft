@@ -56,7 +56,7 @@ const shot = process.argv[2]; const N = Number(process.argv[3] || 60);
       .gr .s{margin-top:22px;font-size:20px;color:#86868b;transition:color .3s}.gr .s.on{color:#f5f5f7}.gr .bar{height:1px;background:#2c2c2e;margin-top:26px}`;
       document.head.appendChild(st);
       const g = document.createElement('div'); g.className = 'gr';
-      g.innerHTML = '<div class="l">爪の太さ</div><b><span class="v">-</span><small>mm</small></b><div class="bar"></div><div class="s s1">ネットの公開情報だけ</div><div class="s s2">職人の一言 ・ 最低 0.7 mm</div>';
+      g.innerHTML = '<div class="l">爪の太さ</div><b><span class="v">-</span><small>mm</small></b><div class="bar"></div><div class="s s1">ネットの公開情報だけ</div><div class="s s2">職人の一言 ・ 基本 0.8〜1 mm</div>';
       document.body.appendChild(g);
       window.__read = () => { const d = window.__studio.session.built.ring.setting.prongs[0].diameterMm; document.querySelector('.gr .v').textContent = d.toFixed(2); document.querySelector('.s1').classList.toggle('on', d > 1.2); document.querySelector('.s2').classList.toggle('on', d < 0.9); };
     });

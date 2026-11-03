@@ -167,7 +167,8 @@ export class Viewer {
       } else if (this.mode === "shaded") {
         o.material = Array.isArray(ud.render) ? (ud.render as THREE.Material[]).map(shadedOf) : shadedOf(ud.render);
         o.visible = true;
-        edges.visible = true;
+        // 地金の面の折れ目の線は出さない（腕に細かい線がたくさん出て「何の線？」となるため。作者の声）。石の面の線だけ出す
+        edges.visible = isStone(ud.render);
         lm.color.setHex(0x141416);
         lm.opacity = 0.55;
       } else {
