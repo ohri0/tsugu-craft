@@ -200,14 +200,41 @@ line.ax-z { stroke: #4ea1ff; } text.ax-z { fill: #4ea1ff; }
 .pick button { flex: 1 1 auto; border: 0; background: transparent; color: var(--fg-2); height: 22px; padding: 0 8px; border-radius: 4px; font-size: 11px; white-space: nowrap; }
 .pick button:hover { color: var(--fg); }
 .pick button[aria-pressed="true"] { background: var(--panel-2); color: var(--fg); box-shadow: 0 0 0 1px var(--line-2); }
-.sliders { display: grid; gap: 4px; margin: 6px 0; }
-.sliders label { display: grid; grid-template-columns: 76px 1fr 64px; align-items: center; gap: 8px; }
-.sliders output { font: 11px var(--mono); font-variant-numeric: tabular-nums; text-align: right; color: var(--fg); background: var(--field); border: 1px solid var(--line); border-radius: 4px; padding: 2px 6px; }
-input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 18px; background: transparent; }
-input[type="range"]::-webkit-slider-runnable-track { height: 3px; border-radius: 2px; background: #3a3a3e; }
-input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 13px; height: 13px; margin-top: -5px; border-radius: 50%; background: #f2f2f4; border: 0; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5); }
-input[type="range"]::-moz-range-track { height: 3px; border-radius: 2px; background: #3a3a3e; }
-input[type="range"]::-moz-range-thumb { width: 13px; height: 13px; border-radius: 50%; background: #f2f2f4; border: 0; }
+.sliders { display: grid; gap: 6px; margin: 8px 0; }
+/* 数のつまみ：名前・−・つまみ・＋・数の欄。指でも押さえやすいよう、どれも 32 px 以上の高さ */
+.slider { display: grid; grid-template-columns: 76px 32px 1fr 32px 78px; align-items: center; gap: 6px; }
+.slider .sl-name { font-size: 11px; color: var(--fg-2); }
+.slider .sl-step { width: 32px; height: 32px; padding: 0; border: 1px solid var(--line-2); border-radius: 8px; background: var(--field); color: var(--fg); font-size: 16px; line-height: 1; touch-action: manipulation; }
+.slider .sl-step:hover { border-color: var(--fg-3); }
+.slider .sl-step:active { background: var(--panel-2); }
+.slider .sl-num { display: flex; align-items: center; gap: 3px; height: 32px; padding: 0 7px; border: 1px solid var(--line-2); border-radius: 8px; background: var(--field); cursor: text; }
+.slider .sl-num:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-weak); }
+.slider .sl-num input { width: 100%; min-width: 0; border: 0; padding: 0; background: transparent; color: var(--fg); font: 13px var(--mono); font-variant-numeric: tabular-nums; text-align: right; outline: none; }
+.slider .sl-num small { font-size: 10px; color: var(--fg-3); white-space: nowrap; }
+.slider.bad .sl-num { border-color: var(--ng); }
+input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; height: 32px; margin: 0; background: transparent; touch-action: pan-y; cursor: pointer; }
+input[type="range"]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: #3a3a3e; }
+input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 20px; height: 20px; margin-top: -8px; border-radius: 50%; background: #f2f2f4; border: 0; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.55); }
+input[type="range"]::-moz-range-track { height: 4px; border-radius: 2px; background: #3a3a3e; }
+input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: #f2f2f4; border: 0; }
+/* 指で触る画面：つまみをもっと太く、数の欄の字は 16 px（iPhone で欄を押したとき、画面が勝手に拡大しないように） */
+@media (pointer: coarse) {
+  /* 上の行に名前と数の欄、下の行に − つまみ ＋（つまみを横いっぱいに長く） */
+  .slider { grid-template-columns: 40px 1fr 56px 40px; grid-template-areas: "name name num num" "minus range range plus"; gap: 4px 8px; padding: 4px 0; }
+  .slider .sl-name { grid-area: name; font-size: 13px; }
+  .slider .sl-num { grid-area: num; }
+  .slider .sl-step[data-d="-1"] { grid-area: minus; }
+  .slider .sl-step[data-d="1"] { grid-area: plus; }
+  .slider input[type="range"] { grid-area: range; }
+  .slider .sl-step { width: 40px; height: 40px; font-size: 20px; }
+  .slider .sl-num { height: 40px; }
+  .slider .sl-num input { font-size: 16px; }
+  input[type="range"] { height: 44px; }
+  input[type="range"]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; }
+  input[type="range"]::-webkit-slider-thumb { width: 30px; height: 30px; margin-top: -12px; }
+  input[type="range"]::-moz-range-thumb { width: 30px; height: 30px; }
+  .pick button { height: 34px; font-size: 12px; }
+}
 
 /* 確かめる：判定と、直す所の表 */
 .big-verdict { display: grid; grid-template-columns: 34px 1fr; gap: 2px 12px; align-items: center; padding: 14px; border-bottom: 1px solid var(--line); }

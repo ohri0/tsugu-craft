@@ -44,6 +44,7 @@ import { metalIdOf } from "./session";
 import { GUIDES, minProngMm } from "../rules/guides";
 import { callTool } from "../rebuild/run";
 import { dimsSvg, gizmoSvg, type Dim, type Rect } from "./dims";
+import { bindSlider, sliderHtml, type SliderSpec } from "./slider";
 
 type Mode = "make" | "refine" | "hand" | "works";
 const MODES: { id: Mode; word: string; key: string; sub: string }[] = [
@@ -1009,6 +1010,13 @@ function openSweep() {
   };
   setTimeout(step, 400);
 }
+/** 確かめるの数のつまみ（爪の太さ・号） */
+function prongSlider(b: Built): SliderSpec {
+  return { cls: "r-prong", label: "爪の太さ", min: 0.4, max: 1.6, step: 0.05, value: b.ring.setting.prongs[0]?.diameterMm ?? 0.8, unit: "mm" };
+}
+function gouSlider(gou: number): SliderSpec {
+  return { cls: "r-gou", label: "号", min: 5, max: 25, step: 1, value: gou, unit: "号" };
+}
 function renderCheck() {
   if (kind === "band") return renderBandCheck();
   if (!session?.built) return;
@@ -1042,8 +1050,8 @@ function renderCheck() {
       ${pick("向き", s.orientation, [["along", "縦"], ["across", "横"]])}
       ${pick("地金", s.metal, (["k18yg", "pt900", "k18wg", "k18pg", "sv925"] as Metal[]).map((m) => [m, METAL_LABEL[m]] as [Metal, string]))}
       <div class="sliders">
-        ${s.style === "prong" ? `<label><span>爪の太さ</span><input type="range" class="r-prong" min="0.4" max="1.6" step="0.05" value="${b.ring.setting.prongs[0]?.diameterMm.toFixed(2) ?? 0.8}"><output>${b.ring.setting.prongs[0]?.diameterMm.toFixed(2)} mm</output></label>` : ""}
-        <label><span>号</span><input type="range" class="r-gou" min="5" max="25" step="1" value="${s.gou}"><output>${s.gou} 号</output></label>
+        ${s.style === "prong" ? sliderHtml(prongSlider(b)) : ""}
+        ${sliderHtml(gouSlider(s.gou))}
       </div>
     </details>
     ${pastCheckHtml()}
@@ -1081,8 +1089,8 @@ function renderCheck() {
       if (k === "地金") session!.setShank({ metal: v as Metal, reason: "手で" });
     }),
   );
-  box.querySelector<HTMLInputElement>(".r-prong")?.addEventListener("change", (e) => session!.setSetting({ prong_mm: Number((e.target as HTMLInputElement).value), reason: "手で" }));
-  box.querySelector<HTMLInputElement>(".r-gou")?.addEventListener("change", (e) => session!.setShank({ gou: Number((e.target as HTMLInputElement).value), reason: "手で" }));
+  if (s.style === "prong") bindSlider(box, prongSlider(b), (v) => session!.setSetting({ prong_mm: v, reason: "手で" }));
+  bindSlider(box, gouSlider(s.gou), (v) => session!.setShank({ gou: v, reason: "手で" }));
   box.querySelector(".to-build")!.addEventListener("click", () => setMode("hand"));
 }
 function applyFix(id: string, sess: RingSession = session!) {
@@ -1599,7 +1607,8 @@ function setBandMetal(m: Metal) {
 function bandName() {
   return `${SECTION_LABEL[band.kind]}の指輪`;
 }
-function showBand() {
+/** live：つまみを動かしている間（パネルは描き直さない。描き直すと、指で押さえているつまみが消える） */
+function showBand(live = false) {
   const m = bandMesh(band);
   bandPositions = m.positions;
   bandWeight = m.weightG;
@@ -1620,37 +1629,40 @@ function showBand() {
     ["地金", `${band.metalLabel} ・ 約 ${bandWeight.toFixed(1)} g`],
   ];
   $(".specs").innerHTML = rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("");
+  if (live) return;
   if (!$(".studio-refine").hidden) renderBandCheck();
   if (!$(".build-panel").hidden) renderBandBuild();
 }
 function bandControls(box: HTMLElement) {
-  const slider = (cls: string, label: string, min: number, max: number, step: number, v: number, unit: string) =>
-    `<label><span>${label}</span><input type="range" class="${cls}" min="${min}" max="${max}" step="${step}" value="${v}"><output>${v}${unit}</output></label>`;
+  const specs: SliderSpec[] = [
+    { cls: "b-gou", label: "号", min: 3, max: 30, step: 1, value: band.gou, unit: "号" },
+    { cls: "b-tw", label: "上の幅", min: 1, max: 12, step: 0.1, value: band.top.width, unit: "mm" },
+    { cls: "b-tt", label: "上の厚み", min: 0.6, max: 3.5, step: 0.1, value: band.top.thickness, unit: "mm" },
+    { cls: "b-bw", label: "下の幅", min: 1, max: 12, step: 0.1, value: band.bottom.width, unit: "mm" },
+    { cls: "b-bt", label: "下の厚み", min: 0.6, max: 3.5, step: 0.1, value: band.bottom.thickness, unit: "mm" },
+  ];
   box.innerHTML = `
     <div class="pick"><span>断面</span><div>${(Object.keys(SECTION_LABEL) as SectionKind[]).map((k) => `<button type="button" data-sec="${k}" aria-pressed="${band.kind === k}">${SECTION_LABEL[k]}</button>`).join("")}</div></div>
-    <div class="sliders">
-      ${slider("b-gou", "号", 3, 30, 1, band.gou, " 号")}
-      ${slider("b-tw", "上の幅", 1, 12, 0.1, band.top.width, " mm")}
-      ${slider("b-tt", "上の厚み", 0.6, 3.5, 0.1, band.top.thickness, " mm")}
-      ${slider("b-bw", "下の幅", 1, 12, 0.1, band.bottom.width, " mm")}
-      ${slider("b-bt", "下の厚み", 0.6, 3.5, 0.1, band.bottom.thickness, " mm")}
-    </div>
+    <div class="sliders">${specs.map(sliderHtml).join("")}</div>
     <div class="pick"><span>地金</span><div>${(["k18yg", "pt900", "k18wg", "k18pg", "sv925"] as Metal[]).map((m) => `<button type="button" data-metal="${m}" aria-pressed="${bandMetal === m}">${METAL_LABEL[m]}</button>`).join("")}</div></div>`;
   box.querySelectorAll<HTMLButtonElement>("[data-sec]").forEach((b) => b.addEventListener("click", () => ((band = { ...band, kind: b.dataset.sec as SectionKind }), bandControls(box), showBand())));
   box.querySelectorAll<HTMLButtonElement>("[data-metal]").forEach((b) => b.addEventListener("click", () => (setBandMetal(b.dataset.metal as Metal), bandControls(box), showBand())));
-  const bind = (cls: string, set: (v: number) => void, unit: string) => {
-    const inp = box.querySelector<HTMLInputElement>(`.${cls}`)!;
-    inp.addEventListener("input", () => {
-      set(Number(inp.value));
-      inp.nextElementSibling!.textContent = `${inp.value}${unit}`;
-      showBand();
-    });
-  };
-  bind("b-gou", (v) => (band = { ...band, gou: v }), " 号");
-  bind("b-tw", (v) => (band = { ...band, top: { ...band.top, width: v } }), " mm");
-  bind("b-tt", (v) => (band = { ...band, top: { ...band.top, thickness: v } }), " mm");
-  bind("b-bw", (v) => (band = { ...band, bottom: { ...band.bottom, width: v } }), " mm");
-  bind("b-bt", (v) => (band = { ...band, bottom: { ...band.bottom, thickness: v } }), " mm");
+  // 石のない指輪は形が軽いので、つまみを動かしている間も形を変える
+  const sets: ((v: number) => void)[] = [
+    (v) => (band = { ...band, gou: v }),
+    (v) => (band = { ...band, top: { ...band.top, width: v } }),
+    (v) => (band = { ...band, top: { ...band.top, thickness: v } }),
+    (v) => (band = { ...band, bottom: { ...band.bottom, width: v } }),
+    (v) => (band = { ...band, bottom: { ...band.bottom, thickness: v } }),
+  ];
+  specs.forEach((sp, i) => {
+    bindSlider(
+      box,
+      sp,
+      (v) => (sets[i](v), showBand()),
+      (v) => (sets[i](v), showBand(true)),
+    );
+  });
 }
 function setKind(k: Kind) {
   kind = k;
