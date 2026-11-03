@@ -13,13 +13,15 @@
 | `cine/rec-html.cjs`・`cine/html/` | 問い・決まり・全部に・現場・学校・受け継ぎ方・万が一・締めの場面（文字と図の動き） |
 | `capture/` | 継ぐの画面を動いたまま録る（1920×1080）。`hero*.cjs` は太い爪と細い爪を並べる場面 |
 
-使い方（どの台本も、作業用のフォルダ `SP` の下に `vc/`・`cine/`・`voice/`・`footage/` を置く前提で、パスは各ファイルの頭に書いてある。別の場所で使うときは、そのパスを直す）：
+使い方（どのパソコンでも同じ。場所は `paths.cjs` の 1 か所にまとめた。作業用のフォルダは `video/work/`（リポジトリに入れない）。別の所にしたいときは `TSUGU_VIDEO_WORK`、継ぐを動かす所を変えるときは `TSUGU_BASE`）：
 
-1. `npx vite build --outDir <SP>/dist-t2` → `npx vite preview --outDir <SP>/dist-t2 --port 5200` で、組んだ継ぐを動かす。
-2. `node capture/movall2.cjs`・`node capture/movmore2.cjs`（画面を録る）、`node cine/cine.cjs form 60`・`morph 60`・`metal`、`node cine/sizes.cjs`、`node cine/rec-html.cjs`。
-3. `python -I tts.py scenes11.json s11_ <SP>/voice`（作者の声が届いたら、それに替える）。
-4. `SCENES=scenes11.json VOICE=tts VPREFIX=s11_ OVERLAY=ov3.html OUT=継ぐ_仮の動画.mp4 node edit.cjs`。
+0. 最初の 1 回：`npm install`・`npx playwright install chromium`。機械の声を使うなら `python3 -m venv video/work/.venv && video/work/.venv/bin/pip install pyopenjtalk numpy`。
+1. `npx vite build --outDir video/work/dist` → `npx vite preview --outDir video/work/dist --port 5200` で、組んだ継ぐを動かす。
+2. 指輪のこま：`node video/cine/cine.cjs form 60`・`morph 60`・`metal`、`node video/capture/hero.cjs`・`hero-thick.cjs`・`hero-pair.cjs`（太い爪と細い爪を並べる）、`node video/cine/sizes.cjs`。
+3. 文字と図の場面：`node video/cine/rec-html.cjs`（sizes は 2 のあとで。2 つをつないで sizes.mp4 にする）。画面：`node video/capture/movall2.cjs`・`movmore2.cjs`。
+4. `video/work/.venv/bin/python -I video/tts.py video/scenes11.json s11_ video/work/voice`（作者の声が届いたら、それに替える）。
+5. `VOICE=tts VPREFIX=s11_ OUT=継ぐ_仮の動画.mp4 node video/edit.cjs` → `video/work/vc/` にできる。
 
-作者が撮る素材は `footage/` に、英字と数字だけの名前で置く（te1・te2・D・B・E・F・G・L・I・J・ring1・ring2・end。日本語の名前は送ると消える）。置くと自動で差し替わる。
+作者が撮る素材は `video/work/footage/` に、英字と数字だけの名前で置く（te1・te2・D・B・E・F・G・L・I・J・ring1・ring2・end。日本語の名前は送ると消える）。置くと自動で差し替わる。
 
 入れないもの：作者の声の録音、作者が送った見本の動画、録った画面・指輪のこま・組み上がった動画（大きいので作業用のフォルダだけに置く）。

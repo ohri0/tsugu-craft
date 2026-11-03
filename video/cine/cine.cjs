@@ -1,12 +1,12 @@
 // 黒い背景に指輪だけを置き、1 こまずつ撮る。node cine.cjs <shot> [こまの数]
-const { chromium } = require('/opt/node-tools/node_modules/playwright');
-const C = '/tmp/claude-0/-home-user/1a56a488-e27d-52a5-9529-d9ee9823a3f3/scratchpad/cine/';
+const { chromium, SP, BASE, VIDEO } = require('../paths.cjs');
+const C = `${SP}/cine/`;
 const fs = require('fs');
 const shot = process.argv[2]; const N = Number(process.argv[3] || 60);
 (async () => {
   const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1920, height: 1080 } });
   p.on('pageerror', (e) => console.log('pageerror ' + e.message));
-  await p.goto('http://localhost:5200/studio.html?nointro&rec', { waitUntil: 'networkidle' });
+  await p.goto(`${BASE}/studio.html?nointro&rec`, { waitUntil: 'networkidle' });
   await p.waitForFunction(() => window.__studio?.session?.built && window.__viewer, null, { timeout: 120000 });
   await p.evaluate(() => {
     window.__studio.setMode('refine');

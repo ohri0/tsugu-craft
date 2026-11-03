@@ -1,10 +1,10 @@
 // 石の大きさを変えて、公開情報だけ／職人の決まり、の 2 つの指輪を黒の上で撮る
-const { chromium } = require('/opt/node-tools/node_modules/playwright');
-const D = '/tmp/claude-0/-home-user/1a56a488-e27d-52a5-9529-d9ee9823a3f3/scratchpad/cine/sizes/';
+const { chromium, SP, BASE, VIDEO } = require('../paths.cjs');
+const D = `${SP}/cine/sizes/`;
 (async () => {
   const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1200, height: 1200 } });
   p.on('pageerror', (e) => console.log('pageerror ' + e.message));
-  await p.goto('http://localhost:5200/studio.html?nointro&rec', { waitUntil: 'networkidle' });
+  await p.goto(`${BASE}/studio.html?nointro&rec`, { waitUntil: 'networkidle' });
   await p.waitForFunction(() => window.__studio?.session?.built && window.__viewer, null, { timeout: 120000 });
   await p.evaluate(() => [...document.querySelectorAll('.presets button')].find((x) => x.textContent.trim() === 'ラウンド').click());
   await p.waitForTimeout(6000);

@@ -1,6 +1,8 @@
 # 継ぐ（つぐ）
 
-**ジュエリーが「作れるか」を確かめ、「どう作るか」を道具まで示し、作った物ごとに記録を残す。**
+**ネットにない職人の判断を、形を確かめる決まりにして、次の人へ渡す。**
+
+出発点は、作者の仕事である指輪。最初の目標は、何年もかけて作り、20 年に一度しか作り直さない伝統の技を残すこと。
 
 公開しているページ：https://tsugu-craft.vercel.app/ （Claude を使う所は、合言葉が要ります）
 
@@ -116,6 +118,7 @@ Claude Desktop に足す（設定の「開発者」→ 設定ファイル `claud
 | [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk)（`@modelcontextprotocol/sdk`） | MCP サーバー（`mcp/`）で、Claude のアプリに道具を出す | MIT |
 | [Zod](https://github.com/colinhacks/zod) | MCP の道具の入力の形を決めて確かめる | MIT |
 | [tsx](https://github.com/privatenumber/tsx) | MCP サーバーと目安帳を作る小さな処理を、TypeScript のまま動かす | MIT |
+| [Playwright](https://github.com/microsoft/playwright) | デモ動画の素材を撮る（継ぐの画面を動かして録る・指輪を 1 こまずつ撮る。`video/`）。アプリには入らない | Apache-2.0 |
 | [MediaPipe Tasks Vision](https://github.com/google-ai-edge/mediapipe)（`@mediapipe/tasks-vision`） | 手の記録：動画から手の位置（21 点）をブラウザの中で読む。wasm はこのパッケージのものを一緒に配る | Apache-2.0 |
 | [MediaPipe の手の点を読むモデル](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker)（`hand_landmarker.task`、float16） | 手の記録で使うモデル。使うときに Google の配布先から読み込む（リポジトリには入れない） | Apache-2.0 |
 

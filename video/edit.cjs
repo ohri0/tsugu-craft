@@ -1,17 +1,16 @@
-// 継ぐの動画を組む：台本（scenes3.json）の場面ごとに、撮った素材（footage/）があればそれを、なければ前の静止画か「撮るもの」の板を使い、
+// 継ぐの動画を組む：台本（scenes11.json）の場面ごとに、撮った素材（footage/）があればそれを、なければ前の静止画か「撮るもの」の板を使い、
 // 字幕を重ね、声（voice/）を場面の頭に置いて、3 分の動画にする。
 // 使い方：node edit.cjs   → vc/継ぐ_動画_編集.mp4
-const { chromium } = require('/opt/node-tools/node_modules/playwright');
+const { chromium, SP, VIDEO } = require('./paths.cjs');
 const fs = require('fs'); const path = require('path'); const { execFileSync } = require('child_process');
-const SP = '/tmp/claude-0/-home-user/1a56a488-e27d-52a5-9529-d9ee9823a3f3/scratchpad';
 const S = `${SP}/vc`, M = `${S}/m3`, F = `${SP}/footage`, V = `${SP}/voice`;
 fs.mkdirSync(M, { recursive: true });
 const find = (name) => { const f = fs.readdirSync(F).find((x) => x.startsWith(name) && /\.(mov|mp4|m4v)$/i.test(x)); return f ? `${F}/${f}` : null; };
 const dur = (f) => Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', f]).toString());
 (async () => {
-  const scenes = JSON.parse(fs.readFileSync(`${S}/${process.env.SCENES || 'scenes3.json'}`, 'utf8'));
+  const scenes = JSON.parse(fs.readFileSync(`${VIDEO}/${process.env.SCENES || 'scenes11.json'}`, 'utf8'));
   const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1920, height: 1080 } });
-  const shoot = async (q, out, n) => { await p.goto(`file://${S}/${process.env.OVERLAY || 'ov.html'}?n=${n}#${encodeURIComponent(JSON.stringify(q))}`); await p.waitForTimeout(200); await p.screenshot({ path: out, omitBackground: true }); };
+  const shoot = async (q, out, n) => { await p.goto(`file://${VIDEO}/${process.env.OVERLAY || 'ov3.html'}?n=${n}#${encodeURIComponent(JSON.stringify(q))}`); await p.waitForTimeout(200); await p.screenshot({ path: out, omitBackground: true }); };
   const clips = []; let n = 0; const used = []; const missing = [];
   let t = 0; const voices = [];
   for (const [si, sc] of scenes.entries()) {
