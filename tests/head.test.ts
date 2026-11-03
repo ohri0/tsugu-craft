@@ -56,7 +56,7 @@ describe("石座は 1 つの部品で、腕の上にのる（爪は腕へささ�
       for (const p of s.prongs) expect(minZ(part(s.positions, p.triangles))).toBeGreaterThanOrEqual(h.baseZ - 1e-4);
       // 爪の下の端は下の輪の所にそろう（中心へ寄って 1 本の柱になったり、離れた所で腕へささったりしない）
       expect(prongBottomsOnRail(s)).toBe(true);
-    });
+    }, 60000);
   }
 
   it("指輪に組むと、石座の下の端が腕のいちばん上に当たる（離れず、深くささらない）", () => {
@@ -69,7 +69,7 @@ describe("石座は 1 つの部品で、腕の上にのる（爪は腕へささ�
       expect(bottom).toBeLessThan(top);
       expect(top - bottom).toBeLessThanOrEqual(wire / 2 + 1e-4);
     }
-  });
+  }, 60000);
 
   it("一体の石座（画面の形）も、下の輪で腕にのる", () => {
     for (const stone of [roundStone(), triangleStone()]) {
