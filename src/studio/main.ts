@@ -436,20 +436,48 @@ async function loadSample() {
   await loadStone(g.getImageData(0, 0, c.width, c.height), SAMPLE.label, SAMPLE.longMm, SAMPLE.depthMm, { intro: !new URLSearchParams(location.search).has("nointro") });
 }
 
-$<HTMLInputElement>(".stone-file").addEventListener("change", async (e) => {
-  const f = (e.target as HTMLInputElement).files?.[0];
-  if (!f) return;
+/** 石の写真を入れ替える（ファイルを選ぶ・3D の所や石の欄へ落とす、のどちらからも） */
+async function useStonePhoto(f: File) {
+  if (/heic|heif/i.test(f.type) || /\.hei[cf]$/i.test(f.name)) {
+    $(".make-status").textContent = "この写真の形式（HEIC）は、このブラウザで読めません。iPhone の写真は「互換性優先」で撮るか、JPEG に書き出してから選んでください。";
+    return;
+  }
+  // 自分の石の写真にしたら、よくある形の選択は外す（長辺と深さは今の欄の値で読み、あとでノギスの値に直せる）
+  document.querySelectorAll<HTMLButtonElement>(".presets button").forEach((b) => b.setAttribute("aria-pressed", "false"));
+  $(".make-status").textContent = `「${f.name}」を読んでいます…`;
+  $(".stone-card").classList.add("busy");
   try {
     const img = await loadPhoto(f);
-    // 自分の石の写真にしたら、よくある形の選択は外す（長辺と深さは今の欄の値で読み、あとでノギスの値に直せる）
-    document.querySelectorAll<HTMLButtonElement>(".presets button").forEach((b) => b.setAttribute("aria-pressed", "false"));
-    $(".make-status").textContent = "石の写真を読んでいます。長辺と深さは、いま欄にある値で仮に読みます。ノギスの値に直すと、組み直します。";
-    await loadStone(img, f.name, Number($<HTMLInputElement>(".in-long").value) || 8, Number($<HTMLInputElement>(".in-depth").value) || 4, { intro: true });
-    $(".make-status").textContent = "石を読みました。長辺と深さをノギスの値にしてから「生む」を押してください。";
+    await loadStone(img, f.name, Number($<HTMLInputElement>(".in-long").value) || 8, Number($<HTMLInputElement>(".in-depth").value) || 4);
+    $(".make-status").textContent = "石を入れ替えました。長辺と深さをノギスの値にすると、組み直します。";
   } catch (err) {
-    $(".make-status").textContent = `石が読めませんでした：${(err as Error).message}`;
+    $(".make-status").textContent = `石が読めませんでした。白い紙の上で真上から撮った写真か、確かめてください（${(err as Error).message}）`;
+  } finally {
+    $(".stone-card").classList.remove("busy");
   }
+}
+$<HTMLInputElement>(".stone-file").addEventListener("change", async (e) => {
+  const input = e.target as HTMLInputElement;
+  const f = input.files?.[0];
+  // 同じファイルをもう一度選んでも読めるように、選んだ後は空にする
+  input.value = "";
+  if (f) await useStonePhoto(f);
 });
+for (const el of [$(".vp"), $(".stone-card")]) {
+  el.addEventListener("dragover", (e) => {
+    if (!e.dataTransfer?.types.includes("Files")) return;
+    e.preventDefault();
+    el.classList.add("drop");
+  });
+  el.addEventListener("dragleave", () => el.classList.remove("drop"));
+  el.addEventListener("drop", (e) => {
+    const f = e.dataTransfer?.files?.[0];
+    el.classList.remove("drop");
+    if (!f || !f.type.startsWith("image/")) return;
+    e.preventDefault();
+    void useStonePhoto(f);
+  });
+}
 for (const sel of [".in-long", ".in-depth"]) {
   $<HTMLInputElement>(sel).addEventListener("change", () => {
     if (!stone) return;
