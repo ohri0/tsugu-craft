@@ -203,6 +203,21 @@
       "date": "2026-11-03",
       "id": "rule-prong-min-ishikawa",
       "replaces": "prong-thickness"
+    },
+    {
+      "title": "三角の石は、角に 1 本ずつの爪 3 本で留まる",
+      "text": "角が 3 つの石（三角など）は、角に 1 本ずつ、0.8 mm くらいの爪 3 本で留めてよい。4 本爪と同じだけ留まるとみなす",
+      "reason": "尖った角を爪で守ると、石は角で押さえられる。3 本で足りる",
+      "quote": "（三角の石を 0.8 mm の爪 3 本で留めて大丈夫？に）大丈夫",
+      "checks": [
+        "hold"
+      ],
+      "source": {
+        "kind": "craftsman",
+        "name": "石川"
+      },
+      "date": "2026-11-03",
+      "id": "rule-corner-set-ishikawa"
     }
   ]
 }

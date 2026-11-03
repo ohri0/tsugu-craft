@@ -140,3 +140,25 @@ describe("ちょうど目安の値なら問題にしない", () => {
     expect(checkRing(ring).filter((p) => p.check === "finger-gap")).toHaveLength(0);
   });
 });
+
+describe("角に 1 本ずつの 3 本爪（職人の判断）", () => {
+  it("角が 3 つの石を角ごとに 1 本で留めると、3 本でも標準の留まり（1.0×）", async () => {
+    const { buildRing } = await import("../src/geometry/ring");
+    const { holdRatio, cornerSetCount } = await import("../src/rules/checks");
+    const { stoneFrom } = await import("./helpers/stones");
+    const { triangle } = await import("./helpers/synth");
+    const stone = stoneFrom(triangle(200, 200, 160, 140), 8.88, 4.24);
+    const ring = buildRing({ stone, setting: { style: "prong", height: "standard", vAtCorners: false }, shank: { gou: 11 }, orientation: "along" });
+    expect(ring.setting.prongs).toHaveLength(3);
+    expect(cornerSetCount(ring.setting)).toBe(3);
+    expect(holdRatio(ring.setting)).toBeGreaterThan(0.95);
+  });
+  it("丸い石の 3 本爪は、角に 1 本ずつではないので 4 本の標準で数える", async () => {
+    const { buildRing } = await import("../src/geometry/ring");
+    const { cornerSetCount } = await import("../src/rules/checks");
+    const { stoneFrom } = await import("./helpers/stones");
+    const pts = Array.from({ length: 64 }, (_, i) => ({ x: 200 + 100 * Math.cos((i / 64) * Math.PI * 2), y: 200 + 100 * Math.sin((i / 64) * Math.PI * 2) }));
+    const ring = buildRing({ stone: stoneFrom(pts, 6.5, 3.9), setting: { style: "prong", height: "standard", prongCount: 3 }, shank: { gou: 11 }, orientation: "along" });
+    expect(cornerSetCount(ring.setting)).toBeUndefined();
+  });
+});
