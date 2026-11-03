@@ -1,7 +1,8 @@
 // 確かめるルール（docs/SPEC.md「確かめるルール」の表）。答えではなく、問題と直し方の選択肢を返す。
 // 数字はすべて guides.ts から読む。選択肢の言葉と「見た目への影響」は .claude/skills/jeweler-guides/SKILL.md と同じ。
-import type { Point } from "../geometry/polygon";
+import { resample, toCounterClockwise, type Point } from "../geometry/polygon";
 import type { RingDesign } from "../geometry/ring";
+import type { ShankResult } from "../geometry/shank";
 import { tipMeasures, type SettingResult } from "../geometry/setting";
 import { GUIDE_NOTE, GUIDES, type Guides, type StonePosition } from "./guides";
 import { prongMinOverride } from "./ledger";
@@ -33,20 +34,26 @@ export const FIXES = {
   tipDown: { label: "爪の先を下げる", effectOnLook: "石の上面が広く見えるが、かかりは浅くなる" },
   addProng: { label: "爪を足す", effectOnLook: "支えが増え、爪が少し目立つ" },
   thickerWall: { label: "壁を厚くする", effectOnLook: "縁の金属の線が太く見える" },
+  thickerBand: { label: "腕を厚くする", effectOnLook: "指に当たる所が少し厚く、少し重くなる" },
+  widerBand: { label: "腕の幅を広げる", effectOnLook: "腕が少し太く見える" },
 } as const satisfies Record<string, Omit<FixOption, "id">>;
 
 function fix(...ids: FixId[]): FixOption[] {
   return ids.map((id) => ({ id, ...FIXES[id] }));
 }
 
-export type CheckId = "finger-gap" | "prong-thin" | "tip-height" | "hold" | "prong-gap" | "corner" | "bezel-wall";
+export type CheckId = "finger-gap" | "prong-thin" | "tip-height" | "hold" | "prong-gap" | "corner" | "bezel-wall" | "band-thin" | "band-narrow";
 
 /** 問題の場所（画面で赤くする所） */
 export type CheckTarget =
   | { kind: "setting" }
+  /** 腕（いちばん細い・薄い所） */
+  | { kind: "shank" }
+  /** 覆輪の壁 */
+  | { kind: "bezel" }
   | { kind: "prong"; index: number }
   | { kind: "corner"; index: number; point: Point }
-  | { kind: "gap"; fromT: number; toT: number };
+  | { kind: "gap"; fromT: number; toT: number; point?: Point };
 
 export interface Problem {
   /** 確かめの種類と場所（例：prong-thin:2） */
@@ -128,7 +135,61 @@ export function cornerDistances(s: SettingResult): number[] {
 
 /** 指輪をまるごと確かめる。問題がなければ空の一覧 */
 export function checkRing(ring: RingDesign, opts: CheckOptions = {}): Problem[] {
-  return checkSetting(ring.setting, ring.culetGapMm, opts);
+  const out = [...checkSetting(ring.setting, ring.culetGapMm, opts), ...checkShank(ring.shank, opts)];
+  // 爪の間が空きすぎの所に、赤い印を出すための縁の点（石の座標）
+  for (const p of out) {
+    if (p.target.kind !== "gap") continue;
+    const { fromT, toT } = p.target;
+    const mid = (fromT + ((toT - fromT + 1) % 1) / 2) % 1;
+    p.target.point = outlinePointAtT(ring.params.stone.outlineMm, mid);
+  }
+  return out;
+}
+
+/** 縁の上の位置 t（反時計回りにそろえた縁の、最初の点からの周の割合）の点 */
+export function outlinePointAtT(outline: readonly Point[], t: number): Point {
+  const N = 720;
+  const pts = resample(toCounterClockwise(outline), N);
+  return pts[((Math.round(t * N) % N) + N) % N];
+}
+
+/**
+ * 腕の厚みと幅（石のない指輪と同じ目安：guides.ts の band）。断面がどの形でも、いちばん厚い所の厚みと、いちばん細い所の幅で比べる
+ */
+export function checkShank(sh: Pick<ShankResult, "thicknessMm" | "widthMm"> & { minWidthMm?: number; minThicknessMm?: number }, opts: CheckOptions = {}): Problem[] {
+  const g: Guides = opts.guides ?? GUIDES;
+  const out: Problem[] = [];
+  const t = sh.minThicknessMm ?? sh.thicknessMm;
+  const w = sh.minWidthMm ?? sh.widthMm;
+  if (t < g.band.minThicknessMm - 1e-9) {
+    out.push({
+      id: "band-thin",
+      check: "band-thin",
+      where: "腕の厚み（いちばん厚い所）",
+      current: mm(t),
+      required: `${mm(g.band.minThicknessMm)} 以上`,
+      currentValue: t,
+      requiredValue: g.band.minThicknessMm,
+      reason: "仕上げで最大 0.2 mm 削れる。薄い腕は曲がりやすく、やわらかい金ではとくに弱い",
+      options: fix("thickerBand"),
+      target: { kind: "shank" },
+    });
+  }
+  if (w < g.band.minWidthMm - 1e-9) {
+    out.push({
+      id: "band-narrow",
+      check: "band-narrow",
+      where: "腕の幅",
+      current: mm(w),
+      required: `${mm(g.band.minWidthMm)} 以上`,
+      currentValue: w,
+      requiredValue: g.band.minWidthMm,
+      reason: "細い腕は曲がって丸くなくなる",
+      options: fix("widerBand"),
+      target: { kind: "shank" },
+    });
+  }
+  return out;
 }
 
 /** 石座を確かめる（指とのすき間は、置いたあとの値を渡す） */
@@ -269,7 +330,7 @@ export function checkSetting(s: SettingResult, culetGapMm: number = s.heights.cu
       requiredValue: g.bezel.wallMinMm,
       reason: "壁が薄く、石を押さえる力が弱い・へこみやすい",
       options: fix("thickerWall"),
-      target: { kind: "setting" },
+      target: { kind: "bezel" },
     });
   }
 

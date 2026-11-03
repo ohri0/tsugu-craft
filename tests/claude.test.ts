@@ -62,6 +62,7 @@ function fakeHost(opts: { failCheck?: boolean } = {}) {
       v_prong_count: 0,
       prong_mm: 0.8,
       prong_positions: [],
+      v_corners: false,
       height: "standard",
       orientation: "along",
       bezel_wall_mm: null,
@@ -80,7 +81,7 @@ function fakeHost(opts: { failCheck?: boolean } = {}) {
       calls.push("set_shank");
       if (input.gou !== undefined) ring.gou = input.gou;
       return {
-        shank: { width_mm: 2.2, thickness_mm: 1.6, gou: ring.gou, inner_diameter_mm: 16.33, metal: "pt900" },
+        shank: { width_mm: 2.2, thickness_mm: 1.6, section: "kouman", gou: ring.gou, inner_diameter_mm: 16.33, metal: "pt900" },
         weight_g: 3.2,
       };
     },

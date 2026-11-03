@@ -2,6 +2,7 @@
 // 人のボタンと同じ関数で実行する。確かめは、いつも今の帳面（職人の決まり）で行う。画面には依存しない（look の画像だけ外から受け取る）。
 import { buildRing, type RingDesign } from "../geometry/ring";
 import { tAtOutlineIndex, type SolidQuality } from "../geometry/setting";
+import type { SectionPoint, ShankSection } from "../geometry/shank";
 import type { StoneParams } from "../geometry/stone";
 import { FIXES, checkRing, holdRatio, type FixId, type Problem } from "../rules/checks";
 import { GUIDES, requiredHold, stoneSizeMm, type HeightOption, type MetalId, type StonePosition } from "../rules/guides";
@@ -36,6 +37,12 @@ export interface RingState {
   gou: number;
   shankWidthMm?: number;
   shankThicknessMm?: number;
+  /** 腕の断面（なければ甲丸） */
+  shankSection?: ShankSection;
+  /** 手で描いた腕の断面の点（shankSection が free のとき） */
+  sectionPoints?: SectionPoint[];
+  /** 尖った角を V 字の爪で包むか（なければ包まない：丸い爪を角に立てる普通の爪留め。作者の判断） */
+  vCorners?: boolean;
   /** 石の一番下と指のすき間（mm）を直接決める（高さの選択より優先。職人の決まりに合わせて直すとき） */
   culetGapMm?: number;
   position: StonePosition;
@@ -71,6 +78,8 @@ const CHECK_NAME: Record<string, string> = {
   "prong-gap": "爪と爪の間",
   corner: "尖った角の守り",
   "bezel-wall": "覆輪の壁の厚み",
+  "band-thin": "腕の厚み",
+  "band-narrow": "腕の幅",
 };
 
 /** 直し方 → Claude が使える道具と入力の例 */
@@ -87,6 +96,12 @@ function hintFor(id: FixId, s: RingState, std: number): FixOption["tool_hint"] {
       return { tool: "set_setting", input: { prong_count: Math.min(8, (s.prongCount ?? 4) + 1) } };
     case "bezel":
       return { tool: "set_setting", input: { style: "bezel" } };
+    case "vAtCorner":
+      return { tool: "set_setting", input: { style: "prong", v_corners: true } };
+    case "thickerBand":
+      return { tool: "set_shank", input: { thickness_mm: GUIDES.band.minThicknessMm } };
+    case "widerBand":
+      return { tool: "set_shank", input: { width_mm: GUIDES.band.minWidthMm } };
     default:
       return undefined;
   }
@@ -179,10 +194,17 @@ export class RingSession implements ToolHost<RingState> {
         prongs: s.prongPositions?.length ? s.prongPositions.map((i) => ({ t: tAtOutlineIndex(outline, i) })) : undefined,
         solid: this.solid,
         solidQuality: quality,
-        // 角は丸い爪で押さえる普通の爪留め（作者の判断）。V 字の爪は使わない
-        vAtCorners: false,
+        // 既定は、角を丸い爪で押さえる普通の爪留め（作者の判断）。V 字の爪は選んだときだけ
+        vAtCorners: s.vCorners ?? false,
       },
-      shank: { gou: s.gou, metal: metalIdOf(s.metal), widthMm: s.shankWidthMm, thicknessMm: s.shankThicknessMm },
+      shank: {
+        gou: s.gou,
+        metal: metalIdOf(s.metal),
+        widthMm: s.shankWidthMm,
+        thicknessMm: s.shankThicknessMm,
+        section: s.shankSection,
+        sectionPoints: s.shankSection === "free" ? s.sectionPoints : undefined,
+      },
       orientation: s.orientation,
     });
     const problems = checkRing(ring, { position: s.position, guides }).map((p) => ({ ...p, rule: ruleForCheck(ledger, p.check) }));
@@ -197,6 +219,7 @@ export class RingSession implements ToolHost<RingState> {
       v_prong_count: st.prongs.filter((p) => p.isV).length,
       prong_mm: st.style === "prong" ? Math.round((st.prongs[0]?.diameterMm ?? 0) * 100) / 100 : null,
       prong_positions: this.state.prongPositions ?? [],
+      v_corners: !!this.state.vCorners,
       height: this.state.height,
       orientation: this.state.orientation,
       bezel_wall_mm: st.bezel ? Math.round(st.bezel.wallMm * 100) / 100 : null,
@@ -208,6 +231,7 @@ export class RingSession implements ToolHost<RingState> {
   setSetting(input: SetSettingInput): SetSettingResult {
     const s = this.state;
     if (input.style) s.style = input.style;
+    if (input.v_corners !== undefined) s.vCorners = input.v_corners;
     if (input.prong_count !== undefined) {
       s.prongCount = input.prong_count;
       s.prongPositions = undefined;
@@ -237,12 +261,21 @@ export class RingSession implements ToolHost<RingState> {
     if (input.thickness_mm !== undefined) s.shankThicknessMm = input.thickness_mm;
     if (input.gou !== undefined) s.gou = input.gou;
     if (input.metal) s.metal = input.metal;
+    if (input.section) {
+      s.shankSection = input.section;
+      if (input.section !== "free") s.sectionPoints = undefined;
+    }
+    if (input.section_points) {
+      s.shankSection = "free";
+      s.sectionPoints = input.section_points.map((p) => ({ x: p.x, y: p.y }));
+    }
     const b = this.build(input.reason);
     const sh = b.ring.shank;
     return {
       shank: {
         width_mm: Math.round(sh.widthMm * 100) / 100,
         thickness_mm: Math.round(sh.thicknessMm * 100) / 100,
+        section: sh.section,
         gou: s.gou,
         inner_diameter_mm: Math.round(sh.innerDiameterMm * 100) / 100,
         metal: s.metal,
