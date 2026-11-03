@@ -1,18 +1,45 @@
 <!doctype html><meta charset="utf-8"><link rel="stylesheet" href="base.css"><style>
-.tl{position:absolute;left:160px;right:160px;top:560px;height:2px;background:#2a2a2e}
-.c{position:absolute;top:400px;width:300px;text-align:center;opacity:0;animation:in .6s ease forwards}
-.c i{display:block;margin:0 auto 18px;width:18px;height:18px;border-radius:50%;background:#e2b866}
-.c b{display:block;font-size:30px;font-weight:600}
-.c span{display:block;margin-top:12px;font-size:22px;line-height:1.6;color:#b9b9bf}
-.y{position:absolute;top:580px;font:600 22px "SF Mono","Menlo",monospace;color:#6e6f74;opacity:0;animation:in .5s ease forwards}
-.t{position:absolute;left:0;right:0;top:800px;text-align:center;font-size:32px;color:#e2b866;opacity:0;animation:in .8s ease 4.2s forwards}
+/* 最初の目標（26 秒）。見出しは字幕の側（ov3）が出す。
+   巻物の品々が横に流れる → 1953 年の空からの写真（新旧の殿舎が並ぶ）→ 20 年ごとの受け継ぎ方 */
+.p1{position:absolute;left:0;right:0;top:250px;height:520px;overflow:hidden;opacity:0;animation:fade 1s ease .2s forwards,out .8s ease 9.4s forwards}
+.p1 img{height:520px;animation:pan 10s linear forwards}
+@keyframes pan{from{transform:translateX(0)}to{transform:translateX(-3600px)}}
+.cap{position:absolute;left:120px;top:800px}
+.cap b{display:block;margin-top:8px;font-size:28px;font-weight:400}
+.c1{opacity:0;animation:fade .8s ease 1s forwards,out .8s ease 9.4s forwards}
+.p2{position:absolute;left:0;right:0;top:0;bottom:0;opacity:0;animation:fade 1s ease 10s forwards,out .8s ease 16.6s forwards}
+.p2 .ph{position:absolute;left:1000px;top:250px;width:640px;height:772px;overflow:hidden}
+.p2 img{width:640px;animation:zoom 8s ease-out 10s forwards}
+@keyframes zoom{from{transform:scale(1)}to{transform:scale(1.08)}}
+.p2 .tx{position:absolute;left:120px;top:440px;width:780px}
+.p2 .tx b{display:block;margin-top:14px;font-size:44px;font-weight:400;line-height:1.35}
+.p2 .tx p{margin:22px 0 0;font-size:24px;color:#86868b;line-height:1.7}
+.p3{position:absolute;inset:0;opacity:0;animation:fade 1s ease 17.2s forwards}
+.tl{position:absolute;left:200px;right:200px;top:600px;height:1px;background:#333}
+.c{position:absolute;top:470px;width:420px;opacity:0;animation:in .6s ease forwards}
+.c i{display:block;width:12px;height:12px;border-radius:50%;background:#f5f5f7;margin:0 0 22px}
+.c b{display:block;font-size:34px;font-weight:400}
+.c span{display:block;margin-top:12px;font-size:22px;line-height:1.6;color:#86868b}
+.y{position:absolute;top:630px}
+.t{position:absolute;left:0;right:0;top:760px;text-align:center;font-size:38px;font-weight:400;opacity:0;animation:in .8s ease 21s forwards,out .6s ease 23.6s forwards}
+.t2{position:absolute;left:0;right:0;top:760px;text-align:center;font-size:38px;font-weight:400;opacity:0;animation:in .8s ease 24.2s forwards}
 </style>
-<div class="ch">受け継ぎ方。</div><div class="sm">20 年に一度、少ない人数で</div>
+<div class="p1"><img src="../heritage/naiku-goshinpozu.jpg"></div>
+<div class="cap c1"><span class="lab">Ise Jingu ・ Goshinpo</span><b>御装束神宝　20 年に一度、すべて新しく作り直される品々</b></div>
+<div class="src c1">「内宮御神宝図」江戸時代の写し　国立国会図書館所蔵（Wikimedia Commons・パブリックドメイン）</div>
+<div class="p2">
+<div class="tx"><span class="lab">Shikinen Sengu ・ 1953</span><b>伊勢神宮の式年遷宮。<br>20 年ごとに、社殿も品々も新しく。</b><p>写真の上が新しい殿舎、下がそれまでの殿舎。</p></div>
+<div class="ph"><img src="../heritage/naiku-1953.jpg"></div>
+<div class="src">1953 年 内宮　本田照夫 撮影（Wikimedia Commons・パブリックドメイン）</div>
+</div>
+<div class="p3">
 <div class="tl"></div>
-<div class="c" style="left:190px;animation-delay:.4s"><i></i><b>1 回目</b><span>先輩が作りながら、<br>後の人に教える</span></div>
-<div class="y" style="left:320px;animation-delay:.4s">0 年</div>
-<div class="c" style="left:810px;animation-delay:1.4s"><i></i><b>2 回目</b><span>教わった人が作りながら、<br>次の人に教える</span></div>
-<div class="y" style="left:930px;animation-delay:1.4s">20 年</div>
-<div class="c" style="left:1430px;animation-delay:2.4s"><i></i><b>3 回目</b><span>一人が関われるのは、<br>ここまで</span></div>
-<div class="y" style="left:1550px;animation-delay:2.4s">40 年</div>
+<div class="c" style="left:200px;animation-delay:17.6s"><i></i><b>1 回目</b><span>先輩が作りながら、<br>後の人に教える</span></div>
+<div class="y lab" style="left:200px;opacity:0;animation:fade .5s ease 17.6s forwards">0 年</div>
+<div class="c" style="left:780px;animation-delay:18.6s"><i></i><b>2 回目</b><span>教わった人が作りながら、<br>次の人に教える</span></div>
+<div class="y lab" style="left:780px;opacity:0;animation:fade .5s ease 18.6s forwards">20 年</div>
+<div class="c" style="left:1360px;animation-delay:19.6s"><i></i><b>3 回目</b><span>一人が関われるのは、<br>ここまで</span></div>
+<div class="y lab" style="left:1360px;opacity:0;animation:fade .5s ease 19.6s forwards">40 年</div>
 <div class="t">一度でも途切れると、判断ごと消える。</div>
+<div class="t2">だから、作るたびの判断を、データとして残していく。</div>
+</div>

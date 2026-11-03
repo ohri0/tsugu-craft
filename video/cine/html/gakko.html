@@ -1,19 +1,36 @@
 <!doctype html><meta charset="utf-8"><link rel="stylesheet" href="base.css"><style>
-.l{position:absolute;left:180px;top:330px;width:700px}
-.r{position:absolute;left:1040px;top:330px;width:700px;opacity:0;animation:in .8s ease 2.6s forwards}
-h3{margin:0 0 30px;font-size:30px;font-weight:600}
-.l h3{color:#8a8b90}.r h3{color:#e2b866}
-.q{display:flex;gap:18px;align-items:flex-end;height:220px}
-.p{width:46px;border-radius:23px 23px 6px 6px;background:#3a3b40;opacity:0;animation:in .4s ease forwards}
-.tch{width:64px;height:170px;border-radius:32px 32px 6px 6px;background:#8a8b90;margin-right:30px}
-.l p,.r p{margin:30px 0 0;font-size:24px;line-height:1.7;color:#b9b9bf}
-.me{display:flex;gap:24px;align-items:center;height:220px}
-.me .p{opacity:1;animation:none;background:#e2b866;height:150px}
-.screen{width:300px;height:190px;border:1px solid #e2b866;border-radius:10px;display:grid;place-items:center;font-size:24px;color:#e2b866}
+/* 学校と工房（16 秒）：両方で、聞く順番を待つ（時計が進む）→ 大まかな流れは継ぐで、細かい所は人に */
+.cols{position:absolute;left:120px;right:120px;top:330px;display:grid;grid-template-columns:1fr 1fr;gap:120px;animation:out .6s ease 8.6s forwards}
+.col{border-top:1px solid #333;padding-top:28px;opacity:0;animation:in .6s ease forwards}
+.col h3{margin:12px 0 0;font-size:40px;font-weight:400}
+.col p{margin:12px 0 0;font-size:22px;color:#86868b}
+.q{display:flex;gap:16px;margin-top:44px;align-items:flex-end;height:120px}
+.q i{width:30px;border-radius:15px 15px 4px 4px;background:#3a3a3c;height:96px}
+.q i.t{background:#86868b;height:120px;width:40px;border-radius:20px 20px 4px 4px;margin-right:24px}
+.clk{margin-top:38px}
+.clk b{font-size:72px;font-weight:300}.clk span{font-size:22px;color:#86868b;margin-left:12px}
+.long{position:absolute;left:0;right:0;top:880px;text-align:center;font-size:26px;color:#ff6961;opacity:0;animation:fade .6s ease 6s forwards,out .6s ease 8.6s forwards}
+.after{position:absolute;inset:0;opacity:0;animation:fade .8s ease 9s forwards}
+.bar{position:absolute;left:200px;right:200px;top:460px;display:grid;grid-template-columns:4fr 1fr;gap:10px}
+.bar div{height:84px;border-radius:10px;display:flex;align-items:center;padding:0 32px;font-size:28px;font-weight:400}
+.bar .a{background:#f5f5f7;color:#000}.bar .b{background:#2c2c2e;color:#f5f5f7;justify-content:center}
+.bl{position:absolute;left:200px;right:200px;top:420px;display:grid;grid-template-columns:4fr 1fr;gap:10px}
+.end{position:absolute;left:0;right:0;top:680px;text-align:center;font-size:38px;font-weight:400;opacity:0;animation:in .8s ease 11s forwards}
 </style>
-<div class="ch">学校では。</div><div class="sm">決まった課題ではないとき（修理を学ぶときなど）</div>
-<div class="l"><h3>これまで</h3><div class="q"><div class="tch"></div>
-<div class="p" style="height:150px;animation-delay:.3s"></div><div class="p" style="height:140px;animation-delay:.5s"></div><div class="p" style="height:155px;animation-delay:.7s"></div><div class="p" style="height:145px;animation-delay:.9s"></div><div class="p" style="height:150px;animation-delay:1.1s"></div><div class="p" style="height:140px;animation-delay:1.3s"></div></div>
-<p>答えのあることも、先生に聞く順番を待つ。</p></div>
-<div class="r"><h3>継ぐなら</h3><div class="me"><div class="p"></div><div class="screen">職人の決まりで確かめる</div></div>
-<p>決まりのある、答えのあることは、自分で分かる。先生には、職人にしか決められないことだけを聞く。</p></div>
+<div class="ch">学校と工房では。</div><div class="sm">一人ひとり、違う物を作るとき</div>
+<div class="cols">
+<div class="col" style="animation-delay:.3s"><span class="lab">School</span><h3>学校</h3><p>共通の答えがない。教え合えない。板書もない。</p>
+<div class="q"><i class="t"></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+<div class="clk"><b class="m">0</b><span>分、先生を待つ</span></div></div>
+<div class="col" style="animation-delay:.8s"><span class="lab">Workshop</span><h3>工房</h3><p>職人を育てる現場でも、同じ。</p>
+<div class="q"><i class="t"></i><i></i><i></i><i></i><i></i></div>
+<div class="clk"><b class="m">0</b><span>分、親方を待つ</span></div></div>
+</div>
+<div class="long">長いときは、1 時間。</div>
+<div class="after">
+<div class="bl"><span class="lab">大まかな流れ</span><span class="lab" style="text-align:center">細かい所</span></div>
+<div class="bar"><div class="a">継ぐで、自分で分かる</div><div class="b">人に聞く</div></div>
+<div class="end">本当に聞きたいことだけを、人に。</div>
+</div>
+<script>const ms=[...document.querySelectorAll('.m')];const t0=performance.now()+1200;
+const tick=()=>{const u=Math.min(1,Math.max(0,(performance.now()-t0)/4800));const e=u*u*(3-2*u);ms.forEach(m=>m.textContent=Math.round(60*e));if(u<1)requestAnimationFrame(tick)};requestAnimationFrame(tick);</script>

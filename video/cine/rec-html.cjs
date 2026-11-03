@@ -8,6 +8,7 @@ const ALL = { q: 7000, spread: 4500, genba: 17000, gakko: 17000, keisho: 27000, 
 (async () => {
   // html は ../sizes/ の絵を読むので、作業用のフォルダに写してから開く
   fs.cpSync(`${VIDEO}/cine/html`, `${D}html`, { recursive: true });
+  fs.cpSync(`${VIDEO}/../public/heritage`, `${D}heritage`, { recursive: true });
   const names = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(ALL);
   for (const n of names) {
     const b = await chromium.launch(); const ctx = await b.newContext({ viewport: { width: 1920, height: 1080 }, recordVideo: { dir: D, size: { width: 1920, height: 1080 } } });

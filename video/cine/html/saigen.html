@@ -1,28 +1,18 @@
 <!doctype html><meta charset="utf-8"><link rel="stylesheet" href="base.css"><style>
-.col{position:absolute;top:300px}
-.a{left:120px;width:560px}.b{left:760px;width:400px;top:470px;text-align:center}.c{left:1240px;width:560px}
-h3{margin:0 0 22px;font-size:24px;font-weight:500;color:#8a8b90;letter-spacing:.08em}
-.chip{display:inline-block;margin:0 10px 12px 0;padding:8px 16px;border:1px solid #3a3b40;border-radius:999px;font-size:21px;color:#d6d6da;opacity:0;animation:in .35s ease forwards}
-.chip i{font-style:normal;font-family:"SF Mono","Menlo",monospace;color:#6e6f74;margin-right:8px}
-.b b{display:block;font-size:34px;color:#e2b866;opacity:0;animation:in .6s ease 2.4s forwards}
-.b span{display:block;margin-top:12px;font-size:21px;color:#8a8b90;opacity:0;animation:in .6s ease 2.6s forwards}
-.ar{font-size:60px;color:#4a4b50;opacity:0;animation:in .5s ease 2.2s forwards}
-.st{font-size:23px;line-height:2.0;color:#b9b9bf;opacity:0;animation:in .4s ease forwards}
-.st i{font-style:normal;font-family:"SF Mono","Menlo",monospace;color:#6e6f74;margin-right:12px}
-.c h3{color:#e2b866}
-.ft{position:absolute;left:0;right:0;bottom:120px;text-align:center;font-size:26px;color:#8a8b90;opacity:0;animation:in .8s ease 5.6s forwards}
+/* 万が一（8 秒）：残っている手がかりから、Claude が作り方を組み立て直す */
+.a{position:absolute;left:120px;top:330px;width:1000px}
+.chip{display:inline-block;margin:0 12px 14px 0;padding:10px 20px;border:1px solid #3a3a3c;border-radius:999px;font-size:22px;color:#d2d2d7;opacity:0;animation:in .35s ease forwards}
+.chip i{font-style:normal;color:#6e6e73;margin-right:10px}
+.b{position:absolute;left:1260px;top:420px;width:540px;opacity:0;animation:in .8s ease 2.4s forwards}
+.b .lab{display:block}
+.b b{display:block;margin-top:14px;font-size:46px;font-weight:400}
+.b span{display:block;margin-top:14px;font-size:22px;color:#86868b;line-height:1.6}
+.ln{position:absolute;left:1140px;top:470px;width:90px;height:1px;background:#f5f5f7;transform-origin:left;transform:scaleX(0);animation:grow .7s ease 2.1s forwards}
+@keyframes grow{to{transform:scaleX(1)}}
 </style>
 <div class="ch">万が一に。</div><div class="sm">作り方が途切れた技を、組み立て直す（はじめの題材：木目金）</div>
-<div class="col a"><h3>残っている手がかり 20</h3>
+<div class="a"><span class="lab" style="display:block;margin-bottom:26px">残っている手がかり</span>
 <span class="chip" style="animation-delay:.2s"><i>C1</i>表面の模様</span><span class="chip" style="animation-delay:.3s"><i>C3</i>縁に見える層</span><span class="chip" style="animation-delay:.4s"><i>C7</i>黒くなる銅の合金</span><span class="chip" style="animation-delay:.5s"><i>C8</i>銀と銅の合金</span><span class="chip" style="animation-delay:.6s"><i>C10</i>煮て色を出す</span><span class="chip" style="animation-delay:.7s"><i>C12</i>江戸時代と刀の金具</span><span class="chip" style="animation-delay:.8s"><i>C16</i>彫りと打ち出しの道具</span><span class="chip" style="animation-delay:.9s"><i>C17</i>火床と木炭</span><span class="chip" style="animation-delay:1.0s"><i>C18</i>熱と圧でつながる</span><span class="chip" style="animation-delay:1.1s"><i>…</i>ほか 11</span>
 </div>
-<div class="col b"><div class="ar">→</div><b>Claude が組み立てる</b><span>工程ごとに、どの手がかりからか</span></div>
-<div class="col c"><h3>答え合わせ：隠しておいた本当の作り方</h3>
-<div class="st" style="animation-delay:3.0s"><i>A3</i>色ちがいの板を重ねる</div>
-<div class="st" style="animation-delay:3.3s"><i>A5</i>火床で熱して、ろうを使わずにつなぐ</div>
-<div class="st" style="animation-delay:3.6s"><i>A7</i>叩いて薄くのばす</div>
-<div class="st" style="animation-delay:3.9s"><i>A8</i>表面を彫って、下の層を出す</div>
-<div class="st" style="animation-delay:4.2s"><i>A9</i>また叩いて平らにする</div>
-<div class="st" style="animation-delay:4.5s"><i>A11</i>煮色で色を出す</div>
-</div>
-<div class="ft">手がかりなしで出てきた工程は「もともとの知識から」と分けて数える</div>
+<div class="ln"></div>
+<div class="b"><span class="lab">Claude</span><b>作り方を、組み立て直す</b><span>工程ごとに、どの手がかりから考えたかを残す</span></div>

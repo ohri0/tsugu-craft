@@ -123,7 +123,12 @@ Claude Desktop に足す（設定の「開発者」→ 設定ファイル `claud
 | [MediaPipe の手の点を読むモデル](https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker)（`hand_landmarker.task`、float16） | 手の記録で使うモデル。使うときに Google の配布先から読み込む（リポジトリには入れない） | Apache-2.0 |
 
 
-画像を使うときは、ここに出典と利用条件を書き足す。`samples/triangle_closeup_2026-11-02.jpg` と、同じ写真の `public/stones/triangle.jpg` は作者が撮った写真（撮影情報は消してある）。
+画像を使うときは、ここに出典と利用条件を書き足す。
+
+| 画像 | 出典 | 利用条件 |
+| --- | --- | --- |
+| `public/heritage/naiku-goshinpozu.jpg`（「内宮御神宝図」の一部を切り出して横につないだもの） | 国立国会図書館所蔵、[Wikimedia Commons](https://commons.wikimedia.org/wiki/File:NDL2574228_%E5%86%85%E5%AE%AE%E5%BE%A1%E7%A5%9E%E5%AE%9D%E5%9B%B3.(1).pdf) | パブリックドメイン |
+| `public/heritage/naiku-1953.jpg`（1953 年の内宮の空からの写真） | 本田照夫 撮影、[Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Ise_Shrine_Naiku_1953-8-26_cropped.jpg) | パブリックドメイン |`samples/triangle_closeup_2026-11-02.jpg` と、同じ写真の `public/stones/triangle.jpg` は作者が撮った写真（撮影情報は消してある）。
 
 ## ライセンス
 
