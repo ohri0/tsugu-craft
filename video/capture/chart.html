@@ -1,0 +1,22 @@
+<!doctype html><meta charset="utf-8"><style>
+html,body{margin:0;width:1280px;height:720px;background:#111113;color:#f2f2f4;font-family:"Hiragino Sans","Noto Sans CJK JP","Noto Sans JP",sans-serif;overflow:hidden}
+.k{position:absolute;left:120px;top:96px;font-size:20px;letter-spacing:.12em;color:#8a8b90}
+h1{position:absolute;left:120px;top:130px;margin:0;font-size:44px;font-weight:700;letter-spacing:.02em}
+.row{position:absolute;left:120px;width:1040px}
+.row b{display:block;font-size:22px;color:#a0a1a6;font-weight:500;margin-bottom:12px}
+.bar{height:56px;border-radius:6px;background:#56575c;transform-origin:left;transform:scaleX(0);transition:transform 1.6s cubic-bezier(.2,.7,.2,1)}
+.r2 .bar{background:#e2b866}
+.n{font:600 40px "SF Mono","Menlo","Noto Sans Mono",monospace;margin-top:12px;opacity:0;transition:opacity .6s}
+.r1{top:250px}.r2{top:430px}
+.src{position:absolute;left:120px;bottom:48px;font-size:16px;color:#6e6f74}
+.go .bar{transform:scaleX(var(--w))}.go .n{opacity:1}
+.big{position:absolute;right:120px;top:140px;font:700 88px "SF Mono","Menlo",monospace;color:#e2b866;opacity:0;transition:opacity .8s 2.2s}.go .big{opacity:1}
+</style>
+<body>
+<div class="k">伝統的工芸品の作り手の数</div>
+<h1>この 40 年あまりで、およそ 6 分の 1</h1>
+<div class="big">1/6</div>
+<div class="row r1"><b>1979 年</b><div class="bar" style="--w:1"></div><div class="n">28 万 8 千人</div></div>
+<div class="row r2"><b>2022 年度</b><div class="bar" style="--w:.168"></div><div class="n">4 万 8 千人</div></div>
+<div class="src">出典：伝統的工芸品産業振興協会</div>
+<script>setTimeout(()=>document.body.classList.add('go'),600)</script>

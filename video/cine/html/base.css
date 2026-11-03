@@ -1,0 +1,5 @@
+html,body{margin:0;width:1920px;height:1080px;background:#000;color:#f2f2f4;font-family:"Hiragino Sans","Noto Sans CJK JP","Noto Sans JP",sans-serif;overflow:hidden}
+.ch{position:absolute;left:120px;top:110px;font-size:64px;font-weight:600;letter-spacing:.02em}
+.sm{position:absolute;left:122px;top:198px;font-size:22px;color:#8a8b90;letter-spacing:.06em}
+.mono{font-family:"SF Mono","Menlo","Noto Sans Mono",monospace}
+@keyframes in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
