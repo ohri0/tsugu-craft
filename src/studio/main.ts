@@ -436,6 +436,9 @@ $<HTMLInputElement>(".stone-file").addEventListener("change", async (e) => {
   if (!f) return;
   try {
     const img = await loadPhoto(f);
+    // 自分の石の写真にしたら、よくある形の選択は外す（長辺と深さは今の欄の値で読み、あとでノギスの値に直せる）
+    document.querySelectorAll<HTMLButtonElement>(".presets button").forEach((b) => b.setAttribute("aria-pressed", "false"));
+    $(".make-status").textContent = "石の写真を読んでいます。長辺と深さは、いま欄にある値で仮に読みます。ノギスの値に直すと、組み直します。";
     await loadStone(img, f.name, Number($<HTMLInputElement>(".in-long").value) || 8, Number($<HTMLInputElement>(".in-depth").value) || 4, { intro: true });
     $(".make-status").textContent = "石を読みました。長辺と深さをノギスの値にしてから「生む」を押してください。";
   } catch (err) {
@@ -1748,7 +1751,8 @@ function renderWorks() {
       .map(
         (w) => `<li><img alt="" src="${w.image}"><div><b>${esc(w.title)}</b><small>${esc(w.date)}${w.maker ? ` ・ ${esc(w.maker)}` : ""} ・ ${esc(w.methodLabel)}</small>${w.note ? (isSample(w) ? `<p class="sample-note">${esc(w.note)}</p>` : `<p>「${esc(w.note)}」</p>`) : ""}${(w.revisions ?? []).map((r) => `<p class="rev">${esc(r.by)}さんの決まりで直した：${esc(r.change)}</p>`).join("")}<span class="${w.problems.length ? "ng" : "ok"}">${w.problems.length ? "作れない所あり" : "作れる形"}</span></div><button type="button" class="w-del" data-id="${w.id}" aria-label="消す">×</button></li>`,
       )
-      .join("")}</ul>`;
+      .join("")}</ul>
+    <nav class="places-sm" aria-label="ほかの場所"><small>ほかの場所</small><a href="app.html#see">学ぶ<span>次の人が、手本と比べ、なぜ？と聞く</span></a><a href="app.html#keep">残す<span>職人が、決まり・手本・答えを残す</span></a><a href="app.html#rebuild">組み立て直す<span>途切れた技を、手がかりから</span></a></nav>`;
   box.querySelector(".w-print")?.addEventListener("click", () => openPrint(worksBookHtml(loadWorks(), today())));
   box.querySelector(".w-samples")?.addEventListener("click", () => {
     addSampleWorks();

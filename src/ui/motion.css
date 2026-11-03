@@ -45,3 +45,4 @@
 .motion-compare-pick { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .motion-root input[type="file"] { display: none; }
 .motion-root details.sub summary { cursor: pointer; font-weight: 600; }
+.motion-count { font: 600 11px var(--mono); color: var(--fg-3, #888); margin-left: 4px; }

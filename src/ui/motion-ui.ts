@@ -164,7 +164,7 @@ export function mountMotion(root: HTMLElement, opts: MotionOptions = {}): Motion
     </div>
 
     <details class="sub motion-saved-box">
-      <summary>残した記録 <span class="badge motion-count">0</span></summary>
+      <summary>残した記録 <span class="count motion-count">0</span></summary>
       <div class="row motion-import-row">
         <label class="btn" for="${p}-json">記録を読み込む（JSON）</label><input id="${p}-json" type="file" accept="application/json,.json">
       </div>
