@@ -53,7 +53,10 @@ export function dimsSvg(dims: Dim[], project: Project, k = 1, opts: DimsOpts = {
   const cost = (r: Rect) => {
     const g = { x: r.x - pad, y: r.y - pad, w: r.w + pad * 2, h: r.h + pad * 2 };
     let c = opts.bounds && !inside(r, opts.bounds) ? 1e6 : 0;
-    for (const q of [...placed, ...(opts.avoid ?? [])]) if (hit(g, q)) c += (Math.min(g.x + g.w, q.x + q.w) - Math.max(g.x, q.x)) * (Math.min(g.y + g.h, q.y + q.h) - Math.max(g.y, q.y));
+    const area = (q: Rect) => (Math.min(g.x + g.w, q.x + q.w) - Math.max(g.x, q.x)) * (Math.min(g.y + g.h, q.y + q.h) - Math.max(g.y, q.y));
+    // 札どうしが重なると読めないので、石座やボタンに重なるより重く数える
+    for (const q of placed) if (hit(g, q)) c += area(q) * 6;
+    for (const q of opts.avoid ?? []) if (hit(g, q)) c += area(q);
     return c;
   };
   for (const d of dims) {

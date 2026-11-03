@@ -1177,7 +1177,7 @@ function pastCheckHtml(): string {
         (r, i) => `<li class="${r.ok ? "ok" : "ng"}" style="animation-delay:${i * 0.12}s">${r.work.image ? `<img alt="" src="${r.work.image}">` : "<span></span>"}<div><b>${esc(r.work.title)}</b><small>${esc(r.work.date)}${r.work.maker ? ` ・ ${esc(r.work.maker)}` : ""}</small><p>${esc(r.fixed ?? r.probs.join("、"))}</p></div><i>${r.ok ? "直した" : r.fixed ? "職人へ" : "作れない"}</i></li>`,
       )
       .join("")}</ul>
-    ${rows.some((r) => !r.fixed) ? `<button type="button" class="next-btn past-fix">直し方で、まとめて直す</button>` : left ? `<p class="hint">直し方だけでは直らない作品は、職人が見て決めます。次に作る人の設計にも、この決まりが効きます。</p>` : `<p class="hint">次に作る人の設計にも、この決まりが効きます。</p>`}` : `<p class="pc-sum"><em class="ok">どの作品も、この決まりで作れる形でした</em></p>`}
+    ${rows.some((r) => !r.fixed) ? `<button type="button" class="next-btn past-fix">今の設計も、これまでの作品も、直し方でまとめて直す</button>` : left ? `<p class="hint">直し方だけでは直らない作品は、職人が見て決めます。次に作る人の設計にも、この決まりが効きます。</p>` : `<p class="hint">次に作る人の設計にも、この決まりが効きます。</p>`}` : `<p class="pc-sum"><em class="ok">どの作品も、この決まりで作れる形でした</em></p>`}
   </section>`;
 }
 /** 記録の作品を、直し方のボタンと同じ直し方で直す。何を変えたかを記録に残す */
@@ -1217,6 +1217,17 @@ function fixPastWorks() {
       problems: left,
       revisions: [...(row.work.revisions ?? []), { date: today(), by: pastCheck.by, rule: pastCheck.rule, change }],
     });
+  }
+  // 今の設計も、同じ直し方で直す（決まりは今の設計にも、これまでの作品にも効く）
+  if (session?.built && kind === "solitaire") {
+    for (let i = 0; i < 8 && session.built.problems.length; i++) {
+      const key = JSON.stringify(session.state);
+      const p = session.built.problems.find((q) => q.options[0]);
+      if (!p) break;
+      applyFix(p.options[0].id);
+      session.flush();
+      if (JSON.stringify(session.state) === key) break;
+    }
   }
   renderCheck();
   flashVerdict();
