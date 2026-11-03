@@ -26,7 +26,10 @@ export const PARAMS = {
 
 export type ParamId = keyof typeof PARAMS;
 
-export interface Rule {
+/**
+ * 決まり 1 つ。P は機械で確かめる値の名前（指輪は PARAMS、ほかの技はその技の値の名前）。
+ */
+export interface Rule<P extends string = ParamId> {
   id: string;
   /** 短い名前 */
   title: string;
@@ -39,7 +42,7 @@ export interface Rule {
   /** 職人の言葉そのまま（聞き取りで残したもの） */
   quote?: string;
   /** 機械で確かめる値に結びつくとき */
-  param?: ParamId;
+  param?: P;
   value?: number;
   /**
    * 石の大きさで値を変えるとき（小さい順）。石の大きさ ＝（長辺 ＋ 幅）÷ 2（mm）。
@@ -62,6 +65,12 @@ export interface Rule {
   date: string;
   /** 置き換えた決まりの id */
   replaces?: string;
+  /** 原文で確かめていない（検索結果の要約などにもとづく）とき true。画面に「未確認」と出す */
+  unverified?: boolean;
+  /** 聞き取りで、職人にどう聞いて得た決まりか（聞いた言葉そのまま） */
+  question?: string;
+  /** 聞き取りのどの「まだ決まっていない所」への答えか（src/rules/gaps.ts の id） */
+  gap?: string;
 }
 
 export interface SizeStep {
@@ -109,11 +118,13 @@ export function sizeStepsText(steps: SizeStep[], unit: string): string {
     .join("、");
 }
 
-export interface Ledger {
+export interface Ledger<P extends string = ParamId> {
   /** 何の工芸の目安帳か */
   craft: string;
+  /** どの技の帳面か（なければ指輪の石留め） */
+  technique?: string;
   /** 足した順。置き換えられた決まりも履歴として残す */
-  rules: Rule[];
+  rules: Rule<P>[];
   /** 誰の帳面か（工房ごとの帳面の名前。なければ、決まりをいちばん多く残した職人の名前） */
   owner?: string;
 }
@@ -211,22 +222,25 @@ function pct(v: number): string {
 }
 
 /** 置き換えられていない決まり */
-export function activeRules(ledger: Ledger): Rule[] {
+export function activeRules<R extends { id: string; replaces?: string }>(ledger: { rules: R[] }): R[] {
   const replaced = new Set(ledger.rules.flatMap((r) => (r.replaces ? [r.replaces] : [])));
   return ledger.rules.filter((r) => !replaced.has(r.id));
 }
 
 /** 決まりを足す。同じ値に結びついた今の決まりがあれば、それを置き換える（古い決まりは履歴に残る） */
-export function addRule(ledger: Ledger, rule: Omit<Rule, "id" | "replaces"> & { id?: string }): Ledger {
+export function addRule<P extends string = ParamId>(ledger: Ledger<P>, rule: Omit<Rule<P>, "id" | "replaces"> & { id?: string; replaces?: string }): Ledger<P> {
   const current = rule.param ? activeRules(ledger).find((r) => r.param === rule.param) : undefined;
   const id = uniqueId(ledger, rule.id ?? slug(rule.title));
-  const checks = rule.checks ?? (rule.param ? [...PARAMS[rule.param].checks] : undefined);
-  const added: Rule = { ...rule, id, checks, ...(current ? { replaces: current.id } : {}) };
+  const known = rule.param && rule.param in PARAMS ? [...PARAMS[rule.param as unknown as ParamId].checks] : undefined;
+  const checks = rule.checks ?? known;
+  // replaces を明示したとき（値に結びつかない決まりを確かめ直したとき）はそれを使う
+  const replaces = rule.replaces ?? current?.id;
+  const added: Rule<P> = { ...rule, id, ...(checks ? { checks } : {}), ...(replaces ? { replaces } : {}) };
   return { ...ledger, rules: [...ledger.rules, added] };
 }
 
 /** 決まりを外す（最後に足した決まりだけ。置き換えた決まりは元に戻る） */
-export function removeLastRule(ledger: Ledger): Ledger {
+export function removeLastRule<P extends string = ParamId>(ledger: Ledger<P>): Ledger<P> {
   return { ...ledger, rules: ledger.rules.slice(0, -1) };
 }
 
@@ -272,7 +286,7 @@ function slug(title: string): string {
   return `rule-${[...title].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7).toString(36)}`;
 }
 
-function uniqueId(ledger: Ledger, base: string): string {
+function uniqueId(ledger: { rules: { id: string }[] }, base: string): string {
   const ids = new Set(ledger.rules.map((r) => r.id));
   if (!ids.has(base)) return base;
   let i = 2;
