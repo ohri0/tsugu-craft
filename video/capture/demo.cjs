@@ -88,6 +88,48 @@ async function clip(name, fn) {
 }
 
 const CLIPS = {
+  // 本物の Claude：公開情報だけの帳面（工房 B）で、職人の言葉を打つ → Claude が決まりの案にする → 「これでいい」で指輪が変わる
+  // 開発用のサーバー（npm run dev。.env にキー）で録る。合言葉はこのパソコンの試し用
+  claude: async (p) => {
+    await p.addInitScript(() => { try { localStorage.setItem('tsugu.password.v1', 'dev-local'); } catch {} });
+    await studioReady(p);
+    await click(p, '.tabs [data-mode="refine"]', { after: 1500 });
+    await p.evaluate(() => { const s = document.querySelector('.ws-pick'); s.value = '__new'; s.dispatchEvent(new Event('change')); });
+    await p.waitForTimeout(600);
+    await type(p, '.ws-name', '工房 B', 90);
+    await click(p, '.ws-make', { after: 2500 });
+    // 工房 B には、前に「三角の石は角に 3 本で留まる」を入れてあった、という形から始める（ここは録った動画では使わない）
+    await p.evaluate(() => { document.querySelector('.manual-rule').open = true; });
+    await p.selectOption('.mr-param', 'hold.cornerSet');
+    await p.fill('.mr-value', '1');
+    await p.fill('.mr-quote', '三角の石は、角に 1 本ずつの 3 本で留まる');
+    await p.click('.mr-go'); await p.waitForTimeout(2500);
+    await p.evaluate(() => { document.querySelector('.manual-rule').open = false; window.scrollTo(0, 0); });
+    await p.waitForTimeout(1500);
+    M('thick');
+    await p.locator('.ar-text').scrollIntoViewIfNeeded();
+    await type(p, '.ar-text', 'この大きさの石なら、爪は最低 0.7 ミリ、基本は 0.8 から 1 ミリくらい。細すぎると曲がって石が落ちる。', 55);
+    M('go');
+    await click(p, '.ar-go', { after: 300 });
+    await p.waitForFunction(() => { const e = document.querySelector('.ar-proposal'); return e && /これでいい/.test(e.innerText); }, null, { timeout: 150000 });
+    M('proposal');
+    await p.waitForTimeout(2500);
+    await click(p, '.ar-proposal button:has-text("これでいい")', { after: 300 });
+    M('accept');
+    await p.waitForTimeout(5000);
+  },
+  // 本物の Claude：帳面の足りない所を、Claude が言い直して聞きに来る
+  claudeAsk: async (p) => {
+    await p.addInitScript(() => { try { localStorage.setItem('tsugu.password.v1', 'dev-local'); } catch {} });
+    await p.goto(`${BASE}/app.html?nointro#waza`, { waitUntil: 'networkidle' });
+    await p.waitForTimeout(2000);
+    M('start');
+    await moveTo(p, 'text=Claude から質問が 1 つあります');
+    await p.waitForTimeout(2000);
+    await click(p, 'a[href="#waza/ring"], button:has-text("聞き取り")', { after: 6000 });
+    M('asked');
+    await p.waitForTimeout(3000);
+  },
   // 公開情報だけの帳面（工房 B）に、職人の一言を数字で入れると、爪が細くなって作れる形になる
   rule: async (p) => {
     await studioReady(p);

@@ -1449,6 +1449,12 @@ function acceptRule(p: ProposeRuleInput, _said: string): string {
   lastRule = { by, quote: p.quote || p.text, spoken: Boolean(p.quote), before: session?.built ? grouped(session.built).length : before, after: 0, checks: p.param ? [...PARAMS[p.param].checks] : [] };
   fixLog = [];
   ruleDraft = "";
+  // 爪の太さの決まりなら、今の設計の爪を手で決めた値から外し、新しい決まりの「基本の太さ」で組み直す
+  // （作者の声：一言を決まりにすると、まず基本の形が出て、そこから調整できる）
+  if (session && p.param?.startsWith("prong.")) {
+    session.state.prongMm = undefined;
+    tuneProngs();
+  }
   const after = session ? session.build("帳面が変わった").problems.length : 0;
   lastRule.after = session?.built ? grouped(session.built).length : after;
   pastCheck = recheckWorks(lastRule);
