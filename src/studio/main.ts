@@ -19,7 +19,7 @@ import { rulePlans } from "../ui/design";
 import { loadPhoto } from "../ui/photo";
 import { Viewer, type DisplayMode } from "../ui/viewer";
 import { extractStone, type Extraction } from "../vision/extract";
-import { PARAMS, activeRules, addRule, type ParamId, type Rule } from "../rules/ledger";
+import { PARAMS, activeRules, addRule, seedLedger, type ParamId, type Rule } from "../rules/ledger";
 import { askPassword, resetPassword } from "../app/password";
 import { esc, store, today } from "../app/store";
 import { bindVoice } from "../app/voice";
@@ -269,9 +269,10 @@ async function loadStone(img: ImageData, label: string, longMm: number, depthMm:
   $<HTMLInputElement>(".in-depth").value = String(depthMm);
   $(".stone-sub").textContent = `${stone.shapeName}・${measured.longMm.toFixed(2)} × ${measured.widthMm.toFixed(2)} mm`;
   drawThumb();
+  compare = null;
   session = new RingSession(
     { outlineMm: measured.outlineMm, longMm: measured.longMm, widthMm: measured.widthMm, depthMm },
-    () => store.ledger(),
+    ledgerNow,
     onBuilt,
     (view) => viewer.snapshotFrom(view).split(",")[1],
   );
@@ -731,6 +732,58 @@ function grouped(b: Built) {
   }
   return [...groups.values()];
 }
+// ---- 職人の決まりを外して比べる：公開情報だけで組んだ形と、職人の決まりで組んだ形 ----
+/** 比べている間：職人の決まりで組んだときの数字（戻すときの爪の太さも） */
+let compare: { prongMm?: number; nums: CompareNums } | null = null;
+interface CompareNums {
+  prong: string;
+  height: string;
+  gap: string;
+  weight: string;
+  probs: number;
+}
+/** いま組むのに使う帳面（比べている間は、公開情報の目安だけ） */
+function ledgerNow() {
+  return compare ? seedLedger() : store.ledger();
+}
+function numsOf(b: Built): CompareNums {
+  const r = b.ring;
+  const mm = r.setting.prongs[0]?.diameterMm;
+  return {
+    prong: r.setting.style === "prong" && mm ? `${mm.toFixed(2)} mm × ${r.setting.prongs.length}` : "覆輪",
+    height: `${r.setting.heights.heightAboveFingerMm.toFixed(2)} mm`,
+    gap: `${r.culetGapMm.toFixed(2)} mm`,
+    weight: `約 ${r.metalWeightG.toFixed(1)} g`,
+    probs: grouped(b).length,
+  };
+}
+function setCompare(on: boolean) {
+  if (!session?.built || kind !== "solitaire") return;
+  if (on && !compare) {
+    compare = { prongMm: session.state.prongMm, nums: numsOf(session.built) };
+    // 公開情報だけなら、どう組むか（爪の太さはその目安の標準から。留まりが足りなければ、これまでどおり太くする）
+    session.state.prongMm = undefined;
+    tuneProngs();
+    session.build("職人の決まりを外した（公開情報の目安だけ）");
+  } else if (!on && compare) {
+    session.state.prongMm = compare.prongMm;
+    compare = null;
+    session.build("職人の決まりに戻した");
+  }
+  renderCheck();
+}
+function compareHtml(): string {
+  if (kind !== "solitaire") return "";
+  const has = activeRules(store.ledger()).some((r) => r.source.kind === "craftsman" && r.param);
+  if (!has) return "";
+  if (!compare) return `<button type="button" class="ghost-d compare-btn">職人の決まりを外して比べる</button>`;
+  const pub = session?.built ? numsOf(session.built) : null;
+  const c = compare.nums;
+  const row = (k: string, a: string, b: string) => `<tr${a !== b ? ` class="diff"` : ""}><th>${k}</th><td>${esc(b)}</td><td>${esc(a)}</td></tr>`;
+  return `<section class="compare"><p class="cmp-k">いまは、公開情報の目安だけで組んでいます（職人の決まりを外しています）</p>
+    ${pub ? `<table><thead><tr><th></th><th>公開情報だけ</th><th>${esc(masterName(store.ledger()))}さんの決まり</th></tr></thead><tbody>${row("爪", c.prong, pub.prong)}${row("指から上", c.height, pub.height)}${row("石と指のすき間", c.gap, pub.gap)}${row("地金の重さ", c.weight, pub.weight)}${row("作れない所", String(c.probs), String(pub.probs))}</tbody></table>` : ""}
+    <button type="button" class="primary compare-back">${esc(masterName(store.ledger()))}さんの決まりに戻す</button></section>`;
+}
 function renderCheck() {
   if (kind === "band") return renderBandCheck();
   if (!session?.built) return;
@@ -744,6 +797,7 @@ function renderCheck() {
   box.innerHTML = `
     ${lastRule ? `<section class="rule-flash"><small>${esc(lastRule.by)}さんの決まりで、確かめ直しました</small><b>${lastRule.spoken ? `「${esc(lastRule.quote)}」` : esc(lastRule.quote)}</b><span>作れない所 <em>${lastRule.before}</em> → <em class="${lastRule.after ? "ng" : "ok"}">${lastRule.after}</em>${lastRule.after && probs.length < lastRule.after ? ` → 直して <em class="${probs.length ? "ng" : "ok"}">${probs.length}</em>` : ""}</span></section>` : ""}
     <section class="big-verdict ${probs.length ? "ng" : "ok"}"><b>${probs.length ? "このままでは作れません" : "このまま作れます"}</b><small>${probs.length ? `直す所 ${probs.length}` : `爪・留まり・すき間・角、すべて目安の内側`}</small></section>
+    ${compareHtml()}
     ${
       probs.length
         ? `<ul class="probs">${probs
@@ -772,6 +826,8 @@ function renderCheck() {
     ${rulesSectionHtml()}
     <button type="button" class="next-btn to-build">作り方を見る →</button>`;
   bindRules(box);
+  box.querySelector(".compare-btn")?.addEventListener("click", () => setCompare(true));
+  box.querySelector(".compare-back")?.addEventListener("click", () => setCompare(false));
   box.querySelector(".past-fix")?.addEventListener("click", () => fixPastWorks());
   box.querySelector(".claude-fix")?.addEventListener("click", () => void fixWithClaude());
   box.querySelectorAll<HTMLButtonElement>(".fix-go").forEach((btn) =>

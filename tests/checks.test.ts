@@ -150,8 +150,14 @@ describe("角に 1 本ずつの 3 本爪（職人の判断）", () => {
     const stone = stoneFrom(triangle(200, 200, 160, 140), 8.88, 4.24);
     const ring = buildRing({ stone, setting: { style: "prong", height: "standard", vAtCorners: false }, shank: { gou: 11 }, orientation: "along" });
     expect(ring.setting.prongs).toHaveLength(3);
-    expect(cornerSetCount(ring.setting)).toBe(3);
-    expect(holdRatio(ring.setting)).toBeGreaterThan(0.95);
+    const { GUIDES } = await import("../src/rules/guides");
+    const craft = { ...GUIDES, hold: { ...GUIDES.hold, cornerSet: 1 } };
+    // 公開情報だけ（角に 1 本ずつの判断なし）では 4 本の標準で数える
+    expect(cornerSetCount(ring.setting)).toBeUndefined();
+    expect(holdRatio(ring.setting)).toBeLessThan(0.8);
+    // 職人の決まり（hold.cornerSet ＝ 1）があると、3 本で標準
+    expect(cornerSetCount(ring.setting, craft)).toBe(3);
+    expect(holdRatio(ring.setting, craft)).toBeGreaterThan(0.95);
   });
   it("丸い石の 3 本爪は、角に 1 本ずつではないので 4 本の標準で数える", async () => {
     const { buildRing } = await import("../src/geometry/ring");
@@ -159,6 +165,7 @@ describe("角に 1 本ずつの 3 本爪（職人の判断）", () => {
     const { stoneFrom } = await import("./helpers/stones");
     const pts = Array.from({ length: 64 }, (_, i) => ({ x: 200 + 100 * Math.cos((i / 64) * Math.PI * 2), y: 200 + 100 * Math.sin((i / 64) * Math.PI * 2) }));
     const ring = buildRing({ stone: stoneFrom(pts, 6.5, 3.9), setting: { style: "prong", height: "standard", prongCount: 3 }, shank: { gou: 11 }, orientation: "along" });
-    expect(cornerSetCount(ring.setting)).toBeUndefined();
+    const { GUIDES } = await import("../src/rules/guides");
+    expect(cornerSetCount(ring.setting, { ...GUIDES, hold: { ...GUIDES.hold, cornerSet: 1 } })).toBeUndefined();
   });
 });

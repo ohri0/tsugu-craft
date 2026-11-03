@@ -21,6 +21,7 @@ export const PARAMS = {
   "hold.requiredTop": { label: "必要な留まり（石が上）", unit: "×", checks: ["hold"] },
   "hold.requiredSide": { label: "必要な留まり（石が横）", unit: "×", checks: ["hold"] },
   "hold.requiredPalm": { label: "必要な留まり（手のひら側寄り）", unit: "×", checks: ["hold"] },
+  "hold.cornerSet": { label: "角が 3 つの石を、角に 1 本ずつの爪 3 本で留めたとき 4 本と同じ留まりとみなす（1 ＝ みなす）", unit: "", checks: ["hold"] },
 } as const satisfies Record<string, { label: string; unit: string; checks: readonly CheckId[] }>;
 
 export type ParamId = keyof typeof PARAMS;

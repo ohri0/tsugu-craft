@@ -81,8 +81,9 @@ const times = (v: number) => `${v.toFixed(2)}×`;
  * 足ごとに（1 ÷ 4）×（太さ ÷ 標準の太さ）³ ×（標準の長さ ÷ 長さ）を足す。V 字の爪は足 2 本。覆輪は 2.0×。
  */
 /** 角が 3 つの石を、角に 1 本ずつの爪で留めているとき、その本数（職人の判断。guides.ts の hold.cornerSet） */
-export function cornerSetCount(s: Pick<SettingResult, "prongs" | "corners">): number | undefined {
-  const cs = GUIDES.hold.cornerSet;
+export function cornerSetCount(s: Pick<SettingResult, "prongs" | "corners">, g: Guides = GUIDES): number | undefined {
+  if (!g.hold.cornerSet) return undefined;
+  const cs = g.hold.cornerSetMatch;
   const sharp = s.corners.filter((c) => c.angleDeg < cs.maxCornerAngleDeg);
   // 職人に聞いたのは「丸い爪（足 1 本）を角に 1 本ずつ」。V 字の爪（足 2 本）はこれまでどおり 4 本の標準で数える
   if (sharp.length !== 3 || s.prongs.length !== sharp.length || s.prongs.some((p) => p.legs !== 1)) return undefined;
@@ -90,9 +91,9 @@ export function cornerSetCount(s: Pick<SettingResult, "prongs" | "corners">): nu
   return sharp.every((c) => s.prongs.some((p) => near(p.t, c.t))) ? sharp.length : undefined;
 }
 
-export function holdRatio(s: SettingResult): number {
-  if (s.style === "bezel") return GUIDES.hold.bezel;
-  const n = cornerSetCount(s) ?? GUIDES.hold.standardProngCount;
+export function holdRatio(s: SettingResult, g: Guides = GUIDES): number {
+  if (s.style === "bezel") return g.hold.bezel;
+  const n = cornerSetCount(s, g) ?? g.hold.standardProngCount;
   return s.prongs.reduce(
     (sum, p) => sum + (p.legs / n) * (p.diameterMm / s.standardProngMm) ** 3 * (s.standardLengthMm / p.lengthMm),
     0,
@@ -240,7 +241,7 @@ export function checkSetting(s: SettingResult, culetGapMm: number = s.heights.cu
   // 石の留まり
   const position = opts.position ?? "top";
   const need = position === "palm" ? g.hold.requiredPalm : position === "side" ? g.hold.requiredSide : g.hold.requiredTop;
-  const hold = holdRatio(s);
+  const hold = holdRatio(s, g);
   if (hold < need - 1e-9) {
     out.push({
       id: "hold",

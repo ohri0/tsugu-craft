@@ -223,7 +223,7 @@ export class RingSession implements ToolHost<RingState> {
     return {
       setting: this.settingState(),
       hold: {
-        value: Math.round(holdRatio(b.ring.setting) * 100) / 100,
+        value: Math.round(holdRatio(b.ring.setting, effectiveGuides(this.ledger(), this.sizeMm())) * 100) / 100,
         required: requiredHold(s.position),
         where: s.position,
         note: "標準の 4 本爪・標準の太さ・標準の高さ ＝ 1.0×。爪を片持ちの棒と見なした目安の比べで、強度計算の代わりではない",

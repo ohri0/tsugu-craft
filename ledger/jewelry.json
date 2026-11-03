@@ -217,7 +217,9 @@
         "name": "石川"
       },
       "date": "2026-11-03",
-      "id": "rule-corner-set-ishikawa"
+      "id": "rule-corner-set-ishikawa",
+      "param": "hold.cornerSet",
+      "value": 1
     }
   ]
 }
