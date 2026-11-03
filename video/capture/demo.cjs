@@ -87,7 +87,50 @@ async function clip(name, fn) {
   const v = p.video(); await ctx.close(); fs.renameSync(await v.path(), `${D}/${name}.webm`); await b.close(); console.log(name, JSON.stringify(marks));
 }
 
+const PASS = async (p) => p.addInitScript(() => { try { localStorage.setItem('tsugu.password.v1', 'dev-local'); } catch {} });
 const CLIPS = {
+  // 学ぶ：学ぶ人が言葉で聞くと、Claude が帳面の職人の言葉まで戻って答える（本物の Claude）
+  learn2: async (p) => {
+    await PASS(p);
+    await p.goto(`${BASE}/app.html?nointro#ask`, { waitUntil: 'networkidle' });
+    await p.waitForTimeout(1500);
+    M('start');
+    await type(p, '.composer textarea, .composer input', 'この三角の石の指輪、爪はどのくらいの太さにすればいい？', 60);
+    await click(p, '.composer .send', { after: 300 });
+    M('sent');
+    await p.waitForFunction(() => /石川/.test(document.querySelector('.thread')?.innerText || '') && !document.querySelector('.thread .typing, .thread .dots'), null, { timeout: 120000 }).catch(() => {});
+    M('answer');
+    await p.waitForTimeout(1500);
+    for (let k = 0; k < 4; k++) { await p.mouse.wheel(0, 180); await p.waitForTimeout(700); }
+    await p.waitForTimeout(1500);
+  },
+  // 組み立て直す：手がかりから、本物の Claude が作り方を組み立てる
+  rebuild2: async (p) => {
+    await PASS(p);
+    await p.goto(`${BASE}/app.html?nointro#rebuild`, { waitUntil: 'networkidle' });
+    await p.waitForTimeout(1500);
+    await click(p, '.tech', { after: 2000 });
+    M('start');
+    await click(p, 'button.go', { after: 500 });
+    M('go');
+    await p.waitForFunction(() => /工程|手がかり C/.test(document.querySelector('.view-rebuild, main')?.innerText || '') && !/組み立てています/.test(document.body.innerText), null, { timeout: 240000 }).catch(() => {});
+    M('done');
+    await p.waitForTimeout(1500);
+    for (let k = 0; k < 6; k++) { await p.mouse.wheel(0, 220); await p.waitForTimeout(800); }
+    await p.waitForTimeout(1500);
+  },
+  // 魚々子：ふつうの並べ方 → 粒の間を詰めすぎると、重なった粒が赤くなる
+  nanako2: async (p) => {
+    await p.goto(`${BASE}/app.html?nointro#waza/nanako`, { waitUntil: 'networkidle' });
+    await p.waitForTimeout(2000);
+    await p.evaluate(() => { const set = (k, v) => { const r = document.querySelector(`.nk-ctrl input[data-k=${k}]`); r.value = String(v); r.dispatchEvent(new Event('input', { bubbles: true })); r.dispatchEvent(new Event('change', { bubbles: true })); }; set('grainMm', 0.6); set('pitchMm', 0.9); set('rows', 6); });
+    await p.locator('.nk-preview').scrollIntoViewIfNeeded();
+    await p.waitForTimeout(1500);
+    M('start');
+    await drag(p, '.nk-ctrl input[data-k=pitchMm]', 0.9, 0.45, 3500);
+    M('red');
+    await p.waitForTimeout(3000);
+  },
   // 本物の Claude：公開情報だけの帳面（工房 B）で、職人の言葉を打つ → Claude が決まりの案にする → 「これでいい」で指輪が変わる
   // 開発用のサーバー（npm run dev。.env にキー）で録る。合言葉はこのパソコンの試し用
   claude: async (p) => {

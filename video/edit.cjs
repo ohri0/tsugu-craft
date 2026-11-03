@@ -36,8 +36,11 @@ const dur = (f) => Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries
         const sp = sh.speed ?? 1;
         const cr = sh.crop ? `crop=${sh.crop[2]}:${sh.crop[3]}:${sh.crop[0]}:${sh.crop[1]},` : '';
         // frame：画面の録画を、黒の上に枠つきで小さめに置く（広告のように）
-        const fr = sh.frame ? `scale=1440:810:force_original_aspect_ratio=decrease,pad=1920:1080:240:200:color=black,drawbox=x=239:y=199:w=1442:h=812:color=0x2a2a2e:t=1,` : `scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=0x111113,`;
-        const vf = `[0:v]setpts=(PTS-STARTPTS)/${sp},${cr}${fr}fps=30,tpad=stop_mode=clone:stop_duration=60,trim=duration=${each.toFixed(3)},format=rgba[bg];[bg][1:v]overlay=0:0,${fades},format=yuv420p[v]`;
+        // frame：本物の画面を、上に見出しの帯をあけて大きく置く（見出しと画面が重ならないように）
+        const fr = sh.frame ? `scale=1520:855:force_original_aspect_ratio=decrease,pad=1920:1080:200:205:color=black,drawbox=x=199:y=204:w=1522:h=857:color=0x2a2a2e:t=1,` : `scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=0x111113,`;
+        // zoom：[はじめの倍率, おわりの倍率, 寄る所の横 0〜1, 縦 0〜1]。画面の大事な所へ、ゆっくり寄る
+        const zm = sh.zoom ? (() => { const [z0, z1, fx, fy] = sh.zoom; const n = Math.max(1, Math.round(each * 30)); return `fps=30,scale=1920:1080,zoompan=z='${z0}+(${z1}-${z0})*on/${n}':x='(iw-iw/zoom)*${fx}':y='(ih-ih/zoom)*${fy}':d=1:s=1920x1080:fps=30,`; })() : '';
+        const vf = `[0:v]setpts=(PTS-STARTPTS)/${sp},${cr}${zm}${fr}fps=30,tpad=stop_mode=clone:stop_duration=60,trim=duration=${each.toFixed(3)},format=rgba[bg];[bg][1:v]overlay=0:0,${fades},format=yuv420p[v]`;
         execFileSync('ffmpeg', ['-v', 'error', '-y', '-ss', String(sh.from ?? 0), '-i', src, '-loop', '1', '-i', ov, '-filter_complex', vf, '-map', '[v]', '-an', '-t', each.toFixed(3), '-r', '30', '-c:v', 'libx264', '-crf', '20', '-preset', 'veryfast', out]);
       } else if (sh.v) {
         // 撮った素材：真ん中あたりから切り出し、1920×1080 に収める（はみ出しは黒で埋める）
