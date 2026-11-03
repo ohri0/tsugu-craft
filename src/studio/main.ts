@@ -20,7 +20,7 @@ import { rulePlans } from "../ui/design";
 import { loadPhoto } from "../ui/photo";
 import { Viewer, type DisplayMode } from "../ui/viewer";
 import { extractStone, type Extraction } from "../vision/extract";
-import { PARAMS, activeRules, addRule, seedLedger, type ParamId, type Rule } from "../rules/ledger";
+import { PARAMS, activeRules, addRule, seedLedger, valueFor, type ParamId, type Rule } from "../rules/ledger";
 import { askPassword, resetPassword } from "../app/password";
 import { esc, store, today } from "../app/store";
 import { bindVoice } from "../app/voice";
@@ -40,7 +40,7 @@ import { NOTE, TERMS, type AlloyId } from "./process";
 import type { Step } from "./howto";
 import { MAKE_BAND, SECTION_LABEL, bandHowTo, bandInnerDiameter, bandMesh, bandPrompt, checkBand, parseBand, type Band, type BandDraft, type SectionKind } from "./band";
 import { metalIdOf } from "./session";
-import { GUIDES } from "../rules/guides";
+import { GUIDES, minProngMm } from "../rules/guides";
 import { callTool } from "../rebuild/run";
 import { dimsSvg, gizmoSvg, type Dim, type Rect } from "./dims";
 
@@ -786,6 +786,33 @@ function compareHtml(): string {
     <button type="button" class="primary compare-back">${esc(masterName(store.ledger()))}さんの決まりに戻す</button></section>`;
 }
 // ---- 一言が、どこまで効くか：よくある 270 の設計に、職人の決まりを当てる ----
+const SW = { w: 720, h: 260, l: 44, r: 16, t: 14, b: 34, x0: 1.5, x1: 14, y0: 0.3, y1: 2.0 };
+const swX = (mm: number) => SW.l + ((mm - SW.x0) / (SW.x1 - SW.x0)) * (SW.w - SW.l - SW.r);
+const swY = (mm: number) => SW.h - SW.b - ((mm - SW.y0) / (SW.y1 - SW.y0)) * (SW.h - SW.t - SW.b);
+function sweepDot(r: SweepResult): string {
+  const size = (r.design.stone.longMm + r.design.stone.widthMm) / 2;
+  return `<circle cx="${swX(size).toFixed(1)}" cy="${swY(r.after.prongMm).toFixed(1)}" r="2.2"/>`;
+}
+/** 石の大きさと爪の最低の太さ：公開情報の線と、職人の決まりの線。職人が言った点に、その言葉を添える */
+function sweepChartHtml(): string {
+  const rule = activeRules(store.ledger()).find((r) => r.param === "prong.minDiameterMm" && r.source.kind === "craftsman");
+  const xs = Array.from({ length: 51 }, (_, i) => SW.x0 + ((SW.x1 - SW.x0) * i) / 50);
+  const line = (f: (x: number) => number) => xs.map((x, i) => `${i ? "L" : "M"}${swX(x).toFixed(1)} ${swY(Math.min(SW.y1, f(x))).toFixed(1)}`).join("");
+  const pub = line((x) => minProngMm(x));
+  const craft = rule ? line((x) => valueFor(rule, x) ?? 0) : "";
+  const pts = rule?.bySizeLine ? (rule.bySize ?? []).filter((s) => s.upToMm !== null) : [];
+  const ticksX = [2, 4, 6, 8, 10, 12, 14].map((v) => `<line class="g" x1="${swX(v)}" x2="${swX(v)}" y1="${SW.t}" y2="${SW.h - SW.b}"/><text class="ax" x="${swX(v)}" y="${SW.h - SW.b + 14}" text-anchor="middle">${v}</text>`).join("");
+  const ticksY = [0.5, 1.0, 1.5, 2.0].map((v) => `<line class="g" x1="${SW.l}" x2="${SW.w - SW.r}" y1="${swY(v)}" y2="${swY(v)}"/><text class="ax" x="${SW.l - 6}" y="${swY(v) + 3.5}" text-anchor="end">${v.toFixed(1)}</text>`).join("");
+  const lab = (x: number, y: number, t: string, cls: string) => `<text class="${cls}" x="${swX(x).toFixed(1)}" y="${swY(y).toFixed(1)}">${esc(t)}</text>`;
+  return `<figure class="sw-chart"><svg viewBox="0 0 ${SW.w} ${SW.h}" role="img" aria-label="石の大きさと爪の最低の太さ">
+    ${ticksX}${ticksY}
+    <text class="ax" x="${SW.w - SW.r}" y="${SW.h - 4}" text-anchor="end">石の大きさ（mm）</text><text class="ax" x="${SW.l}" y="${SW.t - 3}">爪の太さ（mm）</text>
+    <path class="pub" d="${pub}"/>${lab(11.2, Math.min(SW.y1, minProngMm(11.2)) + 0.08, "公開情報の最低", "lp")}
+    ${craft ? `<path class="craft" d="${craft}"/>${lab(11.2, (valueFor(rule!, 11.2) ?? 0) - 0.12, `${masterName(store.ledger())}さんの最低`, "lc")}` : ""}
+    <g class="sw-dots"></g>
+    ${pts.map((p) => `<circle class="said" cx="${swX(p.upToMm!)}" cy="${swY(p.value)}" r="5"/><text class="ls" x="${swX(p.upToMm!) + 8}" y="${swY(p.value) - 8}">「${p.upToMm! < 4 ? "メレだと" : "このサイズなら"} ${p.value} mm」</text>`).join("")}
+  </svg><figcaption>職人が言った 2 つの点（●）から、どの大きさの石にも効く線ができます。小さな点は、270 の設計の爪（この線から組んだ太さ）。言葉が増えるほど、線は細かくなります。</figcaption></figure>`;
+}
 function openSweep() {
   let el = document.querySelector<HTMLElement>(".sweep");
   if (!el) {
@@ -806,6 +833,7 @@ function openSweep() {
     <h2>石の形 6 × 大きさ 5 × 高さ 3 × 号 3 ＝ ${ds.length} の設計</h2>
     <p class="sw-sub">それぞれを、公開情報の目安だけで組んだときと、${esc(name)}さんの決まりで組んだときで比べます（どちらも同じ計算。爪の太さは帳面の標準から）。</p>
     <div class="sw-stats"><div><b class="sw-n">0</b><small>確かめた設計</small></div><div><b class="sw-c">0</b><small>爪が細くなった ・ 太くなった</small></div><div><b class="sw-p">—</b><small>爪の太さの平均</small></div><div><b class="sw-w">—</b><small>地金の重さの合計</small></div></div>
+    ${sweepChartHtml()}
     <div class="sw-grid">${ds.map((d, i) => `<i class="t" data-i="${i}" title="${esc(d.preset.name)} ${d.stone.longMm.toFixed(1)} mm ・ ${({ low: "低め", standard: "標準", high: "高め" } as const)[d.height]} ・ ${d.gou} 号"><svg viewBox="0 0 40 40"><polygon points="${poly(d)}"/></svg><span></span></i>`).join("")}</div>
     <p class="sw-note">数字は目安の比べ。最後は職人が決めます。</p></div>`;
   el.hidden = false;
@@ -830,6 +858,8 @@ function openSweep() {
       const d = r.after.prongMm - r.before.prongMm;
       t.classList.add(Math.abs(d) > 0.01 ? (d < 0 ? "thin" : "thick") : "same");
       t.querySelector("span")!.textContent = r.after.prongMm.toFixed(2);
+      const dots = el!.querySelector(".sw-dots");
+      if (dots) dots.insertAdjacentHTML("beforeend", sweepDot(r));
       t.title += `\n爪 ${r.before.prongMm.toFixed(2)} → ${r.after.prongMm.toFixed(2)} mm ・ ${r.before.weightG.toFixed(1)} → ${r.after.weightG.toFixed(1)} g`;
       i++;
     }

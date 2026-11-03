@@ -577,3 +577,15 @@ dialog.sheet input:focus { border-color: var(--accent); }
 @keyframes swIn { from { transform: scale(0.8); opacity: 0.4; } to { transform: none; opacity: 1; } }
 .sw-note { margin-top: 14px; font-size: 11px; color: var(--fg-3); }
 @media (max-width: 640px) { .sw-stats { grid-template-columns: 1fr 1fr; } .sw-grid { grid-template-columns: repeat(auto-fill, minmax(32px, 1fr)); } }
+.sw-chart { margin: 0 0 18px; padding: 12px 14px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+.sw-chart svg { width: 100%; height: auto; display: block; }
+.sw-chart .g { stroke: var(--line); stroke-width: 1; }
+.sw-chart .ax { fill: var(--fg-3); font: 10px var(--sans); }
+.sw-chart .pub { fill: none; stroke: #8a8b90; stroke-width: 2; stroke-dasharray: 5 4; }
+.sw-chart .craft { fill: none; stroke: #e2b866; stroke-width: 2.5; }
+.sw-chart .lp { fill: #a0a1a6; font: 600 11px var(--sans); }
+.sw-chart .lc { fill: #e2b866; font: 600 11px var(--sans); }
+.sw-chart .ls { fill: var(--fg); font: 600 11.5px var(--sans); }
+.sw-chart .said { fill: #e2b866; stroke: #111113; stroke-width: 2; }
+.sw-chart .sw-dots circle { fill: rgba(48, 209, 88, 0.55); }
+.sw-chart figcaption { margin-top: 6px; font-size: 11.5px; color: var(--fg-2); line-height: 1.6; }

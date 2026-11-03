@@ -46,6 +46,11 @@ export interface Rule {
    * upToMm 以下ならその値。最後の段を超えたら最後の値。value より先に使う。
    */
   bySize?: SizeStep[];
+  /**
+   * true のとき、bySize を段ではなく「点」として、点の間をまっすぐつなぐ（石の大きさに合わせて割合で変わる）。
+   * 最初の点より小さい石・最後の点より大きい石は、端の 2 点の傾きのまま伸ばす。upToMm を点の石の大きさとして読む。
+   */
+  bySizeLine?: boolean;
   /** どの確かめの根拠か */
   checks?: CheckId[];
   /** 作り方のどの工程の決まりか（機械で確かめない決まり。src/rules/making.ts の工程の id） */
@@ -64,9 +69,20 @@ export interface SizeStep {
 }
 
 /** 石の大きさに合う値（段がなければ value） */
-export function valueFor(rule: Pick<Rule, "value" | "bySize">, stoneSizeMm?: number): number | undefined {
+export function valueFor(rule: Pick<Rule, "value" | "bySize" | "bySizeLine">, stoneSizeMm?: number): number | undefined {
   const steps = rule.bySize;
   if (!steps || steps.length === 0 || stoneSizeMm === undefined) return rule.value ?? steps?.[steps.length - 1]?.value;
+  if (rule.bySizeLine) {
+    const pts = steps.filter((s): s is { upToMm: number; value: number } => s.upToMm !== null).sort((a, b) => a.upToMm - b.upToMm);
+    if (pts.length === 1) return pts[0].value;
+    if (pts.length >= 2) {
+      const i = stoneSizeMm <= pts[0].upToMm ? 0 : stoneSizeMm >= pts[pts.length - 1].upToMm ? pts.length - 2 : pts.findIndex((_p, k) => k < pts.length - 1 && stoneSizeMm <= pts[k + 1].upToMm);
+      const a = pts[i];
+      const b = pts[i + 1];
+      const v = a.value + ((b.value - a.value) * (stoneSizeMm - a.upToMm)) / (b.upToMm - a.upToMm);
+      return Math.round(v * 1000) / 1000;
+    }
+  }
   for (const s of steps) if (s.upToMm === null || stoneSizeMm <= s.upToMm + 1e-9) return s.value;
   return steps[steps.length - 1].value;
 }
@@ -244,7 +260,7 @@ export function sourceLabel(s: RuleSource): string {
 /** Claude に渡す、目安帳の文章 */
 export function ledgerText(ledger: Ledger): string {
   return activeRules(ledger)
-    .map((r) => `- [${r.id}] ${r.title}：${r.text}${r.bySize && r.param ? `（石の大きさで：${sizeStepsText(r.bySize, PARAMS[r.param].unit)}）` : ""}（理由：${r.reason}${r.example ? `／例：${r.example}` : ""}${r.quote ? `／職人の言葉：「${r.quote}」` : ""}／出どころ：${sourceLabel(r.source)}、${r.date}）`)
+    .map((r) => `- [${r.id}] ${r.title}：${r.text}${r.bySize && r.param ? `（石の大きさで：${r.bySizeLine ? `${r.bySize.map((s) => `${s.upToMm} mm で ${s.value} ${PARAMS[r.param!].unit}`).join("、")}。間はまっすぐつなぎ、外は同じ傾きで伸ばす` : sizeStepsText(r.bySize, PARAMS[r.param].unit)}）` : ""}（理由：${r.reason}${r.example ? `／例：${r.example}` : ""}${r.quote ? `／職人の言葉：「${r.quote}」` : ""}／出どころ：${sourceLabel(r.source)}、${r.date}）`)
     .join("\n");
 }
 

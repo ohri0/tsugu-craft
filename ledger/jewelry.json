@@ -178,18 +178,18 @@
     },
     {
       "title": "爪の最低の太さ（石の大きさで）",
-      "text": "爪の太さは、メレ（小さい石）なら 0.6 mm、石が 9 mm くらいの指輪なら最低 0.7 mm は欲しい。ふつうは 0.8 mm くらい",
+      "text": "爪の最低の太さは、石の大きさで割合で変わる。メレ（石 約 2.5 mm）なら 0.6 mm、この指輪の石（約 8 mm）なら最低 0.7 mm（ふつうは 0.8 mm くらい）。その間はまっすぐつなぎ、大きい石は同じ割合で少しずつ太くする",
       "reason": "細すぎると、爪が曲がったり折れたりして石が落ちる",
-      "quote": "このサイズの石なら最低ライン 0.7 mm は欲しい感じ。メレだと 0.6 mm とか",
+      "quote": "このサイズの石なら最低ライン 0.7 mm は欲しい感じ。メレだと 0.6 mm とか。石のサイズによってどんどん変わる。大きい石だったら大きい爪",
       "param": "prong.minDiameterMm",
       "value": 0.7,
       "bySize": [
         {
-          "upToMm": 3.0,
+          "upToMm": 2.5,
           "value": 0.6
         },
         {
-          "upToMm": null,
+          "upToMm": 8.2,
           "value": 0.7
         }
       ],
@@ -202,7 +202,8 @@
       },
       "date": "2026-11-03",
       "id": "rule-prong-min-ishikawa",
-      "replaces": "prong-thickness"
+      "replaces": "prong-thickness",
+      "bySizeLine": true
     },
     {
       "title": "三角の石は、角に 1 本ずつの爪 3 本で留まる",

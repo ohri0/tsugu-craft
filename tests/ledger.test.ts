@@ -128,3 +128,14 @@ describe("職人の爪の最低の太さ", () => {
     expect(small.ring.setting.standardProngMm).toBeCloseTo(0.6 * GUIDES.prong.standardFactor, 5);
   });
 });
+
+describe("石の大きさで割合で変わる決まり（点をまっすぐつなぐ）", () => {
+  it("点の間はまっすぐ、端の外は同じ傾きで伸ばす", () => {
+    const r = { bySize: [{ upToMm: 2.5, value: 0.6 }, { upToMm: 8.2, value: 0.7 }], bySizeLine: true };
+    expect(valueFor(r, 2.5)).toBeCloseTo(0.6, 5);
+    expect(valueFor(r, 8.2)).toBeCloseTo(0.7, 5);
+    expect(valueFor(r, 5.35)).toBeCloseTo(0.65, 3);
+    expect(valueFor(r, 13.9)).toBeCloseTo(0.8, 3);
+    expect(valueFor(r, 1.5)).toBeLessThan(0.6);
+  });
+});
