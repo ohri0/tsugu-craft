@@ -1038,6 +1038,30 @@ let holdPanel = false;
 function prongSlider(b: Built): SliderSpec {
   return { cls: "r-prong", label: "爪の太さ", min: 0.4, max: 1.6, step: 0.05, value: b.ring.setting.prongs[0]?.diameterMm ?? 0.8, unit: "mm" };
 }
+function stoneSlider(): SliderSpec {
+  return { cls: "r-stone", label: "石の大きさ", min: 3, max: 14, step: 0.1, value: Number((session?.stone.longMm ?? 8).toFixed(1)), unit: "mm" };
+}
+/**
+ * 石を同じ形のまま大きく・小さくする（長辺 mm）。爪の太さは手で決めた値を外し、帳面の決まりで決め直す。
+ * 石が大きくなれば爪も変わるのを、その場で見られるように（作者の声：動画の中でなく、本当にできる画面で）。
+ */
+function resizeStone(longMm: number, final: boolean) {
+  if (!session || !stone) return;
+  const k = longMm / session.stone.longMm;
+  if (Math.abs(k - 1) < 1e-6) return;
+  const scale = (pts: readonly { x: number; y: number }[]) => pts.map((q) => ({ x: q.x * k, y: q.y * k }));
+  session.stone = { ...session.stone, outlineMm: scale(session.stone.outlineMm), longMm: session.stone.longMm * k, widthMm: session.stone.widthMm * k, depthMm: session.stone.depthMm * k };
+  stone.measured = { ...stone.measured, outlineMm: scale(stone.measured.outlineMm), longMm: stone.measured.longMm * k, widthMm: stone.measured.widthMm * k };
+  stone.longMm = session.stone.longMm;
+  stone.depthMm = session.stone.depthMm;
+  $<HTMLInputElement>(".in-long").value = stone.longMm.toFixed(2);
+  $<HTMLInputElement>(".in-depth").value = stone.depthMm.toFixed(2);
+  $(".stone-sub").textContent = `${stone.shapeName}・${stone.measured.longMm.toFixed(2)} × ${stone.measured.widthMm.toFixed(2)} mm`;
+  session.state.prongMm = undefined;
+  if (final) tuneProngs();
+  session.build(final ? "石の大きさを変えた" : "");
+}
+let stoneLive = 0;
 function gouSlider(gou: number): SliderSpec {
   return { cls: "r-gou", label: "号", min: 5, max: 25, step: 1, value: gou, unit: "号" };
 }
@@ -1081,6 +1105,7 @@ function renderCheck() {
       ${pick("地金", s.metal, (["k18yg", "pt900", "k18wg", "k18pg", "sv925"] as Metal[]).map((m) => [m, METAL_LABEL[m]] as [Metal, string]))}
       <div class="sliders">
         ${s.style === "prong" ? sliderHtml(prongSlider(b)) : ""}
+        ${kind === "solitaire" ? sliderHtml(stoneSlider()) : ""}
         ${sliderHtml(gouSlider(s.gou))}
       </div>
       ${pick("腕の断面", s.shankSection ?? "kouman", [...SHANK_SECTIONS.map((k) => [k, SHANK_SECTION_LABEL[k]] as [ShankSection, string]), ...(s.shankSection === "free" ? [["free", SHANK_SECTION_LABEL.free] as [ShankSection, string]] : [])])}
@@ -1138,6 +1163,21 @@ function renderCheck() {
   );
   if (s.style === "prong") bindSlider(box, prongSlider(b), (v) => session!.setSetting({ prong_mm: v, reason: "手で" }));
   bindSlider(box, gouSlider(s.gou), (v) => session!.setShank({ gou: v, reason: "手で" }));
+  bindSlider(
+    box,
+    stoneSlider(),
+    (v) => {
+      cancelAnimationFrame(stoneLive);
+      holdPanel = false;
+      resizeStone(v, true);
+    },
+    (v) => {
+      // 動かしている間は、粗い形ですぐ見せる（1 こまに 1 回まで）。指の下のつまみを消さないよう、欄は描き直さない
+      cancelAnimationFrame(stoneLive);
+      holdPanel = true;
+      stoneLive = requestAnimationFrame(() => resizeStone(v, false));
+    },
+  );
   // 腕の断面：点を動かしている間は 3D の腕だけ変え（パネルは描き直さない）、離したときに確かめ直す
   const sh = b.ring.shank;
   bindSectionEditor(
