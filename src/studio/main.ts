@@ -1,5 +1,5 @@
 // 継ぐ：デザインを、職人の判断で「作れる形」にする。
-// 生む。  石の写真・デザインの絵・希望の言葉 → Claude が指輪を組み、作れるか確かめ、直す（作業の記録が見える）。
+// 生む。  石の写真・希望の言葉 →（デザインの絵から組むのは、まだ絵のとおりの形にならないので画面から外した。2026-11-03） Claude が指輪を組み、作れるか確かめ、直す（作業の記録が見える）。
 // 整える。作れない所が赤く光り、誰のどの決まりかと、見た目への影響つきの直し方が出る。人も同じつまみで直せる。
 // 渡す。  職人への指示書・原寸の型紙・3D データ。
 // 帳面   職人が声で決まりを足すと、その場で確かめが変わる。
@@ -125,9 +125,6 @@ app.innerHTML = `
         <label class="asset stone-card"><canvas class="stone-thumb" width="120" height="120"></canvas><span><b>石の写真</b><small class="stone-sub">—</small></span><span class="act">変える</span><input type="file" accept="image/*" class="stone-file" hidden></label>
         <div class="presets" role="group" aria-label="よくある形">${PRESETS.map((p) => `<button type="button" data-preset="${p.id}">${p.name}</button>`).join("")}</div>
         <div class="fields"><label class="field">長辺<span class="in"><input type="number" step="0.01" class="in-long" inputmode="decimal"><i>mm</i></span></label><label class="field">深さ<span class="in"><input type="number" step="0.01" class="in-depth" inputmode="decimal"><i>mm</i></span></label></div>
-      </section>
-      <section class="sec solitaire-only"><h4>デザインの絵<small>なくてもよい</small></h4>
-        <label class="asset sketch-card"><span class="thumb sketch-thumb">—</span><span><b>デザイナーの絵</b><small class="sketch-sub">写真か画像</small></span><span class="act">選ぶ</span><input type="file" accept="image/*" class="sketch-file" hidden></label>
       </section>
       <section class="sec"><h4>Claude の作業</h4>
         <ol class="worklog"><li class="note">下の欄に希望を書いて「生む」。Claude が組み、作れるか確かめて直します。</li></ol>
@@ -488,7 +485,7 @@ for (const sel of [".in-long", ".in-depth"]) {
     void loadStone(stone.photo, stone.label, Number($<HTMLInputElement>(".in-long").value) || stone.longMm, Number($<HTMLInputElement>(".in-depth").value) || stone.depthMm);
   });
 }
-$<HTMLInputElement>(".sketch-file").addEventListener("change", async (e) => {
+document.querySelector<HTMLInputElement>(".sketch-file")?.addEventListener("change", async (e) => {
   const f = (e.target as HTMLInputElement).files?.[0];
   if (!f) return;
   const bmp = await createImageBitmap(f, { imageOrientation: "from-image" });
