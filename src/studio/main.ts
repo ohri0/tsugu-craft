@@ -1065,7 +1065,11 @@ function acceptRule(p: ProposeRuleInput, name: string): string {
   const after = session ? session.build("帳面が変わった").problems.length : 0;
   lastRule.after = session?.built ? grouped(session.built).length : after;
   pastCheck = recheckWorks(lastRule);
-  if (!$(".studio-refine").hidden) renderCheck();
+  if (!$(".studio-refine").hidden) {
+    renderCheck();
+    // 決まりを足したら、上の「〇〇さんの決まりで、確かめ直しました」まで戻して見せる
+    requestAnimationFrame(() => document.querySelector(".rule-flash")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
   toast(p.param ? `${name}さんの決まりで確かめ直しました：作れない所 ${before} → ${after}` : `${name}さんの決まりを帳面に足しました`);
   flashVerdict();
   return id;

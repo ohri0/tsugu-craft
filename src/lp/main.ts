@@ -111,6 +111,7 @@ const html = `
         <h2>職人の一言が、全部に効く。</h2>
         <p>職人がひとこと話すと、Claude がそれを目安帳の一行にします。その一行で、これまでの作品をすべて確かめ直し、これからの設計にも同じ目安が効きます。</p>
         <p class="note">目安の値は、出典か職人の言葉から。最後は職人が決めます。</p>
+        <p class="note try">合言葉がなくても試せます：「確かめる」の「Claude なしで、数字で書く」で決まりを足し、記録に「見本の作品」を入れると、これまでの作品が確かめ直されます。</p>
       </div>
       <div class="spread reveal" aria-label="一言が、これまでとこれからの設計に広がる図">
         <div class="say">
@@ -168,7 +169,7 @@ const html = `
 
   <section class="sec end reveal">
     <h2>まず、石を一つ。</h2>
-    <p>写真がなくても、よくある形から始められます。</p>
+    <p>写真がなくても、よくある形から始められます。Claude を使う所のほかは、合言葉なしで全部使えます。</p>
     <a class="btn primary lg" href="${START}">はじめる ${icon.arrow}</a>
   </section>
 </main>
