@@ -109,7 +109,7 @@ export interface SettingHeights extends StoneHeights {
   fingerZ: number;
   /** 腕の外側のいちばん上の z */
   shankTopZ: number;
-  /** 石座の下の端（腕の中へ入る所）の z */
+  /** 石座の下の端の z。爪留めは下の輪の下の面（腕の上の溝に入る所。爪の下の端もここで切りそろえる）。覆輪は壁の下の端 */
   baseZ: number;
   /** 石の一番下と指のすき間（mm） */
   culetGapMm: number;
@@ -158,8 +158,8 @@ const PATH_STEP = 0.1;
  * 石座の形は縁の形をこの倍率より小さくは縮めない
  */
 const FOOT_SCALE = 0.2;
-/** 爪の足の下の端（腕の中）は、下の輪の所から中心へ寄せる（足がこの倍率まで中心へ近づく）。足が腕の幅に収まる */
-const FOOT_PULL = 0.3;
+/** 爪の下の端の丸いふたの長さ（爪の半径に対する倍率）。下の輪の下の面で切りそろえた端なので、ほとんど平ら */
+const FOOT_CAP = 0.35;
 /**
  * 爪の先の形（爪の半径に対する倍率）。先は石の上側に乗るので、石に直角な向きに少し薄く（normal）、横に少し細く（side）し、
  * 先から taper 本分の長さで細くしていく。端は cap の長さの丸いふた
@@ -188,7 +188,7 @@ const V_STEM = { at: 0, thicken: 1.06 };
 const LIP_STEPS = 8;
 /** 覆輪の壁の途中の高さの間隔（mm）。なめらかに見えるよう、段の間を細かく */
 const WALL_STEP = 0.3;
-/** 爪と覆輪の下の端を、腕の厚みのこの割合だけ腕の中へ入れる（つながって見えるように） */
+/** 覆輪の下の端を、腕の厚みのこの割合だけ腕の中へ入れる（つながって見えるように）。爪留めの石座は使わない（下の輪で腕にのる） */
 const EMBED_RATIO = 0.5;
 /** 石座の輪 2 段を置くのに要る、縁の下と腕の上の間（輪の線の太さの何本分か） */
 const RING_ROOM_WIRES = 3;
@@ -333,6 +333,8 @@ interface Vertical {
 /**
  * 高さの決まり。石の一番下が指から 0.3 mm 以上離れる高さが最低（ただし石座の輪や覆輪が腕の上に
  * 収まる高さより低くはしない）。そこへ低め ＋0 / 標準 ＋0.5 / 高め ＋1.0 mm を足す。
+ * 爪留めの石座は、爪と輪を 1 つにまとめた部品で、腕とは別に作ってのせる。腕の上に溝を入れて、
+ * 下の輪を少し沈めてロウ付けする（爪が 1 本ずつ腕へささることはない）。石座の下の端 ＝ 下の輪の下の面。
  */
 function vertical(
   h: StoneHeights,
@@ -350,9 +352,11 @@ function vertical(
   const gap = culetGapOverride ?? Math.max(GUIDES.height.minFingerGapMm, structural) + GUIDES.height.options[height];
   const fingerZ = h.culetZ - gap;
   const shankTopZ = fingerZ + shankT;
-  const lowerRingZ = Math.min(shankTopZ + wire / 2, k.girdleBottom - 2 * wire);
+  // 腕の上の溝の深さ（下の輪を沈める分）
+  const notch = GUIDES.gallery.seatInShankRatio * wire;
+  const lowerRingZ = Math.min(shankTopZ + wire / 2 - notch, k.girdleBottom - 2 * wire);
   const upperRingZ = (k.girdleBottom + lowerRingZ) / 2;
-  const baseZ = Math.min(shankTopZ - shankT * EMBED_RATIO, lowerRingZ - wire);
+  const baseZ = style === "prong" ? lowerRingZ - wire / 2 : shankTopZ - shankT * EMBED_RATIO;
   return { culetGapMm: gap, fingerZ, shankTopZ, baseZ, lowerRingZ, upperRingZ };
 }
 
@@ -659,15 +663,11 @@ export function buildSetting(params: SettingParams): SettingResult {
     v = vertical(h, "prong", height, params.culetGapMm, shankT, wire, wall);
     const tz = params.tipRatio !== undefined ? h.culetZ + params.tipRatio * (h.tableZ - h.culetZ) : defaultTipZ(h);
     tipZ = tz;
-    // 爪の中心の線が通る高さ：上の輪から縁の上まで（石の下側の面に沿う）と、上の輪より下（腕の中へ）
+    // 爪の中心の線が通る高さ：上の輪から縁の上まで（石の下側の面に沿う）と、上の輪より下（下の輪まで）
     const upper = ascending([v.upperRingZ, k.pavilionMid, k.girdleBottom, k.girdleTop], v.upperRingZ, k.girdleTop);
-    // 下の輪より上の高さだけ（下の輪より下は、足の下の端へまっすぐ寄せる）
+    // 下の輪より上の高さだけ（下の輪より下は、爪の下の端までまっすぐ下ろす）
     const lower = (from: number, below: number) =>
       ascending([v.lowerRingZ, h.culetZ, k.pavilionMid], Math.max(from, v.lowerRingZ), below).filter((z) => z < below - EPS);
-    const footAt = (s: Sample, z: number, dd: number): V3 => {
-      const q = at(f, s, z, dd);
-      return [f.center.x + (q[0] - f.center.x) * FOOT_PULL, f.center.y + (q[1] - f.center.y) * FOOT_PULL, z];
-    };
 
     for (const plan of plans) {
       const r = plan.diameterMm / 2;
@@ -678,16 +678,16 @@ export function buildSetting(params: SettingParams): SettingResult {
       const pieces: number[][] = [];
       const legPoints: Point[] = [];
       const side = (s: Sample): V3 => along(s);
-      // 足の下の端：腕の中の baseZ に、丸いふたの下の端が来るように
-      const footZ = (rr: number) => Math.min(v.baseZ + rr, v.lowerRingZ - 0.3 * wire);
-      const footCap = (rr: number) => Math.min(1, Math.max(0.3, (footZ(rr) - v.baseZ) / rr));
+      // 爪の下の端：石座の下の端（下の輪の下の面）で切りそろえる。丸いふたの下の端が baseZ に来るように。
+      // 爪は腕へささらない。下の輪と一緒に、腕の上の溝に当たる
+      const footZ = (rr: number) => v.baseZ + FOOT_CAP * rr;
 
       if (!plan.isV) {
-        // ふつうの爪：腕の中 → 下の輪 → 上の輪 → 石の下側に沿って縁 → 縁の上で内へ曲がり、先が石の上側に乗る
+        // ふつうの爪：石座の下の端 → 下の輪 → 上の輪 → 石の下側に沿って縁 → 縁の上で内へ曲がり、先が石の上側に乗る
         // 縁の高さでは、座を彫った分だけ爪が石の縁に食いこむ（爪の内側の座に縁が入る）
         const dSeat = cl + plan.diameterMm * (0.5 - GUIDES.prong.seatCutRatio);
         const ctrl: V3[] = [
-          footAt(tipAt, footZ(r), d),
+          at(f, tipAt, footZ(r), d),
           ...lower(footZ(r) + EPS, v.upperRingZ).map((z) => at(f, tipAt, z, d)),
           ...upper.map((z) => at(f, tipAt, z, z >= k.girdleBottom - EPS ? dSeat : d)),
         ];
@@ -707,7 +707,7 @@ export function buildSetting(params: SettingParams): SettingResult {
               const w = smoothstep(1 - rest[j] / (TIP.taper * r));
               return [r * (1 - w * (1 - TIP.normal)), r * (1 - w * (1 - TIP.side))];
             },
-            startCap: footCap(r),
+            startCap: FOOT_CAP,
             endCap: TIP.cap,
             capSteps: CAP_STEPS,
           },
@@ -726,13 +726,13 @@ export function buildSetting(params: SettingParams): SettingResult {
         const wallTris: number[] = [];
         vWall(f, plan.t - spreadT, plan.t + spreadT, zb, zt, hw, dcW, wallTris);
         pieces.push(wallTris);
-        // 軸：腕の中から、上の輪と下の輪の間まで（角の真下）
+        // 軸：石座の下の端から、下の輪の所まで（角の真下）。ふつうの爪と同じく、腕へはささらない
         const rs = r * V_STEM.thicken;
         const zm = v.lowerRingZ + (v.upperRingZ - v.lowerRingZ) * V_STEM.at;
         const merge = at(f, tipAt, zm, d);
-        const stemCtrl: V3[] = [footAt(tipAt, footZ(rs), d), ...lower(footZ(rs) + EPS, zm).map((z) => at(f, tipAt, z, d)), merge];
+        const stemCtrl: V3[] = [at(f, tipAt, footZ(rs), d), ...lower(footZ(rs) + EPS, zm).map((z) => at(f, tipAt, z, d)), merge];
         const stem: number[] = [];
-        sweepTube(smoothPath(stemCtrl, PATH_STEP), { sides: PRONG_SIDES, side: side(tipAt), radius: () => [rs, rs], startCap: footCap(rs), endCap: 1, capSteps: CAP_STEPS }, stem);
+        sweepTube(smoothPath(stemCtrl, PATH_STEP), { sides: PRONG_SIDES, side: side(tipAt), radius: () => [rs, rs], startCap: FOOT_CAP, endCap: 1, capSteps: CAP_STEPS }, stem);
         pieces.push(stem);
         // 足が板へ入る高さ（板の下の丸みの少し上）。足はそこへ向かって板の厚みまで細くなり、中心も板の中心の線へ寄る
         const legTop = Math.min(k.girdleBottom, zb + rb * (1 + V_LEG.into));
@@ -755,7 +755,8 @@ export function buildSetting(params: SettingParams): SettingResult {
                 const rr = r + (legR - r) * taper(legPath[j][2]);
                 return [rr, rr];
               },
-              startCap: 1,
+              // 軸の中で始まる（丸い端は短く、石座の下の端より下へ出ない）
+              startCap: FOOT_CAP,
               endCap: V_LEG.endCap,
               capSteps: CAP_STEPS,
             },
@@ -782,7 +783,7 @@ export function buildSetting(params: SettingParams): SettingResult {
       });
     }
 
-    // 石座の輪：爪の中心を通る、丸い針金の輪を 2 段（下側の途中と、腕のすぐ上）
+    // 石座の輪：爪の中心を通る、丸い針金の輪を 2 段（下側の途中と、いちばん下。下の輪は腕の上の溝に入る）
     for (const z of [v.upperRingZ, v.lowerRingZ]) {
       const a = wire / 2;
       const profile: V3[][] = [];
@@ -874,12 +875,10 @@ const SOLID = { cell: 0.075, blend: 0.16, step: 0.4 };
 /** 動かしている間の粗い一体の形：格子を粗く、ならす回数を減らす（形の線・太さは同じ。面の細かさだけ違う） */
 const SOLID_PREVIEW = { cell: 0.13, smooth: 3 };
 const RING_OWNER = 100;
-/** 一体の石座の足もとを中心へ寄せる割合（足が腕の幅の中に入る） */
-const SOLID_FOOT_PULL = 0.14;
-/** 足の曲がり方（1 でまっすぐ。大きいほど縁の下で縦に立ち、足もと近くで寄る） */
+/** 足の曲がり方（1 でまっすぐ。大きいほど縁の下で縦に立ち、下の輪の近くで寄る） */
 const LEG_CURVE = 2.2;
-/** 輪の高さ：縁から足もとまでの、上からこの割合の所 */
-const RING_AT = 0.4;
+/** 一体の石座の上の輪の太さ（輪の線の太さに対する倍率。石の下側の途中の、細い支え） */
+const SOLID_UPPER_RING = 0.72;
 
 /** 座を彫る距離を、石からこの距離（mm）より近い所だけ正確に測る。遠い所は下の格子から、表面に近い側へ控えめに見積もる */
 const SEAT_EXACT_MM = 0.4;
@@ -1006,15 +1005,14 @@ function solidHead(f: Frame, plans: ProngPlan[], v: Vertical, tz: number, wire: 
   // 座を彫る距離（石から遠い所は速く見積もる。面の位置は変わらない）
   const seatDistance = stoneDistanceFn(f, SEAT_EXACT_MM);
   const girdleDistance = (x: number, y: number) => atGirdle(x, y, k.girdleBottom);
-  // 足：縁の下から、腕の中の足もとへまっすぐ寄り合う（上から下へ、爪が細く集まる石座）。石の下側は割らない
-  const footZAll = Math.min(v.baseZ + 0.4, v.lowerRingZ);
-  // 足の形：腕の上の足もとから、外へなめらかに開いて、縁の下でまっすぐ立つ曲線（チューリップの形）
+  // 石座は爪と輪を 1 つにまとめた部品（籠の形）。足は縁の下から下の輪へ寄り合い、下の輪の所で終わる。
+  // 腕へはささらない：石座の下の端（下の輪の下の面 ＝ v.baseZ）が、腕の上の溝に当たる
+  const footZAll = v.lowerRingZ;
+  // 足の形：下の輪から、外へなめらかに開いて、縁の下でまっすぐ立つ曲線（チューリップの形）
   const legLine = (s: Sample, dTop: number, r: number, z: number): V3 => {
     const g = at(f, s, k.girdleBottom, dTop);
-    const q = at(f, s, footZAll, cl + r);
-    // 足もとは腕の幅の中に収まるよう、中心へ強く寄せる（腕を石座の下でふくらませない）
-    const foot: V3 = [f.center.x + (q[0] - f.center.x) * SOLID_FOOT_PULL, f.center.y + (q[1] - f.center.y) * SOLID_FOOT_PULL, footZAll];
-    const t = (k.girdleBottom - z) / (k.girdleBottom - footZAll);
+    const foot = at(f, s, footZAll, cl + r);
+    const t = Math.min(1, (k.girdleBottom - z) / (k.girdleBottom - footZAll));
     // 水平の位置は、縁から下へ行くほど、はじめはゆっくり、足もと近くで急に寄る（縁の下では縦に近い）
     const w = Math.pow(t, LEG_CURVE);
     const p: V3 = [g[0] + (foot[0] - g[0]) * w, g[1] + (foot[1] - g[1]) * w, z];
@@ -1023,8 +1021,10 @@ function solidHead(f: Frame, plans: ProngPlan[], v: Vertical, tz: number, wire: 
     const rs = Math.hypot(safe[0] - f.center.x, safe[1] - f.center.y);
     return z > f.h.culetZ && rp < rs ? safe : p;
   };
+  // 足の下の端：丸い端の下が、石座の下の端（v.baseZ ＝ 下の輪の下の面）にそろう所まで。爪が下の輪より下へ突き出ない
   const leg = (s: Sample, dTop: number, r: number): V3[] => {
-    const zs = Array.from({ length: 11 }, (_, q) => k.girdleBottom + ((footZAll - k.girdleBottom) * q) / 10);
+    const zEnd = Math.max(footZAll, v.baseZ + r);
+    const zs = Array.from({ length: 11 }, (_, q) => k.girdleBottom + ((zEnd - k.girdleBottom) * q) / 10);
     return zs.map((z) => legLine(s, dTop, r, z));
   };
   plans.forEach((plan, i) => {
@@ -1074,13 +1074,17 @@ function solidHead(f: Frame, plans: ProngPlan[], v: Vertical, tz: number, wire: 
       }
     }
   });
-  // 石座の輪：縁と腕の間に細い 1 本（爪どうしをつなぐ）。足と同じ曲線の上
+  // 石座の輪 2 段（線を管にした形と同じ高さ）：上は石の下側の途中の細い支え、下は足が集まる輪（石座の底。腕の上の溝に入る）。
+  // どちらも足と同じ曲線の上にあり、爪と 1 つにつながる
   const dRing = cl + meanD * (0.5 - seat);
-  const ringR = wire * 0.36;
-  const zRing = k.girdleBottom - (k.girdleBottom - footZAll) * RING_AT;
-  const ringPts = f.pts.filter((_, i) => i % 2 === 0).map((p, i) => legLine({ p, n: f.normals[i * 2] }, dRing, ringR, zRing));
-  ringPts.push(ringPts[0]);
-  tubes.push({ pts: ringPts, radii: ringPts.map(() => ringR), owner: RING_OWNER });
+  const ringLoop = (z: number, rr: number, owner: number) => {
+    // 輪の中心は、爪の足の中心と同じ線の上（太さ meanD の爪の位置）。管の太さだけ rr
+    const pts = f.pts.filter((_, i) => i % 2 === 0).map((p, i) => legLine({ p, n: f.normals[i * 2] }, dRing, meanD / 2, z));
+    pts.push(pts[0]);
+    tubes.push({ pts, radii: pts.map(() => rr), owner });
+  };
+  ringLoop(v.upperRingZ, (wire / 2) * SOLID_UPPER_RING, RING_OWNER);
+  ringLoop(v.lowerRingZ, wire / 2, RING_OWNER + 1);
   // 石から遠い点は、石までの距離を細かく測らない（石を囲む円の外なら、その円までの距離で足りる）
   let rMax = 0;
   for (const p of f.pts) rMax = Math.max(rMax, Math.hypot(p.x - f.center.x, p.y - f.center.y));
