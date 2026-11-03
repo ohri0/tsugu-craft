@@ -1,3 +1,9 @@
 <!doctype html><meta charset="utf-8"><link rel="stylesheet" href="base.css"><style>
-.q{position:absolute;left:0;right:0;top:470px;text-align:center;font-size:64px;font-weight:400;letter-spacing:.04em;opacity:0;animation:in 1.2s ease .4s forwards}
-</style><div class="q">この指輪の爪は、何ミリが正しいか。</div>
+/* 問い（約 6 秒）：大きな問い → 指輪へ寄る */
+.a{position:absolute;left:0;right:0;top:400px;text-align:center;font-size:66px;font-weight:300;letter-spacing:.02em;opacity:0;animation:in 1s ease .3s forwards,out .6s ease 2.9s forwards}
+.b{position:absolute;left:0;right:0;top:400px;text-align:center;opacity:0;animation:in 1s ease 3.3s forwards}
+.b small{display:block;font-size:24px;color:#86868b;letter-spacing:.1em}
+.b span{display:block;margin-top:22px;font-size:66px;font-weight:300}
+</style>
+<div class="a">職人の判断は、どこにも書いていない。</div>
+<div class="b"><small>たとえば</small><span>この指輪の爪は、何ミリが正しいか。</span></div>

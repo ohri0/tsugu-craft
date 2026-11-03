@@ -14,6 +14,7 @@ const D = `${SP}/cine/grow/`; fs.mkdirSync(D, { recursive: true });
   await p.waitForTimeout(6000);
   await p.evaluate(() => {
     window.__studio.setMode('refine');
+    window.__viewer.setDisplayMode('render');
     document.querySelector('.t-dims')?.click(); document.querySelector('.t-grid')?.click();
     const st = document.createElement('style');
     st.textContent = `.tb,.tools,.insp,.cmd-wrap,.sb,.vp-tl,.verdict-chip,.dims,.gizmo,.toast,.intro-sheet,.intro-timer{display:none!important} .pro{display:block!important;background:#000!important} .vp{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;background:#000!important}
@@ -29,7 +30,7 @@ const D = `${SP}/cine/grow/`; fs.mkdirSync(D, { recursive: true });
     const v = window.__viewer; v.setAutoRotate(false); v.scene.background = null; v.renderer.setClearColor(0x000000, 1);
     if (v.shadow?.plane) v.shadow.plane.visible = false;
     const s = window.__studio.session;
-    s.setShank({ metal: 'k18yg', reason: 'cine' });
+    s.setShank({ metal: 'pt900', reason: 'cine' });
     window.__base = JSON.parse(JSON.stringify(s.stone));
     window.__grow = (mm) => {
       const b0 = window.__base; const k = mm / b0.longMm;

@@ -8,16 +8,28 @@ const shot = process.argv[2]; const N = Number(process.argv[3] || 60);
   p.on('pageerror', (e) => console.log('pageerror ' + e.message));
   await p.goto(`${BASE}/studio.html?nointro&rec`, { waitUntil: 'networkidle' });
   await p.waitForFunction(() => window.__studio?.session?.built && window.__viewer, null, { timeout: 120000 });
-  await p.evaluate(() => {
+  // 調整の場面（morph・thin）は、アプリのシェード表示（CAD のような灰色の画面）で撮る。ほかは黒の上のレンダー
+  const editor = shot === 'morph' || shot === 'thin';
+  await p.evaluate((editor) => {
     window.__studio.setMode('refine');
+    // 作者の好み：プラチナ系の白い地金で撮る
+    window.__studio.session.setShank({ metal: 'pt900', reason: 'cine' });
     document.querySelector('.t-dims')?.click(); document.querySelector('.t-grid')?.click();
     const st = document.createElement('style');
     st.textContent = `.tb,.tools,.insp,.cmd-wrap,.sb,.vp-tl,.verdict-chip,.dims,.gizmo,.toast{display:none!important} .pro{display:block!important;background:#000!important} .vp{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;background:#000!important}`;
     document.head.appendChild(st);
     const v = window.__viewer; v.setAutoRotate(false);
-    v.scene.background = null; v.renderer.setClearColor(0x000000, 1);
+    if (editor) {
+      v.setDisplayMode('shaded');
+      const ed = document.createElement('style');
+      ed.textContent = `.gr{color:#1d1d1f!important}.gr .l,.gr b small,.gr .s{color:#3a3a3c!important}.gr .s.on{color:#000!important;font-weight:400}.gr .s.bad{color:#c4141a!important;font-weight:400}.gr .bar{background:#6e6e73!important}`;
+      document.head.appendChild(ed);
+    } else {
+      v.setDisplayMode('render');
+      v.scene.background = null; v.renderer.setClearColor(0x000000, 1);
+    }
     if (v.shadow?.plane) v.shadow.plane.visible = false;
-  });
+  }, editor);
   await p.waitForTimeout(2500);
   await p.evaluate(() => { const v = window.__viewer; v.fit(); const c = v.camera, t = v.controls.target; c.position.sub(t).multiplyScalar(0.82).add(t); v.controls.update(); v.dirty = true; });
   await p.waitForTimeout(800);

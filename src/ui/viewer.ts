@@ -129,6 +129,7 @@ export class Viewer {
   private mode: DisplayMode = "render";
   setDisplayMode(m: DisplayMode) {
     this.mode = m;
+    this.applyBackdrop();
     this.applyMode();
     this.updateShadow();
     this.dirty = true;
@@ -172,7 +173,7 @@ export class Viewer {
       } else {
         o.visible = false;
         edges.visible = true;
-        lm.color.setHex(isStone(ud.render) ? 0x8fc3ff : 0xd8d8dc);
+        lm.color.setHex(isStone(ud.render) ? (this.darkOn ? 0x1d5fb0 : 0x8fc3ff) : this.darkOn ? 0x2a2b2e : 0xd8d8dc);
         lm.opacity = 0.9;
       }
     }
@@ -410,8 +411,17 @@ export class Viewer {
   }
 
   /** 黒い撮影台にする（継ぐの設計の画面）。床の影は黒の上では見えないので薄く */
+  /** 暗い画面か（継ぐの設計の画面） */
+  private darkOn = false;
+  /** 暗い画面では、レンダーは黒い撮影台、シェード・ワイヤーは CAD の作業画面のような灰色（作者：調整はシェードの灰色で） */
+  private applyBackdrop() {
+    if (!this.darkOn) return;
+    this.scene.background = this.mode === "render" ? darkBackdropTexture() : grayBackdropTexture();
+    this.dirty = true;
+  }
   setDark(on: boolean) {
-    this.scene.background = on ? darkBackdropTexture() : backdropTexture();
+    this.darkOn = on;
+    this.scene.background = on ? (this.mode === "render" ? darkBackdropTexture() : grayBackdropTexture()) : backdropTexture();
     // 暗い画面の目盛りは、うすい灰色（CAD の作業面のように）
     this.scene.remove(this.grid);
     this.grid = on ? new THREE.GridHelper(60, 60, 0x4a4b50, 0x313236) : new THREE.GridHelper(40, 40, 0xc9c1b4, 0xe0dad0);
@@ -681,6 +691,21 @@ export function studioScene(): THREE.Scene {
 }
 
 /** 黒い撮影台：真ん中がわずかに明るい、あたたかい黒 */
+function grayBackdropTexture(): THREE.Texture {
+  const c = document.createElement("canvas");
+  c.width = c.height = 512;
+  const g = c.getContext("2d")!;
+  // CAD の作業画面のような、明るめの中立の灰色（上が少し明るい）
+  const grad = g.createLinearGradient(0, 0, 0, 512);
+  grad.addColorStop(0, "#b4b6ba");
+  grad.addColorStop(1, "#8c8e93");
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 512, 512);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
 function darkBackdropTexture(): THREE.Texture {
   const c = document.createElement("canvas");
   c.width = c.height = 512;

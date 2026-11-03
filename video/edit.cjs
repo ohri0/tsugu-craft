@@ -66,7 +66,14 @@ const dur = (f) => Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries
   let prev = 0; const args = ['-v', 'error', '-y', '-i', silent]; const flt = [];
   voices.forEach((x, i) => { const at = Math.max(x.at, prev + 0.4); prev = at + dur(x.f); args.push('-i', x.f); const ms = Math.round(at * 1000); flt.push(`[${i + 1}:a]adelay=${ms}|${ms}[a${i}]`); });
   const out = process.env.OUT ? `${S}/${process.env.OUT}` : process.env.VOICE === 'tts' ? `${S}/継ぐ_仮の動画_機械の声.mp4` : `${S}/継ぐ_動画_編集.mp4`;
-  if (voices.length) {
+  if (voices.length && process.env.BGM) {
+    // 音楽（bgm.py で作ったもの）を、声が出ている間だけ下げて重ねる
+    args.push('-i', process.env.BGM);
+    const bi = voices.length + 1;
+    flt.push(`${voices.map((_, i) => `[a${i}]`).join('')}amix=inputs=${voices.length}:normalize=0,apad,atrim=0:${t},asplit=2[vo][vk]`);
+    flt.push(`[${bi}:a]atrim=0:${t},volume=${process.env.BGM_GAIN || '0.32'}[bg]`, `[bg][vk]sidechaincompress=threshold=0.02:ratio=6:attack=30:release=400[bgd]`, `[vo][bgd]amix=inputs=2:normalize=0[aout]`);
+    execFileSync('ffmpeg', [...args, '-filter_complex', flt.join(';'), '-map', '0:v', '-map', '[aout]', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-shortest', out]);
+  } else if (voices.length) {
     flt.push(`${voices.map((_, i) => `[a${i}]`).join('')}amix=inputs=${voices.length}:normalize=0,apad,atrim=0:${t}[aout]`);
     execFileSync('ffmpeg', [...args, '-filter_complex', flt.join(';'), '-map', '0:v', '-map', '[aout]', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-shortest', out]);
   } else fs.copyFileSync(silent, out);

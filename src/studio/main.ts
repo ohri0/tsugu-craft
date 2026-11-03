@@ -363,6 +363,8 @@ async function intro() {
   card.remove();
   timer.remove();
 }
+/** 人が表示（ワイヤー・シェード・レンダー・図面）を選んだか */
+let dispChosen = false;
 /** 表示の切り替え（ボタンの見た目もそろえる） */
 function setDisp(m: DisplayMode) {
   viewer.setDisplayMode(m);
@@ -552,6 +554,8 @@ function setMode(m: Mode) {
   viewer.setAutoRotate(m === "make");
   viewer.setLift(0);
   requestAnimationFrame(fitInsets);
+  // 調整する場面は、シェードで始める（人が表示を選んだ後は、その表示のまま）
+  if ((m === "refine" || m === "hand") && !dispChosen) setDisp("shaded");
   if (m === "refine") renderCheck();
   if (m === "hand") renderBuild();
 }
@@ -588,6 +592,7 @@ document.querySelectorAll<HTMLButtonElement>(".disp button").forEach((b) =>
       viewer.setDisplayMode(b.dataset.disp as DisplayMode);
     }
     document.querySelectorAll<HTMLButtonElement>(".disp button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    dispChosen = true;
   }),
 );
 // ---- 図面：3D の所に、そのまま図面（正面・側面・上面・寸法・表題欄）を出す ----

@@ -7,6 +7,9 @@ const H = `${SP}/vc/hero/`;
   await p.waitForFunction(() => window.__studio?.session?.built && window.__viewer, null, { timeout: 120000 });
   await p.evaluate(() => {
     window.__studio.setMode('refine');
+    window.__viewer.setDisplayMode('render');
+    // 作者の好み：プラチナ系の白い地金で撮る
+    window.__studio.session.setShank({ metal: 'pt900', reason: 'cine' });
     document.querySelector('.t-dims')?.click(); document.querySelector('.t-grid')?.click();
     const st = document.createElement('style');
     st.textContent = `.tb,.tools,.insp,.cmd-wrap,.sb,.vp-tl,.verdict-chip,.dims,.gizmo,.toast{display:none!important} .pro{display:block!important} .vp{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important}`;

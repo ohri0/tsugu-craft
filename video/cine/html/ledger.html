@@ -1,0 +1,50 @@
+<!doctype html><meta charset="utf-8"><link rel="stylesheet" href="base.css"><style>
+/* 残る（約 14 秒）。見出しは字幕の側（ov3）が出す。
+   左：帳面。すでに入っている基本の設計ルール（目安帳・guides.ts にある本物の項目）→ 職人の一言 → これから増える言葉（点線、まだ無い）
+   右：石の大きさと爪の太さ。言葉（点）が増えるほど、線がどんな石にも合っていく */
+.bk{position:absolute;left:120px;top:230px;width:860px}
+.bk .hd{display:flex;justify-content:space-between;align-items:baseline;border-bottom:1px solid #3a3a3c;padding-bottom:14px}
+.bk .hd b{font-size:30px;font-weight:400}
+.r{display:grid;grid-template-columns:1fr auto;gap:20px;padding:10px 0;border-bottom:1px solid #1c1c1e;font-size:22px;opacity:0;animation:in .35s ease forwards}
+.r span{color:#86868b;font-size:17px}
+.r.base{color:#d2d2d7}
+.r.me{color:#fff;background:linear-gradient(90deg,rgba(255,255,255,.08),rgba(255,255,255,0));padding-left:14px;margin-left:-14px}
+.r.me span{color:#f5f5f7}
+.r.next{color:#6e6e73;border-bottom:1px dashed #3a3a3c}
+.cnt{position:absolute;left:120px;top:960px;font-size:20px;color:#86868b;opacity:0;animation:fade .6s ease 1.6s forwards}
+.cnt b{font-weight:300;font-size:34px;color:#f5f5f7;margin:0 6px;font-variant-numeric:tabular-nums}
+.mini{position:absolute;left:1100px;top:250px;width:700px}
+.m{margin-bottom:34px;opacity:0;animation:fade .6s ease forwards}.m:nth-child(1){animation-delay:4.8s}.m:nth-child(2){animation-delay:6.6s}.m:nth-child(3){animation-delay:7.4s}
+.m svg{display:block;width:640px;height:150px;margin-top:10px;overflow:visible}
+.bar{fill:#2c2c2e}
+.ln.l1b{stroke:#d2d2d7;animation:draw 1.2s ease 7s forwards}
+.ax{stroke:#3a3a3c;stroke-width:1}
+.t{fill:#6e6e73;font-size:15px;font-family:"Helvetica Neue","Hiragino Sans",sans-serif}
+.ln{fill:none;stroke:#f5f5f7;stroke-width:2;stroke-dasharray:900;stroke-dashoffset:900}
+.ln.l1{animation:draw 1.2s ease 5s forwards}
+.ln.l2{stroke:#86868b;stroke-dasharray:6 8;opacity:0;animation:fade .8s ease 10.4s forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+.pt{opacity:0;animation:fade .3s ease forwards}
+.pt.me{fill:#f5f5f7}.pt.next{fill:none;stroke:#86868b;stroke-width:1.5}
+.cap{position:absolute;left:1100px;top:870px;width:740px;font-size:22px;color:#86868b;opacity:0;animation:fade .6s ease 10.6s forwards}
+</style>
+<div class="bk">
+<div class="hd"><b>帳面 ・ 工房 A</b><span class="lab">Ledger</span></div>
+<div class="r base" style="animation-delay:.2s">石の先を、指から離す<span>設計ルール</span></div>
+<div class="r base" style="animation-delay:.35s">爪の太さと、先の高さ<span>設計ルール</span></div>
+<div class="r base" style="animation-delay:.5s">爪の間隔・尖った角を守る<span>設計ルール</span></div>
+<div class="r base" style="animation-delay:.65s">石の留まり<span>設計ルール</span></div>
+<div class="r base" style="animation-delay:.8s">覆輪の壁の厚み<span>設計ルール</span></div>
+<div class="r base" style="animation-delay:.95s">腕の太さ・厚み、地金ごとの重さと温度<span>設計ルール</span></div>
+<div class="r me" style="animation-delay:3.2s">「この大きさなら、爪は基本 0.8〜1 mm」<span>職人：石川</span></div>
+<div class="r me" style="animation-delay:3.6s">「三角の石は、角に 1 本ずつの 3 本で留まる」<span>職人：石川</span></div>
+<div class="r next" style="animation-delay:8.6s">「小さい石のときは…」<span>職人：田中（例）</span></div>
+<div class="r next" style="animation-delay:9.0s">「オーバルの爪の位置は…」<span>職人：佐藤（例）</span></div>
+<div class="r next" style="animation-delay:9.4s">「うちの工房では、腕は…」<span>職人：山本（例）</span></div>
+</div>
+<div class="mini">
+<div class="m"><span class="lab">爪の太さ ← 石の大きさ</span><svg viewBox="0 0 640 150"><line class="ax" x1="0" y1="140" x2="640" y2="140"/><path class="ln l1" d="M10 110 L 630 60"/><circle class="pt me" cx="120" cy="101" r="8" style="animation-delay:5.2s"/><circle class="pt me" cx="420" cy="77" r="8" style="animation-delay:5.5s"/><circle class="pt next" cx="250" cy="91" r="7" style="animation-delay:9.8s"/><circle class="pt next" cx="560" cy="66" r="7" style="animation-delay:10s"/></svg></div>
+<div class="m"><span class="lab">石と指のすき間 ← 石の深さ</span><svg viewBox="0 0 640 150"><line class="ax" x1="0" y1="140" x2="640" y2="140"/><path class="ln l1b" d="M10 100 L 630 80"/><circle class="pt next" cx="180" cy="95" r="7" style="animation-delay:10.2s"/><circle class="pt next" cx="470" cy="85" r="7" style="animation-delay:10.4s"/></svg></div>
+<div class="m"><span class="lab">腕の厚み ← 地金</span><svg viewBox="0 0 640 150"><line class="ax" x1="0" y1="140" x2="640" y2="140"/><rect class="bar" x="40" y="70" width="120" height="70"/><rect class="bar" x="260" y="60" width="120" height="80"/><rect class="bar" x="480" y="80" width="120" height="60"/><circle class="pt next" cx="100" cy="50" r="7" style="animation-delay:10.6s"/><circle class="pt next" cx="320" cy="40" r="7" style="animation-delay:10.8s"/></svg></div>
+</div>
+<div class="cap">爪だけでなく、すき間も、腕も。言葉が増えるほど、どんな形にも合っていく。</div>

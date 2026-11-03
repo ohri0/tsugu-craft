@@ -36,4 +36,4 @@
 <div class="tg"><span>継ぐ　イメージの段階で、作れる設計に</span></div>
 <div class="strike" style="left:470px;width:980px"></div>
 <div class="ok"><b>清書と CAD の行き来を、飛ばせる。</b><span>時間も、費用も。</span></div>
-<script>let n=0;const el=document.getElementById('n');setTimeout(()=>{const t=setInterval(()=>{el.textContent=++n;if(n>=5)clearInterval(t)},1300)},3050);</script>
+<script>const el=document.getElementById('n');const t0=performance.now();const tick=()=>{const t=performance.now()-t0;el.textContent=Math.max(0,Math.min(5,Math.floor((t-3050)/1300)+1));requestAnimationFrame(tick)};requestAnimationFrame(tick);</script>
