@@ -195,6 +195,22 @@ export class Viewer {
     });
   }
 
+  /** 下から組み上がる途中で止めて見せる（u：0＝何もない〜1＝全部。null で切り取りをやめる）。動画を 1 こまずつ撮るため */
+  setReveal(u: number | null) {
+    if (u === null) {
+      this.renderer.clippingPlanes = [];
+      this.dirty = true;
+      return;
+    }
+    this.content.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(this.content);
+    if (box.isEmpty()) return;
+    const plane = this.renderer.clippingPlanes[0] ?? new THREE.Plane(new THREE.Vector3(0, 0, -1), box.min.z);
+    plane.constant = box.min.z + (box.max.z - box.min.z + 0.5) * Math.max(0, Math.min(1, u));
+    this.renderer.clippingPlanes = [plane];
+    this.dirty = true;
+  }
+
   /** 1 mm の目盛りを出す・隠す */
   setGrid(show: boolean) {
     this.grid.visible = show;
