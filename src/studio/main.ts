@@ -47,6 +47,7 @@ import { dimsSvg, gizmoSvg, type Dim, type Rect } from "./dims";
 import { bindSlider, sliderHtml, type SliderSpec } from "./slider";
 import { bindSectionEditor, sectionEditorHtml, startShape } from "./section-edit";
 import { SHANK_SECTIONS, SHANK_SECTION_LABEL, type ShankSection } from "../geometry/shank";
+import { MAX_SECONDS, playVoice, putVoice, startRecording, voiceIds } from "./voice-notes";
 
 type Mode = "make" | "refine" | "hand" | "works";
 const MODES: { id: Mode; word: string; key: string; sub: string }[] = [
@@ -1064,7 +1065,13 @@ function renderCheck() {
             .map(
               ({ p, n }, i) => `<li class="${fresh.has(p.check) ? "fresh" : ""}"><div class="p-head"><b>${esc(SHORT[p.check] ?? p.where)}</b>${n > 1 ? `<small>${n} か所</small>` : ""}${fresh.has(p.check) ? `<i class="new-tag">新しい決まり</i>` : ""}</div>
               <p class="p-num">${esc(p.current)} <span>→</span> ${esc(p.required)}</p>
-              <div class="p-act"><button type="button" class="fix-go" data-p="${i}">${esc(p.options[0]?.label ?? "直す")}</button><details><summary>なぜ</summary><p>${esc(p.reason)}</p></details></div></li>`,
+              <div class="p-act"><button type="button" class="fix-go" data-p="${i}">${esc(p.options[0]?.label ?? "直す")}</button>${(() => {
+                const r = craftRuleFor(p.check);
+                return r && voices.has(r.id) ? `<button type="button" class="voice-play" data-rid="${esc(r.id)}">▶ 職人の声で聞く</button>` : "";
+              })()}<details><summary>なぜ</summary><p>${esc(p.reason)}</p>${(() => {
+                const r = craftRuleFor(p.check);
+                return r?.quote ? `<p class="p-quote">「${esc(r.quote)}」<span>${esc(masterName(store.ledger()))}</span></p>` : "";
+              })()}</details></div></li>`,
             )
             .join("")}</ul>`
         : ""
@@ -1096,6 +1103,13 @@ function renderCheck() {
   box.querySelector(".compare-back")?.addEventListener("click", () => setCompare(false));
   box.querySelector(".past-fix")?.addEventListener("click", () => fixPastWorks());
   box.querySelector(".claude-fix")?.addEventListener("click", () => void fixWithClaude());
+  box.querySelectorAll<HTMLButtonElement>(".voice-play").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      const r = activeRules(store.ledger()).find((x) => x.id === btn.dataset.rid);
+      if (r) void playRuleVoice(r);
+    }),
+  );
+  box.querySelectorAll<HTMLButtonElement>(".voice-rec").forEach((btn) => btn.addEventListener("click", () => void toggleRecord(btn.dataset.rid!)));
   box.querySelectorAll<HTMLButtonElement>(".fix-go").forEach((btn) =>
     btn.addEventListener("click", () => {
       const { p } = probs[Number(btn.dataset.p)];
@@ -1433,6 +1447,56 @@ function acceptRule(p: ProposeRuleInput, _said: string): string {
   flashVerdict();
   return id;
 }
+// ---- 職人の声：決まりに職人本人の声を添え、赤い所や問題の札から聞けるようにする ----
+let voices = new Set<string>();
+void voiceIds().then((v) => {
+  voices = v;
+  if (!$(".studio-refine").hidden) renderCheck();
+});
+/** その確かめに効く、職人の決まり（いちばん新しいもの） */
+function craftRuleFor(check: string): Rule | undefined {
+  return activeRules(store.ledger())
+    .filter((r) => r.source.kind === "craftsman" && (r.checks?.includes(check as never) || (r.param && (PARAMS[r.param].checks as readonly string[]).includes(check))))
+    .at(-1);
+}
+// 3D の赤い所を押すと、その問題に効く職人の決まりの声が流れる（声がなければ、職人の言葉と理由を出す）
+viewer.onWarnClick(() => {
+  const probs = session?.built ? grouped(session.built) : [];
+  for (const { p } of probs) {
+    const r = craftRuleFor(p.check);
+    if (r && voices.has(r.id)) return void playRuleVoice(r);
+  }
+  const p = probs[0]?.p;
+  if (!p) return;
+  const r = craftRuleFor(p.check);
+  toast(r?.quote ? `「${r.quote}」（${masterName(store.ledger())}）` : p.reason);
+});
+let stopRec: (() => Promise<Blob>) | null = null;
+let recFor = "";
+async function toggleRecord(ruleId: string) {
+  if (stopRec) {
+    const stop = stopRec;
+    stopRec = null;
+    const blob = await stop();
+    await putVoice(recFor, blob);
+    voices.add(recFor);
+    toast("職人の声を、決まりに添えました");
+    renderCheck();
+    return;
+  }
+  try {
+    recFor = ruleId;
+    stopRec = await startRecording(() => void toggleRecord(ruleId));
+    renderCheck();
+  } catch {
+    stopRec = null;
+    toast("マイクが使えませんでした（ブラウザの設定で、マイクを許してください）");
+  }
+}
+async function playRuleVoice(r: Rule) {
+  if (await playVoice(r.id)) toast(`${masterName(store.ledger())}の声：「${r.quote ?? r.text}」`);
+}
+
 // ---- 職人の一言で、設計の決まりが変わる（確かめるの中） ----
 let lastRule: { by: string; quote: string; spoken: boolean; before: number; after: number; checks: string[] } | null = null;
 let fixLog: { text: string; cls: string }[] = [];
@@ -1459,7 +1523,7 @@ function rulesSectionHtml(): string {
     ${mine.length ? `<ul class="rules-mini">${mine
       .slice()
       .reverse()
-      .map((r) => `<li><b>${esc(r.title)}</b>${r.param && r.value !== undefined ? `<span class="v">${r.value} ${esc(PARAMS[r.param].unit)}</span>` : ""}${r.quote ? `<small>「${esc(r.quote)}」</small>` : ""}<small>${esc(name)} ・ ${esc(r.date)}</small></li>`)
+      .map((r) => `<li><b>${esc(r.title)}</b>${r.param && r.value !== undefined ? `<span class="v">${r.value} ${esc(PARAMS[r.param].unit)}</span>` : ""}${r.quote ? `<small>「${esc(r.quote)}」</small>` : ""}<small>${esc(name)} ・ ${esc(r.date)}</small><span class="voice-row">${voices.has(r.id) ? `<button type="button" class="link voice-play" data-rid="${esc(r.id)}">▶ 声</button>` : ""}<button type="button" class="link voice-rec${stopRec && recFor === r.id ? " on" : ""}" data-rid="${esc(r.id)}">${stopRec && recFor === r.id ? `■ 止める（${MAX_SECONDS} 秒まで）` : voices.has(r.id) ? "録り直す" : "● 理由を声で残す"}</button></span></li>`)
       .join("")}</ul>` : `<p class="hint">確かめに効く職人の決まりは、まだありません（いまは公開の目安で確かめています）。</p>`}
     ${loadWorks().some((w) => w.design) ? "" : `<p class="hint no-works">記録に作品がないので、決まりを足しても「これまでの作品」は確かめ直せません。<button type="button" class="link add-samples">見本の作品を入れて試す</button></p>`}
     ${making.length ? `<details class="more making-rules"><summary>作り方の決まり ${making.length} 件（作るの工程に出ます）</summary><ul class="rules-mini">${making

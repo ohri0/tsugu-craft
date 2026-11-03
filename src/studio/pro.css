@@ -674,3 +674,9 @@ dialog.sheet input:focus { border-color: var(--accent); }
   .sec-edit .se-h .dot { r: 0.2; }
 }
 @media (max-width: 820px) { .sec-edit { margin-left: 0; } }
+/* 職人の声 */
+.voice-row { display: flex; gap: 12px; margin-top: 2px; }
+.voice-rec.on { color: var(--ng); }
+.voice-play { font-size: 11px; }
+.p-quote { color: var(--fg-1); }
+.p-quote span { margin-left: 6px; color: var(--fg-3); font-size: 10px; }

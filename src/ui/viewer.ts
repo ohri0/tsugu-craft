@@ -103,6 +103,36 @@ export class Viewer {
     loop();
   }
 
+  /** 赤い所（作れない所）を押したときに呼ぶ */
+  private warnListeners: (() => void)[] = [];
+  onWarnClick(f: () => void) {
+    if (this.warnListeners.length === 0) {
+      // 回すためのドラッグと分けるため、押してから離すまでにほとんど動かなかったときだけ「押した」とみなす
+      const el = this.renderer.domElement;
+      let down: { x: number; y: number } | null = null;
+      el.addEventListener("pointerdown", (e) => (down = { x: e.clientX, y: e.clientY }));
+      el.addEventListener("pointerup", (e) => {
+        if (!down || Math.hypot(e.clientX - down.x, e.clientY - down.y) > 6) return;
+        down = null;
+        if (this.hitsWarn(e.clientX, e.clientY)) for (const g of this.warnListeners) g();
+      });
+    }
+    this.warnListeners.push(f);
+  }
+  private hitsWarn(cx: number, cy: number): boolean {
+    if (!this.warnMat) return false;
+    const r = this.renderer.domElement.getBoundingClientRect();
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1), this.camera);
+    const hit = ray.intersectObject(this.content, true).find((h) => h.object instanceof THREE.Mesh && h.object.visible);
+    if (!hit) return false;
+    const m = (hit.object as THREE.Mesh).material;
+    const mat = Array.isArray(m) ? m[hit.face?.materialIndex ?? 0] : m;
+    const ud = (hit.object as THREE.Mesh).userData;
+    const src = Array.isArray(ud.render) ? ud.render[hit.face?.materialIndex ?? 0] : ud.render;
+    return mat === this.warnMat || src === this.warnMat;
+  }
+
   private frameListeners: (() => void)[] = [];
   /** 描き直すたびに呼ぶ（寸法の線や軸の印を 3D に合わせて動かすため） */
   onFrame(f: () => void) {
