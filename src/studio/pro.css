@@ -357,9 +357,9 @@ dialog.sheet input:focus { border-color: var(--accent); }
 .chk small { font-size: 11px; color: var(--fg-3); }
 
 /* 言葉の説明と「詳しく」 */
-.term { display: inline; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-decoration: underline dotted var(--fg-3); text-underline-offset: 3px; cursor: pointer; }
+.term { display: inline; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-decoration: underline dotted var(--fg-2); text-decoration-thickness: 1.5px; text-underline-offset: 4px; cursor: pointer; }
 .term:hover, .term[aria-expanded="true"] { color: var(--accent-2); text-decoration-color: var(--accent-2); }
-.term-def { margin: 6px 0 2px; padding: 7px 10px; border-radius: 5px; background: var(--panel-2); border: 1px solid var(--line); font-size: 12px; line-height: 1.6; color: var(--fg); }
+.term-def { margin: 8px 0 4px; padding: 10px 12px; border-radius: 8px; background: var(--panel-2); border: 1px solid var(--line); font-size: 12.5px; line-height: 1.7; color: var(--fg); animation: ruleIn 0.25s ease both; }
 .term-def b { font-weight: 600; margin-right: 6px; }
 .term-def small { color: var(--fg-3); font-size: 10px; margin-right: 8px; }
 .steps-b .more { margin-top: 8px; }
@@ -589,3 +589,10 @@ dialog.sheet input:focus { border-color: var(--accent); }
 .sw-chart .said { fill: #e2b866; stroke: #111113; stroke-width: 2; }
 .sw-chart .sw-dots circle { fill: rgba(48, 209, 88, 0.55); }
 .sw-chart figcaption { margin-top: 6px; font-size: 11.5px; color: var(--fg-2); line-height: 1.6; }
+
+/* 詳しく：見出しは行の頭に太字。続く行は少し下げる */
+.steps-b .more ul > li .lab { font-weight: 700; color: var(--fg); }
+.steps-b .more ul > li .lab .term { font-weight: 700; }
+.steps-b .more ul > li.first { margin-top: 6px; }
+.steps-b .more ul > li.cont { padding-left: 24px; }
+.steps-b .more ul > li.cont::before { left: 12px; }

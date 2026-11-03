@@ -1037,10 +1037,14 @@ function detailsHtml(list: NonNullable<Step["details"]>, seen: Set<string>): str
   return list
     .map((d) => {
       const m = /^([^：]{1,10})：(.*)$/.exec(d.text);
-      if (!m) return `<li>${withTerms(esc(d.text), seen)}</li>`;
-      const head = m[1] === last ? "" : `<li class="sub">${esc(m[1])}</li>`;
+      // 「詳しく」の中は、1 行ごとに言葉の印を付ける（上の文で出た言葉も、ここで押せる）
+      void seen;
+      if (!m) return `<li>${withTerms(esc(d.text), new Set())}</li>`;
+      // 見出しは、その見出しの最初の行の頭に太字で（「湯道：いちばん厚い所に…」）。続く行は見出しなし
+      const lead = m[1] === last ? "" : `<b class="lab">${withTerms(esc(m[1]), new Set())}</b>：`;
+      const first = m[1] !== last;
       last = m[1];
-      return `${head}<li>${withTerms(esc(m[2]), seen)}</li>`;
+      return `<li class="${first ? "first" : "cont"}">${lead}${withTerms(esc(m[2]), new Set())}</li>`;
     })
     .join("");
 }
