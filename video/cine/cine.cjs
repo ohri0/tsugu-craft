@@ -60,6 +60,27 @@ const shot = process.argv[2]; const N = Number(process.argv[3] || 60);
     }
     for (let k = 0; k < 40; k++, i++) { await turn(0.005); await snap(i); }
   }
+  if (shot === 'thin') {
+    // 爪を細くしすぎると、強さが足りない爪が赤く点滅する（画面の確かめそのまま）
+    await p.evaluate(() => {
+      const st = document.createElement('style');
+      st.textContent = `.gr{position:fixed;left:1480px;top:50%;transform:translateY(-50%);width:360px;font-family:"Helvetica Neue","Hiragino Sans",sans-serif;font-weight:300;color:#f5f5f7;-webkit-font-smoothing:antialiased;z-index:99}
+      .gr .l{font-size:15px;color:#86868b}.gr b{display:block;margin-top:10px;font-weight:300;font-size:64px;font-variant-numeric:tabular-nums}.gr b small{font-size:24px;color:#86868b;margin-left:8px}
+      .gr .bar{height:1px;background:#2c2c2e;margin-top:26px}.gr .s{margin-top:22px;font-size:20px;color:#86868b}.gr .s.bad{color:#ff6961}`;
+      document.head.appendChild(st);
+      const g = document.createElement('div'); g.className = 'gr';
+      g.innerHTML = '<div class="l">爪の太さ</div><b><span class="v">0.80</span><small>mm</small></b><div class="bar"></div><div class="s">基本の形</div>';
+      document.body.appendChild(g);
+      window.__thin = () => { document.querySelector('.gr .v').textContent = '0.45'; const s = document.querySelector('.gr .s'); s.textContent = '細すぎて、強さが足りない'; s.classList.add('bad'); };
+    });
+    let i = 0;
+    await p.evaluate(() => { const s = window.__studio.session; s.state.prongMm = 0.8; s.build('cine'); s.flush?.(); });
+    await p.waitForTimeout(1200);
+    for (let k = 0; k < 20; k++, i++) { await turn(0.004); await snap(i); }
+    await p.evaluate(() => { const s = window.__studio.session; s.state.prongMm = 0.45; s.build('cine'); s.flush?.(); window.__thin(); });
+    await p.waitForTimeout(1200);
+    for (let k = 0; k < N; k++, i++) { await turn(0.004); await snap(i); }
+  }
   if (shot === 'metal') {
     let i = 0;
     for (const m of ['k18yg', 'pt900', 'k18pg']) {

@@ -1,46 +1,39 @@
 <!doctype html><meta charset="utf-8"><link rel="stylesheet" href="base.css"><style>
-/* 現場（16 秒）：流れ → 「作れない」で清書と CAD を行ったり来たり（回数が増える）→ 継ぐを清書の所に入れると、まっすぐ製作へ */
-.row{position:absolute;left:240px;right:240px;top:420px;display:grid;grid-template-columns:repeat(4,1fr)}
+/* 現場（約 17 秒）：イメージ → 清書 → CAD → 製作。「作れない」で行ったり来たり（回数が増える）
+   → 継ぐなら、最初のイメージの段階から作れる設計に。清書と CAD の行き来を飛ばせる */
+.line{position:absolute;left:330px;right:330px;top:478px;height:1px;background:#333}
+.row{position:absolute;left:180px;right:180px;top:420px;display:grid;grid-template-columns:repeat(4,1fr)}
 .s{text-align:center;opacity:0;animation:in .6s ease forwards}
 .s .lab{display:block;margin-bottom:18px}
-.s b{display:block;font-size:46px;font-weight:400}
+.s b{display:block;font-size:46px;font-weight:400;transition:opacity .6s,color .6s}
 .s span{display:block;margin-top:12px;font-size:21px;color:#86868b}
-.line{position:absolute;left:480px;right:480px;top:470px;height:1px;background:#333;opacity:0;animation:fade .8s ease 1.4s forwards}
-.stage1{animation:out .6s ease 9.4s forwards}
-.ng{position:absolute;top:600px;left:770px;width:380px;text-align:center;opacity:0;animation:fade .3s ease 2.4s forwards}
-.ng i{display:block;margin:0 auto;width:14px;height:14px;border-radius:50%;background:#ff453a;animation:trip 1.4s ease-in-out 2.4s 5 alternate}
-@keyframes trip{from{transform:translateX(-190px)}to{transform:translateX(190px)}}
-.ng p{margin:26px 0 0;font-size:24px;color:#ff6961}
-.cnt{position:absolute;top:740px;left:0;right:0;text-align:center;opacity:0;animation:fade .4s ease 3s forwards}
-.cnt b{font-size:64px;font-weight:300}.cnt span{font-size:22px;color:#86868b;margin-left:12px}
-.stage2{position:absolute;inset:0;opacity:0;animation:fade .8s ease 9.8s forwards}
-.k{position:absolute;left:0;right:0;top:420px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 300px}
-.k .a,.k .c{text-align:center}.k b{display:block;font-size:46px;font-weight:400}.k span{display:block;margin-top:12px;font-size:21px;color:#86868b}
-.box{border:1px solid #f5f5f7;border-radius:14px;padding:30px 54px;text-align:center}
-.box .lab{color:#f5f5f7}
-.box b{font-size:40px}
-.arrow{position:absolute;top:470px;height:1px;background:#f5f5f7;transform-origin:left;transform:scaleX(0);animation:grow .8s ease forwards}
+.skip b,.skip span{animation:dim .8s ease 9.6s forwards}
+@keyframes dim{to{opacity:.18}}
+.strike{position:absolute;top:478px;height:2px;background:#f5f5f7;transform-origin:left;transform:scaleX(0);animation:grow .9s ease 10.4s forwards}
 @keyframes grow{to{transform:scaleX(1)}}
-.ok{position:absolute;left:0;right:0;top:720px;text-align:center;font-size:38px;font-weight:400;opacity:0;animation:in .8s ease 12s forwards}
+.ng{position:absolute;top:640px;left:770px;width:380px;text-align:center;animation:out .5s ease 9.2s forwards}
+.ng i{display:block;margin:0 auto;width:14px;height:14px;border-radius:50%;background:#ff453a;opacity:0;animation:fade .3s ease 2.4s forwards,trip 1.3s ease-in-out 2.4s 5 alternate}
+@keyframes trip{from{transform:translateX(-195px)}to{transform:translateX(195px)}}
+.ng p{margin:24px 0 0;font-size:24px;color:#ff6961;opacity:0;animation:fade .4s ease 2.6s forwards}
+.cnt{position:absolute;top:760px;left:0;right:0;text-align:center;opacity:0;animation:fade .4s ease 3s forwards,out .5s ease 9.2s forwards}
+.cnt b{font-size:64px;font-weight:300}.cnt span{font-size:22px;color:#86868b;margin-left:12px}
+.tg{position:absolute;left:180px;top:310px;white-space:nowrap;opacity:0;animation:in .7s ease 10s forwards}
+.tg span{display:inline-block;padding:10px 22px;border:1px solid #f5f5f7;border-radius:999px;font-size:20px;letter-spacing:.06em}
+.ok{position:absolute;left:0;right:0;top:640px;text-align:center;opacity:0;animation:in .8s ease 11.6s forwards}
+.ok b{display:block;font-size:42px;font-weight:400}
+.ok span{display:block;margin-top:18px;font-size:24px;color:#86868b}
 </style>
-<div class="ch">現場では。</div><div class="sm">デザインから、作るまで</div>
-<div class="stage1">
+<div class="ch">現場では。</div><div class="sm">イメージから、作るまで</div>
 <div class="line"></div>
 <div class="row">
-<div class="s" style="animation-delay:.3s"><span class="lab">Rough</span><b>ラフ</b><span>ディレクター</span></div>
-<div class="s" style="animation-delay:.6s"><span class="lab">Design</span><b>清書</b><span>デザイナー</span></div>
-<div class="s" style="animation-delay:.9s"><span class="lab">CAD</span><b>設計</b><span>CAD</span></div>
+<div class="s" style="animation-delay:.3s"><span class="lab">Image</span><b>イメージ</b><span>ディレクター</span></div>
+<div class="s skip" style="animation-delay:.6s"><span class="lab">Design</span><b>清書</b><span>デザイナー</span></div>
+<div class="s skip" style="animation-delay:.9s"><span class="lab">CAD</span><b>設計</b><span>CAD</span></div>
 <div class="s" style="animation-delay:1.2s"><span class="lab">Make</span><b>製作</b><span>鋳造 ・ 鍛造</span></div>
 </div>
 <div class="ng"><i></i><p>「これは作れない」</p></div>
 <div class="cnt"><b id="n">0</b><span>回、行ったり来たり</span></div>
-</div>
-<div class="stage2">
-<div class="k">
-<div class="a"><b>ラフ ・ 清書</b><span>ディレクター ・ デザイナー</span></div>
-<div class="box"><span class="lab">Tsugu</span><b>描きながら確かめる</b><span>職人の決まりで、作れるか</span></div>
-<div class="c"><b>製作</b><span>鋳造 ・ 鍛造</span></div>
-</div>
-<div class="ok">デザインの段階で、作れるかが分かる。</div>
-</div>
-<script>let n=0;const el=document.getElementById('n');setTimeout(()=>{const t=setInterval(()=>{el.textContent=++n;if(n>=5)clearInterval(t)},1400)},2400+700);</script>
+<div class="tg"><span>継ぐ　イメージの段階で、作れる設計に</span></div>
+<div class="strike" style="left:470px;width:980px"></div>
+<div class="ok"><b>清書と CAD の行き来を、飛ばせる。</b><span>時間も、費用も。</span></div>
+<script>let n=0;const el=document.getElementById('n');setTimeout(()=>{const t=setInterval(()=>{el.textContent=++n;if(n>=5)clearInterval(t)},1300)},3050);</script>

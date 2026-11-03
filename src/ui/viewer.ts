@@ -48,6 +48,8 @@ export class Viewer {
   private grid: THREE.GridHelper;
   private shadow: ContactShadow;
   private framedFor = "";
+  /** 今の指輪で、作れない所に使っている赤い材質（点滅させる。なければ null） */
+  private warnMat: THREE.MeshPhysicalMaterial | null = null;
   /** 描き直しが要るか（動いていない間は描かない。スマホの電池のため） */
   private dirty = true;
 
@@ -79,6 +81,13 @@ export class Viewer {
     const loop = () => {
       // 回している間（慣性で動いている間・自動で回している間を含む）と、中身が変わったときだけ描く
       const moved = this.controls.update();
+      // 作れない所（細すぎる爪・守られていない角）は、赤くゆっくり点滅させて目を引く
+      if (this.warnMat) {
+        const k = 0.5 + 0.5 * Math.sin(performance.now() / 260);
+        this.warnMat.emissive.setHex(WARN);
+        this.warnMat.emissiveIntensity = 0.15 + 0.55 * k;
+        this.dirty = true;
+      }
       if (moved || this.dirty) {
         this.renderer.render(this.scene, this.camera);
         this.dirty = false;
@@ -264,6 +273,7 @@ export class Viewer {
   }
 
   private clear() {
+    this.warnMat = null;
     for (const o of [...this.content.children]) {
       this.content.remove(o);
       o.traverse((m) => {
@@ -307,6 +317,7 @@ export class Viewer {
     const warn = new THREE.MeshPhysicalMaterial({ color: WARN, metalness: 0.35, roughness: 0.3, clearcoat: 0.6, side: THREE.DoubleSide });
     // 問題のある爪の三角形だけ、赤い材質の組に分ける
     const badProngs = new Set(problems.flatMap((p) => (p.target.kind === "prong" ? [p.target.index] : [])));
+    this.warnMat = badProngs.size > 0 || problems.some((p) => p.target.kind === "corner") ? warn : null;
     const settingGeo = ring.ringPositions.settingNormals ? smoothGeometry(ring.ringPositions.setting, ring.ringPositions.settingNormals) : metalGeometry(ring.ringPositions.setting);
     const ranges = ring.setting.prongs
       .map((pr, i) => ({ ...pr.triangles, bad: badProngs.has(i) }))

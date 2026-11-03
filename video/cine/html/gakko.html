@@ -1,36 +1,45 @@
 <!doctype html><meta charset="utf-8"><link rel="stylesheet" href="base.css"><style>
-/* 学校と工房（16 秒）：両方で、聞く順番を待つ（時計が進む）→ 大まかな流れは継ぐで、細かい所は人に */
-.cols{position:absolute;left:120px;right:120px;top:330px;display:grid;grid-template-columns:1fr 1fr;gap:120px;animation:out .6s ease 8.6s forwards}
-.col{border-top:1px solid #333;padding-top:28px;opacity:0;animation:in .6s ease forwards}
-.col h3{margin:12px 0 0;font-size:40px;font-weight:400}
-.col p{margin:12px 0 0;font-size:22px;color:#86868b}
-.q{display:flex;gap:16px;margin-top:44px;align-items:flex-end;height:120px}
-.q i{width:30px;border-radius:15px 15px 4px 4px;background:#3a3a3c;height:96px}
-.q i.t{background:#86868b;height:120px;width:40px;border-radius:20px 20px 4px 4px;margin-right:24px}
-.clk{margin-top:38px}
-.clk b{font-size:72px;font-weight:300}.clk span{font-size:22px;color:#86868b;margin-left:12px}
-.long{position:absolute;left:0;right:0;top:880px;text-align:center;font-size:26px;color:#ff6961;opacity:0;animation:fade .6s ease 6s forwards,out .6s ease 8.6s forwards}
-.after{position:absolute;inset:0;opacity:0;animation:fade .8s ease 9s forwards}
+/* 学校と工房（約 17 秒）：学校（聞く順番を待つ）→ 工房（教えるたびに先輩の手が止まる）→ 大まかな流れは継ぐで、細かい所は人に */
+.b1{position:absolute;inset:0;animation:out .6s ease 6.4s forwards}
+.b2{position:absolute;inset:0;opacity:0;animation:fade .6s ease 7s forwards,out .6s ease 11.6s forwards}
+.b3{position:absolute;inset:0;opacity:0;animation:fade .8s ease 12.2s forwards}
+.hd{position:absolute;left:120px;top:300px}
+.hd h3{margin:12px 0 0;font-size:56px;font-weight:400}
+.hd p{margin:16px 0 0;font-size:24px;color:#86868b}
+.q{position:absolute;left:120px;top:560px;display:flex;gap:18px;align-items:flex-end}
+.q i{width:34px;height:110px;border-radius:17px 17px 4px 4px;background:#3a3a3c;opacity:0;animation:in .4s ease forwards}
+.q i.t{background:#d2d2d7;height:140px;width:46px;border-radius:23px 23px 4px 4px;margin-right:30px;opacity:1;animation:none}
+.clk{position:absolute;left:1100px;top:470px}
+.clk b{font-size:200px;font-weight:200;line-height:1;font-variant-numeric:tabular-nums}
+.clk span{display:block;margin-top:10px;font-size:26px;color:#86868b}
+.work{position:absolute;left:120px;right:120px;top:560px}
+.work .row{display:flex;height:56px;border-radius:8px;overflow:hidden}
+.work .row div{height:100%}
+.work .w{background:#d2d2d7}.work .s{background:#ff453a}
+.work .lg{display:flex;gap:36px;margin-top:22px;font-size:22px;color:#86868b}
+.work .lg i{display:inline-block;width:14px;height:14px;border-radius:3px;margin-right:10px;vertical-align:-1px}
 .bar{position:absolute;left:200px;right:200px;top:460px;display:grid;grid-template-columns:4fr 1fr;gap:10px}
-.bar div{height:84px;border-radius:10px;display:flex;align-items:center;padding:0 32px;font-size:28px;font-weight:400}
+.bar div{height:90px;border-radius:10px;display:flex;align-items:center;padding:0 34px;font-size:30px;font-weight:400}
 .bar .a{background:#f5f5f7;color:#000}.bar .b{background:#2c2c2e;color:#f5f5f7;justify-content:center}
-.bl{position:absolute;left:200px;right:200px;top:420px;display:grid;grid-template-columns:4fr 1fr;gap:10px}
-.end{position:absolute;left:0;right:0;top:680px;text-align:center;font-size:38px;font-weight:400;opacity:0;animation:in .8s ease 11s forwards}
+.bl{position:absolute;left:200px;right:200px;top:418px;display:grid;grid-template-columns:4fr 1fr;gap:10px}
+.end{position:absolute;left:0;right:0;top:680px;text-align:center;font-size:40px;font-weight:400;opacity:0;animation:in .8s ease 13.6s forwards}
 </style>
 <div class="ch">学校と工房では。</div><div class="sm">一人ひとり、違う物を作るとき</div>
-<div class="cols">
-<div class="col" style="animation-delay:.3s"><span class="lab">School</span><h3>学校</h3><p>共通の答えがない。教え合えない。板書もない。</p>
-<div class="q"><i class="t"></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-<div class="clk"><b class="m">0</b><span>分、聞く順番を待つ</span></div></div>
-<div class="col" style="animation-delay:.8s"><span class="lab">Workshop</span><h3>工房</h3><p>職人を育てる現場でも。会社の中の教育でも。</p>
-<div class="q"><i class="t"></i><i></i><i></i><i></i><i></i></div>
-<div class="clk"><b>教える</b><span>たびに、先輩の手が止まる</span></div></div>
+<div class="b1">
+<div class="hd"><span class="lab">School</span><h3>学校</h3><p>共通の答えがない。教え合えない。板書もない。</p></div>
+<div class="q"><i class="t"></i><i style="animation-delay:.6s"></i><i style="animation-delay:.8s"></i><i style="animation-delay:1s"></i><i style="animation-delay:1.2s"></i><i style="animation-delay:1.4s"></i><i style="animation-delay:1.6s"></i><i style="animation-delay:1.8s"></i></div>
+<div class="clk"><b class="m">0</b><span>分、先生に聞く順番を待つ</span></div>
 </div>
-<div class="long" style="left:120px;right:auto;text-align:left">長いときは、1 時間。</div>
-<div class="after">
+<div class="b2">
+<div class="hd"><span class="lab">Workshop</span><h3>工房</h3><p>教えるたびに、先輩の手が止まる。</p></div>
+<div class="work"><div class="row">
+<div class="w" style="flex:3"></div><div class="s" style="flex:.6"></div><div class="w" style="flex:2"></div><div class="s" style="flex:.8"></div><div class="w" style="flex:1.4"></div><div class="s" style="flex:.5"></div><div class="w" style="flex:2.2"></div><div class="s" style="flex:.7"></div><div class="w" style="flex:1.6"></div>
+</div><div class="lg"><span><i style="background:#d2d2d7"></i>自分の仕事</span><span><i style="background:#ff453a"></i>教えるために止まる</span></div></div>
+</div>
+<div class="b3">
 <div class="bl"><span class="lab">大まかな流れ</span><span class="lab" style="text-align:center">細かい所</span></div>
 <div class="bar"><div class="a">継ぐで、自分で分かる</div><div class="b">人に聞く</div></div>
-<div class="end">本当に聞きたいことだけを、人に。<br><span style="font-size:24px;color:#86868b">教える時間も、減らせる。</span></div>
+<div class="end">本当に聞きたいことだけを、人に。</div>
 </div>
-<script>const ms=[...document.querySelectorAll('.m')];const t0=performance.now()+1200;
-const tick=()=>{const u=Math.min(1,Math.max(0,(performance.now()-t0)/4800));const e=u*u*(3-2*u);ms.forEach(m=>m.textContent=Math.round(60*e));if(u<1)requestAnimationFrame(tick)};requestAnimationFrame(tick);</script>
+<script>const m=document.querySelector('.m');const t0=performance.now()+800;
+const tick=()=>{const u=Math.min(1,Math.max(0,(performance.now()-t0)/4600));const e=u*u*(3-2*u);m.textContent=Math.round(60*e);if(u<1)requestAnimationFrame(tick)};requestAnimationFrame(tick);</script>
