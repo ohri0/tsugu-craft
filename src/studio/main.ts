@@ -3,6 +3,7 @@
 // 整える。作れない所が赤く光り、誰のどの決まりかと、見た目への影響つきの直し方が出る。人も同じつまみで直せる。
 // 渡す。  職人への指示書・原寸の型紙・3D データ。
 // 帳面   職人が声で決まりを足すと、その場で確かめが変わる。
+import { summarize, sweepDesigns, sweepOne, type SweepDesign, type SweepResult } from "./sweep";
 import { SAMPLE_DESIGNS, SAMPLE_MAKER, SAMPLE_NOTE, isSample, outlineThumb, sampleState, sampleStone, tuneSample } from "./samples";
 import { MAKING_STEPS, isCheckRule, makingRulesFor, stepsOfRule } from "../rules/making";
 import "./pro.css";
@@ -776,13 +777,78 @@ function compareHtml(): string {
   if (kind !== "solitaire") return "";
   const has = activeRules(store.ledger()).some((r) => r.source.kind === "craftsman" && r.param);
   if (!has) return "";
-  if (!compare) return `<button type="button" class="ghost-d compare-btn">職人の決まりを外して比べる</button>`;
+  if (!compare) return `<button type="button" class="ghost-d compare-btn">職人の決まりを外して比べる</button><button type="button" class="ghost-d sweep-btn">職人の決まりを、よくある 270 の設計に当てる</button>`;
   const pub = session?.built ? numsOf(session.built) : null;
   const c = compare.nums;
   const row = (k: string, a: string, b: string) => `<tr${a !== b ? ` class="diff"` : ""}><th>${k}</th><td>${esc(b)}</td><td>${esc(a)}</td></tr>`;
   return `<section class="compare"><p class="cmp-k">いまは、公開情報の目安だけで組んでいます（職人の決まりを外しています）</p>
     ${pub ? `<table><thead><tr><th></th><th>公開情報だけ</th><th>${esc(masterName(store.ledger()))}さんの決まり</th></tr></thead><tbody>${row("爪", c.prong, pub.prong)}${row("指から上", c.height, pub.height)}${row("石と指のすき間", c.gap, pub.gap)}${row("地金の重さ", c.weight, pub.weight)}${row("作れない所", String(c.probs), String(pub.probs))}</tbody></table>` : ""}
     <button type="button" class="primary compare-back">${esc(masterName(store.ledger()))}さんの決まりに戻す</button></section>`;
+}
+// ---- 一言が、どこまで効くか：よくある 270 の設計に、職人の決まりを当てる ----
+function openSweep() {
+  let el = document.querySelector<HTMLElement>(".sweep");
+  if (!el) {
+    el = document.createElement("div");
+    el.className = "sweep";
+    el.setAttribute("role", "dialog");
+    el.setAttribute("aria-label", "よくある設計に当てる");
+    document.body.appendChild(el);
+  }
+  const ds = sweepDesigns();
+  const name = masterName(store.ledger());
+  const poly = (d: SweepDesign) => {
+    const k = 15 / Math.max(d.preset.longMm, d.preset.widthMm);
+    return d.stone.outlineMm.map((p) => `${(20 + (p.x / d.scale) * k).toFixed(1)},${(20 - (p.y / d.scale) * k).toFixed(1)}`).join(" ");
+  };
+  el.innerHTML = `<div class="sw-in"><button type="button" class="sw-close" aria-label="閉じる">×</button>
+    <p class="sw-k">${esc(name)}さんの決まりを、よくある設計に当てる</p>
+    <h2>石の形 6 × 大きさ 5 × 高さ 3 × 号 3 ＝ ${ds.length} の設計</h2>
+    <p class="sw-sub">それぞれを、公開情報の目安だけで組んだときと、${esc(name)}さんの決まりで組んだときで比べます（どちらも同じ計算。爪の太さは帳面の標準から）。</p>
+    <div class="sw-stats"><div><b class="sw-n">0</b><small>確かめた設計</small></div><div><b class="sw-c">0</b><small>爪が細くなった ・ 太くなった</small></div><div><b class="sw-p">—</b><small>爪の太さの平均</small></div><div><b class="sw-w">—</b><small>地金の重さの合計</small></div></div>
+    <div class="sw-grid">${ds.map((d, i) => `<i class="t" data-i="${i}" title="${esc(d.preset.name)} ${d.stone.longMm.toFixed(1)} mm ・ ${({ low: "低め", standard: "標準", high: "高め" } as const)[d.height]} ・ ${d.gou} 号"><svg viewBox="0 0 40 40"><polygon points="${poly(d)}"/></svg><span></span></i>`).join("")}</div>
+    <p class="sw-note">数字は目安の比べ。最後は職人が決めます。</p></div>`;
+  el.hidden = false;
+  el.scrollTop = 0;
+  let stop = false;
+  const close = () => {
+    stop = true;
+    el!.hidden = true;
+  };
+  el.querySelector(".sw-close")!.addEventListener("click", close);
+  const pub = seedLedger();
+  const craft = store.ledger();
+  const results: SweepResult[] = [];
+  let i = 0;
+  const step = () => {
+    if (stop) return;
+    const t0 = performance.now();
+    while (i < ds.length && performance.now() - t0 < 40) {
+      const r = sweepOne(ds[i], pub, craft);
+      results.push(r);
+      const t = el!.querySelector<HTMLElement>(`.t[data-i="${i}"]`)!;
+      const d = r.after.prongMm - r.before.prongMm;
+      t.classList.add(Math.abs(d) > 0.01 ? (d < 0 ? "thin" : "thick") : "same");
+      t.querySelector("span")!.textContent = r.after.prongMm.toFixed(2);
+      t.title += `\n爪 ${r.before.prongMm.toFixed(2)} → ${r.after.prongMm.toFixed(2)} mm ・ ${r.before.weightG.toFixed(1)} → ${r.after.weightG.toFixed(1)} g`;
+      i++;
+    }
+    const s = summarize(results);
+    el!.querySelector(".sw-n")!.textContent = String(s.total);
+    el!.querySelector(".sw-c")!.textContent = `${s.thinner} ・ ${s.thicker}`;
+    el!.querySelector(".sw-p")!.textContent = `${s.prongBefore.toFixed(2)} → ${s.prongAfter.toFixed(2)} mm`;
+    el!.querySelector(".sw-w")!.textContent = `${s.weightDiffG > 0 ? "+" : "−"}${Math.abs(s.weightDiffG).toFixed(1)} g`;
+    if (i < ds.length) setTimeout(step, 0);
+    else {
+      el!.querySelector(".sw-in")!.classList.add("done");
+      const thick = results.filter((r) => r.after.prongMm > r.before.prongMm + 0.01);
+      if (thick.length) {
+        const max = Math.max(...thick.map((r) => (r.design.stone.longMm + r.design.stone.widthMm) / 2));
+        el!.querySelector(".sw-note")!.textContent = `太くなった ${thick.length} の設計は、石の大きさ ${max.toFixed(1)} mm 以下の小さめの石。決まりが「この大きさの石なら 0.7 mm」を小さめの石にも当てているため。小さめの石の太さは、職人に聞いて決まりに足します。数字は目安の比べ。最後は職人が決めます。`;
+      }
+    }
+  };
+  setTimeout(step, 400);
 }
 function renderCheck() {
   if (kind === "band") return renderBandCheck();
@@ -827,6 +893,7 @@ function renderCheck() {
     <button type="button" class="next-btn to-build">作り方を見る →</button>`;
   bindRules(box);
   box.querySelector(".compare-btn")?.addEventListener("click", () => setCompare(true));
+  box.querySelector(".sweep-btn")?.addEventListener("click", () => openSweep());
   box.querySelector(".compare-back")?.addEventListener("click", () => setCompare(false));
   box.querySelector(".past-fix")?.addEventListener("click", () => fixPastWorks());
   box.querySelector(".claude-fix")?.addEventListener("click", () => void fixWithClaude());
