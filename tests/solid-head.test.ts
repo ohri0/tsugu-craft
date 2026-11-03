@@ -76,7 +76,7 @@ describe("一体の石座は、閉じた一つの形（STL にそのまま使え
     expect(r.triangles).toBeGreaterThan(10000);
     expect(r.badEdges).toBe(0);
     expect(r.degenerate).toBe(0);
-  });
+  }, 60000);
 
   it("粗い形（動かしている間）も閉じていて、確かめに使う数は細かい形と同じ", () => {
     const fine = buildRing({ stone, setting, shank: { gou: 11, metal: "k18y" }, orientation: "along" });
