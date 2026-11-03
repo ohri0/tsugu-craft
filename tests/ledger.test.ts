@@ -138,4 +138,10 @@ describe("石の大きさで割合で変わる決まり（点をまっすぐつ�
     expect(valueFor(r, 13.9)).toBeCloseTo(0.8, 3);
     expect(valueFor(r, 1.5)).toBeLessThan(0.6);
   });
+  it("下限があれば、小さい石でもそれより細くしない（作者：メレでも 0.6 mm）", () => {
+    const r = { bySize: [{ upToMm: 2.5, value: 0.6 }, { upToMm: 8.2, value: 0.7 }], bySizeLine: true, bySizeFloor: 0.6 };
+    expect(valueFor(r, 1.5)).toBeCloseTo(0.6, 5);
+    expect(valueFor(r, 1.0)).toBeCloseTo(0.6, 5);
+    expect(valueFor(r, 8.2)).toBeCloseTo(0.7, 5);
+  });
 });

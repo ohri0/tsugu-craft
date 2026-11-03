@@ -65,7 +65,12 @@ export function whyHtml(): string {
 
   <section class="why-sec">
     <h2>20 年に一度の技は、繰り返しでは覚えられない。</h2>
-    <p>後継ぎが足りない技、できる人が限られた技があります。たとえば、何年もかけて作り、20 年に一度しか作り直さない技。すべての種類を一通り作るだけで 10 年近く。一人の職人が一生のうちに関われるのは、2 回か 3 回。もしもの時、技は途切れてしまう。</p>
+    <p>後継ぎが足りない技、できる人が限られた技があります。たとえば伊勢神宮の式年遷宮では、20 年に一度しか作り直さない技があります。社殿も、御装束神宝と呼ばれる品々も、すべて新しく作り直されます。すべての種類を一通り作るだけで 10 年近く。一人の職人が一生のうちに関われるのは、2 回ほど。もしもの時、技は途切れてしまう。</p>
+    <div class="why-heritage">
+      <figure><img src="/heritage/naiku-goshinpozu.jpg" alt="内宮御神宝図の一部。箱や袋、平緒などの品々が描かれている" loading="lazy" /><figcaption>「内宮御神宝図」（江戸時代の写し）国立国会図書館所蔵／Wikimedia Commons・パブリックドメイン</figcaption></figure>
+      <figure><img src="/heritage/tsuba-carp.jpg" alt="鯉と藻の彫りのある鐔（つば）" loading="lazy" /><figcaption>彫金・金工の例：鯉と藻の鐔（江戸時代）メトロポリタン美術館／Wikimedia Commons・CC0</figcaption></figure>
+      <figure><img src="/heritage/naiku-1953.jpg" alt="1953 年の内宮を空から撮った写真。上が新しい殿舎、下がそれまでの殿舎" loading="lazy" /><figcaption>1953 年の内宮。上が新しい殿舎、下がそれまでの殿舎。本田照夫 撮影／Wikimedia Commons・パブリックドメイン</figcaption></figure>
+    </div>
     ${lifeSvg()}
     <p class="why-note">図は例。年の数字は職人の話から。一点物の石やデザインも同じで、同じ物は二度と来ません。</p>
   </section>

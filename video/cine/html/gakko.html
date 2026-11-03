@@ -21,16 +21,16 @@
 <div class="cols">
 <div class="col" style="animation-delay:.3s"><span class="lab">School</span><h3>学校</h3><p>共通の答えがない。教え合えない。板書もない。</p>
 <div class="q"><i class="t"></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-<div class="clk"><b class="m">0</b><span>分、先生を待つ</span></div></div>
-<div class="col" style="animation-delay:.8s"><span class="lab">Workshop</span><h3>工房</h3><p>職人を育てる現場でも、同じ。</p>
+<div class="clk"><b class="m">0</b><span>分、聞く順番を待つ</span></div></div>
+<div class="col" style="animation-delay:.8s"><span class="lab">Workshop</span><h3>工房</h3><p>職人を育てる現場でも。会社の中の教育でも。</p>
 <div class="q"><i class="t"></i><i></i><i></i><i></i><i></i></div>
-<div class="clk"><b class="m">0</b><span>分、親方を待つ</span></div></div>
+<div class="clk"><b>教える</b><span>たびに、先輩の手が止まる</span></div></div>
 </div>
-<div class="long">長いときは、1 時間。</div>
+<div class="long" style="left:120px;right:auto;text-align:left">長いときは、1 時間。</div>
 <div class="after">
 <div class="bl"><span class="lab">大まかな流れ</span><span class="lab" style="text-align:center">細かい所</span></div>
 <div class="bar"><div class="a">継ぐで、自分で分かる</div><div class="b">人に聞く</div></div>
-<div class="end">本当に聞きたいことだけを、人に。</div>
+<div class="end">本当に聞きたいことだけを、人に。<br><span style="font-size:24px;color:#86868b">教える時間も、減らせる。</span></div>
 </div>
 <script>const ms=[...document.querySelectorAll('.m')];const t0=performance.now()+1200;
 const tick=()=>{const u=Math.min(1,Math.max(0,(performance.now()-t0)/4800));const e=u*u*(3-2*u);ms.forEach(m=>m.textContent=Math.round(60*e));if(u<1)requestAnimationFrame(tick)};requestAnimationFrame(tick);</script>

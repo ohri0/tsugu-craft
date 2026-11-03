@@ -1,12 +1,12 @@
 <!doctype html><meta charset="utf-8"><link rel="stylesheet" href="base.css"><style>
 /* 最初の目標（26 秒）。見出しは字幕の側（ov3）が出す。
    巻物の品々が横に流れる → 1953 年の空からの写真（新旧の殿舎が並ぶ）→ 20 年ごとの受け継ぎ方 */
-.p1{position:absolute;left:0;right:0;top:250px;height:520px;overflow:hidden;opacity:0;animation:fade 1s ease .2s forwards,out .8s ease 9.4s forwards}
-.p1 img{height:520px;animation:pan 10s linear forwards}
+.p1{position:absolute;left:0;right:0;top:250px;height:520px;overflow:hidden;opacity:0;animation:fade 1s ease .2s forwards,out .8s ease 6s forwards}
+.p1 img{height:520px;animation:pan 7s linear forwards}
 @keyframes pan{from{transform:translateX(0)}to{transform:translateX(-3600px)}}
 .cap{position:absolute;left:120px;top:800px}
 .cap b{display:block;margin-top:8px;font-size:28px;font-weight:400}
-.c1{opacity:0;animation:fade .8s ease 1s forwards,out .8s ease 9.4s forwards}
+.c1{opacity:0;animation:fade .8s ease 1s forwards,out .8s ease 6s forwards}
 .p2{position:absolute;left:0;right:0;top:0;bottom:0;opacity:0;animation:fade 1s ease 10s forwards,out .8s ease 16.6s forwards}
 .p2 .ph{position:absolute;left:1000px;top:250px;width:640px;height:772px;overflow:hidden}
 .p2 img{width:640px;animation:zoom 8s ease-out 10s forwards}
@@ -23,10 +23,19 @@
 .y{position:absolute;top:630px}
 .t{position:absolute;left:0;right:0;top:760px;text-align:center;font-size:38px;font-weight:400;opacity:0;animation:in .8s ease 21s forwards,out .6s ease 23.6s forwards}
 .t2{position:absolute;left:0;right:0;top:760px;text-align:center;font-size:38px;font-weight:400;opacity:0;animation:in .8s ease 24.2s forwards}
+.pm{position:absolute;inset:0;opacity:0;animation:fade .8s ease 6.6s forwards,out .8s ease 10.2s forwards}
+.pm .ta{position:absolute;left:120px;top:330px;width:980px;height:420px;object-fit:cover;filter:grayscale(1) contrast(1.1) brightness(.95)}
+.pm .ts{position:absolute;left:1180px;top:270px;height:520px;width:auto;animation:zoom 4s ease-out 6.6s forwards}
+.pm .cap{top:800px}
 </style>
 <div class="p1"><img src="../heritage/naiku-goshinpozu.jpg"></div>
 <div class="cap c1"><span class="lab">Ise Jingu ・ Goshinpo</span><b>御装束神宝　20 年に一度、すべて新しく作り直される品々</b></div>
 <div class="src c1">「内宮御神宝図」江戸時代の写し　国立国会図書館所蔵（Wikimedia Commons・パブリックドメイン）</div>
+<div class="pm">
+<img class="ta" src="../heritage/tachi.jpg"><img class="ts" src="../heritage/tsuba-carp.jpg">
+<div class="cap"><span class="lab">Chokin ・ Kinko</span><b>彫金・金工の品も多い。太刀の金具や、鐔のように</b></div>
+<div class="src">彫金・金工の例（江戸時代ほか）メトロポリタン美術館（Wikimedia Commons・CC0）</div>
+</div>
 <div class="p2">
 <div class="tx"><span class="lab">Shikinen Sengu ・ 1953</span><b>伊勢神宮の式年遷宮。<br>20 年ごとに、社殿も品々も新しく。</b><p>写真の上が新しい殿舎、下がそれまでの殿舎。</p></div>
 <div class="ph"><img src="../heritage/naiku-1953.jpg"></div>
@@ -34,12 +43,10 @@
 </div>
 <div class="p3">
 <div class="tl"></div>
-<div class="c" style="left:200px;animation-delay:17.6s"><i></i><b>1 回目</b><span>先輩が作りながら、<br>後の人に教える</span></div>
-<div class="y lab" style="left:200px;opacity:0;animation:fade .5s ease 17.6s forwards">0 年</div>
-<div class="c" style="left:780px;animation-delay:18.6s"><i></i><b>2 回目</b><span>教わった人が作りながら、<br>次の人に教える</span></div>
-<div class="y lab" style="left:780px;opacity:0;animation:fade .5s ease 18.6s forwards">20 年</div>
-<div class="c" style="left:1360px;animation-delay:19.6s"><i></i><b>3 回目</b><span>一人が関われるのは、<br>ここまで</span></div>
-<div class="y lab" style="left:1360px;opacity:0;animation:fade .5s ease 19.6s forwards">40 年</div>
+<div class="c" style="left:300px;animation-delay:17.6s"><i></i><b>1 回目</b><span>先輩に教わりながら、<br>作る</span></div>
+<div class="y lab" style="left:300px;opacity:0;animation:fade .5s ease 17.6s forwards">0 年</div>
+<div class="c" style="left:1100px;animation-delay:18.8s"><i></i><b>2 回目</b><span>今度は、作りながら次の人に教える。<br>一人が関われるのは、ここまで</span></div>
+<div class="y lab" style="left:1100px;opacity:0;animation:fade .5s ease 18.8s forwards">20 年</div>
 <div class="t">一度でも途切れると、判断ごと消える。</div>
 <div class="t2">だから、作るたびの判断を、データとして残していく。</div>
 </div>

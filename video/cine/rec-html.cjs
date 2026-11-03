@@ -4,7 +4,7 @@ const { chromium, SP, VIDEO } = require('../paths.cjs');
 const fs = require('fs'); const { execFileSync } = require('child_process');
 const D = `${SP}/cine/`;
 // 長さは台本（scenes11.json）の場面より少し長めに（ミリ秒）
-const ALL = { q: 7000, spread: 4500, genba: 17000, gakko: 17000, keisho: 27000, saigen: 9000, end: 11000, 'sizes-public': 9000, 'sizes-craft': 9000 };
+const ALL = { q: 7000, spread: 4500, genba: 17000, gakko: 17000, keisho: 27000, saigen: 13000, end: 11000, 'sizes-public': 9000, 'sizes-craft': 9000 };
 (async () => {
   // html は ../sizes/ の絵を読むので、作業用のフォルダに写してから開く
   fs.cpSync(`${VIDEO}/cine/html`, `${D}html`, { recursive: true });
