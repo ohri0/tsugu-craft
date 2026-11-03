@@ -36,8 +36,8 @@ import { SORT_TIPS, parseTips, tipsFor, tipsPrompt, type Tip } from "./tips";
 import { PRESETS, presetOutline, type StonePreset } from "./presets";
 import { drawingPage, type DrawingView, DRAWING_CSS } from "./drawing";
 import { loadWorks, newWorkId, removeWork, saveWork, updateWork, worksBookHtml, type WorkRecord } from "./works";
-import { KIND_LABEL, toolById, toolsForStep } from "./toolbox";
-import { NOTE, TERMS, type AlloyId } from "./process";
+import { glossOf, markTerms, stepCard } from "./cards";
+import { NOTE, type AlloyId } from "./process";
 import type { Step } from "./howto";
 import { MAKE_BAND, SECTION_LABEL, bandHowTo, bandInnerDiameter, bandMesh, bandPrompt, checkBand, parseBand, type Band, type BandDraft, type SectionKind } from "./band";
 import { metalIdOf } from "./session";
@@ -1245,63 +1245,10 @@ function applyFix(id: string, sess: RingSession = session!) {
   }
 }
 
-// ---- 道具の札：何に使うか・使い方（動く絵）・気をつける所・出典 ----
-function openTool(id: string) {
-  const t = toolById(id);
-  if (!t) return;
-  let el = document.querySelector<HTMLElement>(".tool-sheet");
-  if (!el) {
-    el = document.createElement("div");
-    el.className = "tool-sheet";
-    $(".pro").appendChild(el);
-    el.addEventListener("click", (e) => {
-      if (e.target === el || (e.target as HTMLElement).closest(".ts-close")) el!.hidden = true;
-    });
-  }
-  el.hidden = false;
-  el.innerHTML = `<div class="ts-card" role="dialog" aria-label="${esc(t.name)}">
-    <button type="button" class="ts-close" aria-label="閉じる">×</button>
-    <p class="ts-kind">${esc(KIND_LABEL[t.kind])}</p>
-    <h3>${esc(t.name)}<small>${esc(t.reading)}</small></h3>
-    <p class="ts-what">${esc(t.what)}</p>
-    <h4>使い方</h4><ol>${t.how.map((h) => `<li>${esc(h)}</li>`).join("")}</ol>
-    ${t.watch ? `<p class="ts-watch">${esc(t.watch)}</p>` : ""}
-  </div>`;
-
-}
-
 // ---- 作る。：鋳造と鍛造の工程（この石・この形から計算した数字つき） ----
 /** 画面の地金 → 温度の表の地金（表のない地金は null） */
 function alloyOf(m: Metal): AlloyId | null {
   return m === "k18yg" ? "k18y" : m === "pt900" ? "pt900" : m === "sv925" ? "sv925" : null;
-}
-// 説明のある言葉（1 文字の言葉は、ほかの言葉の中に入りやすいので印を付けない）
-const LINKED = TERMS.filter((t) => t.word.length > 1).sort((a, b) => b.word.length - a.word.length);
-const TERM_RE = new RegExp(LINKED.map((t) => t.word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "g");
-/** 文の中の言葉に印を付ける（同じ言葉は 1 回だけ）。text は esc 済み */
-function withTerms(text: string, seen: Set<string>): string {
-  return text.replace(TERM_RE, (w) => {
-    if (seen.has(w)) return w;
-    seen.add(w);
-    return `<button type="button" class="term" data-term="${w}">${w}</button>`;
-  });
-}
-/** 「詳しく」の中身。同じ見出し（「焼成：」など）が続くときは、見出しを 1 回だけ出す */
-function detailsHtml(list: NonNullable<Step["details"]>, seen: Set<string>): string {
-  let last = "";
-  return list
-    .map((d) => {
-      const m = /^([^：]{1,10})：(.*)$/.exec(d.text);
-      // 「詳しく」の中は、1 行ごとに言葉の印を付ける（上の文で出た言葉も、ここで押せる）
-      void seen;
-      if (!m) return `<li>${withTerms(esc(d.text), new Set())}</li>`;
-      // 見出しは、その見出しの最初の行の頭に太字で（「湯道：いちばん厚い所に…」）。続く行は見出しなし
-      const lead = m[1] === last ? "" : `<b class="lab">${withTerms(esc(m[1]), new Set())}</b>：`;
-      const first = m[1] !== last;
-      last = m[1];
-      return `<li class="${first ? "first" : "cont"}">${lead}${withTerms(esc(m[2]), new Set())}</li>`;
-    })
-    .join("");
 }
 /** 前の記録から：この工程で、前に職人が話したコツ */
 function pastTipsHtml(title: string): string {
@@ -1309,34 +1256,60 @@ function pastTipsHtml(title: string): string {
   if (!past.length) return "";
   return `<div class="past"><small>前の記録から</small>${past.map((t) => `<p><i class="k-${t.kind}">${esc(t.kind)}</i>${esc(t.text)}<span>${esc(t.maker || "職人")} ・ ${esc(t.date)}</span></p>`).join("")}</div>`;
 }
+/** ＋（開くと −）の丸 */
+const PLUS_ICON = `<svg class="pm" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8.5"/><path d="M6 10h8"/><path class="v" d="M10 6v8"/></svg>`;
+/**
+ * 作り方の札：番号・題・ひとこと・この指輪の数字の表・職人の決まり・前の記録・「＋ 詳しく」。
+ * 道具は「詳しく」の「道具」の行に、押せる言葉として入る（札の下の道具の並びはやめた）。
+ */
 function stepsHtml(steps: Step[]): string {
-  return `<ol class="steps-b">${steps
+  return `<ol class="cards">${steps
     .map((st, i) => {
-      const seen = new Set<string>();
-      const tools = toolsForStep(st.title);
-      return `<li><span class="n">${String(i + 1).padStart(2, "0")}</span><div><b>${esc(st.title)}</b><p>${withTerms(esc(st.text), seen)}</p>${
-        st.specs.length ? `<dl>${st.specs.map((x) => `<div><dt>${esc(x.label)}</dt><dd>${esc(x.value)}</dd></div>`).join("")}</dl>` : ""
-      }${st.watch ? `<p class="watch">${esc(st.watch)}</p>` : ""}${
-        st.details?.length ? `<details class="more"><summary>詳しく</summary><ul>${detailsHtml(st.details, seen)}</ul></details>` : ""
-      }${makingRulesHtml(st.id)}${pastTipsHtml(st.title)}${tools.length ? `<div class="tools-row">${tools.map((t) => `<button type="button" class="tool-chip" data-tool="${t.id}">${esc(t.name)}</button>`).join("")}</div>` : ""}</div></li>`;
+      const c = stepCard(st, i);
+      const body = c.groups
+        .map(
+          (g) =>
+            `${g.group ? `<li class="grp">${markTerms(esc(g.group))}</li>` : ""}${g.lines
+              .map((l) => {
+                const seen = new Set<string>();
+                return `<li${l.lead === "道具" ? ' class="tools-line"' : ""}>${l.lead ? `<b${l.head ? ' class="h"' : ""}>${markTerms(esc(l.lead), seen)}</b>` : ""}${markTerms(esc(l.text), seen)}</li>`;
+              })
+              .join("")}`,
+        )
+        .join("");
+      return `<li class="mk-card">
+        <div class="card-head"><span class="n">${c.no}</span><div><h3>${esc(c.title)}</h3><p class="card-lead">${markTerms(esc(c.text))}</p></div></div>
+        ${c.rows.length ? `<table class="spec">${c.rows.map((x) => `<tr><th scope="row">${esc(x.label)}</th><td>${esc(x.value)}</td></tr>`).join("")}</table>` : ""}
+        ${c.watch ? `<p class="watch">${markTerms(esc(c.watch))}</p>` : ""}
+        ${makingRulesHtml(st.id)}${pastTipsHtml(st.title)}
+        ${body ? `<details class="more"><summary>${PLUS_ICON}詳しく</summary><ul class="lines">${body}</ul></details>` : ""}
+      </li>`;
     })
     .join("")}</ol>`;
 }
-/** 言葉を押すと、その文のすぐ下に意味を出す（もう一度押すと消す） */
+/** 言葉を押すと、その行のすぐ下に、やわらかい箱で意味を出す（もう一度押すと消す。道具なら使い方も） */
 function bindTerms(box: HTMLElement) {
   box.querySelectorAll<HTMLButtonElement>(".term").forEach((b) =>
     b.addEventListener("click", () => {
       const word = b.dataset.term!;
-      const host = b.closest<HTMLElement>("p, li")!;
-      const open = host.parentElement!.querySelector<HTMLElement>(`:scope > .term-def[data-term="${word}"]`);
+      const line = b.closest<HTMLElement>("li, p")!;
+      // 行（li）の中なら行の終わりに、文（p）なら文のすぐ後に置く
+      const inLi = line.tagName === "LI";
+      const scope = inLi ? line : line.parentElement!;
+      const open = scope.querySelector<HTMLElement>(`:scope > .term-def[data-term="${word}"]`);
       b.setAttribute("aria-expanded", String(!open));
       if (open) return open.remove();
-      const t = TERMS.find((x) => x.word === word)!;
+      const g = glossOf(word);
+      if (!g) return;
       const el = document.createElement("div");
       el.className = "term-def";
       el.dataset.term = word;
-      el.innerHTML = `<b>${esc(t.word)}</b>${t.reading ? `<small>${esc(t.reading)}</small>` : ""}<span>${esc(t.meaning)}</span>`;
-      host.after(el);
+      const t = g.tool;
+      el.innerHTML = `<p class="td-h"><b>${esc(g.word)}</b>${g.reading ? `<small>${esc(g.reading)}</small>` : ""}${t ? `<i>道具 ・ ${esc(t.kind)}</i>` : ""}</p>
+        <p>${esc(g.meaning)}</p>${t && t.what !== g.meaning ? `<p>${esc(t.what)}</p>` : ""}
+        ${t ? `<p class="td-sub">使い方${t.name !== g.word ? `（${esc(t.name)}）` : ""}</p><ol>${t.how.map((h) => `<li>${esc(h)}</li>`).join("")}</ol>${t.watch ? `<p class="td-watch">${esc(t.watch)}</p>` : ""}` : ""}`;
+      if (inLi) line.appendChild(el);
+      else line.after(el);
     }),
   );
 }
@@ -1387,7 +1360,6 @@ function renderBuild() {
     }),
   );
   box.querySelector(".to-check")?.addEventListener("click", () => setMode("refine"));
-  box.querySelectorAll<HTMLButtonElement>(".tool-chip").forEach((c) => c.addEventListener("click", () => openTool(c.dataset.tool!)));
   bindTerms(box);
   box.querySelector(".p-instr")!.addEventListener("click", () => askPrint(true, (pick) => {
     const svg = sheet();
@@ -1879,7 +1851,6 @@ function renderBandBuild() {
   box.querySelector(".p-save")!.addEventListener("click", () => openSaveWork(box.querySelector(".save-work")!, bandData()));
   box.querySelectorAll<HTMLButtonElement>(".method button").forEach((b) => b.addEventListener("click", () => ((method = b.dataset.m as Method), renderBandBuild())));
   box.querySelector(".to-check")?.addEventListener("click", () => setMode("refine"));
-  box.querySelectorAll<HTMLButtonElement>(".tool-chip").forEach((c) => c.addEventListener("click", () => openTool(c.dataset.tool!)));
   bindTerms(box);
   box.querySelector(".p-instr")!.addEventListener("click", () => askPrint(false, (pick) =>
     openPrint(
@@ -1945,13 +1916,14 @@ async function makeBand() {
 // ---- 図面：3D から正面・横・上の線画を描き、寸法を入れる ----
 const DRAW_PX = 40;
 type DView = "front" | "side" | "top";
-function views(list: [DView, string][], dimsOf: (v: DView, box: { min: number[]; max: number[] }) => Dim[]): DrawingView[] {
+function views(list: [DView, string][], dimsOf: (v: DView, box: { min: number[]; max: number[] }) => Dim[], px = DRAW_PX): DrawingView[] {
   return list.map(([v, name]) => {
-    const d = viewer.drawing(v, DRAW_PX);
+    const d = viewer.drawing(v, px);
     return { name, url: d.url, widthMm: d.widthMm, heightMm: d.heightMm, widthPx: d.widthPx, heightPx: d.heightPx, project: d.project, dims: dimsOf(v, d.box) };
   });
 }
-function solitaireDrawing(b: Built, problems: string[]): string {
+/** 一粒石の指輪の図面。いま 3D に出ている形（b）を描く。記録に残すときは px を小さくして軽くする */
+function solitaireDrawing(b: Built, problems: string[], sess: RingSession = session!, info: StoneInfo = currentStone(), px = DRAW_PX): string {
   const r = b.ring;
   const lift = r.shank.outerRadiusMm;
   const ri = r.shank.innerDiameterMm / 2;
@@ -1959,7 +1931,7 @@ function solitaireDrawing(b: Built, problems: string[]): string {
   const h = r.stone.heights;
   const c = Math.cos(t.rotationZ);
   const sn = Math.sin(t.rotationZ);
-  const pts = stone!.measured.outlineMm.map((q) => ({ x: q.x * c - q.y * sn, y: q.x * sn + q.y * c }));
+  const pts = info.outlineMm.map((q) => ({ x: q.x * c - q.y * sn, y: q.x * sn + q.y * c }));
   const xs = pts.map((q) => q.x);
   const ys = pts.map((q) => q.y);
   const girdleZ = t.translateZ + h.culetZ + h.pavilionMm + lift;
@@ -1968,14 +1940,14 @@ function solitaireDrawing(b: Built, problems: string[]): string {
   const wide = Math.max(...xs) - Math.min(...xs);
   const deep = Math.max(...ys) - Math.min(...ys);
   const html = drawingPage({
-    title: `${stone!.shapeName}の一粒石の指輪`,
+    title: `${info.shapeName}の一粒石の指輪`,
     date: today(),
-    pxPerMm: DRAW_PX,
+    pxPerMm: px,
     problems,
     rows: [
-      { label: "号・内径", value: `${session!.state.gou} 号 ・ ø${(ri * 2).toFixed(1)}` },
-      { label: "地金・重さ", value: `${METAL_LABEL[session!.state.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g` },
-      { label: "石", value: `${stone!.measured.longMm.toFixed(2)} × ${stone!.measured.widthMm.toFixed(2)} × ${stone!.depthMm.toFixed(2)}` },
+      { label: "号・内径", value: `${sess.state.gou} 号 ・ ø${(ri * 2).toFixed(1)}` },
+      { label: "地金・重さ", value: `${METAL_LABEL[sess.state.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g` },
+      { label: "石", value: `${info.longMm.toFixed(2)} × ${info.widthMm.toFixed(2)} × ${info.depthMm.toFixed(2)}` },
       { label: "留め方", value: r.setting.style === "bezel" ? `覆輪 ・ 壁 ${r.setting.bezel?.wallMm.toFixed(2)}` : `爪 ${r.setting.prongs.length} ・ ø${r.setting.prongs[0]?.diameterMm.toFixed(2)}` },
     ],
     views: views(
@@ -2004,11 +1976,12 @@ function solitaireDrawing(b: Built, problems: string[]): string {
           { a: [0, Math.min(...ys), top], b: [0, Math.max(...ys), top], ext: [box.max[0] + 3, 0, 0], label: `${deep.toFixed(2)}` },
         ];
       },
+      px,
     ),
   });
   return html;
 }
-function bandDrawing(problems: string[]): string {
+function bandDrawing(problems: string[], px = DRAW_PX): string {
   const ri = bandInnerDiameter(band.gou) / 2;
   let zmin = Infinity;
   const p = bandPositions!;
@@ -2019,7 +1992,7 @@ function bandDrawing(problems: string[]): string {
   return drawingPage({
     title: bandName(),
     date: today(),
-    pxPerMm: DRAW_PX,
+    pxPerMm: px,
     problems,
     rows: [
       { label: "号・内径", value: `${band.gou} 号 ・ ø${(ri * 2).toFixed(1)}` },
@@ -2044,6 +2017,7 @@ function bandDrawing(problems: string[]): string {
               { a: [-band.top.width / 2, 0, ztop], b: [band.top.width / 2, 0, ztop], ext: [0, 0, 3], label: `幅 ${band.top.width.toFixed(1)}`, bad: titles.includes("幅") },
               { a: [-band.bottom.width / 2, 0, zmin], b: [band.bottom.width / 2, 0, zmin], ext: [0, 0, -3], label: `幅 ${band.bottom.width.toFixed(1)}`, bad: titles.includes("幅") },
             ],
+      px,
     ),
   });
 }
@@ -2078,6 +2052,8 @@ interface WorkData {
   problems: string[];
   steps: ReturnType<typeof howToMake>;
   design?: WorkRecord["design"];
+  /** 図面（いま 3D に出ている形から描く。見本のように 3D に出ていない物は、帳面を開くときに描く） */
+  drawing?: () => string;
 }
 function solitaireData(sess: RingSession = session!, info: StoneInfo = currentStone(), route: Method = method): WorkData {
   const b = sess.built!;
@@ -2097,6 +2073,7 @@ function solitaireData(sess: RingSession = session!, info: StoneInfo = currentSt
     ],
     problems: grouped(b).map(({ p }) => `${SHORT[p.check] ?? p.where}（${p.current} → ${p.required}）`),
     steps: howToMake(howInput(b, sess, info), route),
+    drawing: () => solitaireDrawing(b, grouped(b).map(({ p }) => SHORT[p.check] ?? p.where), sess, info, BOOK_PX),
   };
 }
 function bandData(): WorkData {
@@ -2112,7 +2089,39 @@ function bandData(): WorkData {
     ],
     problems: checkBand(band).map((p) => `${p.title}（${p.current} → ${p.required}）`),
     steps: bandHowTo(band, method, bandWeight, alloyOf(bandMetal)),
+    drawing: () => (bandPositions ? bandDrawing(checkBand(band).map((p) => p.title), BOOK_PX) : ""),
   };
+}
+/** 記録に残す図面の細かさ（1 mm あたりの px）。このブラウザの入れ物が小さいので、印刷の図面より粗く */
+const BOOK_PX = 24;
+function safeDrawing(f?: () => string): string | undefined {
+  try {
+    return f?.() || undefined;
+  } catch {
+    return undefined;
+  }
+}
+/** 図面のない記録（見本・前の記録）に、組み直した形から図面を描いて足す。描いたあと、3D を元の形に戻す */
+function fillDrawings(works: WorkRecord[]): WorkRecord[] {
+  const need = works.filter((w) => !w.drawing && w.design);
+  if (!need.length) return works;
+  const out = works.map((w) => {
+    if (w.drawing || !w.design) return w;
+    const s = workSession(w);
+    if (!s?.built) return w;
+    const st = w.design.stone;
+    viewer.setRing(s.built.ring, { color: stone?.extraction.color ?? { r: 200, g: 220, b: 240 }, colorless: true }, s.built.problems);
+    const shapeName = w.title.replace(/^見本：/, "").replace(/の一粒石の指輪.*$/, "");
+    const drawing = safeDrawing(() => solitaireDrawing(s.built!, probLabels(s.built!).map((t) => t.replace(/（.*$/, "")), s, { shapeName, outlineMm: st.outlineMm, longMm: st.longMm, widthMm: st.widthMm, depthMm: st.depthMm }, BOOK_PX));
+    if (!drawing) return w;
+    const next = { ...w, drawing };
+    updateWork(next);
+    return next;
+  });
+  // 3D を、いま作っている形に戻す
+  if (kind === "band") showBand();
+  else if (session?.built && stone) viewer.setRing(session.built.ring, { color: stone.extraction.color, colorless: stone.extraction.colorless }, session.built.problems);
+  return out;
 }
 function thumbnail(): string {
   viewer.snapshot(); // いまの形を描き直してから切り出す
@@ -2169,6 +2178,7 @@ function openSaveWork(slot: HTMLElement, data: WorkData) {
       maker,
       tips,
       design: data.design,
+      drawing: safeDrawing(data.drawing),
     });
     if (!ok) {
       slot.innerHTML = `<p class="build-warn">このブラウザにはもう入りません。「記録」で古い物を消してください。</p>`;
@@ -2226,7 +2236,7 @@ function renderWorks() {
       )
       .join("")}</ul>
     <nav class="places-sm" aria-label="ほかの場所"><small>ほかの場所</small><a href="app.html#see">学ぶ<span>次の人が、手本と比べ、なぜ？と聞く</span></a><a href="app.html#keep">残す<span>職人が、決まり・手本・答えを残す</span></a><a href="app.html#rebuild">組み立て直す<span>途切れた技を、手がかりから</span></a></nav>`;
-  box.querySelector(".w-print")?.addEventListener("click", () => openPrint(worksBookHtml(loadWorks(), today())));
+  box.querySelector(".w-print")?.addEventListener("click", () => openPrint(worksBookHtml(fillDrawings(loadWorks()), today())));
   box.querySelector(".w-samples")?.addEventListener("click", () => {
     addSampleWorks();
     renderWorks();

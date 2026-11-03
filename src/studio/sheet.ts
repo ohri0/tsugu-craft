@@ -1,6 +1,7 @@
 // 指示書（印刷用）：1 枚目に、品の画像・大事な数字・作れるか・作り方の工程。2 枚目に原寸の型紙。言葉は短く、数字を大きく。
 import type { Step } from "./howto";
 import { DRAWING_CSS } from "./drawing";
+import { CARDS_PRINT_CSS, cardsPrintHtml } from "./cards";
 
 export interface SheetInput {
   title: string;
@@ -45,17 +46,9 @@ dd { margin: 0.5mm 0 0; font-size: 11pt; font-variant-numeric: tabular-nums; }
 .ok { background: #e6f2ea; color: #1f5c39; }
 .ng { background: #f8e3de; color: #8a2a1c; }
 h2 { font-weight: 700; font-size: 11pt; margin: 6mm 0 3mm; }
-ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 3mm; counter-reset: s; }
-li { counter-increment: s; border: 0.3mm solid #ddd; border-radius: 2mm; padding: 3mm 3.5mm; break-inside: avoid; }
-li h3 { margin: 0 0 1mm; font-size: 10.5pt; }
-li h3::before { content: counter(s, decimal-leading-zero) "  "; color: #888; font-weight: 600; }
-li p { margin: 0 0 1.5mm; font-size: 9pt; line-height: 1.55; }
-li table { border-collapse: collapse; width: 100%; font-size: 9pt; }
-li td { padding: 0.6mm 0; vertical-align: top; }
-li td:first-child { color: #666; width: 32%; }
-li .w { color: #8a2a1c; font-size: 8.5pt; }
-ul.d { margin: 1.5mm 0 0; padding-left: 3.5mm; font-size: 7.5pt; line-height: 1.5; color: #333; display: block; }
-ul.d li { border: 0; padding: 0; counter-increment: none; }
+${CARDS_PRINT_CSS}
+.two .sc { grid-template-columns: 1fr 1fr; }
+.two .sc-body { margin-left: 0; }
 .foot { margin-top: 4mm; font-size: 7.5pt; color: #666; }
 </style></head><body>
 ${o.drawingHtml ?? ""}
@@ -69,11 +62,7 @@ ${o.includeSteps === false ? "" : `<section class="page">
     </div>
   </div>
   <h2>作り方（${esc(o.methodLabel)}）</h2>
-  <ol>${o.steps
-    .map(
-      (s) => `<li><h3>${esc(s.title)}</h3><p>${esc(s.text)}</p>${s.specs.length ? `<table>${s.specs.map((x) => `<tr><td>${esc(x.label)}</td><td>${esc(x.value)}</td></tr>`).join("")}</table>` : ""}${s.watch ? `<p class="w">！ ${esc(s.watch)}</p>` : ""}${o.includeDetails && s.details?.length ? `<ul class="d">${s.details.map((d) => `<li>${esc(d.text)}</li>`).join("")}</ul>` : ""}</li>`,
-    )
-    .join("")}</ol>
+  <div class="${o.includeDetails ? "one" : "two"}">${cardsPrintHtml(o.steps, { details: !!o.includeDetails })}</div>
   <p class="foot">数字は、この石とこの形から計算した目安です。手順は一般的な作り方の例で、最後は職人が決めます。${o.patternSvg ? "最後のページは原寸の型紙（「実際のサイズ・100%」で印刷）。" : ""}</p>
 </section>`}
 ${o.patternSvg ? `<section class="page">${o.patternSvg}</section>` : ""}
