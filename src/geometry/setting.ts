@@ -22,6 +22,8 @@ export interface ProngSpec {
 }
 
 export interface SettingParams {
+  /** 爪の最低の太さ（mm）。目安帳に職人の決まりがあればその値（なければ guides.ts の式）。標準の太さは これ × 倍率 */
+  minProngMm?: number;
   stone: StoneParams;
   style: SettingStyle;
   /** 高さ：低め / 標準 / 高め。既定は標準 */
@@ -210,7 +212,7 @@ export interface ProngPlan {
 /** 爪の位置を決める（形はまだ作らない）。選んだ角を先に守り、残りは縁に均等に配る。t の小さい順 */
 export function planProngs(params: SettingParams, corners: readonly Corner[] = findCorners(params.stone.outlineMm)): ProngPlan[] {
   const s = params.stone;
-  const d = params.prongDiameterMm ?? standardProngMm(stoneSizeMm(s.longMm, s.widthMm));
+  const d = params.prongDiameterMm ?? stdProngFor(params);
   if (params.prongs) {
     return params.prongs.map((p) => ({ t: wrap(p.t), isV: !!p.v, diameterMm: p.diameterMm ?? d })).sort((a, b) => a.t - b.t);
   }
@@ -609,12 +611,18 @@ function ascending(zs: number[], from: number, to: number): number[] {
   return out;
 }
 
+/** 標準の爪の太さ：最低（職人の決まりか guides.ts の式）× 倍率 */
+function stdProngFor(params: SettingParams): number {
+  const size = stoneSizeMm(params.stone.longMm, params.stone.widthMm);
+  return params.minProngMm !== undefined ? params.minProngMm * GUIDES.prong.standardFactor : standardProngMm(size);
+}
+
 export function buildSetting(params: SettingParams): SettingResult {
   const f = frameOf(params.stone);
   const h = f.h;
   const k = stoneKnots(h);
   const size = stoneSizeMm(params.stone.longMm, params.stone.widthMm);
-  const dStd = standardProngMm(size);
+  const dStd = stdProngFor(params);
   const shankT = params.shankThicknessMm ?? GUIDES.shank.thicknessMm;
   const wall = params.bezelWallMm ?? GUIDES.bezel.wallMm;
   const cl = GUIDES.bezel.clearanceMm;
@@ -852,7 +860,7 @@ export function buildSetting(params: SettingParams): SettingResult {
       heightAboveFingerMm: topZ - v.fingerZ,
     },
     corners,
-    minProngMm: minProngMm(size),
+    minProngMm: params.minProngMm ?? minProngMm(size),
     standardProngMm: dStd,
     standardLengthMm,
   };

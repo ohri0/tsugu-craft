@@ -112,3 +112,19 @@ describe("石の大きさで変わる決まり", () => {
     expect(ledgerText(l)).toContain("石の大きさ 4 mm まで 0.6mm");
   });
 });
+
+describe("職人の爪の最低の太さ", () => {
+  it("決まりがあると、標準の爪はその値 × 倍率になり、石の大きさで値が変わる", async () => {
+    const { RingSession } = await import("../src/studio/session");
+    const { stoneFrom } = await import("./helpers/stones");
+    const { triangle } = await import("./helpers/synth");
+    const { addRule, seedLedger } = await import("../src/rules/ledger");
+    const { GUIDES } = await import("../src/rules/guides");
+    const led = addRule(seedLedger(), { title: "爪", text: "爪", reason: "落ちる", param: "prong.minDiameterMm", value: 0.7, bySize: [{ upToMm: 3, value: 0.6 }, { upToMm: null, value: 0.7 }], source: { kind: "craftsman", name: "石川" }, date: "2026-11-03" });
+    const big = new RingSession(stoneFrom(triangle(200, 200, 160, 140), 8.88, 4.24), () => led, () => undefined, () => "").build("x");
+    expect(big.ring.setting.standardProngMm).toBeCloseTo(0.7 * GUIDES.prong.standardFactor, 5);
+    expect(big.ring.setting.prongs[0].diameterMm).toBeCloseTo(0.7 * GUIDES.prong.standardFactor, 5);
+    const small = new RingSession(stoneFrom(triangle(200, 200, 160, 140), 2.5, 1.5), () => led, () => undefined, () => "").build("x");
+    expect(small.ring.setting.standardProngMm).toBeCloseTo(0.6 * GUIDES.prong.standardFactor, 5);
+  });
+});

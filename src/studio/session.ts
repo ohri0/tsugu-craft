@@ -4,8 +4,8 @@ import { buildRing, type RingDesign } from "../geometry/ring";
 import { tAtOutlineIndex, type SolidQuality } from "../geometry/setting";
 import type { StoneParams } from "../geometry/stone";
 import { FIXES, checkRing, holdRatio, type FixId, type Problem } from "../rules/checks";
-import { GUIDES, requiredHold, standardProngMm, stoneSizeMm, type HeightOption, type MetalId, type StonePosition } from "../rules/guides";
-import { effectiveGuides, ruleForCheck, type Ledger, type Rule } from "../rules/ledger";
+import { GUIDES, requiredHold, stoneSizeMm, type HeightOption, type MetalId, type StonePosition } from "../rules/guides";
+import { effectiveGuides, prongMinOverride, ruleForCheck, type Ledger, type Rule } from "../rules/ledger";
 import type {
   CheckResult,
   FixOption,
@@ -165,6 +165,8 @@ export class RingSession implements ToolHost<RingState> {
   private compose(quality: SolidQuality): Built {
     const s = this.state;
     const outline = this.stone.outlineMm;
+    const ledger = this.ledger();
+    const guides = effectiveGuides(ledger, this.sizeMm());
     const ring = buildRing({
       stone: this.stone,
       setting: {
@@ -173,6 +175,7 @@ export class RingSession implements ToolHost<RingState> {
         culetGapMm: s.culetGapMm,
         prongCount: s.prongCount,
         prongDiameterMm: s.prongMm,
+        minProngMm: prongMinOverride(guides),
         prongs: s.prongPositions?.length ? s.prongPositions.map((i) => ({ t: tAtOutlineIndex(outline, i) })) : undefined,
         solid: this.solid,
         solidQuality: quality,
@@ -182,8 +185,7 @@ export class RingSession implements ToolHost<RingState> {
       shank: { gou: s.gou, metal: metalIdOf(s.metal), widthMm: s.shankWidthMm, thicknessMm: s.shankThicknessMm },
       orientation: s.orientation,
     });
-    const ledger = this.ledger();
-    const problems = checkRing(ring, { position: s.position, guides: effectiveGuides(ledger, this.sizeMm()) }).map((p) => ({ ...p, rule: ruleForCheck(ledger, p.check) }));
+    const problems = checkRing(ring, { position: s.position, guides }).map((p) => ({ ...p, rule: ruleForCheck(ledger, p.check) }));
     return { ring, problems };
   }
 
@@ -252,7 +254,7 @@ export class RingSession implements ToolHost<RingState> {
 
   check(): CheckResult {
     const b = this.built ?? this.build();
-    const std = standardProngMm(this.sizeMm());
+    const std = b.ring.setting.standardProngMm;
     const failed = new Set(b.problems.map((p) => p.check));
     return {
       problems: b.problems.map((p) => ({
