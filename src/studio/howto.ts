@@ -4,6 +4,7 @@
 // 手順は宝飾の一般的な作り方の例で、作者（宝飾の彫金職人）が確かめて直す。温度や縮みの量のように、
 // 形から出せず出典もない数字は書かない（鋳造所・職人の値を使う、と書く）。
 import type { RingDesign } from "../geometry/ring";
+import { SHANK_SECTION_LABEL } from "../geometry/shank";
 import { perimeter } from "../geometry/polygon";
 import type { AlloyId, Detail } from "./process";
 import { castSteps, finishStep, forgeSteps, settingStep } from "./steps";
@@ -110,7 +111,7 @@ export function howToMake(o: HowToInput, method: Method): Step[] {
   if (method === "cast") {
     return [
       ...castSteps({
-        modelSpecs: [...head, { label: "腕", value: `幅 ${mm(sh.widthMm)} × 厚み ${mm(sh.thicknessMm)}` }, ...settingSpecs],
+        modelSpecs: [...head, { label: "腕", value: `${SHANK_SECTION_LABEL[sh.section]} ・ 幅 ${mm(sh.widthMm)} × 厚み ${mm(sh.thicknessMm)}` }, ...settingSpecs],
         sprueAt: "腕の下（石座の反対側）",
         metalLabel: o.metalLabel,
         weightG: r.metalWeightG,
@@ -127,7 +128,7 @@ export function howToMake(o: HowToInput, method: Method): Step[] {
       materialText: "腕の線と、石座の材料を用意する。",
       materialSpecs: [
         ...head,
-        { label: "腕の線", value: `${mm(sh.widthMm)} × ${mm(sh.thicknessMm)} ・ 長さ 約 ${mm(m.shankLength)}` },
+        { label: "腕の線", value: `${SHANK_SECTION_LABEL[sh.section]} ${mm(sh.widthMm)} × ${mm(sh.thicknessMm)} ・ 長さ 約 ${mm(m.shankLength)}` },
         ...settingSpecs,
         ...(m.galleryWire && s.style !== "bezel" ? [{ label: "支えの輪", value: `ø ${mm(m.galleryWire, 2)} ・ 長さ 約 ${mm(m.girdleLen)}（石の縁の周）` }] : []),
       ],

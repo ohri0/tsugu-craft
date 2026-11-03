@@ -121,10 +121,13 @@ export function sectionControlPoints(section: ShankSection): SectionPoint[] {
   if (section === "kouman") return angles.map((a) => ({ x: Math.cos(a), y: Math.sin(a) }));
   if (section === "hangouman") {
     const e = SECTION_SHAPE.hangoumanWall;
-    return [...angles.map((a) => ({ x: Math.cos(a), y: e + (1 - e) * Math.sin(a) })), { x: 1, y: 0 }];
+    return [...[90, 55, 25, 0].map((d) => (d * Math.PI) / 180).map((a) => ({ x: Math.cos(a), y: e + (1 - e) * Math.sin(a) })), { x: 1, y: 0 }];
   }
   const n = section === "kaku" ? SECTION_SHAPE.kakuN : SECTION_SHAPE.hirauchiN;
-  return [...[90, 45, 20, 8].map((d) => (d * Math.PI) / 180).map((a) => ({ x: Math.cos(a) ** (2 / n), y: Math.sin(a) ** (2 / n) })), { x: 1, y: 0 }];
+  // 角の丸い四角：上の面に 2 点、角の近くに 1 点、横の面に 1 点（指でつまみやすいよう、点が重ならない所に置く）
+  const top = (x: number) => ({ x, y: (1 - x ** n) ** (1 / n) });
+  const side = (y: number) => ({ x: (1 - y ** n) ** (1 / n), y });
+  return [{ x: 0, y: 1 }, top(0.55), top(0.88), side(0.45), { x: 1, y: 0 }];
 }
 
 /**
