@@ -231,7 +231,11 @@ export class RingSession implements ToolHost<RingState> {
   setSetting(input: SetSettingInput): SetSettingResult {
     const s = this.state;
     if (input.style) s.style = input.style;
-    if (input.v_corners !== undefined) s.vCorners = input.v_corners;
+    if (input.v_corners !== undefined) {
+      s.vCorners = input.v_corners;
+      // V 字の爪は尖った角に立てる（手で決めた爪の位置は使わない）
+      if (input.v_corners && !input.prong_positions) s.prongPositions = undefined;
+    }
     if (input.prong_count !== undefined) {
       s.prongCount = input.prong_count;
       s.prongPositions = undefined;

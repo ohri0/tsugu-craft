@@ -3,6 +3,7 @@
 import type { Corner } from "../geometry/corners";
 import { buildRing, type Orientation, type RingDesign } from "../geometry/ring";
 import { autoProngCount, type SettingStyle } from "../geometry/setting";
+import type { ShankSection } from "../geometry/shank";
 import type { StoneParams } from "../geometry/stone";
 import { checkRing, type Problem } from "../rules/checks";
 import { effectiveGuides, ruleForCheck, seedLedger, type Ledger, type Rule } from "../rules/ledger";
@@ -20,6 +21,13 @@ export interface Design {
   gou: number;
   /** 石の場所（必要な留まりが変わる） */
   position: StonePosition;
+  /** 尖った角を V 字の爪で包むか（なければ形の処理の既定） */
+  vCorners?: boolean;
+  /** 腕の断面（なければ甲丸） */
+  section?: ShankSection;
+  /** 腕の幅・厚み（mm、なければ目安） */
+  shankWidthMm?: number;
+  shankThicknessMm?: number;
 }
 
 export const DEFAULT_DESIGN: Design = {
@@ -51,8 +59,9 @@ export function build(stone: StoneParams, d: Design, ledger: Ledger = seedLedger
       height: d.height,
       prongCount: d.prongCount > 0 ? d.prongCount : undefined,
       prongDiameterMm: std * d.prongScale,
+      vAtCorners: d.vCorners,
     },
-    shank: { gou: d.gou, metal: d.metal },
+    shank: { gou: d.gou, metal: d.metal, section: d.section, widthMm: d.shankWidthMm, thicknessMm: d.shankThicknessMm },
     orientation: d.orientation,
   });
   const problems = checkRing(ring, { position: d.position, guides: effectiveGuides(ledger, stoneSizeMm(stone.longMm, stone.widthMm)) });
