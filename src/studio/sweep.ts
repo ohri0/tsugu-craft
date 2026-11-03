@@ -2,7 +2,9 @@
 // 公開情報の目安だけで組んだときと、今の帳面（職人の決まり入り）で組んだときで比べる。画面に依存しない。
 import { PRESETS, presetOutline, type StonePreset } from "./presets";
 import { DEFAULT_STATE, RingSession, type RingState } from "./session";
-import type { Ledger } from "../rules/ledger";
+import { effectiveGuides, type Ledger } from "../rules/ledger";
+import { holdRatio } from "../rules/checks";
+import { stoneSizeMm } from "../rules/guides";
 import type { StoneParams } from "../geometry/stone";
 import type { HeightOption } from "../rules/guides";
 
@@ -48,6 +50,18 @@ export function side(stone: StoneParams, state: RingState, ledger: Ledger, solid
   s.solid = solid;
   s.state = structuredClone(state);
   let b = s.build("比べる");
+  // 留まりは（太さ ÷ 標準）³ に比例するので、足りない分を先に計算して一度で太くする（あとは少しずつ）
+  const hp = b.problems.find((p) => p.check === "hold");
+  if (hp && b.ring.setting.style === "prong") {
+    const g = effectiveGuides(ledger, stoneSizeMm(stone.longMm, stone.widthMm));
+    const need = g.hold.requiredTop;
+    const have = holdRatio(b.ring.setting, g);
+    const cur = b.ring.setting.prongs[0]?.diameterMm ?? b.ring.setting.standardProngMm;
+    if (have > 0) {
+      s.state.prongMm = Math.ceil(cur * Math.cbrt(need / have) * 1.01 * 100) / 100;
+      b = s.build("比べる");
+    }
+  }
   for (let i = 0; i < 6 && b.problems.some((p) => p.check === "hold" || p.check === "prong-thin"); i++) {
     const cur = b.ring.setting.prongs[0]?.diameterMm ?? b.ring.setting.standardProngMm;
     s.state.prongMm = Math.ceil(cur * 1.08 * 100) / 100;
