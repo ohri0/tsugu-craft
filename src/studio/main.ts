@@ -1059,9 +1059,14 @@ function resizeStone(longMm: number, final: boolean) {
   $(".stone-sub").textContent = `${stone.shapeName}・${stone.measured.longMm.toFixed(2)} × ${stone.measured.widthMm.toFixed(2)} mm`;
   session.state.prongMm = undefined;
   if (final) tuneProngs();
+  // 細かい形への作り直し（少し後）でも寄せ直さないよう、しばらくカメラを止めておく
+  clearTimeout(keepCamTimer);
+  viewer.keepCamera = true;
   session.build(final ? "石の大きさを変えた" : "");
+  keepCamTimer = window.setTimeout(() => (viewer.keepCamera = false), 2500);
 }
 let stoneLive = 0;
+let keepCamTimer = 0;
 function gouSlider(gou: number): SliderSpec {
   return { cls: "r-gou", label: "号", min: 5, max: 25, step: 1, value: gou, unit: "号" };
 }

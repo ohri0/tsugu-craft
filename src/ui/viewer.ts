@@ -48,6 +48,8 @@ export class Viewer {
   private grid: THREE.GridHelper;
   private shadow: ContactShadow;
   private framedFor = "";
+  /** true の間は、形が変わってもカメラを寄せ直さない（石の大きさを変えるとき、大きさの違いが見えるように） */
+  keepCamera = false;
   /** 今の指輪で、作れない所に使っている赤い材質（点滅させる。なければ null） */
   private warnMat: THREE.MeshPhysicalMaterial | null = null;
   /** 描き直しが要るか（動いていない間は描かない。スマホの電池のため） */
@@ -390,7 +392,7 @@ export class Viewer {
       this.content.add(mark);
     }
     this.applyMode();
-    this.frame("ring", new THREE.Vector3(0.9, -1.1, 0.75));
+    if (!this.keepCamera) this.frame("ring", new THREE.Vector3(0.9, -1.1, 0.75));
     this.updateShadow();
   }
 
