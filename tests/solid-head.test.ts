@@ -120,7 +120,8 @@ describe("動かしている間は粗く速く、止まったら細かく作り�
     expect(s.pendingFinal).toBe(false);
     expect(s.built!.ring.setting.positions.length).toBe(fineTris);
     expect(seen.length).toBe(5);
-  });
+    // 細かい一体の形を何度も作るので、ほかの重い作業と同時に回すと 5 秒を超えることがある
+  }, 60000);
 
   it("画面のないとき（テスト・MCP）は、いつも同期で細かい形", () => {
     const s = new RingSession(stone, () => seedLedger(), () => undefined, () => "");
