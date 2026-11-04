@@ -810,9 +810,21 @@ function tuneProngs() {
 }
 
 let sheetTimer = 0;
-function onBuilt(b: Built, _why: string) {
+/** 確かめるの欄に出る、形の結果（同じなら、欄を描き直さなくてよい） */
+let panelKey = "";
+function panelKeyOf(b: Built): string {
+  const r = b.ring;
+  return JSON.stringify([b.problems.map((p) => [p.check, p.current, p.required, p.options.map((o) => o.id)]), r.setting.join, r.setting.style, r.setting.prongs.length, r.setting.prongs[0]?.diameterMm, r.notchDepthMm, r.culetGapMm, r.shank.widthMm, r.shank.thicknessMm]);
+}
+function onBuilt(b: Built, _why: string, refined = false) {
   if (tuning || !stone || kind !== "solitaire") return;
   keepDesignSoon();
+  // 細かい形への作り直しは、確かめの結果が同じなら欄を描き直さない。
+  // 押して離すまでの間に欄が作り直されると、ボタンが消えて押した事にならなかった（続けて押すと効かない。2026-11-05 点検）。
+  // 比べている間は地金の重さを欄に出すので、描き直す
+  const key = panelKeyOf(b);
+  const sameKey = refined && key === panelKey && !compare;
+  panelKey = key;
   if (sheetOn) {
     clearTimeout(sheetTimer);
     sheetTimer = window.setTimeout(() => sheetOn && showSheet(), 400);
@@ -840,11 +852,11 @@ function onBuilt(b: Built, _why: string) {
   $(".word-name").textContent = r.stones.length > 1 ? `${stone.shapeName}の${layoutName()}の指輪` : `${stone.shapeName}の一粒石の指輪`;
   drawStoneTags();
   if (presentOn) renderPresent();
-  renderFixPop();
+  if (!sameKey) renderFixPop();
   if (holdPanel) return;
-  if (!$(".studio-refine").hidden) renderCheck();
+  if (!sameKey && !$(".studio-refine").hidden) renderCheck();
   if (!$(".build-panel").hidden) renderBuild();
-  markBadControls();
+  if (!sameKey) markBadControls();
 }
 
 // ---- 場面 ----

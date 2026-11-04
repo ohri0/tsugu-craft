@@ -109,8 +109,8 @@ export function trioTurn(slot: Pick<StoneSlot, "shape" | "atMm">): number | unde
 export const SLOT_SHAPE_LABEL: Record<SlotShape, string> = { photo: "今の石と同じ形", round: "ラウンド", oval: "オーバル", princess: "スクエア", emerald: "エメラルド", pear: "ペア", marquise: "マーキス" };
 export const LAYOUT_LABEL: Record<StoneLayout | "free", string> = { solo: "一粒", trio: "三石", row: "横一列", free: "自由な並び" };
 
-/** つまみや Claude の set_setting が止まってから、細かい一体の形を作り直すまでの待ち（ms） */
-export const FINAL_DELAY_MS = 250;
+/** つまみや Claude の set_setting が止まってから、細かい一体の形を作り直すまでの待ち（ms）。作り直しは重いので、続けて押している間は始めない */
+export const FINAL_DELAY_MS = 500;
 
 // 石座の付け方の既定は「腕の間に挟む」（職人の言う基本の作り方。作者が決めた 2026-11-04）。「腕の上にのせる」も選べる。石がいくつもの指輪は、形の方で腕の上にのせる
 export const DEFAULT_STATE: RingState = { style: "prong", height: "standard", orientation: "along", metal: "k18yg", gou: 11, position: "top", join: "between" };
@@ -228,8 +228,8 @@ export class RingSession implements ToolHost<RingState> {
   constructor(
     public stone: StoneParams,
     private ledger: () => Ledger,
-    /** 形が変わったとき（画面を描き直す） */
-    private onChange: (b: Built, why: string) => void,
+    /** 形が変わったとき（画面を描き直す）。refined ＝ 同じ設計の細かい形への作り直し（確かめの結果は同じ） */
+    private onChange: (b: Built, why: string, refined?: boolean) => void,
     /** look の道具：その向きの画像（base64 の PNG） */
     private shoot: (view: LookInput["view"]) => Promise<string> | string,
   ) {}
@@ -298,7 +298,7 @@ export class RingSession implements ToolHost<RingState> {
   private finish() {
     this.finalTimer = null;
     this.built = this.compose("final");
-    this.onChange(this.built, this.finalWhy);
+    this.onChange(this.built, this.finalWhy, true);
   }
 
   private compose(quality: SolidQuality): Built {

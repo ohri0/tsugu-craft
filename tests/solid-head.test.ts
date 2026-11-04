@@ -91,6 +91,21 @@ describe("一体の石座は、閉じた一つの形（STL にそのまま使え
 describe("動かしている間は粗く速く、止まったら細かく作り直す", () => {
   afterEach(() => vi.useRealTimers());
 
+  it("細かい形への作り直しは、そうと分かる印つきで知らせ、欄に出す結果は粗い形と同じ（欄を描き直さなくてよい）", () => {
+    vi.useFakeTimers();
+    const seen: { b: Built; refined?: boolean }[] = [];
+    const s = new RingSession(stone, () => seedLedger(), (b, _why, refined) => seen.push({ b, refined }), () => "");
+    s.solid = true;
+    s.deferFinal = true;
+    s.build("最初");
+    s.setSetting({ prong_mm: 0.4, reason: "細く" });
+    vi.advanceTimersByTime(FINAL_DELAY_MS + 10);
+    expect(seen.map((x) => !!x.refined)).toEqual([false, false, true]);
+    const shown = ({ b }: { b: Built }) => [b.problems.map((p) => [p.check, p.current, p.required]), b.ring.setting.join, b.ring.setting.prongs.length, b.ring.setting.prongs[0]?.diameterMm, b.ring.notchDepthMm, b.ring.culetGapMm];
+    expect(seen[1].b.problems.length).toBeGreaterThan(0);
+    expect(shown(seen[2])).toEqual(shown(seen[1]));
+  }, 60000);
+
   it("2 回目からは粗い形をすぐ返し、少し待って細かい形で同じ onChange をもう一度呼ぶ。確かめの結果は同じ", () => {
     vi.useFakeTimers();
     const seen: Built[] = [];
