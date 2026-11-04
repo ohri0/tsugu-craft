@@ -157,3 +157,64 @@ export function gizmoSvg(axes: { x: [number, number]; y: [number, number]; z: [n
     })
     .join("");
 }
+
+/** 平らな図（正面・横・上）の向き。../ui/view-camera の FlatViewInfo と同じ形 */
+export interface FlatView {
+  dir: V3;
+  right: V3;
+  up: V3;
+  mmPerPx: number;
+  box: { min: V3; max: V3 };
+}
+
+const dot = (a: V3, b: V3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const sub = (a: V3, b: V3): V3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+const cross = (a: V3, b: V3): V3 => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const scale = (a: V3, k: number): V3 => [a[0] * k, a[1] * k, a[2] * k];
+const norm = (a: V3): V3 => scale(a, 1 / (Math.hypot(...a) || 1));
+/** 直径の寸法（内径）。輪の中に、矢印を両方の内側から当てる（引き出さない） */
+const isDiameter = (d: Dim) => d.key === "inner" || d.label.startsWith("内径");
+
+/**
+ * 寸法を、平らな図の図面の寸法にする。
+ * - 見る向きに沿った寸法（画面の上で縮んで見えるもの）は出さない（本当の長さで描けないため）。
+ * - 内径は、指の軸の向きから見た図（輪が丸く見える図）でだけ、輪の中にそのまま。
+ * - ほかは、形の外へ引き出し線を出し、そこに矢印と数字（画面の面の中で、寸法に直角に。同じ側に並ぶものは、順に外へ）。
+ * 数字（ラベル）は変えない
+ */
+export function flatDims(dims: Dim[], v: FlatView): Dim[] {
+  const out: Dim[] = [];
+  const dir = norm(v.dir);
+  const corners: V3[] = [];
+  for (const x of [v.box.min[0], v.box.max[0]]) for (const y of [v.box.min[1], v.box.max[1]]) for (const z of [v.box.min[2], v.box.max[2]]) corners.push([x, y, z]);
+  const center = scale([v.box.min[0] + v.box.max[0], v.box.min[1] + v.box.max[1], v.box.min[2] + v.box.max[2]], 0.5);
+  const used = new Map<string, number>();
+  for (const d of dims) {
+    const ab = sub(d.b, d.a);
+    const L = Math.hypot(...ab);
+    if (L < 1e-6) continue;
+    const u = scale(ab, 1 / L);
+    if (Math.abs(dot(u, dir)) > 0.1) continue;
+    if (isDiameter(d)) {
+      if (Math.abs(dir[0]) > 0.9) out.push({ ...d, ext: undefined });
+      continue;
+    }
+    if (d.ext) {
+      out.push(d);
+      continue;
+    }
+    // 画面の面の中で、寸法に直角な向き。形のまん中から離れる側へ。まん中なら、画面の右か上へ
+    let n = norm(cross(dir, u));
+    const mid = scale([d.a[0] + d.b[0], d.a[1] + d.b[1], d.a[2] + d.b[2]], 0.5);
+    const side = dot(mid, n) - dot(center, n);
+    if (Math.abs(side) > 0.3 ? side < 0 : dot(n, v.right) + dot(n, v.up) < 0) n = scale(n, -1);
+    const edge = Math.max(...corners.map((c) => dot(c, n)));
+    const k = n.map((x) => Math.round(x * 10)).join(",");
+    const i = used.get(k) ?? 0;
+    used.set(k, i + 1);
+    // 形の端から 16 px、並ぶものは 30 px ずつ外へ
+    const off = Math.max(0, edge - dot(mid, n)) + (16 + i * 30) * v.mmPerPx;
+    out.push({ ...d, ext: scale(n, off) });
+  }
+  return out;
+}

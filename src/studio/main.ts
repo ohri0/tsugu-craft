@@ -43,7 +43,7 @@ import { MAKE_BAND, SECTION_LABEL, bandHowTo, bandInnerDiameter, bandMesh, bandP
 import { BAND_THIN_STEP_MM, COLLAR_STEP_MM, metalIdOf } from "./session";
 import { GUIDES, minProngMm } from "../rules/guides";
 import { callTool } from "../rebuild/run";
-import { dimsSvg, gizmoSvg, type Dim, type Rect } from "./dims";
+import { dimsSvg, flatDims, gizmoSvg, type Dim, type Rect } from "./dims";
 import { bindSlider, sliderHtml, type SliderSpec } from "./slider";
 import { bindSectionEditor, sectionEditorHtml, startShape } from "./section-edit";
 import { SHANK_SECTIONS, SHANK_SECTION_LABEL, type ShankSection } from "../geometry/shank";
@@ -195,6 +195,9 @@ function dimsAvoid(): { avoid: Rect[]; bounds: Rect } {
   return { avoid, bounds: { x: 4, y: 4, w: svg.width - 8, h: svg.height - 8 } };
 }
 function drawDims(d: Dim[] = dims) {
+  // 平らな図（正面・横・上）では、図面の寸法（形の外へ引き出し線・本当の長さ）に
+  const flat = viewer.flatView;
+  if (flat) d = flatDims(d, flat);
   $(".dims").innerHTML = showDims && !holdDims ? dimsSvg(d, (x, y, z) => viewer.project(x, y, z), 1, dimsAvoid()) : "";
 }
 viewer.onFrame(() => {

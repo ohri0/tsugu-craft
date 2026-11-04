@@ -77,6 +77,12 @@ button { cursor: pointer; }
 .dims { inset: 0; width: 100%; height: 100%; }
 .dim-line, .dim-leader { stroke: #c8c8cc; stroke-width: 1; fill: none; }
 .dim-arrow { fill: #c8c8cc; }
+.dim-ext { stroke: #c8c8cc; stroke-width: 0.8; fill: none; opacity: 0.85; }
+/* 灰色の背景（シェード・ワイヤー）では、寸法の線を濃く */
+.gl[data-backdrop="gray"] ~ .dims :is(.dim-line, .dim-leader, .dim-ext) { stroke: #202125; }
+.gl[data-backdrop="gray"] ~ .dims .dim-arrow { fill: #202125; }
+.gl[data-backdrop="gray"] ~ .dims .dim.bad :is(.dim-line, .dim-leader, .dim-ext) { stroke: var(--ng); }
+.gl[data-backdrop="gray"] ~ .dims .dim.bad .dim-arrow { fill: var(--ng); }
 .dim-tag { fill: rgba(16, 16, 18, 0.88); stroke: var(--line-2); }
 .dim-text { fill: var(--fg); font: 500 11px var(--sans); font-variant-numeric: tabular-nums; }
 .dim.bad .dim-line, .dim.bad .dim-leader { stroke: var(--ng); }
@@ -658,7 +664,7 @@ dialog.sheet input:focus { border-color: var(--accent); }
 .sheet-view { position: absolute; inset: 0; z-index: 4; background: #1c1c1e; }
 .sheet-view[hidden] { display: none; }
 .sheet-view iframe { width: 100%; height: 100%; border: 0; display: block; }
-.drawing-on .dims, .drawing-on .gizmo, .drawing-on .tools { visibility: hidden; }
+.drawing-on .dims, .drawing-on .gizmo, .drawing-on .tools, .drawing-on .grid-ruler { visibility: hidden; }
 .vp-tl, .verdict-chip { z-index: 5; }
 /* 石の写真を落とせる所・読んでいる間 */
 .vp.drop, .stone-card.drop { outline: 2px dashed var(--accent, #0a84ff); outline-offset: -6px; }
