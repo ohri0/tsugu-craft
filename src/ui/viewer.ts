@@ -11,6 +11,8 @@ import type { ShankResult } from "../geometry/shank";
 import type { StoneMesh } from "../geometry/stone";
 import type { MetalId } from "../rules/guides";
 import type { Problem } from "../rules/checks";
+import { CadGrid, GRID_LOOK } from "./cad-grid";
+import { gridSpacing, labelStep, VIEW_DIR, ViewCameras, type FlatViewInfo, type ViewName } from "./view-camera";
 
 export type DisplayMode = "render" | "shaded" | "wire";
 
@@ -43,10 +45,17 @@ const SHADOW = { reachMm: 7, darkness: 0.85, opacity: 0.55, blurPasses: 3, size:
 export class Viewer {
   private renderer: THREE.WebGLRenderer;
   private scene = new THREE.Scene();
-  private camera = new THREE.PerspectiveCamera(30, 1, 0.1, 1000);
-  private controls: OrbitControls;
+  /** 斜め（パース）と、正面・横・上（正射の平らな図）のカメラ */
+  private cams = new ViewCameras();
+  /** 今使っているカメラ（動画を撮る道具が __viewer.camera を読む） */
+  camera: THREE.PerspectiveCamera | THREE.OrthographicCamera = this.cams.persp;
+  controls: OrbitControls;
   private content = new THREE.Group();
-  private grid: THREE.Object3D;
+  /** 地平線まで続く方眼（シェーダーで描く 1 枚の板） */
+  private cad = new CadGrid();
+  private grid: THREE.Mesh = this.cad.mesh;
+  /** 平らな図の目盛りの数字（mm）。3D の上に重ねる */
+  private ruler: SVGSVGElement;
   private shadow: ContactShadow;
   private framedFor = "";
   /** true の間は、形が変わってもカメラを寄せ直さない（石の大きさを変えるとき、大きさの違いが見えるように） */
@@ -74,15 +83,18 @@ export class Viewer {
     // スマホなどで描く力が足りず、3D の描画がいったん消えて戻ったとき、映り込みの光を作り直す（作り直さないと金属が真っ黒になる）
     this.renderer.domElement.addEventListener("webglcontextrestored", () => makeEnv());
     this.scene.background = backdropTexture();
-    this.camera.up.set(0, 0, 1);
-    this.camera.position.set(14, -18, 14);
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
     this.controls.autoRotateSpeed = 1.6;
     // 1 mm の目盛り（ふだんは隠す）
-    this.grid = new THREE.GridHelper(40, 40, 0xc9c1b4, 0xe0dad0);
-    this.grid.rotation.x = Math.PI / 2;
     this.grid.visible = false;
+    this.cad.setLook(GRID_LOOK.paper);
+    this.cad.setPlane("x", "y", new THREE.Vector3());
+    this.ruler = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    this.ruler.setAttribute("class", "grid-ruler");
+    this.ruler.setAttribute("aria-hidden", "true");
+    this.ruler.style.cssText = "position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible";
+    host.appendChild(this.ruler);
     this.shadow = new ContactShadow();
     this.scene.add(this.grid, this.shadow.plane, this.content);
     new ResizeObserver(() => this.resize()).observe(host);
@@ -99,7 +111,9 @@ export class Viewer {
         this.dirty = true;
       }
       if (moved || this.dirty) {
+        this.updateGrid();
         this.renderer.render(this.scene, this.camera);
+        this.drawRuler();
         this.dirty = false;
         for (const f of this.frameListeners) f();
       }
@@ -218,6 +232,7 @@ export class Viewer {
       if (!this.darkOn) this.scene.background = backdropTexture();
       this.updateShadow();
     }
+    this.rulerKey = "-";
     this.dirty = true;
   }
   setDisplayMode(m: DisplayMode) {
@@ -344,13 +359,17 @@ export class Viewer {
     p.applyAxisAngle(new THREE.Vector3(0, 0, 1), rad);
     this.camera.position.copy(t).add(p);
     this.camera.lookAt(t);
+    this.updateGrid();
     this.renderer.render(this.scene, this.camera);
     for (const f of this.frameListeners) f();
   }
 
   /** ゆっくり自動で回す（動画や見せるとき）。人がドラッグすれば、その向きから続けて回る */
+  private wantRotate = false;
   setAutoRotate(on: boolean) {
-    this.controls.autoRotate = on;
+    this.wantRotate = on;
+    // 平らな図（正面・横・上）は回さない。斜めに戻ったら回る
+    this.controls.autoRotate = on && !this.cams.flat;
     this.dirty = true;
   }
 
@@ -374,12 +393,14 @@ export class Viewer {
     const w = this.host.clientWidth || 1;
     const h = this.host.clientHeight || 1;
     this.renderer.setSize(w, h, false);
-    this.camera.aspect = w / h;
+    this.cams.setAspect(w / h);
     // 上下のボタンの間の真ん中に、中身の真ん中が来るようにずらす
     const dy = h * this.lift + (this.insets.bottom - this.insets.top) / 2;
-    if (dy !== 0) this.camera.setViewOffset(w, h, 0, dy, w, h);
-    else this.camera.clearViewOffset();
-    this.camera.updateProjectionMatrix();
+    for (const cam of [this.cams.persp, this.cams.ortho]) {
+      if (dy !== 0) cam.setViewOffset(w, h, 0, dy, w, h);
+      else cam.clearViewOffset();
+      cam.updateProjectionMatrix();
+    }
     this.dirty = true;
   }
 
@@ -548,7 +569,8 @@ export class Viewer {
     const box = new THREE.Box3().setFromObject(this.content);
     if (box.isEmpty()) return;
     this.shadow.render(this.renderer, this.scene, this.content, box);
-    if (this.mode === "wire" || this.presenting) this.shadow.plane.visible = false;
+    this.shadowReady = true;
+    this.showShadow();
     this.dirty = true;
   }
 
@@ -556,15 +578,16 @@ export class Viewer {
   private frame(kind: string, firstDir: THREE.Vector3) {
     const box = new THREE.Box3().setFromObject(this.content);
     const sphere = box.getBoundingSphere(new THREE.Sphere());
-    const dir =
-      this.framedFor === kind ? this.camera.position.clone().sub(this.controls.target).normalize() : firstDir.clone().normalize();
+    const dir = this.framedFor === kind ? this.cams.angleDir(this.controls.target) : firstDir.clone().normalize();
     this.framedFor = kind;
     this.controls.target.copy(sphere.center);
     // 縦長の画面（スマホ）では、横幅に収まるように遠くから
     const h = this.host.clientHeight || 1;
+    const aspect = (this.host.clientWidth || 1) / h;
     const free = Math.max(0.5, (h - this.insets.top - this.insets.bottom) / h);
-    const fit = (this.camera.aspect < 1 ? Math.min(2.2, 1 / this.camera.aspect) : 1) / free;
-    this.camera.position.copy(sphere.center).addScaledVector(dir, sphere.radius * 3.6 * fit * this.fovScale());
+    const fit = (aspect < 1 ? Math.min(2.2, 1 / aspect) : 1) / free;
+    // 平らな図の間は、平らな図の大きさを合わせ、戻ったときの斜めの視点も寄せ直す
+    this.cams.frame(sphere.center, sphere.radius, fit, dir);
     this.controls.update();
     this.dirty = true;
   }
@@ -576,96 +599,200 @@ export class Viewer {
   private applyBackdrop() {
     if (!this.darkOn || this.presenting) return;
     this.scene.background = this.mode === "render" ? darkBackdropTexture() : grayBackdropTexture();
+    this.applyGridLook();
+    this.dirty = true;
+  }
+  /** 方眼の線の色：黒い撮影台・CAD の灰色・紙の色 */
+  private applyGridLook() {
+    const look = !this.darkOn ? "paper" : this.mode === "render" ? "dark" : "gray";
+    this.cad.setLook(GRID_LOOK[look]);
+    // 寸法の線の色を背景に合わせるため（CSS が読む）
+    this.host.dataset.backdrop = look;
     this.dirty = true;
   }
   setDark(on: boolean) {
     this.darkOn = on;
     this.scene.background = on ? (this.mode === "render" ? darkBackdropTexture() : grayBackdropTexture()) : backdropTexture();
-    // 暗い画面の目盛りは、うすい灰色（CAD の作業面のように）
-    this.scene.remove(this.grid);
-    this.grid = on ? cadGrid() : new THREE.GridHelper(40, 40, 0xc9c1b4, 0xe0dad0);
-    this.grid.rotation.x = Math.PI / 2;
+    // 暗い画面の目盛りは、CAD の作業面のように（背景の色に合わせる）
     this.grid.visible = on;
-    this.scene.add(this.grid);
+    this.applyGridLook();
     (this.shadow.plane.material as THREE.MeshBasicMaterial).opacity = on ? 0.25 : SHADOW.opacity;
     this.dirty = true;
   }
 
-  /** 決まった向きから見る（上・横・正面・斜め）。今の距離のまま */
-  /** ふつうの画角（30°）のときの距離に対する、今の画角での距離の倍率 */
-  private fovScale(): number {
-    return Math.tan((30 * Math.PI) / 360) / Math.tan((this.camera.fov * Math.PI) / 360);
-  }
-  /** 平らな図（正面・横・上）か。パースをなくし、回せない（動かす・寄るだけ）。寸法を正しく読むための図 */
-  private flat = false;
+  /** 平らな図（正面・横・上）か。パースのない正射カメラで、回せない（動かす・寄るだけ）。寸法を正しく読むための図 */
   get isFlat(): boolean {
-    return this.flat;
+    return this.cams.flat;
   }
-  private setFlat(on: boolean) {
-    if (this.flat === on) return;
-    const target = this.controls.target.clone();
-    const r = this.camera.position.distanceTo(target) / this.fovScale();
-    this.flat = on;
-    // 画角をとても狭くし、遠くから見る（見た目は、パースのない平らな図と同じになる）
-    this.camera.fov = on ? 0.6 : 30;
-    this.camera.near = on ? 10 : 0.1;
-    this.camera.far = on ? 200000 : 1000;
-    this.camera.updateProjectionMatrix();
-    const dir = this.camera.position.clone().sub(target).normalize();
-    this.camera.position.copy(target).addScaledVector(dir, r * this.fovScale());
-    this.controls.enableRotate = !on;
-    this.controls.update();
+  /** 今の向き */
+  get view(): ViewName {
+    return this.cams.view;
   }
-  setView(view: "top" | "side" | "front" | "angle") {
-    this.setFlat(view !== "angle");
-    const target = this.controls.target.clone();
-    const r = this.camera.position.distanceTo(target);
-    const dir = { top: new THREE.Vector3(0, -0.001, 1), side: new THREE.Vector3(1, 0, 0.05), front: new THREE.Vector3(0, -1, 0.05), angle: new THREE.Vector3(0.6, -0.8, 0.6) }[view].normalize();
-    this.camera.position.copy(target).addScaledVector(dir, r);
-    this.controls.update();
+  /**
+   * 平らな図の向きと大きさ（寸法を図面のように引くため）。斜めでは null。
+   * dir：見ている所 → カメラ、right・up：画面の右・上（世界の向き）、mmPerPx：画面の 1 px が何 mm か、box：中身の箱
+   */
+  get flatView(): FlatViewInfo | null {
+    const ppm = this.cams.pxPerMm(this.host.clientHeight || 1);
+    if (ppm === null) return null;
+    const box = new THREE.Box3().setFromObject(this.content);
+    if (box.isEmpty()) return null;
+    const cam = this.cams.ortho;
+    cam.updateMatrixWorld();
+    const e = cam.matrixWorld.elements;
+    const t = (v: THREE.Vector3): [number, number, number] => [v.x, v.y, v.z];
+    return {
+      dir: t(VIEW_DIR[this.cams.view]),
+      right: [e[0], e[1], e[2]],
+      up: [e[4], e[5], e[6]],
+      mmPerPx: 1 / ppm,
+      box: { min: t(box.min), max: t(box.max) },
+    };
+  }
+  /** 決まった向きから見る（上・横・正面・斜め）。正面・横・上は正射の平らな図に、斜めに戻すと前の斜めの視点に */
+  setView(view: ViewName) {
+    this.applyView(view);
     this.alignGrid(view);
     this.dirty = true;
+  }
+  private applyView(view: ViewName) {
+    // 回している途中の勢いは止める（平らな図が少し回ってしまわないように）
+    const c = this.controls as unknown as { _sphericalDelta?: THREE.Spherical; _panOffset?: THREE.Vector3 };
+    c._sphericalDelta?.set(0, 0, 0);
+    c._panOffset?.set(0, 0, 0);
+    this.cams.setView(view, this.controls.target);
+    this.useCamera();
+  }
+  /** 今のカメラを、ドラッグの操作につなぐ */
+  private useCamera() {
+    this.camera = this.cams.active;
+    this.controls.object = this.camera;
+    this.controls.enableRotate = !this.cams.flat;
+    this.controls.autoRotate = this.wantRotate && !this.cams.flat;
+    this.controls.update();
+    this.host.dataset.view = this.cams.view;
   }
 
   /**
    * 方眼を、見ている向きの後ろに立てる（CAD の作業画面のように）。
-   * 斜め・上：床（指輪の下）。正面：指輪の奥に縦の面。横：指輪の奥に縦の面
+   * 斜め・上：床（指輪の下）。正面：指輪の奥に x・z の面。横：指輪の奥に y・z の面
    */
-  private gridView: "top" | "side" | "front" | "angle" = "angle";
-  private alignGrid(view: "top" | "side" | "front" | "angle") {
+  private gridView: ViewName = "angle";
+  private alignGrid(view: ViewName) {
     this.gridView = view;
     const box = new THREE.Box3().setFromObject(this.content);
-    if (box.isEmpty()) return;
-    const c = box.getCenter(new THREE.Vector3());
-    const g = this.grid;
-    g.rotation.set(0, 0, 0);
+    const empty = box.isEmpty();
+    const c = empty ? new THREE.Vector3() : box.getCenter(new THREE.Vector3());
     if (view === "front") {
       // 正面（-y から見る）：奥（+y）に、x-z の面
-      g.position.set(c.x, box.max.y + 2, c.z);
+      this.cad.setPlane("x", "z", new THREE.Vector3(c.x, empty ? 0 : box.max.y + 2, c.z));
     } else if (view === "side") {
       // 横（+x から見る）：奥（-x）に、y-z の面
-      g.rotation.z = Math.PI / 2;
-      g.position.set(box.min.x - 2, c.y, c.z);
+      this.cad.setPlane("y", "z", new THREE.Vector3(empty ? 0 : box.min.x - 2, c.y, c.z));
     } else {
-      g.rotation.x = Math.PI / 2;
-      g.position.set(c.x, c.y, box.min.z - 0.01);
+      this.cad.setPlane("x", "y", new THREE.Vector3(c.x, c.y, empty ? 0 : box.min.z - 0.01));
     }
-    this.shadow.plane.visible = view === "angle" || view === "top" ? this.shadow.plane.visible : false;
+    this.showShadow();
     this.dirty = true;
+  }
+  /** 床の影：斜めのときだけ（平らな図は図面なので出さない。ワイヤー・見せるでも出さない） */
+  private shadowReady = false;
+  private showShadow() {
+    this.shadow.plane.visible = this.shadowReady && !this.cams.flat && this.mode !== "wire" && !this.presenting;
+  }
+
+  /** 方眼の線の間と、薄くなる所を、今のカメラに合わせる（描く前に毎回。軽い） */
+  private gridNow = { minor: 1, major: 10 };
+  private updateGrid() {
+    const pr = this.renderer.getPixelRatio();
+    const t = this.controls.target;
+    const ppm = this.cams.pxPerMm(this.host.clientHeight || 1);
+    if (ppm !== null) {
+      // 平らな図：読みやすい間（1・2・5 mm…）を、寄り具合で選ぶ。画面いっぱいに、薄くせずに
+      this.gridNow = gridSpacing(ppm);
+      const span = (this.host.clientWidth + this.host.clientHeight) / ppm;
+      this.cad.update(this.gridNow.minor, this.gridNow.major, pr, [span * 4, span * 6], t);
+    } else {
+      // 斜め：1 mm と 10 mm。見ている所からの距離の 8 倍から薄くし、40 倍で消える（ほぼ地平線）
+      this.gridNow = { minor: 1, major: 10 };
+      const r = Math.max(10, this.camera.position.distanceTo(t));
+      this.cad.update(1, 10, pr, [r * 8, r * 40], t);
+    }
+  }
+  /** 平らな図の目盛りの数字（mm）：画面の下と左の端に。1 マスの大きさも書く */
+  private rulerKey = "";
+  private drawRuler() {
+    const f = this.flatView;
+    if (!f || !this.grid.visible || this.presenting) {
+      if (this.rulerKey) this.ruler.innerHTML = "";
+      this.rulerKey = "";
+      return;
+    }
+    const w = this.host.clientWidth;
+    const h = this.host.clientHeight;
+    const ppm = 1 / f.mmPerPx;
+    const { minor, major } = this.gridNow;
+    const step = labelStep(major, ppm);
+    const cls = !this.darkOn ? "paper" : this.mode === "render" ? "dark" : "gray";
+    const parts: string[] = [];
+    const fmt = (v: number) => {
+      const r = Math.round(v / step) * step;
+      return Math.abs(r) < 1e-9 ? "0" : Number(r.toFixed(step < 1 ? 1 : 0)).toString();
+    };
+    const axisOf = (v: [number, number, number]) => (Math.abs(v[0]) > 0.9 ? 0 : Math.abs(v[1]) > 0.9 ? 1 : 2);
+    const sgnR = Math.sign(f.right[axisOf(f.right)]);
+    const sgnU = Math.sign(f.up[axisOf(f.up)]);
+    // 世界の原点が画面のどこに写るか（そこから mm を数える）
+    const c = this.project(0, 0, 0);
+    if (!c) return;
+    const yBase = h - this.insets.bottom - 8;
+    const xBase = 8;
+    // 右下に、単位と 1 マスの大きさ。横の数字は、そこに重ねない
+    const unit = `単位 mm・1 マス ${minor}・太い線 ${major}`;
+    let unitW = 0;
+    for (const ch of unit) unitW += ch.charCodeAt(0) < 0x2e80 ? 6.1 : 10;
+    const xMax = w - 8 - unitW - 18;
+    {
+      // 横の数字（画面の下の端）
+      const a = ((0 - c.x) / ppm) * sgnR;
+      const b = ((w - c.x) / ppm) * sgnR;
+      for (let v = Math.ceil(Math.min(a, b) / step) * step; v <= Math.max(a, b); v += step) {
+        const x = c.x + v * sgnR * ppm;
+        if (x < 40 || x > xMax) continue;
+        parts.push(`<text x="${x.toFixed(1)}" y="${yBase.toFixed(1)}" text-anchor="middle">${fmt(v)}</text>`);
+      }
+    }
+    {
+      // 縦の数字（画面の左の端）
+      const a = (c.y / ppm) * sgnU;
+      const b = ((c.y - h) / ppm) * sgnU;
+      for (let v = Math.ceil(Math.min(a, b) / step) * step; v <= Math.max(a, b); v += step) {
+        const y = c.y - v * sgnU * ppm;
+        if (y < this.insets.top + 14 || y > yBase - 16) continue;
+        parts.push(`<text x="${xBase}" y="${(y + 3.5).toFixed(1)}" text-anchor="start">${fmt(v)}</text>`);
+      }
+    }
+    parts.push(`<text x="${w - 8}" y="${yBase.toFixed(1)}" text-anchor="end">${unit}</text>`);
+    const key = `${cls}|${parts.join("")}`;
+    if (key === this.rulerKey) return;
+    this.rulerKey = key;
+    const color = { dark: "rgba(225,226,230,.66)", gray: "rgba(28,29,32,.78)", paper: "rgba(92,84,70,.8)" }[cls];
+    const halo = { dark: "rgba(20,20,22,.85)", gray: "rgba(170,172,176,.9)", paper: "rgba(248,246,242,.9)" }[cls];
+    this.ruler.innerHTML = `<g font-family="ui-monospace,Menlo,monospace" font-size="10" fill="${color}" stroke="${halo}" stroke-width="3" stroke-linejoin="round" paint-order="stroke">${parts.join("")}</g>`;
   }
 
   /** 決まった向きから見た画像（look の道具）。今の視点は元に戻す */
-  snapshotFrom(view: "top" | "side" | "front" | "angle"): string {
-    const target = this.controls.target.clone();
-    const pos = this.camera.position.clone();
-    const r = pos.distanceTo(target);
-    const dir = { top: new THREE.Vector3(0, -0.001, 1), side: new THREE.Vector3(1, 0, 0.05), front: new THREE.Vector3(0, -1, 0.05), angle: new THREE.Vector3(0.6, -0.8, 0.6) }[view].normalize();
-    this.camera.position.copy(target).addScaledVector(dir, r);
-    this.camera.lookAt(target);
+  snapshotFrom(view: ViewName): string {
+    const keep = this.cams.state(this.controls.target);
+    const grid = this.gridView;
+    this.applyView(view);
+    this.alignGrid(view);
+    this.updateGrid();
     this.renderer.render(this.scene, this.camera);
     const url = this.renderer.domElement.toDataURL("image/png");
-    this.camera.position.copy(pos);
-    this.camera.lookAt(target);
+    this.cams.restore(keep, this.controls.target);
+    this.useCamera();
+    this.alignGrid(grid);
     this.dirty = true;
     return url;
   }
@@ -763,6 +890,7 @@ export class Viewer {
 
   /** 今の 3D の画像（指示書や look の道具で使う） */
   snapshot(): string {
+    this.updateGrid();
     this.renderer.render(this.scene, this.camera);
     return this.renderer.domElement.toDataURL("image/png");
   }
@@ -900,26 +1028,6 @@ export function studioScene(): THREE.Scene {
   box(6, 22, 3.0, [-8, 28, -4]); // 奥の低い所：下側の縁に細い光
   box(40, 40, 0.5, [0, 0, -30]); // 床の白い板：下を向いた面の暗さを少しやわらげる
   return s;
-}
-
-/** 黒い撮影台：真ん中がわずかに明るい、あたたかい黒 */
-/**
- * CAD の作業画面のような方眼：1 mm の細い線、10 mm ごとに濃い線、まん中の 2 本の軸は赤と緑（横と奥行き）。
- * 灰色の背景の上で、目盛りだと分かるように
- */
-function cadGrid(): THREE.Object3D {
-  const g = new THREE.Group();
-  // 画面の端まで続く広い方眼（400 mm 四方）。1 mm の細い線と 10 mm の濃い線
-  // 1 mm の線は指輪のまわり（80 mm）だけ。遠くで線が詰まって模様に見えないように
-  const minor = new THREE.GridHelper(80, 80, 0x9a9ca1, 0x9a9ca1);
-  const major = new THREE.GridHelper(400, 40, 0x77797e, 0x77797e);
-  for (const m of [minor.material, major.material] as THREE.LineBasicMaterial[]) { m.transparent = true; m.depthWrite = false; }
-  (minor.material as THREE.LineBasicMaterial).opacity = 0.55;
-  (major.material as THREE.LineBasicMaterial).opacity = 0.9;
-  const axis = (a: THREE.Vector3, b: THREE.Vector3, color: number) =>
-    new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.85 }));
-  g.add(minor, major, axis(new THREE.Vector3(-200, 0.001, 0), new THREE.Vector3(200, 0.001, 0), 0xb33a3a), axis(new THREE.Vector3(0, 0.001, -200), new THREE.Vector3(0, 0.001, 200), 0x3a8a3a));
-  return g;
 }
 
 function grayBackdropTexture(): THREE.Texture {
