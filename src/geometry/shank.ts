@@ -5,7 +5,8 @@
 import { GUIDES, innerDiameterMm, type MetalId } from "../rules/guides";
 import { closedPart, ringsToTube, type V3 } from "./mesh";
 import { meshVolume } from "./stone";
-import type { SeatCut } from "./notch";
+import { BALL_CUT, ballCut, type BallCut, type SeatCut } from "./notch";
+import { railSeatZ, type Rail } from "./joint";
 import { adaptiveSample, sampleCurve, uniformKnots, validKnots } from "./bspline";
 
 /** 腕の断面：甲丸・平打ち・半甲丸・角、と手で描いた形 */
@@ -78,6 +79,14 @@ export interface ShankResult {
    * 厚み・幅・断面の線（thicknessMm・widthMm・outlineMm）は削る前の腕の値のまま（ザグりはわざと削った所なので、腕の確かめには入れない）
    */
   notchDepthMm: number;
+  /** ザグりに使った球のビットの直径（mm）。削っていなければ 0 */
+  notchBallDiameterMm: number;
+  /** ザグりの球（真ん中の x・y、くぼみの底の z、半径）。削っていなければ null */
+  notchBall: { cx: number; cy: number; bottomZ: number; radiusMm: number } | null;
+  /** 使った肩（なければ null） */
+  head: ShankHead | null;
+  /** 石座の下の輪を受ける座（溝）のいちばん深い所（mm。その所の腕の上の面から）。座を作らなければ 0 */
+  railSeatDepthMm: number;
 }
 
 /** 指のまわりの分け方と、内側の平らな所の分け方（形を作るための決まり） */
@@ -192,10 +201,11 @@ export function cleanPoints(points: readonly SectionPoint[]): SectionPoint[] {
 }
 
 /**
- * 腕を作る。cut があれば、石の下の面がかかる所を、腕の上からザグる（notch.ts）。
- * ザグりは点を下へ動かすだけなので、三角形のつながりは変わらない（閉じた形のまま）
+ * 腕を作る。cut があれば、石の先の真下を、球のビットで腕の上からザグる（notch.ts の ballCut）。
+ * 削る所のまわりだけ、腕の点を細かく足してから（断面の線の点と、指のまわりの点を足す。三角形のつながりは格子のまま）、点を下げる。
+ * どの点も格子の中にあるので、閉じた形のまま。notchStepMm：削る所の三角形の辺の長さ（なければ BALL_CUT.stepMm）
  */
-export function buildShank(p: ShankParams, cut?: SeatCut): ShankResult {
+export function buildShank(p: ShankParams, cut?: SeatCut, opts: { notchStepMm?: number; rail?: Rail | null } = {}): ShankResult {
   const section = p.section ?? "kouman";
   const w = p.widthMm ?? GUIDES.shank.widthMm;
   // 角の断面は、厚みを決めていなければ幅と同じ（四角）
@@ -203,24 +213,45 @@ export function buildShank(p: ShankParams, cut?: SeatCut): ShankResult {
   const metal = p.metal ?? "k18y";
   const dIn = innerDiameterMm(p.gou);
   const r = dIn / 2;
+  // 外側の線は右の端の内側（y ＝ 0）から左の端の内側まで
+  const outer = sectionOutline(section, p.sectionPoints, p.sectionCurve);
+  // 指のまわりの角度 φ での幅（肩のある所だけ広い）。φ = 0 がいちばん上（+z）
+  const widthAt = shoulderWidth(w, r + t, p.head);
+  const topZ = bandTop(outer, r, t, widthAt);
+  const ball = cut ? ballCut(cut, topZ, r + t) : null;
+  // 石座の下の輪が腕に入りこむ所（接点）に、輪の形の座（溝）を作る
+  const step = opts.notchStepMm ?? BALL_CUT.stepMm;
+  const regions: Region[] = [];
+  if (ball) regions.push({ xMin: ball.cx - ball.reachMm, xMax: ball.cx + ball.reachMm, yMin: ball.cy - ball.reachMm, yMax: ball.cy + ball.reachMm, zMin: ball.bottomZ - BALL_CUT.easeMm });
+  const rail = opts.rail ?? null;
+  const seatZ = rail ? railSeatZ(rail) : null;
+  if (rail) regions.push(...railRegions(rail, topZ));
+  const railBoxes = regions.slice(ball ? 1 : 0);
+  let outerRows = outer;
+  let phis = Array.from({ length: AROUND }, (_, k) => (k / AROUND) * Math.PI * 2);
+  if (regions.length) ({ outerRows, phis } = refineAround(outer, phis, r, t, widthAt, regions, ball, step));
   // 断面（ξ：幅の中の位置 −1〜1、ρ：指の軸からの距離）。内側の平らな所を −1 → +1、外側を +1 → −1
   const section2: [number, number][] = [];
-  // 外側の線は右の端の内側（y ＝ 0）から左の端の内側まで。内側の平らな所は、左の端 → 右の端（右の端は外側の線の始まり）
-  const outer = sectionOutline(section, p.sectionPoints, p.sectionCurve);
   const xR = outer[0][0];
   const xL = outer[outer.length - 1][0];
   for (let i = 0; i < FLAT; i++) section2.push([xL + ((xR - xL) * i) / FLAT, r]);
-  for (const [xi, eta] of outer.slice(0, -1)) section2.push([xi, r + t * eta]);
-  // 指のまわりの角度 φ での幅（肩のある所だけ広い）。φ = 0 がいちばん上（+z）
-  const widthAt = shoulderWidth(w, r + t, p.head);
+  for (const [xi, eta] of outerRows.slice(0, -1)) section2.push([xi, r + t * eta]);
   // 断面の点ごとに、指のまわりを 1 周する輪
-  const rings: V3[][] = section2.map(([xi, rho]) =>
-    Array.from({ length: AROUND }, (_, k) => {
-      const phi = (k / AROUND) * Math.PI * 2;
-      return [(xi * widthAt(phi)) / 2, rho * Math.sin(phi), rho * Math.cos(phi)] as V3;
+  const rings: V3[][] = section2.map(([xi, rho], i) =>
+    phis.map((phi) => {
+      const x = (xi * widthAt(phi)) / 2;
+      const y = rho * Math.sin(phi);
+      let z = rho * Math.cos(phi);
+      // 外側の点だけ削る。指の側（内径の円）より下へは下げない
+      if (i >= FLAT && regions.length) {
+        let zc = ball ? ball.carve(x, y, z) : z;
+        if (seatZ && railBoxes.some((b) => x >= b.xMin && x <= b.xMax && y >= b.yMin && y <= b.yMax)) zc = Math.min(zc, seatZ(x, y));
+        if (zc < z) z = Math.max(zc, Math.sqrt(Math.max(0, r * r - y * y)));
+      }
+      return [x, y, z] as V3;
     }),
   );
-  const notchDepthMm = cut ? carveSeat(rings, FLAT, r, r + t, cut) : 0;
+  const notchDepthMm = ball ? Math.max(0, r + t - ball.bottomZ) : 0;
   const tris: number[] = [];
   ringsToTube(rings, tris);
   const positions = closedPart(tris);
@@ -240,54 +271,164 @@ export function buildShank(p: ShankParams, cut?: SeatCut): ShankResult {
     outlineMm: outer.map(([xi, eta]) => [(xi * w) / 2, eta * t] as [number, number]),
     sideWidthMm: widthAt(-Math.PI / 2),
     notchDepthMm,
+    notchBallDiameterMm: ball ? 2 * ball.radiusMm : 0,
+    notchBall: ball ? { cx: ball.cx, cy: ball.cy, bottomZ: ball.bottomZ, radiusMm: ball.radiusMm } : null,
+    head: p.head && p.head.widthMm > w ? p.head : null,
+    railSeatDepthMm: railBoxes.reduce((m, b) => Math.max(m, b.depth ?? 0), 0),
   };
 }
 
 /**
- * 腕の外側の点（断面の番号 firstOuter から）のうち、石の下の面 − すき間より上にある点を、まっすぐ下げる（ザグり）。
- * 床は、点から隣の点までの距離（上から見て）＋ すき間 の円の中のいちばん低い所で取る。
- * 三角形の中の点は、どの角からも、その角の隣の点までの距離より近いので、三角形の面も石に入らない。
- * 指の側（内径）より下へは下げない。削った深さ（外側のいちばん上 outerTop から、いちばん下げた点まで）を返す
+ * 削る前の腕の上の面の高さ z(x, y)（腕がない所は −Infinity）。外側の線（ξ, η）と、指のまわりの幅から求める。
+ * 上から見た (x, y) の真下の点を、φ ＝ asin(y ÷ ρ)、ξ ＝ 2x ÷ 幅(φ)、ρ ＝ 内側の半径 ＋ 厚み × η(ξ) を数回くり返して探す
  */
-function carveSeat(rings: V3[][], firstOuter: number, innerR: number, outerTop: number, cut: SeatCut): number {
-  const m = rings.length;
-  const n = rings[0].length;
-  const pad = cut.clearanceMm + 1;
-  const { xMin, xMax, yMin, yMax } = cut.box;
-  // 先に、動かす前の上から見た位置で、隣までの距離を測る（点は z だけ動かすので、x と y は変わらない）
-  const moves: [number, number, number][] = [];
-  for (let i = firstOuter; i < m; i++) {
-    for (let k = 0; k < n; k++) {
-      const [x, y, z] = rings[i][k];
-      if (z <= cut.culetZ - cut.clearanceMm || x < xMin - pad || x > xMax + pad || y < yMin - pad || y > yMax + pad) continue;
-      let reach = 0;
-      for (const di of [-1, 0, 1]) {
-        for (const dk of [-1, 0, 1]) {
-          const q = rings[(i + di + m) % m][(k + dk + n) % n];
-          reach = Math.max(reach, Math.hypot(q[0] - x, q[1] - y));
-        }
-      }
-      const floor = cut.floorZ(x, y, reach + cut.clearanceMm);
-      if (z > floor) moves.push([i, k, floor]);
+function bandTop(outer: [number, number][], r: number, t: number, widthAt: (phi: number) => number): (x: number, y: number) => number {
+  const etaAt = (xi: number) => {
+    let eta = -Infinity;
+    for (let j = 0; j + 1 < outer.length; j++) {
+      const [x0, e0] = outer[j];
+      const [x1, e1] = outer[j + 1];
+      if ((xi - x0) * (xi - x1) > 0 || x0 === x1) continue;
+      eta = Math.max(eta, e0 + ((e1 - e0) * (xi - x0)) / (x1 - x0));
+    }
+    return eta;
+  };
+  return (x, y) => {
+    let rho = r + t;
+    for (let it = 0; it < 4; it++) {
+      if (Math.abs(y) >= rho) return -Infinity;
+      const eta = etaAt((2 * x) / widthAt(Math.asin(y / rho)));
+      if (eta === -Infinity) return -Infinity;
+      rho = r + t * eta;
+    }
+    return Math.abs(y) >= rho ? -Infinity : Math.sqrt(rho * rho - y * y);
+  };
+}
+
+/** 腕を削る所（上から見た箱と、削るいちばん低い z） */
+interface Region {
+  xMin: number;
+  xMax: number;
+  yMin: number;
+  yMax: number;
+  zMin: number;
+  /** 削る深さ（その所の腕の上の面から。座のときだけ） */
+  depth?: number;
+}
+
+/**
+ * 石座の下の輪が腕の上に入りこむ所（接点）の箱。輪の下の面が、腕の上の面より下にある輪の点を、ひと続きごとに囲む。
+ * 箱は輪の半径だけ広げる。zMin は輪の下の面
+ */
+function railRegions(rail: Rail, topZ: (x: number, y: number) => number): Region[] {
+  const a = rail.radiusMm;
+  const n = rail.pts.length;
+  const under = rail.pts.map(([x, y, z]) => z - a < topZ(x, y));
+  const start = under.indexOf(false);
+  if (start < 0) return [];
+  const out: Region[] = [];
+  let cur: Region | null = null;
+  for (let s = 0; s <= n; s++) {
+    const i = (start + s) % n;
+    const [x, y, z] = rail.pts[i];
+    if (under[i] && s < n) {
+      cur ??= { xMin: Infinity, xMax: -Infinity, yMin: Infinity, yMax: -Infinity, zMin: Infinity, depth: 0 };
+      cur.depth = Math.max(cur.depth!, topZ(x, y) - (z - a));
+      cur.xMin = Math.min(cur.xMin, x - a);
+      cur.xMax = Math.max(cur.xMax, x + a);
+      cur.yMin = Math.min(cur.yMin, y - a);
+      cur.yMax = Math.max(cur.yMax, y + a);
+      cur.zMin = Math.min(cur.zMin, z - a);
+    } else if (cur) {
+      // ひと続きが終わったら、箱を閉じる
+      out.push(cur);
+      cur = null;
     }
   }
-  let lowest = Infinity;
-  for (const [i, k, floor] of moves) {
-    const v = rings[i][k];
-    // 指の側（内径の円）より下へは下げない
-    const zMin = Math.sqrt(Math.max(0, innerR * innerR - v[1] * v[1]));
-    const z = Math.max(floor, zMin);
-    rings[i][k] = [v[0], v[1], z];
-    lowest = Math.min(lowest, z);
+  const pad = 2 * a;
+  return out.map((b) => ({ ...b, xMin: b.xMin - pad, xMax: b.xMax + pad, yMin: b.yMin - pad, yMax: b.yMax + pad }));
+}
+
+/**
+ * 削る所のまわりだけ、格子を細かくする。
+ * 断面の線：削る所にかかる区間を、長さ step ごとに分ける（もとの線の上に点を足すだけなので、削らない所の形は変わらない）。
+ * 指のまわり：削る所にかかる角度の区間を、外側で長さ step ごとに分ける。
+ * 球のビットがあれば、石の先の真下に、ちょうど格子の点が来るよう、その所でも分ける（くぼみの底がちょうど深さになる）
+ */
+function refineAround(
+  outer: [number, number][],
+  phis0: number[],
+  r: number,
+  t: number,
+  widthAt: (phi: number) => number,
+  regions: Region[],
+  ball: BallCut | null,
+  step: number,
+): { outerRows: [number, number][]; phis: number[] } {
+  const top = r + t;
+  const margin = 2 * step;
+  const phiC = ball ? Math.asin(Math.max(-1, Math.min(1, ball.cy / top))) : 0;
+  const half = widthAt(phiC) / 2;
+  const xiC = ball ? ball.cx / half : NaN;
+  // 石の先の真下を通る区間（いちばん上にあるもの）
+  let jC = -1;
+  if (ball)
+    for (let j = 0; j + 1 < outer.length; j++) {
+      const [x0, e0] = outer[j];
+      const [x1, e1] = outer[j + 1];
+      if ((xiC - x0) * (xiC - x1) > 0 || x0 === x1) continue;
+      if (jC < 0 || Math.max(e0, e1) > Math.max(outer[jC][1], outer[jC + 1][1])) jC = j;
+    }
+  const outerRows: [number, number][] = [];
+  for (let j = 0; j + 1 < outer.length; j++) {
+    const [x0, e0] = outer[j];
+    const [x1, e1] = outer[j + 1];
+    outerRows.push(outer[j]);
+    const zTop = r + t * Math.max(e0, e1);
+    const near = regions.some((g) => Math.max(x0, x1) * half >= g.xMin - margin && Math.min(x0, x1) * half <= g.xMax + margin && zTop >= g.zMin - 0.05 * t);
+    if (!near) continue;
+    const length = Math.hypot((x1 - x0) * half, (e1 - e0) * t);
+    const cuts = j === jC ? [(xiC - x0) / (x1 - x0)] : [];
+    for (const s of splitParams(length, cuts, step)) outerRows.push([x0 + (x1 - x0) * s, e0 + (e1 - e0) * s]);
   }
-  return moves.length ? Math.max(0, outerTop - lowest) : 0;
+  outerRows.push(outer[outer.length - 1]);
+  // 指のまわり：上から見て、削る所の y の幅にかかる、上の側の区間
+  const phis: number[] = [];
+  const n = phis0.length;
+  // φC は −π/2〜π/2。区間は 0〜2π で数えるので、そろえる
+  const pc = phiC < 0 ? phiC + Math.PI * 2 : phiC;
+  for (let k = 0; k < n; k++) {
+    const a = phis0[k];
+    const b = k + 1 < n ? phis0[k + 1] : Math.PI * 2;
+    phis.push(a);
+    const ya = top * Math.sin(a);
+    const yb = top * Math.sin(b);
+    if (Math.cos(a) <= 0 || Math.cos(b) <= 0) continue;
+    if (!regions.some((g) => Math.max(ya, yb) >= g.yMin - margin && Math.min(ya, yb) <= g.yMax + margin)) continue;
+    const cuts = ball && pc > a && pc < b ? [(pc - a) / (b - a)] : [];
+    for (const s of splitParams((b - a) * top, cuts, step)) phis.push(a + (b - a) * s);
+  }
+  return { outerRows, phis };
+}
+
+/** 0〜1 の区間を、長さ length の線として step 以下に分ける点（0 と 1 はふくまない）。cuts の所でも必ず分ける */
+function splitParams(length: number, cuts: number[], step: number): number[] {
+  const marks = [0, ...cuts.filter((c) => c > 1e-6 && c < 1 - 1e-6), 1];
+  const out: number[] = [];
+  for (let i = 0; i + 1 < marks.length; i++) {
+    const a = marks[i];
+    const b = marks[i + 1];
+    const pieces = Math.max(1, Math.ceil(((b - a) * length) / step));
+    for (let q = i === 0 ? 1 : 0; q < pieces; q++) out.push(a + ((b - a) * q) / pieces);
+  }
+  return out;
 }
 
 /**
  * 指のまわりの角度 φ（ラジアン、いちばん上が 0）での腕の幅。肩がなければいつも w。
  * 肩があれば、いちばん上から外側に沿って spanMm / 2 までは広い幅、そこから taperMm でなめらかに（余弦の形で）元の幅へ戻る。
  */
-function shoulderWidth(w: number, outerR: number, head: ShankHead | undefined): (phi: number) => number {
+export function shoulderWidth(w: number, outerR: number, head: ShankHead | undefined): (phi: number) => number {
   if (!head || head.widthMm <= w) return () => w;
   return (phi) => {
     const a = Math.atan2(Math.sin(phi), Math.cos(phi)); // −π〜π にそろえる

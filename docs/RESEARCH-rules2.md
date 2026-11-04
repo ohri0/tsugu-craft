@@ -147,6 +147,20 @@
   - https://www.stuller.com/benchjeweler/resources/bencharticles/view/common-stone-setting-repairs-every-bench-jeweler-should-know/
 - 付け直しは全部の爪を一度に（そろわないと目立つ）、年に 2 回の点検、という販売店の説明（検索の要約、**未確認**）。
 
+### 15. 石座を腕に付ける所（2026-11-04、検索の要約、**未確認**・数字なし）
+
+作者の問い「石座と腕がどうロウ付けされているか分からない」に答えるために調べた。検索の要約だけで、頁は開いていない。
+
+- 地金の会社の職人向け記事「ロウ付けのしかた」の要約：石座を腕に置き、まっすぐ・しっかり座っているか確かめる。ロウの小片を、石座が腕に当たる所の**両側**に置き、熱してロウが均一に流れるまで待つ。
+  - https://stuller.com/benchjeweler/resources/bencharticles/view/how-to-solder
+- 工具の販売店の商品の説明：4 本爪・6 本爪の石座のために、上に切り込み（ノッチ）を入れてある腕の材料がある。合わせる手間とヤスリの時間が減る、とある。腕の上を石座に合わせて切る、という作り方の裏づけ。
+  - https://www.ottofrei.com/products/gold-platinum-half-round-ring-shanks-notched-4-prong
+- 石座を付け替える手順の記事の要約：合わせは何度も当てて確かめる（削るのは簡単だが、足すのは難しい）。削りすぎると腕が薄くなる。
+  - https://blog.esslinger.com/how-to-replace-a-solitare-setting/
+- 職人の集まりの掲示板の要約：ロウはごく少しで足り、つなぎ目に流れこんで見えなくなる。石座を上までロウが上がるなら熱しすぎ。
+  - https://orchid.ganoksin.com/t/solder-choice/1855
+- アプリに入れたこと：腕の上を、石座の下の輪の丸みに合わせて削る（座）。下の輪が腕を横切る 2 か所（前と後ろ）を接点にして、すみに小さなロウの丸みを付ける。丸みの大きさの数字は見つからないので、**仮の目安**（輪の線の太さ × 0.3、`GUIDES.gallery.solderFilletRatio`）。
+
 ### 確かめられなかったこと
 
 - CAD/CAM の生産の決まりの PDF の中の数字（石の一番下と指 0.5 mm、腕 1.2 mm、覆輪 0.45 mm、輪の間 0.4 mm、仕上げで 0.2 mm）。PDF を取れたが、文字を取り出せなかった。

@@ -115,7 +115,8 @@ export function howToMake(o: HowToInput, method: Method): Step[] {
         modelSpecs: [
           ...head,
           { label: "腕", value: `${SHANK_SECTION_LABEL[sh.section]} ・ 幅 ${mm(sh.widthMm)} × 厚み ${mm(sh.thicknessMm)}` },
-          ...(r.notchDepthMm > 0 ? [{ label: "ザグり", value: `腕の上 深さ ${mm(r.notchDepthMm, 2)}（3D データに入っている）` }] : []),
+          ...(r.notchDepthMm > 0 ? [{ label: "ザグり", value: `腕の上 深さ ${mm(r.notchDepthMm, 2)}・丸いくぼみ 直径 約 ${mm(r.shank.notchBallDiameterMm, 1)}（3D データに入っている）` }] : []),
+          ...(r.solder ? [{ label: "石座の座", value: `腕の上に、下の輪の形の溝 深さ ${mm(r.shank.railSeatDepthMm, 2)}（3D データに入っている。ロウの丸みは原型に入れない）` }] : []),
           ...settingSpecs,
         ],
         sprueAt: "腕の下（石座の反対側）",
@@ -148,15 +149,30 @@ export function howToMake(o: HowToInput, method: Method): Step[] {
     {
       id: "attach",
       title: "石座を腕に付ける",
-      // 石の先が腕に入りこむときは、形の方でもうザグってある（geometry/notch.ts）。その深さを、ヤスリで腕の上に座を作る量として伝える
-      text: r.notchDepthMm > 0 ? `石の先が当たる所は、腕の上をヤスリで深さ ${mm(r.notchDepthMm, 2)} ザグる（石の先が入る座を作る）。腕のいちばん上に石座をのせ、ロウ付けする。` : "腕のいちばん上に石座をのせ、ロウ付けする。",
+      // 石の先が腕に入りこむときは、形の方でもうザグってある（geometry/notch.ts、球のビット）。
+      // 石座の下の輪が腕を横切る所は、腕の上を輪の形に合わせて削り（座）、両側の接点にロウを流す（geometry/joint.ts）
+      text: attachText(r),
       specs: [
         { label: "指から石座の上まで", value: mm(m.heightAboveFinger, 2) },
         { label: "石と指のすき間", value: mm(m.culetGap, 2) },
-        ...(r.notchDepthMm > 0 ? [{ label: "ザグり", value: `深さ ${mm(r.notchDepthMm, 2)}（石とのすき間 ${mm(GUIDES.bezel.clearanceMm, 2)} を含む）` }] : []),
+        ...(r.notchDepthMm > 0 ? [{ label: "ザグり", value: `深さ ${mm(r.notchDepthMm, 2)}・丸いビット 直径 約 ${mm(r.shank.notchBallDiameterMm, 1)}（石とのすき間 ${mm(GUIDES.bezel.clearanceMm, 2)} を含む）` }] : []),
+        ...(r.solder ? [{ label: "石座の座", value: `腕の上に、下の輪の形の溝 深さ ${mm(r.shank.railSeatDepthMm, 2)}（${r.solder.contacts} か所）` }, { label: "ロウ付け", value: `接点 ${r.solder.contacts} か所・すみの丸み 約 ${mm(r.solder.filletMm, 2)}（仮の目安）` }] : []),
       ],
     },
     seat,
     finish,
   ];
 }
+
+/**
+ * 「石座を腕に付ける」の文。どこを、どう付けるか：
+ * 石の先が腕に入りこむときは、先に丸いビットでザグる。下の輪が腕を横切る所は、腕の上を輪の丸みに合わせてヤスリで削り、
+ * 石座がぐらつかずに座るようにする。両側の接点に小さなロウを置いて流す
+ */
+function attachText(r: RingDesign): string {
+  const zaguri = r.notchDepthMm > 0 ? `石の先が当たる所は、丸いビット（直径 約 ${mm(r.shank.notchBallDiameterMm, 1)}）を真上から下ろして、腕の上を深さ ${mm(r.notchDepthMm, 2)} ザグる。` : "";
+  if (!r.solder) return `${zaguri}腕のいちばん上に石座をのせ、ロウ付けする。`;
+  const where = r.solder.contacts === 2 ? "石座の下の輪が腕を横切る 2 か所（腕に沿って前と後ろ）" : "石座の下の輪が腕にのる所";
+  return `${zaguri}${where}は、腕の上を輪の丸みに合わせてヤスリで削り（深さ ${mm(r.shank.railSeatDepthMm, 2)}）、石座がぐらつかずに座るようにする。両側の接点に小さなロウを置いて流す（すみに小さな丸みが入るくらい。ロウは見えないくらい少し）。`;
+}
+

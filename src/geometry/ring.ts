@@ -6,7 +6,9 @@ import { GUIDES, type MetalId } from "../rules/guides";
 import { buildSetting, type SettingParams, type SettingResult } from "./setting";
 import { buildShank, weightG, type ShankHead, type ShankParams, type ShankResult } from "./shank";
 import { buildStone, meshVolume, type StoneMesh, type StoneParams } from "./stone";
-import { stoneSeatCut, type SeatCut } from "./notch";
+import { BALL_CUT, stoneSeatCut, type SeatCut } from "./notch";
+import { buildSolder, railInRing } from "./joint";
+import { concat } from "./mesh";
 
 /** 向き：along（縦）＝ 石の長辺が指に沿う。across（横）＝ 長辺が指を横切る */
 export type Orientation = "along" | "across";
@@ -18,6 +20,11 @@ export interface RingParams {
   shank: ShankParams;
   /** 既定は縦 */
   orientation?: Orientation;
+  /**
+   * 石座と腕の接点に、ロウの丸みの形を作るか。なければ、一体の石座（画面の形）の仕上げ（solidQuality が preview でない）のときだけ作る
+   * （ロウの丸みは細かい形を作るので少し時間がかかる。動かしている間の粗い形と、管の形では作らない）
+   */
+  solder?: boolean;
 }
 
 /** 石の座標 → 指輪の座標：z 軸まわりに rotationZ（ラジアン）回してから、z に translateZ 足す */
@@ -47,6 +54,11 @@ export interface RingDesign {
   notchDepthMm: number;
   /** ザグりに使う石の下の面（腕を作り直すときにも使う） */
   seatCut: SeatCut;
+  /**
+   * 石座と腕のロウ付け：接点の数・すみの丸みの大きさ（mm）・ringPositions.setting の中の三角形の範囲（石座の後ろ）。
+   * 爪留めで、下の輪が腕に当たるときだけ（なければ null）
+   */
+  solder: { contacts: number; filletMm: number; triangles: { start: number; count: number } } | null;
   /** 地金の重さの見積もり（g）＝（腕 ＋ 石座）の体積 × 密度。部品の重なりも数えるので少し多め。目安 */
   metalWeightG: number;
   metal: MetalId;
@@ -67,7 +79,13 @@ export function buildRing(p: RingParams): RingDesign {
   // 一体の石座は足もとが腕の幅の中に入るので、腕の上をふくらませない（丸い線のまま石座につなぐ）
   // 石の下側が腕に入りこむ所は、腕の上をザグる（石の縁と同じすき間を残す）
   const seatCut = stoneSeatCut(p.stone, stone.heights, transform, GUIDES.bezel.clearanceMm);
-  const shank = buildShank(setting.normals ? p.shank : { ...p.shank, head: p.shank.head ?? headFootprint(ringSetting, plain) }, seatCut);
+  // 石座の下の輪が腕に当たる所は、腕の上を輪の形に合わせて削って座にし（joint.ts）、両側の接点にロウを流す
+  const rail = railInRing(setting, transform);
+  const shank = buildShank(setting.normals ? p.shank : { ...p.shank, head: p.shank.head ?? headFootprint(ringSetting, plain) }, seatCut, { rail });
+  const wantSolder = p.solder ?? (p.setting.solid === true && p.setting.solidQuality !== "preview");
+  const solder = rail && wantSolder ? buildSolder(rail, shank, seatCut) : null;
+  const settingAll = solder?.positions.length ? concat([ringSetting, solder.positions]) : ringSetting;
+  const settingNormals = setting.normals ? rotateNormals(setting.normals, transform.rotationZ) : undefined;
   const culetGapMm = stone.heights.culetZ + transform.translateZ - shank.innerRadiusMm;
   const metal = shank.metal;
   return {
@@ -77,10 +95,18 @@ export function buildRing(p: RingParams): RingDesign {
     setting,
     shank,
     transform,
-    ringPositions: { stone: ringStone, setting: ringSetting, shank: shank.positions, settingNormals: setting.normals ? rotateNormals(setting.normals, transform.rotationZ) : undefined },
+    ringPositions: {
+      stone: ringStone,
+      // ロウの丸みは石座の後ろに足す（爪の三角形の範囲は変わらない）
+      setting: settingAll,
+      shank: shank.positions,
+      settingNormals: settingNormals && solder?.positions.length ? concat([settingNormals, solder.normals]) : settingNormals,
+    },
+    solder: solder && solder.contacts ? { contacts: solder.contacts, filletMm: solder.filletMm, triangles: { start: ringSetting.length / 9, count: solder.positions.length / 9 } } : null,
     culetGapMm,
     notchDepthMm: shank.notchDepthMm,
     seatCut,
+    // ロウの丸みの形は、腕と輪の中に隠れる所もふくむので、重さには数えない（ロウはごく少し）
     metalWeightG: weightG(shank.volumeMm3 + meshVolume(setting.positions), metal),
     metal,
   };
@@ -88,12 +114,13 @@ export function buildRing(p: RingParams): RingDesign {
 
 /**
  * 腕だけを作り直す（石と石座はそのまま）。断面の点を動かしている間に、3D の腕だけをすぐ変えるため。
- * 肩（石座の足を受ける広い所）は、今の石座から buildRing と同じように決める。ザグりも同じ石の下の面で削る（軽い：上の点だけ調べる）
+ * 肩（石座の足を受ける広い所）は、今の石座から buildRing と同じように決める。ザグりも同じ球のビットで削り、石座の座も作る（動かしている間は、削る所の格子を粗くして速くする。ロウの丸みは指を離したときに作る）
  */
 export function rebuildShank(ring: RingDesign, shank: ShankParams): ShankResult {
-  if (ring.setting.normals) return buildShank(shank, ring.seatCut);
+  const opts = { notchStepMm: BALL_CUT.dragStepMm, rail: railInRing(ring.setting, ring.transform) };
+  if (ring.setting.normals) return buildShank(shank, ring.seatCut, opts);
   const plain = buildShank(shank);
-  return buildShank({ ...shank, head: shank.head ?? headFootprint(ring.ringPositions.setting, plain) }, ring.seatCut);
+  return buildShank({ ...shank, head: shank.head ?? headFootprint(ring.ringPositions.setting, plain) }, ring.seatCut, opts);
 }
 
 /**

@@ -1256,7 +1256,7 @@ function renderCheck() {
       const note = prongCountNote(b);
       const r = b.ring;
       // 石の先（キューレット）が腕の厚みの中まで下りているときは、形の方で腕の上をもうザグってある（geometry/notch.ts）
-      const zaguri = r.notchDepthMm > 0 ? `<p class="look-note"><b>ザグり</b>石の先が当たる所を、腕の上で自動でザグりました（深さ ${r.notchDepthMm.toFixed(2)} mm）。<small>石の先〜指 ${r.culetGapMm.toFixed(2)} mm、腕の厚み ${r.shank.thicknessMm.toFixed(1)} mm。石とのすき間 ${GUIDES.bezel.clearanceMm} mm を残しています。3D・図面・重さ・STL に入っています（作り方の「石座を腕に付ける」）</small></p>` : "";
+      const zaguri = r.notchDepthMm > 0 ? `<p class="look-note"><b>ザグり</b>石の先が当たる所を、腕の上で自動でザグりました（深さ ${r.notchDepthMm.toFixed(2)} mm、丸いビット 直径 約 ${r.shank.notchBallDiameterMm.toFixed(1)} mm）。<small>石の先〜指 ${r.culetGapMm.toFixed(2)} mm、腕の厚み ${r.shank.thicknessMm.toFixed(1)} mm。石とのすき間 ${GUIDES.bezel.clearanceMm} mm を残しています。3D・図面・重さ・STL に入っています（作り方の「石座を腕に付ける」）</small></p>` : "";
       return (note ? `<p class="look-note"><b>見た目の注意</b>${esc(note)}<small>作れますが、形に対して不自然に見えることがあります（確かめの決まりではありません）</small></p>` : "") + zaguri;
     })()}
     <details class="manual" ${manualOpen ?? !probs.length ? "open" : ""}><summary>手で変える</summary>
@@ -2199,7 +2199,8 @@ function solitaireDrawing(b: Built, problems: string[], sess: RingSession = sess
       { label: "地金・重さ", value: `${METAL_LABEL[sess.state.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g` },
       { label: "石", value: `${info.longMm.toFixed(2)} × ${info.widthMm.toFixed(2)} × ${info.depthMm.toFixed(2)}` },
       { label: "留め方", value: r.setting.style === "bezel" ? `覆輪 ・ 壁 ${r.setting.bezel?.wallMm.toFixed(2)}` : `爪 ${r.setting.prongs.length} ・ ø${r.setting.prongs[0]?.diameterMm.toFixed(2)}` },
-      ...(r.notchDepthMm > 0 ? [{ label: "ザグり", value: `腕の上 深さ ${r.notchDepthMm.toFixed(2)}` }] : []),
+      ...(r.notchDepthMm > 0 ? [{ label: "ザグり", value: `腕の上 深さ ${r.notchDepthMm.toFixed(2)}・丸いビット 直径 約 ${r.shank.notchBallDiameterMm.toFixed(1)}` }] : []),
+      ...(r.solder ? [{ label: "石座の座", value: `腕の上に下の輪の溝 深さ ${r.shank.railSeatDepthMm.toFixed(2)}・ロウ付け ${r.solder.contacts} か所` }] : []),
     ],
     views: views(
       [
