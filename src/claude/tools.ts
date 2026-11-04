@@ -8,11 +8,11 @@ import { GUIDE_NOTE, GUIDES } from "../rules/guides.js";
 import { PARAMS, type ParamId } from "../rules/ledger.js";
 import type { ClaudeTool } from "./wire.js";
 
-export const TOOL_NAMES = ["set_setting", "set_shank", "check", "look", "propose_rule", "ask_teacher"] as const;
+export const TOOL_NAMES = ["set_setting", "set_shank", "check", "look", "propose_rule", "ask_teacher", "set_stones"] as const;
 export type ToolName = (typeof TOOL_NAMES)[number];
 
 /** 指輪の形を変える道具。最初に呼ばれる前に、戻すための写しを取る。 */
-export const CHANGING_TOOLS: readonly ToolName[] = ["set_setting", "set_shank"];
+export const CHANGING_TOOLS: readonly ToolName[] = ["set_setting", "set_shank", "set_stones"];
 
 export function isToolName(name: string): name is ToolName {
   return (TOOL_NAMES as readonly string[]).includes(name);
@@ -90,6 +90,28 @@ export interface SetSettingInput {
   reason: string;
 }
 
+/** 石の並べ方：solo＝一粒、trio＝三石（真ん中 ＋ 両脇）、row＝横一列（同じ石を count 個） */
+export type StoneLayout = "solo" | "trio" | "row";
+
+export interface SetStonesInput {
+  layout: StoneLayout;
+  /** 横一列の石の数 */
+  count?: number;
+  /** 三石の両脇の石の長辺（mm） */
+  side_mm?: number;
+  /** 両脇の石（三石）・ほかの石の留め方 */
+  side_style?: SettingStyle;
+  /** 石座どうしの間を、既定の間からさらに広げる長さ（mm） */
+  spread_mm?: number;
+  reason: string;
+}
+
+export interface SetStonesResult {
+  layout: StoneLayout;
+  stones: { no: number; at_mm: number; long_mm: number; style: SettingStyle }[];
+  note: string;
+}
+
 /** 腕の断面。free は画面で手で描いた形（Claude の道具からは選ばない） */
 export type ShankSectionChoice = "kouman" | "hirauchi" | "hangouman" | "kaku" | "free";
 
@@ -163,7 +185,7 @@ export interface FixOption {
   action: string;
   appearance: string;
   /** この直し方に使う道具と入力の例（あれば） */
-  tool_hint?: { tool: "set_setting"; input: Partial<SetSettingInput> } | { tool: "set_shank"; input: Partial<SetShankInput> };
+  tool_hint?: { tool: "set_setting"; input: Partial<SetSettingInput> } | { tool: "set_shank"; input: Partial<SetShankInput> } | { tool: "set_stones"; input: Partial<SetStonesInput> };
 }
 
 export interface CheckProblem {
@@ -206,6 +228,8 @@ export interface ToolHost<S = unknown> {
   proposeRule?(input: ProposeRuleInput): Awaitable<ProposeRuleResult>;
   /** 生徒の質問を「先生に聞くこと」に足す（教える画面だけが用意する） */
   askTeacher?(input: AskTeacherInput): Awaitable<AskTeacherResult>;
+  /** 石を並べる（三石・横一列。指輪の作業の画面だけが用意する） */
+  setStones?(input: SetStonesInput): Awaitable<SetStonesResult>;
   snapshot(): S;
   restore(snapshot: S): void;
 }
@@ -221,6 +245,9 @@ export const INPUT_BOUNDS = {
   width_mm: [1, 10],
   thickness_mm: [0.8, 5],
   gou: [1, 30],
+  count: [GUIDES.multi.rowCount[0], GUIDES.multi.rowCount[2]],
+  side_mm: [1.5, 12],
+  spread_mm: [0, 3],
 } as const;
 
 // ---- 道具の定義（Claude に見せる説明つき） ----
@@ -408,6 +435,27 @@ export const TOOLS: ClaudeTool[] = [
       additionalProperties: false,
     },
   },
+  {
+    name: "set_stones",
+    description:
+      "石を並べる。solo＝一粒（今のまま）、trio＝三石（今の石を真ん中に、両脇に小さめの石を 1 つずつ）、row＝横一列（今の石と同じ石を count 個、腕に沿って）。" +
+      "石の場所は、石座どうしの間が既定の間になるように自動で決まる（石ごとに同じ石座を作り、腕の丸みに沿って立てる）。" +
+      "変えたら check で確かめ直すこと（石ごとの爪の確かめと、となりの石との間の確かめが出る）。",
+    strict: true,
+    input_schema: {
+      type: "object",
+      properties: {
+        layout: { type: "string", enum: ["solo", "trio", "row"], description: "並べ方" },
+        count: { type: "integer", description: `横一列の石の数（${range("count", " 個")}）。row のときだけ使う` },
+        side_mm: { type: "number", description: `三石の両脇の石の長辺（mm、${range("side_mm", " mm")}）。省くと真ん中の石の ${Math.round(GUIDES.multi.sideRatio * 100)} %` },
+        side_style: { type: "string", enum: ["prong", "bezel"], description: "ほかの石の留め方。省くと真ん中の石と同じ" },
+        spread_mm: { type: "number", description: `石座どうしの間を、既定よりさらに広げる長さ（mm、${range("spread_mm", " mm")}）。間が狭いと言われたときに使う` },
+        reason: { type: "string", description: "なぜこう並べるか。短く書く（作業の記録に残る）" },
+      },
+      required: ["layout", "reason"],
+      additionalProperties: false,
+    },
+  },
 ];
 
 // ---- 入力を確かめる ----
@@ -419,7 +467,8 @@ export type ParsedToolCall =
   | { name: "check"; input: Record<string, never> }
   | { name: "look"; input: LookInput }
   | { name: "propose_rule"; input: ProposeRuleInput }
-  | { name: "ask_teacher"; input: AskTeacherInput };
+  | { name: "ask_teacher"; input: AskTeacherInput }
+  | { name: "set_stones"; input: SetStonesInput };
 
 export type ParseResult = { ok: true; call: ParsedToolCall } | { ok: false; error: string };
 
@@ -437,6 +486,9 @@ const BOUND_OF: Record<string, keyof typeof INPUT_BOUNDS> = {
   thickness_mm: "thickness_mm",
   gou: "gou",
   value: "value",
+  count: "count",
+  side_mm: "side_mm",
+  spread_mm: "spread_mm",
 };
 
 function checkNumber(key: string, v: unknown, integer: boolean): string | null {

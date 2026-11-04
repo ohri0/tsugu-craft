@@ -5,6 +5,9 @@ import { buildRing, placePoint, type RingParams } from "../src/geometry/ring";
 import { roundStone, layoutRow, layoutTrio, scaleStone } from "../src/geometry/multi";
 import { checkRing } from "../src/rules/checks";
 import { GUIDES } from "../src/rules/guides";
+import { seedLedger } from "../src/rules/ledger";
+import { RingSession } from "../src/studio/session";
+import { parseToolCall } from "../src/claude/tools";
 
 const center = roundStone(6.5);
 const shank = { gou: 11 };
@@ -138,5 +141,50 @@ describe("石の間の確かめ", () => {
     const lay = layoutTrio(center, side, { style: "prong" }, shank, 0);
     const ring = buildRing({ stone: center, setting: { style: "prong" }, shank, others: lay.map((atMm) => ({ stone: side, setting: { style: "prong" as const }, atMm })) });
     expect(checkRing(ring).some((p) => p.check === "metal-space" || p.check === "stone-space")).toBe(false);
+  });
+});
+
+describe("設計の場（RingSession）で石を並べる", () => {
+  const make = () => new RingSession(roundStone(6), () => seedLedger(), () => undefined, () => "");
+  it("set_stones の道具で三石にすると、両脇に小さめの石が並び、確かめが石ごとに走る", () => {
+    const s = make();
+    const r = s.setStones({ layout: "trio", reason: "三石にしたい" });
+    expect(r.stones).toHaveLength(3);
+    expect(r.stones[1].long_mm).toBeCloseTo(6 * GUIDES.multi.sideRatio, 1);
+    expect(s.built!.ring.stones).toHaveLength(3);
+    expect(s.built!.problems.filter((p) => p.target.kind === "space")).toEqual([]);
+  });
+  it("横一列 5 つ、一粒へ戻す", () => {
+    const s = make();
+    s.setStones({ layout: "row", count: 5, reason: "ハーフエタニティ風" });
+    expect(s.built!.ring.stones).toHaveLength(5);
+    s.setStones({ layout: "solo", reason: "一粒に戻す" });
+    expect(s.built!.ring.stones).toHaveLength(1);
+    expect(s.state.stones).toBeUndefined();
+  });
+  it("人が置いた石を寄せすぎると間の確かめが出て、直し方「石の間を広げる」をくり返すと消える", () => {
+    const s = make();
+    s.addStone(2.5, { shape: "round", longMm: 3.5 });
+    let b = s.build();
+    expect(b.problems.some((p) => p.target.kind === "space")).toBe(true);
+    for (let k = 0; k < 10 && b.problems.some((p) => p.target.kind === "space"); k++) {
+      const p = b.problems.find((q) => q.target.kind === "space")!;
+      s.spreadStones(p.target.kind === "space" ? p.target.stones : undefined);
+      b = s.build();
+    }
+    expect(b.problems.some((p) => p.target.kind === "space")).toBe(false);
+  });
+  it("動かす・外す", () => {
+    const s = make();
+    s.addStone(7);
+    s.moveStone(1, -7);
+    expect(s.build().ring.stones[1].atMm).toBe(-7);
+    s.removeStone(1);
+    expect(s.build().ring.stones).toHaveLength(1);
+  });
+  it("道具の入力：石の数の範囲を確かめる", () => {
+    expect(parseToolCall("set_stones", { layout: "row", count: 5, reason: "並べる" }).ok).toBe(true);
+    expect(parseToolCall("set_stones", { layout: "row", count: 50, reason: "並べる" }).ok).toBe(false);
+    expect(parseToolCall("set_stones", { layout: "ring", reason: "並べる" }).ok).toBe(false);
   });
 });

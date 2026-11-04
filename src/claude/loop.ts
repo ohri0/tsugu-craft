@@ -205,6 +205,9 @@ async function dispatch<S>(host: ToolHost<S>, call: ParsedToolCall): Promise<unk
     case "ask_teacher":
       if (!host.askTeacher) return { queued: false, note: "この画面では先生に回せません（教える画面で使ってください）。分からないことは、分からないと書いてください" };
       return host.askTeacher(call.input);
+    case "set_stones":
+      if (!host.setStones) return { layout: "solo", stones: [], note: "この画面では石を並べられません（一粒のまま）" };
+      return host.setStones(call.input);
   }
 }
 

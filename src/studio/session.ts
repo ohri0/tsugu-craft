@@ -1,6 +1,8 @@
 // 指輪の設計の場：石と設計を持ち、Claude の道具（set_setting / set_shank / check / look）を、
 // 人のボタンと同じ関数で実行する。確かめは、いつも今の帳面（職人の決まり）で行う。画面には依存しない（look の画像だけ外から受け取る）。
-import { buildRing, type RingDesign } from "../geometry/ring";
+import { buildRing, type RingDesign, type StonePlace } from "../geometry/ring";
+import { layoutRow, layoutTrio, scaleStone } from "../geometry/multi";
+import { PRESETS, presetOutline } from "./presets";
 import { tAtOutlineIndex, type SolidQuality } from "../geometry/setting";
 import type { SectionCurve, SectionPoint, ShankSection } from "../geometry/shank";
 import type { StoneParams } from "../geometry/stone";
@@ -17,9 +19,28 @@ import type {
   SetSettingResult,
   SetShankInput,
   SetShankResult,
+  SetStonesInput,
+  SetStonesResult,
+  StoneLayout,
   SettingState,
   ToolHost,
 } from "../claude/tools";
+
+/** 並べる石の形：photo ＝ 今の石（真ん中の石）と同じ形を大きさだけ変える。ほかは、よくある形（presets.ts の id） */
+export type SlotShape = "photo" | "round" | "oval" | "princess" | "emerald" | "pear" | "marquise";
+
+/** 真ん中の石のほかに、腕に並べる石 1 つ */
+export interface StoneSlot {
+  /** 腕のいちばん上から、腕の外側に沿って測った場所（mm、＋ は +y の側） */
+  atMm: number;
+  shape: SlotShape;
+  /** 長辺（mm）。幅は形の比のまま */
+  longMm: number;
+  /** 留め方（なければ真ん中の石と同じ） */
+  style?: "prong" | "bezel";
+  /** 爪の本数（なければ石の形から自動） */
+  prongCount?: number;
+}
 
 /** 設計（Claude の道具と、人のつまみが同じものを動かす） */
 export interface RingState {
@@ -48,7 +69,28 @@ export interface RingState {
   /** 石の一番下と指のすき間（mm）を直接決める（高さの選択より優先。職人の決まりに合わせて直すとき） */
   culetGapMm?: number;
   position: StonePosition;
+  /** 石の並べ方（なければ一粒）。free ＝ 人が 1 つずつ置いた */
+  layout?: StoneLayout | "free";
+  /** 真ん中の石のほかに並べる石（一粒なら空） */
+  stones?: StoneSlot[];
+  /** 真ん中の石の場所（mm、腕に沿って。横一列で石の数が偶数のとき 0 でない） */
+  mainAtMm?: number;
+  /** 三石・横一列の並べ方で、石座どうしの間を既定より広げる長さ（mm） */
+  spreadMm?: number;
 }
+
+/** 並べる石 1 つの、形と大きさ（石の座標） */
+export function slotStone(main: StoneParams, slot: Pick<StoneSlot, "shape" | "longMm">): StoneParams {
+  if (slot.shape === "photo") return scaleStone(main, slot.longMm / main.longMm);
+  const p = PRESETS.find((x) => x.id === slot.shape) ?? PRESETS[0];
+  const k = slot.longMm / p.longMm;
+  const preset = { ...p, longMm: p.longMm * k, widthMm: p.widthMm * k, depthMm: p.depthMm * k };
+  return { outlineMm: presetOutline(preset), longMm: preset.longMm, widthMm: preset.widthMm, depthMm: preset.depthMm };
+}
+
+/** 並べる石の形の名前（画面） */
+export const SLOT_SHAPE_LABEL: Record<SlotShape, string> = { photo: "今の石と同じ形", round: "ラウンド", oval: "オーバル", princess: "スクエア", emerald: "エメラルド", pear: "ペア", marquise: "マーキス" };
+export const LAYOUT_LABEL: Record<StoneLayout | "free", string> = { solo: "一粒", trio: "三石", row: "横一列", free: "自由に置く" };
 
 /** つまみや Claude の set_setting が止まってから、細かい一体の形を作り直すまでの待ち（ms） */
 export const FINAL_DELAY_MS = 250;
@@ -83,6 +125,8 @@ const CHECK_NAME: Record<string, string> = {
   "band-thin": "腕の厚み",
   "band-narrow": "腕の幅",
   "band-spike": "腕の断面のとがり・薄いヒレ",
+  "stone-space": "となりの石との間",
+  "metal-space": "となりの石座との間",
 };
 
 /** 直し方 → Claude が使える道具と入力の例 */
@@ -106,6 +150,10 @@ function hintFor(id: FixId, s: RingState, std: number): FixOption["tool_hint"] {
       return { tool: "set_shank", input: { thickness_mm: GUIDES.band.minThicknessMm } };
     case "widerBand":
       return { tool: "set_shank", input: { width_mm: GUIDES.band.minWidthMm } };
+    case "spreadStones":
+      return s.layout === "trio" || s.layout === "row" ? { tool: "set_stones", input: { layout: s.layout, spread_mm: Math.round(((s.spreadMm ?? 0) + SPREAD_STEP_MM) * 100) / 100 } } : undefined;
+    case "smallerStones":
+      return s.layout === "trio" ? { tool: "set_stones", input: { layout: "trio", side_mm: Math.round((s.stones?.[0]?.longMm ?? 4) * SMALLER_STEP * 10) / 10 } } : undefined;
     default:
       return undefined;
   }
@@ -191,7 +239,23 @@ export class RingSession implements ToolHost<RingState> {
     const outline = this.stone.outlineMm;
     const ledger = this.ledger();
     const guides = effectiveGuides(ledger, this.sizeMm());
+    const head = {
+      height: s.height,
+      culetGapMm: s.culetGapMm,
+      minProngMm: prongMinOverride(guides),
+      solid: this.solid,
+      solidQuality: quality,
+      vAtCorners: false,
+    } as const;
+    const others: StonePlace[] = (s.stones ?? []).map((slot) => ({
+      stone: slotStone(this.stone, slot),
+      orientation: s.orientation,
+      atMm: slot.atMm,
+      setting: { ...head, style: slot.style ?? s.style, prongCount: slot.prongCount },
+    }));
     const ring = buildRing({
+      atMm: s.mainAtMm,
+      others,
       stone: this.stone,
       setting: {
         style: s.style,
@@ -310,6 +374,117 @@ export class RingSession implements ToolHost<RingState> {
     };
   }
 
+  /** 三石・横一列に並べ直す（石の場所は、石座どうしの間が既定の間 ＋ spreadMm になる所） */
+  arrange(layout: StoneLayout, opts: { count?: number; sideMm?: number; sideStyle?: "prong" | "bezel"; spreadMm?: number; sideShape?: SlotShape } = {}): void {
+    const s = this.state;
+    s.layout = layout;
+    if (opts.spreadMm !== undefined) s.spreadMm = opts.spreadMm;
+    const extra = s.spreadMm ?? 0;
+    const shank = { gou: s.gou, widthMm: s.shankWidthMm, thicknessMm: s.shankThicknessMm, section: s.shankSection };
+    const head = { style: s.style, height: s.height, culetGapMm: s.culetGapMm, prongCount: s.prongCount, prongDiameterMm: s.prongMm, vAtCorners: false };
+    if (layout === "solo") {
+      s.stones = undefined;
+      s.mainAtMm = undefined;
+      s.spreadMm = undefined;
+    } else if (layout === "trio") {
+      const prev = s.stones?.[0];
+      const sideMm = opts.sideMm ?? prev?.longMm ?? Math.round(this.stone.longMm * GUIDES.multi.sideRatio * 10) / 10;
+      const shape = opts.sideShape ?? prev?.shape ?? "photo";
+      const style = opts.sideStyle ?? prev?.style;
+      const side = slotStone(this.stone, { shape, longMm: sideMm });
+      const [l, r] = layoutTrio(this.stone, side, head, shank, extra, s.orientation, { ...head, style: style ?? s.style, prongCount: undefined, prongDiameterMm: undefined });
+      s.mainAtMm = undefined;
+      s.stones = [l, r].map((atMm) => ({ atMm, shape, longMm: sideMm, style }));
+    } else {
+      const [lo, def, hi] = GUIDES.multi.rowCount;
+      const n = Math.max(lo, Math.min(hi, Math.round(opts.count ?? (s.stones && s.layout === "row" ? s.stones.length + 1 : def))));
+      const at = layoutRow(this.stone, n, head, shank, extra, s.orientation);
+      // 真ん中の石は、並びの真ん中（偶数のときは真ん中の 2 つのうち − の側）
+      const mid = Math.floor((n - 1) / 2);
+      s.mainAtMm = at[mid] === 0 ? undefined : at[mid];
+      const style = opts.sideStyle;
+      s.stones = at.filter((_, i) => i !== mid).map((atMm) => ({ atMm, shape: "photo" as const, longMm: this.stone.longMm, style }));
+    }
+  }
+
+  setStones(input: SetStonesInput): SetStonesResult {
+    this.arrange(input.layout, { count: input.count, sideMm: input.side_mm, sideStyle: input.side_style, spreadMm: input.spread_mm });
+    const b = this.build(input.reason);
+    return {
+      layout: input.layout,
+      stones: b.ring.stones.map((st, i) => ({ no: i + 1, at_mm: Math.round(st.atMm * 100) / 100, long_mm: Math.round(st.params.longMm * 100) / 100, style: st.setting.style })),
+      note: "石の番号 1 は真ん中の石（今の石）。場所は、腕のいちばん上から腕に沿って測った長さ（mm）。間の数字は仮の目安・最後は職人が決める",
+    };
+  }
+
+  /** 人が 1 つずつ置く：腕の上の場所に石を足す（形と大きさは、なければ今の石の 6 割ほどの同じ形） */
+  addStone(atMm: number, slot: Partial<Omit<StoneSlot, "atMm">> = {}): number {
+    const s = this.state;
+    const last = s.stones?.[s.stones.length - 1];
+    const longMm = slot.longMm ?? last?.longMm ?? Math.round(this.stone.longMm * GUIDES.multi.sideRatio * 10) / 10;
+    s.stones = [...(s.stones ?? []), { atMm, shape: slot.shape ?? last?.shape ?? "photo", longMm, style: slot.style ?? last?.style, prongCount: slot.prongCount }];
+    s.layout = "free";
+    return s.stones.length;
+  }
+
+  /** 並べた石（番号は RingDesign.stones の番号。0 ＝ 真ん中の石）を動かす・変える・外す */
+  moveStone(i: number, atMm: number): void {
+    const s = this.state;
+    if (i === 0) s.mainAtMm = atMm === 0 ? undefined : atMm;
+    else if (s.stones?.[i - 1]) s.stones[i - 1] = { ...s.stones[i - 1], atMm };
+    s.layout = "free";
+  }
+
+  editStone(i: number, patch: Partial<Omit<StoneSlot, "atMm">>): void {
+    const s = this.state;
+    if (i <= 0 || !s.stones?.[i - 1]) return;
+    s.stones[i - 1] = { ...s.stones[i - 1], ...patch };
+    if (s.layout !== "row" && s.layout !== "trio") s.layout = "free";
+  }
+
+  removeStone(i: number): void {
+    const s = this.state;
+    if (i <= 0 || !s.stones?.[i - 1]) return;
+    s.stones = s.stones.filter((_, k) => k !== i - 1);
+    if (!s.stones.length) {
+      s.stones = undefined;
+      s.layout = undefined;
+      s.mainAtMm = undefined;
+    } else s.layout = "free";
+  }
+
+  /** 石の間を広げる（直し方）。三石・横一列は並べ直し、自由に置いた石は、間の狭い 2 つを離す */
+  spreadStones(pair?: [number, number]): void {
+    const s = this.state;
+    if (s.layout === "trio" || s.layout === "row") {
+      this.arrange(s.layout, { spreadMm: (s.spreadMm ?? 0) + SPREAD_STEP_MM, count: s.layout === "row" ? (s.stones?.length ?? 0) + 1 : undefined });
+      return;
+    }
+    const ring = this.built?.ring;
+    if (!ring || !pair) return;
+    const [a, b] = pair.map((i) => ring.stones[i]);
+    const dir = Math.sign(b.atMm - a.atMm) || 1;
+    // 真ん中の石は動かさず、ほかの石を外へ
+    const move = (i: number, by: number) => this.moveStone(i, ring.stones[i].atMm + by);
+    if (pair[0] === 0) move(pair[1], dir * SPREAD_STEP_MM * 2);
+    else if (pair[1] === 0) move(pair[0], -dir * SPREAD_STEP_MM * 2);
+    else {
+      move(pair[0], -dir * SPREAD_STEP_MM);
+      move(pair[1], dir * SPREAD_STEP_MM);
+    }
+  }
+
+  /** 横の石を小さくする（直し方）。三石は並べ直す */
+  smallerStones(): void {
+    const s = this.state;
+    if (!s.stones?.length) return;
+    if (s.layout === "trio") {
+      this.arrange("trio", { sideMm: Math.round(s.stones[0].longMm * SMALLER_STEP * 10) / 10 });
+      return;
+    }
+    s.stones = s.stones.map((x) => ({ ...x, longMm: Math.round(x.longMm * SMALLER_STEP * 10) / 10 }));
+  }
+
   check(): CheckResult {
     const b = this.built ?? this.build();
     const std = b.ring.setting.standardProngMm;
@@ -324,7 +499,7 @@ export class RingSession implements ToolHost<RingState> {
         options: p.options.map((o) => ({ action: o.label, appearance: o.effectOnLook, tool_hint: hintFor(o.id, this.state, std) })),
       })),
       passed: Object.entries(CHECK_NAME)
-        .filter(([k]) => !failed.has(k as Problem["check"]))
+        .filter(([k]) => !failed.has(k as Problem["check"]) && (b.ring.stones.length > 1 || !k.endsWith("-space")))
         .map(([, v]) => v),
       note: `数字は目安・最後は職人が決める。石の一番下と指のすき間は ${b.ring.culetGapMm.toFixed(2)} mm、地金は約 ${b.ring.metalWeightG.toFixed(1)} g。`,
     };
@@ -346,6 +521,10 @@ export class RingSession implements ToolHost<RingState> {
     this.build("元に戻した");
   }
 }
+
+/** 石の間を広げる直し方で、1 回に広げる長さ（mm）と、横の石を小さくする割合（直し方の 1 歩。形を作るための決まり） */
+export const SPREAD_STEP_MM = 0.3;
+export const SMALLER_STEP = 0.85;
 
 /** 直し方の名前（画面のボタン） */
 export const FIX_LABEL = (id: FixId) => FIXES[id].label;
