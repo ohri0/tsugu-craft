@@ -336,6 +336,8 @@ export interface BandGap {
   outline: readonly [number, number][];
   /** 腕の端を、輪の外の面からこれだけ輪の中へ入れる（mm。すき間が見えないように。なければ BAND_GAP_OVERLAP_MM） */
   overlapMm?: number;
+  /** 輪が円すいのとき：下の面の高さの外の線（outline と同じ点の並び）と、上の面・下の面の高さ（指輪の座標） */
+  low?: { outline: readonly [number, number][]; topZ: number; bottomZ: number };
 }
 
 /** 腕の端を輪の壁へ入れる長さ（mm。形を作るための決まり） */
@@ -368,9 +370,26 @@ function openBand(
   // 断面の点ごとの、端の角度（＋の側の端 φS、−の側の端 φE ＝ 2π ＋ asin(…)）
   const ends = sec.map(([xi, rho]) => {
     const x = (xi * w) / 2;
-    const ys = crossingsAtX(c.gap.outline, x);
-    const yP = ys.length ? ys[ys.length - 1] - ov : 0;
-    const yM = ys.length ? ys[0] + ov : 0;
+    // 下の輪は円すいで、下へ行くほど内へ寄る。腕の端も、その高さの輪の外の線に合わせる（上の端の線で切ると、腕の下の方が輪から離れた。2026-11-05 作者）
+    const endY = (pick: (ys: number[]) => number, off: number) => {
+      let ys = crossingsAtX(c.gap.outline, x);
+      if (!ys.length) return 0;
+      let y = pick(ys) + off;
+      const low = c.gap.low;
+      if (low) {
+        for (let it = 0; it < 3; it++) {
+          const z = Math.sqrt(Math.max(0, rho * rho - y * y));
+          const a = Math.max(0, Math.min(1, (low.topZ - z) / (low.topZ - low.bottomZ || 1)));
+          const line = c.gap.outline.map((q, i) => [q[0] + (low.outline[i][0] - q[0]) * a, q[1] + (low.outline[i][1] - q[1]) * a] as [number, number]);
+          ys = crossingsAtX(line, x);
+          if (!ys.length) break;
+          y = pick(ys) + off;
+        }
+      }
+      return y;
+    };
+    const yP = endY((ys) => ys[ys.length - 1], -ov);
+    const yM = endY((ys) => ys[0], ov);
     const asin = (y: number) => Math.asin(Math.max(-1, Math.min(1, y / rho)));
     return { x, rho, s: asin(yP), e: 2 * Math.PI + asin(yM) };
   });

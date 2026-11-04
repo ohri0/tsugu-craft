@@ -84,7 +84,6 @@ export const GUIDES = {
    *   高さの選び方（低め・標準・高め）は、この間を −0.5・0・＋0.5 mm 変える（0.1 mm より狭くしない）。
    * - collarHeightRatio：下の輪（板を丸めた輪）の高さ ＝ 腕の厚み × この値（指の真上で）。腕の端は指の丸みで下がるので、腕の端はまるごと輪の横に当たる。
    * - collarWallMm：下の輪の板の厚み。collarWallMinMm：板の厚みの最低（覆輪の壁の最低 0.45 mm を借りた。薄いと輪がゆがむ・ロウ付けで溶けやすい）。
-   * - prongTailMm：爪が下の輪より下へ出る、短い先の長さ（指に当たらない所まで）。
    * - minEndContactRatio：腕の端の高さのうち、下の輪の横に当たっている割合の最低。これより少ないと、ロウ付けの面が足りない。
    */
   join: {
@@ -97,7 +96,6 @@ export const GUIDES = {
       collarHeightRatio: 0.75,
       collarWallMm: 0.5,
       collarWallMinMm: 0.45,
-      prongTailMm: 0.3,
       minEndContactRatio: 0.75,
     },
   },

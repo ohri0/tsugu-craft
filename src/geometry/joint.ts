@@ -339,6 +339,9 @@ export interface CollarRing {
   topZ: number;
   /** 円すいの傾き：上の端から下へ 1 mm で、外の面が内へ寄る長さ */
   taperTan: number;
+  /** 下の面の高さでの外の線（指輪の座標）と、その高さ */
+  outerLow: [number, number][];
+  bottomZ: number;
 }
 
 /** 石座の下の輪を、指輪の座標に置く（腕の間に挟む石座でなければ null） */
@@ -347,7 +350,8 @@ export function collarInRing(setting: SettingResult, t: RingTransform): CollarRi
   if (!c) return null;
   const cs = Math.cos(t.rotationZ);
   const sn = Math.sin(t.rotationZ);
-  return { outer: c.outer.map((p) => [p.x * cs - p.y * sn, p.x * sn + p.y * cs] as [number, number]), wallMm: c.wallMm, topZ: c.topZ + t.translateZ, taperTan: collarTaperTan(c) };
+  const place = (p: { x: number; y: number }) => [p.x * cs - p.y * sn, p.x * sn + p.y * cs] as [number, number];
+  return { outer: c.outer.map(place), outerLow: c.outerLow.map(place), wallMm: c.wallMm, topZ: c.topZ + t.translateZ, bottomZ: c.bottomZ + t.translateZ, taperTan: collarTaperTan(c) };
 }
 
 /** 距離の場 G が負になる所を、粗い目で探して囲む箱。距離は 1 mm 動いて高々 1 mm しか変わらないので、目の大きさ分の余白で取りこぼさない。何もなければ null */
@@ -384,7 +388,7 @@ export function buildEndSolder(collar: CollarRing, shank: ShankResult): Solder {
   const poly = collar.outer.map(([x, y]) => ({ x, y }));
   const dOut = polygonDistance(poly, SOLDER_GRID.cellMm / 2);
   // 腕：輪の外の線の中（overlap 分の内まで）は切ってある
-  const band = (x: number, y: number, z: number) => Math.max(plain(x, y, z), -dOut(x, y) - BAND_GAP_OVERLAP_MM);
+  const band = (x: number, y: number, z: number) => Math.max(plain(x, y, z), -(dOut(x, y) + (collar.topZ - z) * collar.taperTan) - BAND_GAP_OVERLAP_MM);
   const ring = (x: number, y: number, z: number) => {
     const shell = Math.abs(dOut(x, y) + (collar.topZ - z) * collar.taperTan + collar.wallMm / 2) - collar.wallMm / 2;
     // 一体の石座の下の輪と同じ、上の縁の丸み（丸みが違うと、ロウが輪の縁の外へ小さく出て見える）

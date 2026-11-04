@@ -123,7 +123,7 @@ export function buildRing(p: RingParams): RingDesign {
   const rotationZ = orientation === "across" ? Math.PI / 2 : 0;
   // 腕の間に挟む石座は、下の輪の下の面を指の丸みに合わせる（石の座標で、指の軸は −rotationZ の向き）
   const between = p.setting.style === "prong" && p.setting.join === "between";
-  const finger = between ? { innerRadiusMm: plain.innerRadiusMm, axisRad: -rotationZ } : undefined;
+  const finger = between ? { innerRadiusMm: plain.innerRadiusMm, axisRad: -rotationZ, bandWidthMm: plain.widthMm } : undefined;
   const setting = buildSetting({ ...p.setting, stone: p.stone, shankThicknessMm: plain.thicknessMm, finger });
   const stone = buildStone(p.stone);
   const transform: RingTransform = {
@@ -197,7 +197,7 @@ function betweenRing(p: RingParams, orientation: Orientation, setting: SettingRe
   const ringStone = applyTransform(stone.positions, transform);
   const ringSetting = applyTransform(setting.positions, transform);
   const seatCut = stoneSeatCut(p.stone, stone.heights, transform, GUIDES.bezel.clearanceMm);
-  const shank = buildShank({ ...p.shank, head: undefined }, undefined, { gap: { outline: collar.outer } });
+  const shank = buildShank({ ...p.shank, head: undefined }, undefined, { gap: { outline: collar.outer, low: { outline: collar.outerLow, topZ: collar.topZ, bottomZ: collar.bottomZ } } });
   const wantSolder = p.solder ?? (p.setting.solid === true && p.setting.solidQuality !== "preview");
   const solder = wantSolder ? buildEndSolder(collar, shank) : null;
   const settingAll = solder?.positions.length ? concat([ringSetting, solder.positions]) : ringSetting;

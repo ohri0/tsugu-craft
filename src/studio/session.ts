@@ -3,7 +3,7 @@
 import { buildRing, type RingDesign, type StonePlace } from "../geometry/ring";
 import { layoutRow, layoutTrio, scaleStone } from "../geometry/multi";
 import { PRESETS, presetOutline } from "./presets";
-import { tAtOutlineIndex, type JoinStyle, type SolidQuality } from "../geometry/setting";
+import { autoOrientation, tAtOutlineIndex, type JoinStyle, type SolidQuality } from "../geometry/setting";
 import type { SectionCurve, SectionPoint, ShankSection } from "../geometry/shank";
 import type { StoneParams } from "../geometry/stone";
 import { FIXES, checkRing, holdRatio, type FixId, type Problem } from "../rules/checks";
@@ -55,6 +55,10 @@ export interface RingState {
   prongPositions?: number[];
   height: HeightOption;
   orientation: "along" | "across";
+  /** 向きを人が選んだか（選んでいなければ、尖った角が腕に当たらない向きを自動で選ぶ） */
+  orientationSet?: boolean;
+  /** 付け方を人が選んだか（選んでいなければ、小さな石は腕の上にのせる） */
+  joinSet?: boolean;
   /** 道具で選んだ地金の名前（見た目は 3 種の地金のどれかで出す） */
   metal: Metal;
   gou: number;
@@ -210,6 +214,11 @@ export class RingSession implements ToolHost<RingState> {
    * 確かめ（problems）は形の網目を使わないので、粗くても細かくても同じ
    */
   build(why = ""): Built {
+    // 向きを人が選んでいなければ、尖った角が腕に当たらない向きにする（爪は腕を避けるので、角が腕の上だと爪で守れない）
+    const st = this.state;
+    if (!st.orientationSet && (st.join ?? "between") === "between" && !st.layout && !st.stones?.length) {
+      st.orientation = autoOrientation(this.stone, st.shankWidthMm ?? GUIDES.shank.widthMm);
+    }
     const preview = this.solid && this.deferFinal && this.hadFinal;
     if (this.solid) this.cancelFinal();
     this.built = this.compose(preview ? "preview" : "final");
@@ -277,7 +286,7 @@ export class RingSession implements ToolHost<RingState> {
       turnRad: trio ? trioTurn(slot) : undefined,
       setting: { ...head, minProngMm: prongMinOverride(slotGuides[i]), style: slot.style ?? s.style, prongCount: slot.prongCount, prongDiameterMm: slot.prongMm },
     }));
-    const ring = buildRing({
+    const ringParams = {
       atMm: s.mainAtMm,
       others,
       joinHeads: trio,
@@ -309,7 +318,10 @@ export class RingSession implements ToolHost<RingState> {
         sectionCurve: s.shankSection === "free" ? s.sectionCurve : undefined,
       },
       orientation: s.orientation,
-    });
+    };
+    let ring = buildRing(ringParams);
+    // 小さな石は腕を避けられないので、付け方を選んでいなければ、腕の上にのせる（職人 2026-11-05。別の留め方をすすめる一言は画面が出す）
+    if (!s.joinSet && ring.setting.prongsOnArm > 0) ring = buildRing({ ...ringParams, setting: { ...ringParams.setting, join: "on" as const } });
     const problems = checkRing(ring, { position: s.position, guides, guidesFor: (i) => (i === 0 ? guides : slotGuides[i - 1]) }).map((p) => ({ ...p, rule: ruleForCheck(ledger, p.check) }));
     return { ring, problems };
   }
@@ -351,8 +363,14 @@ export class RingSession implements ToolHost<RingState> {
       s.height = input.height;
       s.culetGapMm = undefined;
     }
-    if (input.orientation) s.orientation = input.orientation;
-    if (input.join) s.join = input.join;
+    if (input.orientation) {
+      s.orientation = input.orientation;
+      s.orientationSet = true;
+    }
+    if (input.join) {
+      s.join = input.join;
+      s.joinSet = true;
+    }
     const b = this.build(input.reason);
     return {
       setting: this.settingState(),

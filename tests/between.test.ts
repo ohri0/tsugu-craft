@@ -2,6 +2,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { openEdges } from "../src/cad/solid";
+import { bandDistance, collarInRing } from "../src/geometry/joint";
 import { buildRing, type RingParams } from "../src/geometry/ring";
 import { polygonDistance } from "../src/geometry/setting";
 import { stoneScaleAt, type StoneParams } from "../src/geometry/stone";
@@ -55,9 +56,11 @@ describe("腕の間に挟む石座：形", () => {
     for (const e of ends) expect(Math.abs(e.y)).toBeCloseTo(ys[0] - 0.03, 2);
     expect(Math.sign(ends[0].y)).not.toBe(Math.sign(ends[1].y));
     // 上の側（z > 0）で、上から見て輪の外の線より内に、腕の点は板の厚みの半分より深く入らない（端のふたの真ん中が、輪の壁の中に少し入るだけ）
+    // 輪は円すいなので、その高さの外の線で見る
     const dOut = polygonDistance(c.outer, 0.02);
+    const inRing = collarInRing(ring.setting, ring.transform)!;
     let inside = 0;
-    for (const [x, y, z] of verts(ring.shank.positions)) if (z > 0 && dOut(x, y) < -c.wallMm / 2) inside++;
+    for (const [x, y, z] of verts(ring.shank.positions)) if (z > 0 && dOut(x, y) + (inRing.topZ - z) * inRing.taperTan < -c.wallMm / 2) inside++;
     expect(inside).toBe(0);
     // 腕は閉じた形のまま（両端にふた）
     expect(openEdges(ring.shank.positions)).toBe(0);
@@ -237,6 +240,177 @@ describe("腕の間に挟む石座：角のある石の STL（2026-11-05 作者�
       }
     }
   }, 60000);
+});
+
+describe("腕の間に挟む石座：爪を腕へ刺さない（職人：爪を 1 本ずつ腕へ刺す作りはしない。2026-11-05 作者：腕から爪が生えている）", () => {
+  const tri = stoneFrom(triangle(200, 200, 160, 140), 8.88, 4.24);
+  const cases: [string, StoneParams, "along" | "across", number | undefined][] = [
+    ["既定の三角", tri, "along", undefined],
+    ["三角の 6 本爪", tri, "along", 6],
+    ["ペア", preset("pear"), "along", undefined],
+    ["ペア（横）", preset("pear"), "across", undefined],
+    ["マーキス（横）", preset("marquise"), "across", undefined],
+    ["ラウンドの 6 本爪", round, "along", 6],
+    ["スクエアの 6 本爪", preset("princess"), "along", 6],
+  ];
+  it.each(cases)("%s：腕の中へ入るのは、爪を輪につなぐ分（0.3 mm）まで", (_n, stone, orientation, prongCount) => {
+    const ring = buildRing(params({ stone, orientation, solder: false, shank: { gou: 11, metal: "k18y" } }, { prongCount }));
+    const d = bandDistance(ring.shank);
+    const pos = ring.ringPositions.setting;
+    for (const pr of ring.setting.prongs) {
+      let deepest = 0;
+      const t = pr.triangles;
+      for (let k = t.start * 9; k < (t.start + t.count) * 9; k += 3) deepest = Math.min(deepest, d(pos[k], pos[k + 1], pos[k + 2]));
+      expect(-deepest).toBeLessThanOrEqual(0.3);
+    }
+  });
+});
+
+/** 高さ z で切った断面の輪の数 */
+function loopsAt(p: Float32Array, z: number): number {
+  const key = (a: number[]) => `${a[0].toFixed(3)},${a[1].toFixed(3)}`;
+  const parent = new Map<string, string>();
+  const find = (a: string): string => {
+    let x = a;
+    while (parent.get(x) !== x) {
+      parent.set(x, parent.get(parent.get(x)!)!);
+      x = parent.get(x)!;
+    }
+    return x;
+  };
+  for (let t = 0; t < p.length; t += 9) {
+    const v = [0, 1, 2].map((k) => [p[t + k * 3], p[t + k * 3 + 1], p[t + k * 3 + 2]]);
+    const pts: number[][] = [];
+    for (let k = 0; k < 3; k++) {
+      const a = v[k];
+      const b = v[(k + 1) % 3];
+      if ((a[2] - z) * (b[2] - z) < 0) {
+        const u = (z - a[2]) / (b[2] - a[2]);
+        pts.push([a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u]);
+      }
+    }
+    if (pts.length !== 2) continue;
+    const a = key(pts[0]);
+    const b = key(pts[1]);
+    if (!parent.has(a)) parent.set(a, a);
+    if (!parent.has(b)) parent.set(b, b);
+    parent.set(find(a), find(b));
+  }
+  return new Set([...parent.keys()].map(find)).size;
+}
+
+describe("腕の間に挟む石座：下の輪は、どの爪にも届く（2026-11-05 作者：ペアの先で届いていない）", () => {
+  const cases: [string, StoneParams][] = [
+    ["ペア", preset("pear")],
+    ["マーキス", preset("marquise")],
+    ["スクエア", preset("princess")],
+    ["既定の三角", stoneFrom(triangle(200, 200, 160, 140), 8.88, 4.24)],
+    ["ラウンド", round],
+    ["エメラルド", preset("emerald")],
+  ];
+  it.each(cases)("%s：下の輪の上の端の少し下で切ると、爪と輪が 1 つの輪郭（外と内の 2 つだけ）", (_n, stone) => {
+    const ring = buildRing(params({ stone, solder: false, shank: { gou: 11, metal: "k18y" } }, { prongCount: undefined, solid: true, solidQuality: "preview" }));
+    const c = ring.setting.collar!;
+    expect(loopsAt(ring.setting.positions, c.topZ - 0.3)).toBe(2);
+  }, 60000);
+});
+
+describe("腕の間に挟む石座：腕の端は、下の輪に下まで当たる（2026-11-05 作者：腕と石座がくっついていない）", () => {
+  const tri = stoneFrom(triangle(200, 200, 160, 140), 8.88, 4.24);
+  const cases: [string, StoneParams, "along" | "across"][] = [
+    ["三角・縦", tri, "along"],
+    ["三角・横", tri, "across"],
+    ["ラウンド", round, "along"],
+    ["スクエア", preset("princess"), "along"],
+    ["ペア", preset("pear"), "along"],
+  ];
+  it.each(cases)("%s：腕の内の面の端が、その高さの輪の外の面から 0.06 mm 以内", (_n, stone, orientation) => {
+    const ring = buildRing(params({ stone, orientation, solder: false, shank: { gou: 11, metal: "k18y" } }));
+    const c = collarInRing(ring.setting, ring.transform)!;
+    const dOut = polygonDistance(c.outer.map(([x, y]) => ({ x, y })), 0.01);
+    const r = ring.shank.innerRadiusMm;
+    const pos = ring.shank.positions;
+    // 腕の内の面（指に当たる面）の、上の側の点で、輪の外の面にいちばん近い点の離れ（＋の側と −の側）
+    let plus = Infinity;
+    let minus = Infinity;
+    for (let i = 0; i < pos.length; i += 3) {
+      const [x, y, z] = [pos[i], pos[i + 1], pos[i + 2]];
+      if (z <= 0 || Math.abs(Math.hypot(y, z) - r) > 0.01 || Math.abs(x) > 0.7) continue;
+      const d = dOut(x, y) + (c.topZ - z) * c.taperTan;
+      if (y > 0) plus = Math.min(plus, d);
+      else minus = Math.min(minus, d);
+    }
+    expect(plus).toBeLessThan(0.06);
+    expect(minus).toBeLessThan(0.06);
+  });
+});
+
+describe("腕の間に挟む石座：爪の位置は腕を避ける（職人 2026-11-05）", () => {
+  const tri = stoneFrom(triangle(200, 200, 160, 140), 8.88, 4.24);
+  it("爪の中心は、腕の幅と爪の半径より外にある（角のない石は、爪の配りをそろえたまま回す）", () => {
+    for (const [stone, orientation, prongCount] of [[round, "along", 6], [round, "across", 6], [preset("oval"), "along", 6], [preset("princess"), "along", 6]] as const) {
+      const ring = buildRing(params({ stone, orientation, shank: { gou: 11, metal: "k18y" } }, { prongCount }));
+      const axis = ring.transform.rotationZ;
+      for (const pr of ring.setting.prongs) {
+        const u = pr.point.x * Math.cos(axis) - pr.point.y * Math.sin(axis);
+        expect(Math.abs(u)).toBeGreaterThan(ring.shank.widthMm / 2);
+      }
+    }
+  });
+  it("既定の向きは、尖った角が腕に当たらない向き。人が向きを選べば、それに従う", () => {
+    const s = new RingSession(tri, () => seedLedger(), () => undefined, () => "");
+    expect(s.build("x").problems.filter((p) => p.check === "corner")).toEqual([]);
+    expect(s.state.orientation).toBe("across");
+    s.setSetting({ orientation: "along", reason: "x" });
+    expect(s.state.orientation).toBe("along");
+    s.build("y");
+    expect(s.state.orientation).toBe("along");
+  });
+  it("丸い石は、向きを変えない", () => {
+    const s = new RingSession(round, () => seedLedger(), () => undefined, () => "");
+    s.build("x");
+    expect(s.state.orientation).toBe("along");
+  });
+});
+
+describe("腕の間に挟む石座：爪の下の端（職人 2026-11-05：輪に埋まっている。丸い先が輪の下に出ることはない）", () => {
+  const tri = stoneFrom(triangle(200, 200, 160, 140), 8.88, 4.24);
+  const cases: [string, StoneParams, "along" | "across"][] = [
+    ["ラウンド", round, "along"],
+    ["スクエア", preset("princess"), "along"],
+    ["既定の三角", tri, "along"],
+    ["マーキス（横）", preset("marquise"), "across"],
+  ];
+  it.each(cases)("%s：一体の形は、指の面より下へ出ない（爪の先が輪の下にぶら下がらない）", (_n, stone, orientation) => {
+    const ring = buildRing(params({ stone, orientation, solder: false, shank: { gou: 11, metal: "k18y" } }, { solid: true, solidQuality: "preview" }));
+    const r = ring.shank.innerRadiusMm;
+    const pos = ring.ringPositions.setting;
+    let lowest = Infinity;
+    for (let i = 0; i < pos.length; i += 3) if (pos[i + 2] > 0) lowest = Math.min(lowest, Math.hypot(pos[i + 1], pos[i + 2]) - r);
+    // 下の輪の下の面は指の面。切る面の余裕（0.05 mm）と格子の目の分だけ許す
+    expect(lowest).toBeGreaterThan(-0.12);
+  }, 60000);
+
+  it("ふつうの大きさの爪は、下の輪の下の面まで同じ太さ（細い先にならない）", () => {
+    const ring = buildRing(params({ shank: { gou: 11, metal: "k18y" } }));
+    const pos = ring.setting.positions;
+    const c = ring.setting.collar!;
+    const t = ring.setting.prongs[0].triangles;
+    const z0 = c.bottomZ + 0.3;
+    let xmin = Infinity;
+    let xmax = -Infinity;
+    let ymin = Infinity;
+    let ymax = -Infinity;
+    for (let k = t.start * 9; k < (t.start + t.count) * 9; k += 3) {
+      if (Math.abs(pos[k + 2] - z0) > 0.25) continue;
+      xmin = Math.min(xmin, pos[k]);
+      xmax = Math.max(xmax, pos[k]);
+      ymin = Math.min(ymin, pos[k + 1]);
+      ymax = Math.max(ymax, pos[k + 1]);
+    }
+    const d = ring.setting.prongs[0].diameterMm;
+    expect(Math.max(xmax - xmin, ymax - ymin)).toBeGreaterThan(d * 0.95);
+  });
 });
 
 describe("腕の間に挟む石座：確かめ", () => {
