@@ -309,6 +309,48 @@ const SHOTS = {
     await p.waitForTimeout(3500);
     await shot(p, 'draw', { clip: { x: 86, y: 84, width: 972, height: 702 } });
   },
+  // 14. 入口のページで押して試せる「作り方」の中身：設計の画面の作るの札（鍛造・鋳造）を、そのまま JSON にする（写真ではない）
+  async steps() {
+    const p = await studio();
+    await tap(p, '.tabs [data-mode="hand"]');
+    await p.waitForTimeout(2000);
+    const out = { title: await p.evaluate(() => window.__studio.stone?.shapeName ?? ''), methods: {} };
+    for (const m of ['hand', 'cast']) {
+      await tap(p, `.build-panel .method [data-m="${m}"]`);
+      await p.waitForTimeout(800);
+      out.methods[m] = await p.evaluate(() => [...document.querySelectorAll('.build-panel .cards > .mk-card')].map((c) => ({
+        no: c.querySelector('.n')?.textContent ?? '',
+        title: c.querySelector('h3')?.textContent ?? '',
+        lead: c.querySelector('.card-lead')?.textContent ?? '',
+        rows: [...c.querySelectorAll('table.spec tr')].map((r) => [r.querySelector('th').textContent, r.querySelector('td').textContent]),
+        watch: c.querySelector('.watch')?.textContent ?? '',
+        more: [...c.querySelectorAll('details.more .lines > li')].map((l) => l.classList.contains('grp') ? { g: l.textContent } : { b: l.querySelector(':scope > b')?.textContent ?? '', t: [...l.childNodes].filter((n) => !(n.nodeType === 1 && n.tagName === 'B')).map((n) => n.textContent).join('') }),
+      })));
+    }
+    await tap(p, '.build-panel .method [data-m="hand"]');
+    fs.writeFileSync(path.join(OUT, 'make-steps.json'), JSON.stringify(out));
+    console.log('steps', out.title, out.methods.hand.length, out.methods.cast.length);
+  },
+  // 13. 指示書の 2 枚目：作り方のページ（石・号・地金の量・爪の線材の太さと長さ・工程）。印刷の窓を開く代わりに、中身を受け取って撮る
+  async sheet2() {
+    const p = await studio();
+    await tap(p, '.tabs [data-mode="hand"]');
+    await p.waitForTimeout(2000);
+    await p.evaluate(() => { window.open = () => { const d = { write: (h) => (window.__sheet = h), close() {} }; return { document: d, print() {} }; }; });
+    await tap(p, '.p-instr');
+    await p.waitForSelector('dialog.print-pick[open]');
+    await tap(p, 'dialog.print-pick button[value="ok"]');
+    await p.waitForFunction(() => window.__sheet, null, { timeout: 20000 });
+    const html = await p.evaluate(() => window.__sheet);
+    const q = await (await browser.newContext({ viewport: { width: 900, height: 1300 }, deviceScaleFactor: 2 })).newPage();
+    await q.setContent(html, { waitUntil: 'load' });
+    await q.waitForTimeout(800);
+    const pg = q.locator('section.page').first();
+    await pg.evaluate((e) => (e.style.margin = '0'));
+    const bb = await pg.boundingBox();
+    // 上の数字と、最初の 2 工程（材料・焼きなまし）まで
+    await shot(q, 'sheet2', { fullPage: true, clip: { ...bb, height: Math.min(bb.height, 790) } });
+  },
 };
 
 /** PNG を webp に（2 倍の物と、半分の幅の -sm） */

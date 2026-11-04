@@ -231,11 +231,14 @@ const html = `
     <div class="head">
       <p class="k rv">作る</p>
       <h2 id="make-h" class="rv">作り方と、図面まで。</h2>
-      <p class="body rv">鍛造と鋳造の工程ごとに、この形から計算した数字、地金の温度の目安、道具。図面は正面・側面・上面に、寸法と表題欄をつけて、A4 横で印刷できます。3D のデータ（STL）も出せます。</p>
+      <p class="body rv">鍛造と鋳造の工程ごとに、この形から計算した数字、地金の温度の目安、道具。下の札は、押して試せます（鍛造・鋳造の切り替えと「詳しく」）。印刷すると、図面と作り方が一緒に出ます。1 枚目は図面（正面・側面・上面と寸法）、2 枚目は作り方（地金の量、腕の線と爪の線材の太さ・長さ、工程ごとの数字）。3D のデータ（STL）も出せます。</p>
     </div>
     <div class="make">
-      <figure class="make-steps rv">${shot("make", 678, 1664, "作るの画面。工程の札「01 材料を用意する」に石・号・腕の線・爪の線材の数字、「02 焼きなまして、のばす」に焼きなましの温度の目安", "(max-width: 760px) 70vw, 340px")}</figure>
-      <figure class="make-draw rv" style="--d:120ms">${shot("draw", 1944, 1404, "図面の画面。指輪の正面図・側面図・上面図に寸法、右下に表題欄", "(max-width: 760px) 92vw, 760px")}</figure>
+      <div class="make-steps rv"><div class="mk-live" aria-live="polite"><p class="mk-loading">作り方を読み込んでいます…</p></div><p class="mk-hint">中身は、設計の画面の「作る」と同じです。</p></div>
+      <div class="make-draw">
+        <figure class="rv" style="--d:120ms">${shot("draw", 1944, 1404, "図面の画面。指輪の正面図・側面図・上面図に寸法、右下に表題欄", "(max-width: 760px) 92vw, 760px")}<figcaption><b>1 枚目</b>　図面：正面・側面・上面と寸法</figcaption></figure>
+        <figure class="rv" style="--d:180ms">${shot("sheet2", 1587, 1580, "指示書の 2 枚目。石・号・留め方・腕・石と指のすき間・地金（K18 イエロー 約 2.5 g）の数字と、工程の札「01 材料を用意する」に腕の線の長さ・爪の線材の太さと長さ・支えの輪", "(max-width: 760px) 92vw, 760px")}<figcaption><b>2 枚目</b>　作り方：地金の量、腕の線と爪の線材の太さ・長さ、工程ごとの数字</figcaption></figure>
+      </div>
     </div>
   </section>
 
@@ -321,6 +324,51 @@ if (matchMedia("(prefers-reduced-motion: reduce)").matches || !("IntersectionObs
   );
   els.forEach((e) => io.observe(e));
 }
+
+// 作るの札：設計の画面の「作る」と同じ中身（scripts/lp-shots.cjs の steps が JSON にした物）。鍛造・鋳造を押して切り替え、「詳しく」で開く
+interface MkLine { g?: string; b?: string; t?: string }
+interface MkCard { no: string; title: string; lead: string; rows: [string, string][]; watch: string; more: MkLine[] }
+const MK_LABEL: Record<string, string> = { hand: "鍛造", cast: "鋳造" };
+const escH = (x: string) => x.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+function mkCards(list: MkCard[]): string {
+  return `<ol class="mk-cards">${list
+    .map(
+      (c) => `<li class="mk-c">
+      <div class="mk-h"><span class="mk-n">${escH(c.no)}</span><div><h3>${escH(c.title)}</h3><p>${escH(c.lead)}</p></div></div>
+      ${c.rows.length ? `<dl class="mk-rows">${c.rows.map(([k, v]) => `<div><dt>${escH(k)}</dt><dd>${escH(v)}</dd></div>`).join("")}</dl>` : ""}
+      ${c.watch ? `<p class="mk-watch">${escH(c.watch)}</p>` : ""}
+      ${c.more.length ? `<details class="mk-more"><summary><span class="pm" aria-hidden="true"></span>詳しく</summary><ul>${c.more.map((l) => (l.g ? `<li class="g">${escH(l.g)}</li>` : `<li>${l.b ? `<b>${escH(l.b)}</b>` : ""}${escH(l.t ?? "")}</li>`)).join("")}</ul></details>` : ""}
+    </li>`,
+    )
+    .join("")}</ol>`;
+}
+async function mountMake() {
+  const box = root.querySelector<HTMLElement>(".mk-live");
+  if (!box) return;
+  try {
+    const d: { methods: Record<string, MkCard[]> } = await (await fetch("lp/make-steps.json")).json();
+    let m = "hand";
+    const stone = d.methods.hand[0]?.rows.find((r) => r[0] === "石")?.[1] ?? "";
+    const gou = d.methods.hand[0]?.rows.find((r) => r[0] === "号")?.[1] ?? "";
+    const draw = () => {
+      box.innerHTML = `<div class="mk-top"><b>作る</b><small>見本：三角の石 ${escH(stone)} ・ ${escH(gou)}</small></div>
+        <div class="mk-seg" role="group" aria-label="作り方">${Object.keys(d.methods).map((k) => `<button type="button" data-m="${k}" aria-pressed="${k === m}">${MK_LABEL[k] ?? k}</button>`).join("")}</div>
+        ${mkCards(d.methods[m])}`;
+      box.querySelectorAll<HTMLButtonElement>(".mk-seg button").forEach((b) =>
+        b.addEventListener("click", () => {
+          if (b.dataset.m === m) return;
+          m = b.dataset.m!;
+          draw();
+          box.querySelector<HTMLButtonElement>(`.mk-seg [data-m="${m}"]`)?.focus();
+        }),
+      );
+    };
+    draw();
+  } catch {
+    box.innerHTML = `<p class="mk-loading">作り方を読み込めませんでした。<a href="${STUDIO}">設計の画面</a>の「作る」で見られます。</p>`;
+  }
+}
+mountMake();
 
 // 上の帯：少し下にスクロールしたら、背景を濃くする
 const hd = root.querySelector<HTMLElement>(".hd")!;
