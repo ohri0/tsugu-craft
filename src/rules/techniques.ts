@@ -1,5 +1,5 @@
 // ほかの技の帳面：覆輪留め・ミル打ち・槌目・鏨彫り（毛彫り）・布目象嵌・木目金。
-// 指輪の石留め・魚々子と同じしくみ（帳面に残す → まだ決まっていない所を職人に聞く）で使う。
+// 指輪の石留めと同じしくみ（帳面に残す → まだ決まっていない所を職人に聞く）で使う。
 // 決まりは公開の資料からだけ入れる（ledger/techniques.json。調べは docs/RESEARCH-rules2.md と research/process/*.md）。
 // 資料に数字がない所・資料が食いちがう所は、決まりを作らず「職人に聞く問い」（open）にする。画面に依存しない。
 import data from "../../ledger/techniques.json";
@@ -48,7 +48,7 @@ export function seedTechLedger(id: TechId): Ledger<string> {
   return { craft: t.name, technique: id, rules: structuredClone(t.rules) };
 }
 
-/** このブラウザに残した帳面に、まだ入っていない資料の決まりを後ろに足す（魚々子の帳面と同じ考え方） */
+/** このブラウザに残した帳面に、まだ入っていない資料の決まりを後ろに足す（指輪の帳面と同じ考え方） */
 export function parseTechLedger(id: TechId, raw: string | null): Ledger<string> {
   const seed = seedTechLedger(id);
   try {

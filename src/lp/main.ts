@@ -200,11 +200,11 @@ const html = `
     <div class="head">
       <p class="k rv">技</p>
       <h2 id="waza-h" class="rv"><span class="ib">同じしくみを、</span><span class="ib">ほかの技へ。</span></h2>
-      <p class="body rv">魚々子・覆輪留め・ミル打ち・槌目・鏨彫り・布目象嵌・木目金。技ごとに帳面を作り、資料の決まりと、まだ決まっていない所を並べました。魚々子では、打つ位置が大きくずれた粒が赤くなります。</p>
+      <p class="body rv">覆輪留め・ミル打ち・槌目・鏨彫り・布目象嵌・木目金。どの技も同じ形のページです。① 作り方（道具・失敗しやすい所・出どころ）、② 職人の決まり、③ Claude からの質問。</p>
     </div>
     <div class="waza-shots">
-      <figure class="rv">${shot("waza", 960, 1481, "技を選ぶ画面。指輪の石留め（決まり 42）、魚々子（決まり 8）、木目金を組み立て直す、ほかの技の帳面（覆輪留め・ミル打ち）", "(max-width: 760px) 92vw, 420px")}</figure>
-      <figure class="rv" style="--d:100ms">${shot("nanako", 1456, 840, "魚々子の図。丸い粒が並び、打つ位置が決まりより大きくずれた粒が赤く出ている", "(max-width: 760px) 92vw, 640px")}<figcaption>魚々子：ずれた粒が赤く</figcaption></figure>
+      <figure class="rv">${shot("waza", 960, 985, "技を選ぶ画面。指輪の石留め、彫金・金工の技（工程・決まり・質問の数つき）、木目金を組み立て直す", "(max-width: 760px) 92vw, 420px")}</figure>
+      <figure class="rv" style="--d:100ms">${shot("tech", 960, 1129, "木目金のページ。① 作り方の工程に、道具・失敗しやすい所・出どころ", "(max-width: 760px) 92vw, 420px")}<figcaption>どの技も同じ形：作り方 → 職人の決まり → 質問</figcaption></figure>
     </div>
     <a class="link rv center" href="${WAZA}">技を見る ${arrow}</a>
   </section>

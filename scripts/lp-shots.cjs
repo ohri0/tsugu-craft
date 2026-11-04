@@ -267,7 +267,7 @@ const SHOTS = {
     console.log('ledger-pub', await p.evaluate(() => document.querySelector('.public-sum')?.innerText));
     await shot(p, 'ledger-pub', { fullPage: true, clip: { x: 0, y: pub.y - 12, width: PHONE_W, height: c3.y + c3.height - pub.y + 24 } });
   },
-  // 9. 技：技の一覧（指輪の石留め・魚々子・木目金を組み立て直す・ほかの技の帳面）
+  // 9. 技：技の一覧（指輪の石留め・彫金・金工の技・木目金を組み立て直す）
   async waza() {
     const p = await page('/app.html?nointro#waza', PHONE_W);
     await p.waitForSelector('.big-techs');
@@ -278,17 +278,16 @@ const SHOTS = {
     console.log('waza', await p.evaluate(() => document.querySelector('.view.waza')?.innerText.replace(/\s+/g, ' ').slice(0, 300)));
     await shot(p, 'waza', { fullPage: true, clip: { x: 0, y: v.y, width: PHONE_W, height: last.y + last.height - v.y + 20 } });
   },
-  // 10. 魚々子：粒の間を詰めすぎると、重なった粒が赤くなる
-  async nanako() {
-    const p = await page('/app.html?nointro#waza/nanako');
-    await p.waitForTimeout(2000);
-    await p.evaluate(() => {
-      const set = (k, v) => { const r = document.querySelector(`.nk-ctrl input[data-k=${k}]`); r.value = String(v); r.dispatchEvent(new Event('input', { bubbles: true })); r.dispatchEvent(new Event('change', { bubbles: true })); };
-      set('grainMm', 0.6); set('pitchMm', 0.65); set('rows', 6); set('offsetMm', 0.12);
-    });
-    await p.waitForTimeout(1500);
-    const box = await p.locator('.nk-preview').boundingBox();
-    await shot(p, 'nanako', { fullPage: true, clip: { x: box.x, y: box.y, width: box.width, height: Math.min(box.height, 420) } });
+  // 10. 技の頁（木目金）：どの技も同じ形。① 作り方の工程（道具・失敗しやすい所・出どころ）
+  async tech() {
+    const p = await page('/app.html?nointro#waza/mokume', PHONE_W);
+    await p.waitForSelector('.tp-steps');
+    await hideFixed(p);
+    await p.waitForTimeout(1000);
+    const v = await p.locator('.view.tp').boundingBox();
+    const st = await p.locator('.tp-steps li:nth-child(1)').boundingBox();
+    console.log('tech', await p.evaluate(() => document.querySelector('.view.tp')?.innerText.replace(/\s+/g, ' ').slice(0, 300)));
+    await shot(p, 'tech', { fullPage: true, clip: { x: 0, y: v.y, width: PHONE_W, height: st.y + st.height - v.y + 20 } });
   },
   // 11. 組み立て直す：木目金の手がかり 9 を開いたところ（組み立てるのは Claude。合言葉が要るので、ここでは押さない）
   async rebuild() {
