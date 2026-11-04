@@ -812,7 +812,10 @@ const CH = {
       await a.settle(300);
       await a.box('past2', '.past-check', 10);
       console.log('heart6 直したあと', await p.evaluate(() => document.querySelector('.past-check')?.innerText.replace(/\s+/g, ' ')));
-      await a.hold(50);
+      // 押したあとの矢印が「次に作る人の設計にも、この決まりが効きます。」の字に重ならないよう、
+      // 動画の枠（ページの y 80〜424）の外、右下へよける（2026-11-05。こまの数は前と同じ 50）
+      await a.move({ x: 1560, y: 480 }, 10);
+      await a.hold(40);
     }
     console.log('heart6 後の数字', await specsText(p));
   },
