@@ -8,7 +8,8 @@ import { TOOLS, type ProposeRuleInput, type ProposeRuleResult, type ToolHost } f
 import { summarizeMetrics } from "../craft/motion";
 import { bookHtml } from "../rules/book";
 import { ringGaps } from "../rules/gaps";
-import { activeRules, addRule, type Rule } from "../rules/ledger";
+import { activeRules, addRule, sourceLabel, type Rule } from "../rules/ledger";
+import { MAIN } from "../rules/workshops";
 import { groupQuestions, markAnswered, type QuestionGroup } from "../rules/teacher-queue";
 import { mountMotion, savedRecords } from "../ui/motion-ui";
 import { mountInterview, type Interview } from "./interview";
@@ -45,12 +46,12 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
   root.innerHTML = `
   <section class="view keep">
     <header class="view-head">
-      <h2 class="keep-title"></h2>
-      <p class="lead">職人の決まり。設計の確かめと、学ぶ人への答えに使います。</p>
+      <div class="keep-name"><h2 class="keep-title"></h2><button type="button" class="linklike rename">名前を変える</button></div>
+      <p class="lead">工房の決まり。設計の確かめと、学ぶ人への答えに使います。</p>
     </header>
     <ul class="rule-cards"></ul>
-    <details class="free public-rules"><summary class="public-sum"></summary><ul class="book-list"></ul></details>
     <div class="block ask-card iv-card" hidden></div>
+    <section class="public-rules" hidden><h3 class="pub-sec-h public-sum"></h3><p class="small muted">公開の資料から入れた目安です。出どころのリンクつき。職人が確かめると、職人の決まりに置き換わります（目安・最後は職人が決める）。</p><ul class="rule-cards pub"></ul></section>
     <div class="block inbox-block" hidden>
       <h3>届いている質問 <small class="inbox-count"></small></h3>
       <ul class="inbox"></ul>
@@ -74,6 +75,8 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
     const ledger = store.ledger();
     const label = bookLabel(ledger);
     $(".keep-title").textContent = `${label}${/[A-Za-z0-9]$/.test(label) ? " " : ""}の帳面`;
+    // 名前を変えられるのは、はじめの帳面（ほかの工房の帳面の名前はスタジオで足したときの名前）
+    $(".rename").hidden = store.workshops().active !== MAIN;
     renderCards();
     if (!interview) renderAskCard();
     const groups = groupQuestions(store.queue()).filter((g) => !g.answeredRuleId);
@@ -92,7 +95,7 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
       <p class="rc-title">${esc(r.title)}</p>
       <p class="rc-text">${esc(r.text)}</p>
       ${r.quote ? `<blockquote>「${esc(r.quote)}」</blockquote>` : ""}
-      <p class="rc-meta"><span>${esc(who)}${who ? "さん" : ""} ・ ${esc(r.date)}</span><span class="rc-video" data-rule="${esc(r.id)}"></span></p>
+      <p class="rc-meta"><span>${who ? `職人：${esc(who)}` : ""} ・ ${esc(r.date)}</span><span class="rc-video" data-rule="${esc(r.id)}"></span></p>
     </li>`;
   }
 
@@ -107,9 +110,14 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
     void attachVideos();
     const pub = $(".public-rules");
     pub.hidden = !others.length;
-    $(".public-sum").textContent = `資料の目安 ${others.length}（職人がまだ決めていない所）`;
-    const item = (r: Rule) => `<li><b>${esc(r.title)}</b><p>${esc(r.text)}</p><p class="small muted">${esc(r.source.kind === "public" ? `公開情報：${r.source.title}` : "仮の目安")} ・ ${esc(r.date)}</p></li>`;
-    $(".book-list").innerHTML = others.map(item).join("");
+    $(".public-sum").textContent = `資料から入れた決まり ${others.length}`;
+    const src = (r: Rule) => (r.source.kind === "public" && r.source.url ? `<a href="${esc(r.source.url)}" target="_blank" rel="noopener">${esc(sourceLabel(r.source))}</a>` : esc(sourceLabel(r.source)));
+    const item = (r: Rule) => `<li class="rule-card">
+      <p class="rc-title">${esc(r.title)}${r.unverified ? ` <span class="tag warn">未確認</span>` : ""}${r.source.kind === "provisional" ? ` <span class="tag">仮</span>` : ""}</p>
+      <p class="rc-text">${esc(r.text)}</p>
+      <p class="rc-meta"><span>${src(r)} ・ ${esc(r.date)}</span></p>
+    </li>`;
+    $(".rule-cards.pub").innerHTML = others.map(item).join("");
   }
 
   /** 職人が動画で見せた答えがあれば、札に再生のボタンを出す */
@@ -138,8 +146,12 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
     box.innerHTML = `
       <p class="eyebrow">Claude から質問が 1 つあります</p>
       <p class="iv-q">${esc(q.question)}</p>
-      <div class="row"><button type="button" class="primary answer">答える</button><button type="button" class="ghost later">あとで</button>${gaps.length > 1 ? `<span class="small muted">ほかに ${gaps.length - 1}</span>` : ""}</div>`;
+      <div class="ask-acts">${canListen() ? `<button type="button" class="primary voice-cta speak">${MIC}話して答える</button><button type="button" class="ghost answer">書いて答える</button>` : `<button type="button" class="primary answer">答える</button>`}<button type="button" class="ghost later">あとで</button>${gaps.length > 1 ? `<span class="small muted">ほかに ${gaps.length - 1}</span>` : ""}</div>`;
     box.querySelector(".answer")!.addEventListener("click", () => openInterview(q.id));
+    box.querySelector(".speak")?.addEventListener("click", () => {
+      openInterview(q.id);
+      interview?.listen();
+    });
     box.querySelector(".later")!.addEventListener("click", () => {
       setLater(laterCount() + 1);
       renderAskCard();
@@ -320,6 +332,22 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
     if (!w) return;
     w.document.write(book());
     w.document.close();
+  });
+
+  // 工房の名前を変える（ここ 1 か所。帳面・学ぶ・技・スタジオのどこでもこの名前になる）
+  $(".rename").addEventListener("click", () => {
+    const head = $(".keep-name");
+    if (head.querySelector(".rename-form")) return;
+    head.insertAdjacentHTML("beforeend", `<form class="rename-form"><input value="${esc(store.mainName())}" aria-label="工房の名前" maxlength="24"><button type="submit" class="primary">決める</button></form>`);
+    const form = head.querySelector<HTMLFormElement>(".rename-form")!;
+    const input = form.querySelector("input")!;
+    input.select();
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      store.setMainName(input.value);
+      form.remove();
+      refresh();
+    });
   });
 
   refresh();

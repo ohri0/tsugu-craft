@@ -9,7 +9,7 @@ import { askPassword, resetPassword } from "./password";
 import { esc, store, today } from "./store";
 import { bindVoice, canListen } from "./voice";
 
-const MIC = `<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-2.1A7 7 0 0 0 19 12h-2Z" fill="currentColor"/></svg>`;
+const MIC = `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-2.1A7 7 0 0 0 19 12h-2Z" fill="currentColor"/></svg>`;
 
 export interface InterviewTarget {
   /** 技の名前（Claude に渡す） */
@@ -27,6 +27,8 @@ export interface InterviewTarget {
 
 export interface Interview {
   refresh(): void;
+  /** 話して答える（声の聞き取りを始める。使えないブラウザでは何もしない） */
+  listen(): void;
   /** この所を聞く（なければ先頭） */
   focus(gapId?: string): void;
 }
@@ -76,9 +78,11 @@ export function mountInterview(root: HTMLElement, target: InterviewTarget, opts:
       <p class="iv-q" aria-live="polite">${esc(gap.question)}</p>
       <p class="iv-why"><span class="iv-kind">${KIND[gap.kind]}</span>${esc(gap.why)}</p>
       <div class="answer-box">
-        <textarea rows="2" placeholder="${canListen() ? "マイクを押して話すか、書いてください" : "答えを書いてください"}${gap.expects === "number" ? "（数字はミリで）" : gap.expects === "confirm" ? "（「はい」か、ちがう数字で）" : ""}" aria-label="答え"></textarea>
+        <div class="ans-line">
+          <textarea rows="2" placeholder="${canListen() ? "右の「話す」を押して話すか、書いてください" : "答えを書いてください"}${gap.expects === "number" ? "（数字はミリで）" : gap.expects === "confirm" ? "（「はい」か、ちがう数字で）" : ""}" aria-label="答え"></textarea>
+          <button type="button" class="mic mic-big" aria-label="話して答える">${MIC}<span>話す</span></button>
+        </div>
         <div class="row">
-          <button type="button" class="ghost mic">${MIC}話す</button>
           <button type="button" class="primary make">決まりにする</button>
           <button type="button" class="ghost skip">とばす</button>
           <label class="iv-name">答える人<input value="${esc(name)}" aria-label="答える人の名前"></label>
@@ -215,6 +219,10 @@ export function mountInterview(root: HTMLElement, target: InterviewTarget, opts:
       const t = root.querySelector<HTMLTextAreaElement>("textarea");
       if (t && t.value.trim()) return;
       render();
+    },
+    listen() {
+      const b = root.querySelector<HTMLButtonElement>(".mic");
+      if (b && !b.hidden && canListen()) b.click();
     },
     focus(gapId) {
       current = gapId;

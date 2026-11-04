@@ -6,16 +6,16 @@ import { runClaude } from "../claude/loop";
 import { askPrompt } from "../claude/prompt";
 import { TOOLS, type ToolHost } from "../claude/tools";
 import type { ClaudeMessageParam } from "../claude/wire";
-import { activeRules, type Rule } from "../rules/ledger";
+import { activeRules, sourceLabel, type Rule } from "../rules/ledger";
 import { findRules } from "../rules/search";
 import { addQuestion, groupQuestions } from "../rules/teacher-queue";
 import { esc, store, today } from "./store";
 import { bindVoice } from "./voice";
 import { askPassword, resetPassword } from "./password";
-import { masterName, ruleQuote } from "./master";
+import { bookLabel, masterName, ruleQuote } from "./master";
 import { getVideo } from "./video-store";
 
-const SUGGEST = ["9 mm くらいの石の爪は、何 mm にする？", "メレの爪の太さは？", "三角の石は、爪 3 本で留まる？", "大きい石の爪は、太くする？"];
+const SUGGEST = ["9 mm くらいの石の爪は、何 mm にする？", "三角の石は、爪 3 本で留まる？", "エメラルドはロウ付けの前に外す？", "ロウはどの順に使う？", "10 号の内径は？"];
 
 export function mountAsk(root: HTMLElement): { refresh(): void } {
   root.innerHTML = `
@@ -26,7 +26,7 @@ export function mountAsk(root: HTMLElement): { refresh(): void } {
     </header>
     <div class="master-card">
       <div class="avatar" aria-hidden="true"></div>
-      <div class="who"><b class="master-title"></b><small>宝飾の彫金職人 ・ ヤスリ・ロウ付け</small></div>
+      <div class="who"><b class="master-title"></b><small class="master-sub"></small></div>
       <div class="master-stats"></div>
     </div>
     <div class="thread" aria-live="polite">
@@ -51,13 +51,15 @@ export function mountAsk(root: HTMLElement): { refresh(): void } {
 
   function refresh() {
     const ledger = store.ledger();
-    const name = masterName(ledger);
-    const mine = activeRules(ledger).filter((r) => r.source.kind === "craftsman");
-    $(".avatar").textContent = name.slice(0, 1);
-    $(".master-title").textContent = `${name}さんの技`;
-    $(".master-lead").textContent = `下の例を押すか、書いて聞いてください。答えられないことは${name}さんに回します。`;
+    const label = bookLabel(ledger);
+    const all = activeRules(ledger);
+    const mine = all.filter((r) => r.source.kind === "craftsman");
+    $(".avatar").textContent = label.slice(0, 1);
+    $(".master-title").textContent = `${label}の技`;
+    $(".master-sub").textContent = `宝飾の彫金 ・ 職人：${masterName(ledger)}`;
+    $(".master-lead").textContent = `下の例を押すか、書いて聞いてください。帳面の決まり ${all.length} から答えます。答えられないことは${label}に回します。`;
     const open = groupQuestions(store.queue()).filter((g) => !g.answeredRuleId).length;
-    $(".master-stats").innerHTML = `<span><b>${mine.length}</b>決まり</span><span><b>${open}</b>質問中</span>`;
+    $(".master-stats").innerHTML = `<span><b>${all.length}</b>決まり</span><span><b>${mine.length}</b>職人</span><span><b>${open}</b>質問中</span>`;
   }
 
   $(".chips").innerHTML = SUGGEST.map((s) => `<button type="button" class="chip">${esc(s)}</button>`).join("");
@@ -79,16 +81,16 @@ export function mountAsk(root: HTMLElement): { refresh(): void } {
       ${q ? `<blockquote>「${esc(q)}」</blockquote>` : ""}
       <p class="ev-rule">決まり：${esc(r.title)}</p>
       <div class="ev-video" data-rule="${esc(r.id)}" hidden></div>
-      <p class="ev-src">${esc(r.source.kind === "craftsman" ? `${r.source.name}さん` : r.source.kind === "public" ? `公開情報：${r.source.title}` : "仮の目安")} ・ ${esc(r.date)}</p>
+      <p class="ev-src">${r.source.kind === "public" && r.source.url ? `<a href="${esc(r.source.url)}" target="_blank" rel="noopener">${esc(sourceLabel(r.source))}</a>` : esc(sourceLabel(r.source))}${r.unverified ? " ・ 未確認" : ""} ・ ${esc(r.date)}</p>
     </div>`;
   }
 
   function answerCard(a: AskAnswer, rules: Rule[], via: "claude" | "local", asked: boolean): string {
-    const name = masterName(store.ledger());
+    const name = bookLabel(store.ledger());
     return `<p class="a-short">${esc(a.short)}</p>
       ${a.why || rules.length ? `<button type="button" class="why-btn" aria-expanded="false">なぜ？</button>
       <div class="a-why" hidden>${a.why ? `<p>${esc(a.why)}</p>` : ""}${rules.map(ruleBlock).join("")}</div>` : ""}
-      <p class="a-meta">${asked ? `<span class="tag gold">${esc(name)}さんに回しました ・ 帳面に届きます</span>` : ""}${via === "local" ? `<span class="tag">Claude なし ・ 目安帳から探しました</span>` : ""}${rules.length ? `<span>決まり ${rules.length} つから</span>` : ""}</p>`;
+      <p class="a-meta">${asked ? `<span class="tag gold">${esc(name)}に回しました ・ 帳面に届きます</span>` : ""}${via === "local" ? `<span class="tag">Claude なし ・ 目安帳から探しました</span>` : ""}${rules.length ? `<span>決まり ${rules.length} つから</span>` : ""}</p>`;
   }
 
   /** 職人が動画で見せた答えがあれば、なぜ？の中に出す */
@@ -97,7 +99,7 @@ export function mountAsk(root: HTMLElement): { refresh(): void } {
       const blob = await getVideo(`rule:${box.dataset.rule}`);
       if (!blob) continue;
       box.hidden = false;
-      box.innerHTML = `<p class="small">${esc(masterName(store.ledger()))}さんが見せた動画</p><video src="${URL.createObjectURL(blob)}" controls playsinline muted></video>`;
+      box.innerHTML = `<p class="small">職人：${esc(masterName(store.ledger()))}が見せた動画</p><video src="${URL.createObjectURL(blob)}" controls playsinline muted></video>`;
     }
   }
 
@@ -127,8 +129,8 @@ export function mountAsk(root: HTMLElement): { refresh(): void } {
       el.innerHTML = answerCard({ short: r.text, why: r.reason, ruleIds: found.map((x) => x.id) }, found, "local", false);
     } else {
       sendToMaster(question, "目安帳に近い決まりがなかった");
-      const name = masterName(store.ledger());
-      el.innerHTML = answerCard({ short: `${name}さんに聞いておきます。答えが届いたら、ここで答えられるようになります。`, why: "", ruleIds: [] }, [], "local", true);
+      const name = bookLabel(store.ledger());
+      el.innerHTML = answerCard({ short: `${name}に聞いておきます。答えが届いたら、ここで答えられるようになります。`, why: "", ruleIds: [] }, [], "local", true);
     }
     wireWhy(el);
     status(reason);

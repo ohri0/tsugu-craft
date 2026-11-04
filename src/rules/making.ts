@@ -55,7 +55,12 @@ export function stepsOfRule(r: Pick<Rule, "steps" | "title" | "text" | "param" |
   return [...out];
 }
 
-/** この工程に効く、職人の作り方の決まり（新しい順） */
+/**
+ * この工程に効く作り方の決まり：職人の決まり（新しい順）のあとに、資料から入れた決まり（工程を明示したものだけ。言葉から当てない）。
+ * 確かめに結びつく決まりは出さない。
+ */
 export function makingRulesFor<R extends Rule>(rules: R[], step: string): R[] {
-  return rules.filter((r) => r.source.kind === "craftsman" && (stepsOfRule(r) as string[]).includes(step)).reverse();
+  const mine = rules.filter((r) => r.source.kind === "craftsman" && (stepsOfRule(r) as string[]).includes(step)).reverse();
+  const pub = rules.filter((r) => r.source.kind !== "craftsman" && !isCheckRule(r) && (r.steps ?? []).includes(step));
+  return [...mine, ...pub];
 }

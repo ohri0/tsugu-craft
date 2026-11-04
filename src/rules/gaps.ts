@@ -3,9 +3,10 @@
 // Claude がなくても動くように、質問は決まった文、答えは数字を読む簡単なしくみで決まりにする（Claude があれば言い直しを任せる）。
 // 決まりの数字は、職人が答えた言葉の中の数字だけ。ここで数字を作らない。
 import { effectiveGuides, PARAMS, activeRules, addRule, sourceLabel, type Ledger, type ParamId, type Rule, type SizeStep } from "./ledger.js";
+import { TECHS, type TechId } from "./techniques.js";
 import { NANAKO_PARAMS, nanakoGapId, type NanakoLedger, type NanakoParam } from "./nanako.js";
 
-export type Technique = "ring" | "nanako";
+export type Technique = "ring" | "nanako" | TechId;
 
 /**
  * missing＝値の決まりがまだない / unverified＝原文で確かめていない決まり / uncovered＝職人の点が届いていない石の大きさ /
@@ -399,7 +400,28 @@ export function ringGaps(ledger: Ledger): Gap[] {
       why: "帳面に決まりがなく、職人の言葉もない。",
     });
   }
+
+  // 4. 資料から入れた、言葉の決まりで、原文を確かめていないもの（職人に確かめる）
+  for (const r of active.filter((x) => x.unverified && !x.param && x.source.kind !== "craftsman")) {
+    gaps.push(confirmWordsGap("ring", r));
+  }
   return gaps;
+}
+
+/** 言葉の決まり（未確認）を、職人に確かめる問い。答えはその決まりを置き換える */
+function confirmWordsGap(technique: Technique, r: Rule<string>): Gap {
+  return {
+    id: `${technique}:confirm:${r.id}`,
+    technique,
+    kind: "unverified",
+    expects: "confirm",
+    ruleId: r.id,
+    ruleText: r.text,
+    title: r.title,
+    reason: r.reason,
+    question: `「${r.text}」と資料にあります（原文は未確認）。あなたの仕事でもそうですか？ちがえば、あなたの言葉で教えてください。`,
+    why: `出どころ：${sourceLabel(r.source)}。原文を確かめていない。`,
+  };
 }
 
 /**
@@ -444,7 +466,28 @@ export function applyDraft<P extends string>(ledger: Ledger<P>, draft: RuleDraft
   return addRule<P>(ledger, draft);
 }
 
+// ---- ほかの技（覆輪留め・ミル打ち・槌目・毛彫り・布目象嵌・木目金）の「まだ決まっていない所」 ----
+
+/**
+ * 技の帳面の、まだ決まっていない所（聞く順）：資料にない・食いちがう所を言葉で聞く → 未確認の決まりを確かめる。
+ * 数字は職人の答えの言葉の中だけ（ここで数字を作らない）。
+ */
+export function techGaps(id: TechId, ledger: Ledger<string>): Gap[] {
+  const tech = TECHS[id];
+  const active = activeRules(ledger);
+  const answered = new Set(active.flatMap((r) => (r.gap ? [r.gap] : [])));
+  const gaps: Gap[] = [];
+  for (const o of tech.open) {
+    if (answered.has(o.id)) continue;
+    gaps.push({ id: o.id, technique: id, kind: "open", expects: "text", title: o.title, question: o.question, why: o.why, reason: o.reason });
+  }
+  for (const r of active.filter((x) => x.unverified && x.source.kind !== "craftsman")) gaps.push(confirmWordsGap(id, r));
+  return gaps;
+}
+
 /** その技の帳面の、まだ決まっていない所 */
-export function gapsFor(technique: Technique, ledger: Ledger | NanakoLedger): Gap[] {
-  return technique === "ring" ? ringGaps(ledger as Ledger) : nanakoGaps(ledger as NanakoLedger);
+export function gapsFor(technique: Technique, ledger: Ledger | NanakoLedger | Ledger<string>): Gap[] {
+  if (technique === "ring") return ringGaps(ledger as Ledger);
+  if (technique === "nanako") return nanakoGaps(ledger as NanakoLedger);
+  return techGaps(technique, ledger as Ledger<string>);
 }

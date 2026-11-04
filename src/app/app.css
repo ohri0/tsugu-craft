@@ -523,3 +523,25 @@ a.back { display: inline-flex; align-items: center; border: 1px solid transparen
 .caveat p { margin: 8px 0 0; font-size: 12px; color: var(--fg-2); line-height: 1.75; }
 .rebuild .actions { margin-top: 14px; }
 .rebuild .actions .go { min-height: 40px; padding: 0 20px; font-size: 14px; }
+
+/* 聞き取り：答える欄のすぐ右に、大きな「話す」ボタン（声で答えられることが一目で分かるように） */
+.ans-line { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: stretch; }
+.ans-line textarea { min-height: 64px; }
+.answer-box .mic.mic-big { flex-direction: column; justify-content: center; gap: 2px; min-width: 72px; min-height: 64px; padding: 6px 10px; border-radius: 14px; border: 0; background: var(--accent); color: var(--accent-fg, #fff); font-size: 13px; font-weight: 600; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18); }
+.answer-box .mic.mic-big.listening { background: #c0392b; }
+.answer-box .mic.mic-big .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; display: inline-block; }
+.iv-card .ask-acts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.iv-card .voice-cta svg { flex: none; }
+/* 帳面：工房の名前を変える */
+.keep-name { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.keep-name .rename-form { display: flex; gap: 6px; align-items: center; }
+.keep-name .rename-form input { padding: 6px 9px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--field); font-size: 14px; }
+/* 帳面：資料から入れた決まり（札を小さく） */
+.rule-cards.pub { margin-top: 8px; }
+.rule-cards.pub .rule-card { border-left-color: var(--line-2); padding: 12px 14px; }
+.rule-cards.pub .rc-title { font-size: 14px; }
+.rule-cards.pub .rc-text { font-size: 13px; }
+.rule-cards.pub .rc-meta a { color: inherit; }
+.pub-sec-h { margin: 22px 0 4px; font-size: 14px; }
+/* 技：ほかの技の帳面 */
+.tech-rules { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }

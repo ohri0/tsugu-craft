@@ -16,8 +16,19 @@ const STORE = "tsugu.ledger.v1";
  * 最初の帳面は、リポジトリに残した帳面（ledger/jewelry.json）。このブラウザに残した帳面があれば、それを使い、
  * リポジトリの帳面にあってまだ入っていない決まりだけを後ろに足す（職人がリポジトリに足した決まりが、どの画面にも届くように）。
  */
+/** はじめの帳面の工房の名前を、このブラウザで変えたとき（帳面の画面で変える。どの画面もこの名前を使う） */
+export const MAIN_NAME_STORE = "tsugu.workshopName.v1";
+function savedMainName(): string {
+  try {
+    return localStorage.getItem(MAIN_NAME_STORE)?.trim() ?? "";
+  } catch {
+    return "";
+  }
+}
+
 export function loadLedger(): Ledger {
   const repo = repoLedger as Ledger;
+  const named = (l: Ledger): Ledger => (savedMainName() ? { ...l, owner: savedMainName() } : l);
   try {
     const raw = localStorage.getItem(STORE);
     if (raw) {
@@ -26,13 +37,13 @@ export function loadLedger(): Ledger {
         const have = new Set(l.rules.map((r) => r.id));
         // リポジトリで外した決まり（retired）は、このブラウザに残っていても出さない
         const retired = new Set((repoLedger as { retired?: string[] }).retired ?? []);
-        return { ...l, owner: repo.owner ?? l.owner, rules: [...l.rules.filter((r) => !retired.has(r.id)), ...repo.rules.filter((r) => !have.has(r.id))] };
+        return named({ ...l, owner: repo.owner ?? l.owner, rules: [...l.rules.filter((r) => !retired.has(r.id)), ...repo.rules.filter((r) => !have.has(r.id))] });
       }
     }
   } catch {
     // 読めなければリポジトリの帳面から
   }
-  return Array.isArray(repo.rules) ? repo : seedLedger();
+  return named(Array.isArray(repo.rules) ? repo : seedLedger());
 }
 
 function saveLedger(l: Ledger) {

@@ -1,0 +1,679 @@
+{
+  "bezel": {
+    "name": "覆輪留め",
+    "mark": "覆",
+    "lead": "石のまわりを地金の輪で囲み、上の縁を内側へ倒して石を留める",
+    "rules": [
+      {
+        "id": "bezel-surround",
+        "title": "輪で囲み、一周すべて倒す",
+        "text": "石より少し高い輪を作り、上から見て石のまわりに縁が見える大きさにする。内側をすり鉢の形に削り、上の縁を鏨で内側へ倒す。爪留めとちがい、一周すべてを叩く",
+        "reason": "石の縁をぐるりと地金で押さえて留めるから",
+        "source": {
+          "kind": "public",
+          "title": "工房のブログ（石の留め方）",
+          "url": "https://www.hitotsuchi.com/blog/7645.html"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "bezel-order",
+        "title": "対角の順に、少しずつ倒す",
+        "text": "対角の位置を順に選んで少しずつ倒し、一周したら最初にもどってくり返す",
+        "reason": "一か所を一気に倒すと石が片寄る。石を真ん中に収めるため",
+        "source": {
+          "kind": "public",
+          "title": "工房のブログ（石の留め方）",
+          "url": "https://www.hitotsuchi.com/blog/7645.html"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "bezel-seat-50",
+        "title": "座は上側の 50% 以上の高さに",
+        "text": "座を、覆輪の上の端が石の上側（クラウン）の高さの 50% 以上に来る深さで切る",
+        "reason": "上の端が低すぎると、倒してもかぶせる地金が足りない",
+        "source": {
+          "kind": "public",
+          "title": "宝石の教育機関の技の頁（丸いカット石の覆輪）",
+          "url": "https://www.gia.edu/bench-tip-modified-tool-to-bezel-set-round-faceted-stones"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "bezel-wall-height",
+        "title": "上側の 25〜50% を壁の上に出す",
+        "text": "石を入れる前に壁を下げて、上側の 25〜50% が覆輪の上に出る高さにする",
+        "reason": "壁が高すぎると、留めと仕上げの手間が増え、地金が石に密着しにくい",
+        "source": {
+          "kind": "public",
+          "title": "業界誌の記事（四角い覆輪の石留め）",
+          "url": "https://www.jckonline.com/magazine-article/square-bezel-setting/"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "bezel-contact",
+        "title": "上側の 10% 以上に、ぐるりとすき間なく",
+        "text": "倒した地金は上側の距離の 10% 以上にかかり、360° すき間なく当たっていること。かぶせすぎると石が小さく見える",
+        "reason": "すき間があると石がゆるむ。かぶせすぎは石の見え方を損なう",
+        "source": {
+          "kind": "public",
+          "title": "宝石の教育機関の技の頁（丸いカット石の覆輪）",
+          "url": "https://www.gia.edu/bench-tip-modified-tool-to-bezel-set-round-faceted-stones"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "bezel-wall",
+        "title": "壁はふつう 0.50〜0.80 mm",
+        "text": "覆輪の壁の厚みはふつう 0.50〜0.80 mm。石の縁が壁に入る深さは約 0.10〜0.20 mm",
+        "reason": "薄いと倒すときに欠ける。厚いと倒しにくく重く見える",
+        "source": {
+          "kind": "public",
+          "title": "米国の特許文書（宝石の留め）",
+          "url": "https://patents.google.com/patent/US10602814"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "bezel-gentle",
+        "title": "やさしく、叩きすぎない",
+        "text": "強く打たない。叩きすぎると表面がでこぼこになり、地金が薄いと欠ける",
+        "reason": "石は一点に集まる強い力に弱く、割れる",
+        "source": {
+          "kind": "public",
+          "title": "作り手の記事（覆輪留め）",
+          "url": "https://note.com/finedays_2005/n/nf34894e56bcb"
+        },
+        "date": "2026-11-04"
+      }
+    ],
+    "open": [
+      {
+        "id": "bezel:corner-nick",
+        "title": "四角い石の角に切れ目を入れるか",
+        "question": "四角い石やとがった石の覆輪で、倒す前に角へ切れ目を入れますか？入れるなら深さはどれくらいですか？",
+        "why": "業界誌は角に約 1 mm の切れ目を入れるとし、職人の掲示板（未確認）は切れ目は要らなかったとしていて、食いちがう",
+        "reason": "角の地金が余ってしわになるか、欠けるかを決める所だから"
+      },
+      {
+        "id": "bezel:wall-for-stone",
+        "title": "石の大きさと壁の厚み",
+        "question": "石の大きさによって、覆輪の壁の厚みを何 mm にしますか？",
+        "why": "資料は 0.50〜0.80 mm、指輪は 1 mm 以上、11 mm の石なら 1.25 mm と一例ずつで、石の大きさとの式はどこにもない",
+        "reason": "壁が薄いと欠けて石を守れず、厚いと倒しにくいから"
+      },
+      {
+        "id": "bezel:inner-cut-timing",
+        "title": "内側の縁を削るのはいつか",
+        "question": "覆輪を倒すとき、内側の縁を鏨で光らせて削るのは、どこまで倒したところですか？",
+        "why": "「8 割倒してから削る」は職人の掲示板の一人のやり方だけで、日本語の資料には無い",
+        "reason": "全部倒してから削ると、ばりが出ると言われるから"
+      }
+    ]
+  },
+  "milgrain": {
+    "name": "ミル打ち",
+    "mark": "粒",
+    "lead": "縁に小さな丸い粒を、ミル鏨で一粒ずつ一列に打って並べる",
+    "rules": [
+      {
+        "id": "milgrain-tool",
+        "title": "ミル鏨のくぼみで粒の大きさが決まる",
+        "text": "ミル鏨は先が丸くくぼんだ鏨。くぼみの大きさで粒の大きさが決まる。手打ちの鏨は 0.25〜0.75 mm（ある工房の解説）",
+        "reason": "粒は鏨のくぼみの形がそのまま写ってできる",
+        "source": {
+          "kind": "public",
+          "title": "指輪の工房の解説（ミル打ち）",
+          "url": "https://ringreform.com/mill.html"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "milgrain-edge-width",
+        "title": "粒の大きさは縁の幅と同じ",
+        "text": "ミルの大きさは、石枠の縁の幅と同じにする",
+        "reason": "粒が縁からはみ出すと縁がえぐれ、小さすぎると縁が残る",
+        "source": {
+          "kind": "public",
+          "title": "作り手の記事（ミル打ちで石を留める）",
+          "url": "https://j-kouki.com/engagement-ring-11/"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "milgrain-guide",
+        "title": "1 粒を基準に、溝を彫ってから打つ",
+        "text": "はじめに 1 粒だけ打って基準にし、それに合わせて毛彫り鏨で縁と平行な溝を、同じ深さでまっすぐ彫る。その溝に合わせて打つ",
+        "reason": "列がまっすぐ、粒の大きさがそろう。筋彫りの跡は消えるが、ミルの溝は残る",
+        "source": {
+          "kind": "public",
+          "title": "作り手の制作の記事（手打ちのミル）",
+          "url": "https://www.ateliermarriage.com/column/craftsmanship/86167"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "milgrain-no-overlap",
+        "title": "離さず、重ねず、均等に",
+        "text": "となりの粒と離れず、重ならないように均等に打つ。先に軽く位置をつけておくと、打てる数とつり合いが分かる",
+        "reason": "間が広いとすき間が見え、近すぎると重なって丸い粒に見えない",
+        "source": {
+          "kind": "public",
+          "title": "作り手の記事（ミル打ちで石を留める）",
+          "url": "https://j-kouki.com/engagement-ring-11/"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "milgrain-even-force",
+        "title": "力は粒ごとに均等、地金で加減",
+        "text": "押す力は粒ごとに均等にする。銀は弱い力で打てるが、銅の多いピンクゴールドは硬く強い力が要る",
+        "reason": "強すぎると、まわりの地金がつぶれて列が乱れる",
+        "source": {
+          "kind": "public",
+          "title": "作り手の制作の記事（手打ちのミル）",
+          "url": "https://www.ateliermarriage.com/column/craftsmanship/86167"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "milgrain-no-slip",
+        "title": "鏨をすべらせない（一発勝負）",
+        "text": "鏨をすべらせると、粒ができないうえに枠の縁がえぐれる。思い切って打つ",
+        "reason": "えぐれた縁は直せない",
+        "source": {
+          "kind": "public",
+          "title": "作り手の記事（ミル打ちで石を留める）",
+          "url": "https://j-kouki.com/engagement-ring-11/"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "milgrain-loupe",
+        "title": "途中でルーペで何度も見る",
+        "text": "一粒ずつ打ちながら、ルーペで何度も確かめる。まっすぐな線で、粒の大きさがそろっているかを見る",
+        "reason": "そこが腕の分かれ目で、ずれは後の粒に広がる",
+        "source": {
+          "kind": "public",
+          "title": "指輪の工房の解説（ミル打ち）",
+          "url": "https://ringreform.com/mill.html"
+        },
+        "date": "2026-11-04"
+      }
+    ],
+    "open": [
+      {
+        "id": "milgrain:tool-size",
+        "title": "鏨の番号と粒の大きさ",
+        "question": "縁の幅が何 mm のとき、何 mm（何番）のミル鏨を使いますか？",
+        "why": "手打ちの鏨は 0.25〜0.75 mm とする工房がある一方、転がす道具の番号と mm は販売店で食いちがい（1 番が約 0.27 mm か約 0.35 mm か）、掲示板では番号は mm と合わないとされる",
+        "reason": "粒の大きさは縁の幅に合わせるので、鏨を選ぶ決まりが要るから"
+      },
+      {
+        "id": "milgrain:polish-order",
+        "title": "みがきとミルの順",
+        "question": "ミルを打つのは、みがきの前ですか、後ですか？",
+        "why": "日本の作り手の記事はミルのあとにへらとバフでみがき、海外の掲示板は削るみがきのあとにミルを入れるとしていて、順が食いちがう",
+        "reason": "みがきで粒が丸くなったり消えたりするから"
+      },
+      {
+        "id": "milgrain:resize",
+        "title": "全周ミルのサイズ直し",
+        "question": "全周にミルを打つ指輪は、サイズ直しをどう考えて設計しますか？",
+        "why": "「できない」とする工房と「難しいことが多い」とする記事があり、どこまでなら直せるかの決まりは無い",
+        "reason": "ミルを一周にするか、途中で切るかを設計で決めるから"
+      }
+    ]
+  },
+  "tsuchime": {
+    "name": "槌目（つちめ）",
+    "mark": "槌",
+    "lead": "金づちで叩いた跡を、模様として面に残す仕上げ",
+    "rules": [
+      {
+        "id": "tsuchime-factors",
+        "title": "表情は鎚の大きさ・深さ・密度で決まる",
+        "text": "鎚目の表情は、跡の大きさ・深さ・密度・並べ方と、板の材で変わる",
+        "reason": "同じ金づちでも打ち方と材で見え方がちがう",
+        "source": {
+          "kind": "public",
+          "title": "金属加工の会社の解説（鎚目の仕上げ）",
+          "url": "https://www.kikukawa.com/technology/tsuchime-hammertone-finish/"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "tsuchime-hammer-size",
+        "title": "小さい鎚は細かく、大きい鎚は荒く",
+        "text": "小さい槌では細かな輝きのある表情に、大きい槌では荒々しい表情になる",
+        "reason": "金づちの面の大きさが、そのまま跡の大きさになる",
+        "source": {
+          "kind": "public",
+          "title": "金属加工の会社の解説（鎚目の仕上げ）",
+          "url": "https://www.kikukawa.com/technology/tsuchime-hammertone-finish/"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "tsuchime-hammer-kind",
+        "title": "鎚目はならし鎚・いも鎚で",
+        "text": "鎚目模様は、面をみがいたならし鎚や、丸みのあるいも鎚でつける。ならし鎚で鏨などの工具を打たない",
+        "reason": "工具を打つと金づちの面が荒れ、その荒れが模様に写る",
+        "source": {
+          "kind": "public",
+          "title": "道具の店の解説（金づちの種類）",
+          "url": "https://crucible.jp/blog/?p=2755"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "tsuchime-arashi",
+        "title": "荒らし鎚は芯金・金床の上で使わない",
+        "text": "荒らし鎚（面を荒らした金づち）は焼きが入っているので、芯金や金床の上では使わない",
+        "reason": "硬い鉄どうしで打つと、金づちや台をいためる",
+        "source": {
+          "kind": "public",
+          "title": "道具の店の解説（金づちの種類）",
+          "url": "https://crucible.jp/blog/?p=2755"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "tsuchime-anneal",
+        "title": "硬くなったら焼きなます（銅は約 650 ℃）",
+        "text": "銅は叩くと硬くなるので、約 650 ℃の炉でやわらかくし、熱することと叩くことをくり返す",
+        "reason": "硬いまま打ちつづけると割れる",
+        "source": {
+          "kind": "public",
+          "title": "工芸の紹介サイト（鎚起銅器・英語の頁）",
+          "url": "https://kogeijapan.com/locale/en_US/tsubametsuikidoki/"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "tsuchime-flatten",
+        "title": "打つたびのゆがみを取る",
+        "text": "打つたびに板がゆがむので、ゆがみを取りながら、跡の均一さを見て打つ",
+        "reason": "ゆがんだままだと面がそろわず、跡の大きさもばらつく",
+        "source": {
+          "kind": "public",
+          "title": "金属加工の会社の解説（鎚目の仕上げ）",
+          "url": "https://www.kikukawa.com/technology/tsuchime-hammertone-finish/"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "tsuchime-sample",
+        "title": "材と板厚が変わったら見本で確かめる",
+        "text": "同じ模様でも、材や板の厚みで硬さが変わり凹凸に差が出る。使う前に見本で色と模様を確かめる",
+        "reason": "硬さがちがうと、同じ打ち方でも跡の深さが変わる",
+        "source": {
+          "kind": "public",
+          "title": "金属加工の会社の解説（鎚目の仕上げ）",
+          "url": "https://www.kikukawa.com/technology/tsuchime-hammertone-finish/"
+        },
+        "date": "2026-11-04"
+      }
+    ],
+    "open": [
+      {
+        "id": "tsuchime:quench",
+        "title": "焼きなましのあとの冷やし方",
+        "question": "焼きなましたあと、水で冷やしますか、ゆっくり冷ましますか？地金によって変えますか？",
+        "why": "前の調べの要約（未確認）は銅を水で冷やすとし、金属加工の会社の解説は「ゆっくり冷却」と書いていて、食いちがう",
+        "reason": "冷やし方で、やわらかさと割れやすさが変わるから"
+      },
+      {
+        "id": "tsuchime:temp",
+        "title": "焼きなましの温度と見る色",
+        "question": "銅や銀を焼きなますとき、何 ℃くらい、どんな色になるまで熱しますか？",
+        "why": "開けた頁は銅「約 650 ℃」、学会誌の記事の要約は「500〜600 ℃・暗赤色」（PDF が読めず未確認）で、少しちがう",
+        "reason": "低すぎるとやわらかくならず、高すぎると表面がいたむから"
+      },
+      {
+        "id": "tsuchime:mark-order",
+        "title": "鎚目の大きさと打つ順",
+        "question": "一つの鎚目の大きさ（mm）と、面を打っていく順は、どう決めますか？",
+        "why": "跡の大きさ・打つ順・一か所を打つ回数・金づちの重さの数字は、どの資料にも無い",
+        "reason": "模様のそろい方と、板ののび方が打つ順で変わるから"
+      }
+    ]
+  },
+  "kebori": {
+    "name": "鏨彫り・毛彫り",
+    "mark": "彫",
+    "lead": "鏨で金属の面に線を彫る。毛彫りは細い V の線、片切りは片側深く片側浅い線",
+    "rules": [
+      {
+        "id": "kebori-shape",
+        "title": "毛彫りは V、片切りは「レ」",
+        "text": "毛彫りは毛のように細い線で、断面は V の形。片切り彫りは片側を深く他方を浅く彫り、断面は「レ」の形",
+        "reason": "鏨の刃の形（とがった刃と平らな刃）がそのまま溝の形になる",
+        "source": {
+          "kind": "public",
+          "title": "公的な工芸の会の技の紹介",
+          "url": "https://www.nihonkogeikai.or.jp/waza/technique/4/"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "kebori-sujibori",
+        "title": "本番の前に浅く筋彫り",
+        "text": "本番の前に、毛彫り鏨などで浅く線を入れて当たりをつける（筋彫り）。より細く浅く",
+        "reason": "深く彫ってからずれると直せないので、先に浅い線で位置を決める",
+        "source": {
+          "kind": "public",
+          "title": "彫金の解説記事（筋彫り）",
+          "url": "https://choukinyorozu.com/imulta111-1083.html"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "kebori-resistance",
+        "title": "抵抗を感じたら角度を直す",
+        "text": "刃は狙った所にまっすぐ入れ、均一に進め、終わりは細く抜く。強い抵抗を感じたら深さがそろっていないので、叩く角度を直す",
+        "reason": "よい彫りは、掬うような軽い手ごたえで進む",
+        "source": {
+          "kind": "public",
+          "title": "彫金の解説記事（筋彫り）",
+          "url": "https://choukinyorozu.com/imulta111-1083.html"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "kebori-no-tilt",
+        "title": "毛彫り鏨は傾けない、曲線は細かく叩く",
+        "text": "毛彫り鏨の刃先を傾けない。曲線のきつい所は直線より細かく叩く。鏨は軽くつまむ",
+        "reason": "傾けると線がゆがみ、強くつまむと線がカクカクする",
+        "source": {
+          "kind": "public",
+          "title": "彫金の解説記事（毛彫り鏨）",
+          "url": "https://choukinyorozu.com/imulta105-1026.html"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "kebori-tool-width",
+        "title": "練習の毛彫り鏨は 1.2 mm 以上",
+        "text": "練習には刃の幅 1.2 mm 以上の毛彫り鏨を使う。表面をなぞる程度の筋彫りなら 0.5 mm でもよい（刃の幅で、線の幅ではない）",
+        "reason": "細すぎる鏨は、彫りの練習には向かない",
+        "source": {
+          "kind": "public",
+          "title": "彫金の解説記事（毛彫り鏨）",
+          "url": "https://choukinyorozu.com/imulta105-1026.html"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "kebori-hard-metal",
+        "title": "硬い地金は何回かに分けて彫る",
+        "text": "ステンレスなど硬い地金は、一気に彫らず何回かに分けて彫る",
+        "reason": "一気に彫ると鏨の刃が欠ける",
+        "source": {
+          "kind": "public",
+          "title": "彫金の解説記事（筋彫り）",
+          "url": "https://choukinyorozu.com/imulta111-1083.html"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "kebori-katakiri-inward",
+        "title": "片切りは傾きを絵の内側へ",
+        "text": "片切り鏨は左右どちらかに傾けて彫る。傾きを絵の内側に向けると、模様が立体に見える",
+        "reason": "深い側と浅い側の光の当たり方で、筆の線のような立体が出る",
+        "source": {
+          "kind": "public",
+          "title": "彫金の解説記事（片切り彫り）",
+          "url": "https://choukinyorozu.com/imulta172-1908.html"
+        },
+        "date": "2026-11-04"
+      }
+    ],
+    "open": [
+      {
+        "id": "kebori:line-depth",
+        "title": "線の幅と深さ",
+        "question": "毛彫りの線は、地金の厚みに対して、何 mm の幅・深さまで彫りますか？",
+        "why": "線の幅・深さの mm はどの資料にも無い。「初めは深め、慣れたら浅く」「より細く浅く」と言葉だけ",
+        "reason": "深すぎると地金が弱くなり直せず、浅すぎると線が消えるから"
+      },
+      {
+        "id": "kebori:edge-angle",
+        "title": "鏨の刃の角度",
+        "question": "毛彫り鏨と片切り鏨の刃は、何度くらいに研ぎますか？",
+        "why": "資料は「当てるだけで食いこむ感じ」と感覚で書くだけで、度の数字が無い。主に使う刃の幅も「1〜1.5 mm」（未確認）と「練習は 1.2 mm 以上」で言い方がちがう",
+        "reason": "刃の角度で線の形と、刃の欠けやすさが決まるから"
+      }
+    ]
+  },
+  "nunome": {
+    "name": "布目象嵌",
+    "mark": "布",
+    "lead": "鉄の面に布の目のような細い溝を刻み、金・銀を打ちこんで食いこませる",
+    "rules": [
+      {
+        "id": "nunome-grid",
+        "title": "京象嵌は 1 mm に 7〜8 本、縦横に",
+        "text": "鉄の面に、1 mm に 7〜8 本の細い溝を縦横に刻む。間かくは指先の感覚で決める",
+        "reason": "細かい溝の針に金銀が食いこんで留まる",
+        "source": {
+          "kind": "public",
+          "title": "京都の象嵌の工房の解説（京象嵌の工程）",
+          "url": "https://www.nakajima-zougan.jp/about/"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "nunome-depth",
+        "title": "溝を浅くしない",
+        "text": "布目の溝が浅いと、金・銀を打ちこんでもはがれやすい",
+        "reason": "浅い溝では金銀を押さえる針が足りない",
+        "source": {
+          "kind": "public",
+          "title": "京都の象嵌の工房の解説（京象嵌の工程）",
+          "url": "https://www.nakajima-zougan.jp/about/"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "nunome-wire",
+        "title": "金銀の線は直径 0.15〜1.0 mm",
+        "text": "はめこむのは、直径 0.15〜1.0 mm 位の純金・純銀の線や、模様に抜いた平金",
+        "reason": "やわらかい純金・純銀は溝に食いこみやすい",
+        "source": {
+          "kind": "public",
+          "title": "京都の象嵌の工房の解説（京象嵌の工程）",
+          "url": "https://www.nakajima-zougan.jp/about/"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "nunome-antler",
+        "title": "打ちこみは鹿の角の槌で",
+        "text": "金銀を打ちこむ槌は鹿の角で作ったものを使う。鉄の槌は使わない",
+        "reason": "鉄の槌だと布目の針が曲がって模様が抜けなくなり、金銀がのびすぎる。角の槌は光沢が出る",
+        "source": {
+          "kind": "public",
+          "title": "京都の象嵌の工房の解説（京象嵌の工程）",
+          "url": "https://www.nakajima-zougan.jp/about/"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "nunome-higo-four",
+        "title": "肥後象嵌は四方向に刻む",
+        "text": "肥後象嵌では、布目を縦・横・斜め 2 方向の四方向に刻む",
+        "reason": "多くの向きの針で、金銀をしっかり押さえる",
+        "source": {
+          "kind": "public",
+          "title": "熊本の伝統工芸の館の頁（肥後象嵌・英語の部分）",
+          "url": "https://kumamoto-kougeikan.jp/archive/higozogan/"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "nunome-lacquer",
+        "title": "漆焼きは 3〜4 回（京象嵌）",
+        "text": "錆を出して布目を消し、錆を止めたあと、網の上で漆を塗って焼くことを 3〜4 回くり返し、研いで金銀を出す",
+        "reason": "漆で鉄の地を黒くし、錆から守る",
+        "source": {
+          "kind": "public",
+          "title": "京都の象嵌の工房の解説（京象嵌の工程）",
+          "url": "https://www.nakajima-zougan.jp/about/"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "nunome-tea",
+        "title": "肥後象嵌は茶の液に 30 分",
+        "text": "肥後象嵌では、錆を出したあと茶の液に 30 分ひたして錆を止める",
+        "reason": "茶のタンニンで錆を止め、地を黒くする",
+        "source": {
+          "kind": "public",
+          "title": "熊本の伝統工芸の館の頁（肥後象嵌・英語の部分）",
+          "url": "https://kumamoto-kougeikan.jp/archive/higozogan/"
+        },
+        "date": "2026-11-04"
+      }
+    ],
+    "open": [
+      {
+        "id": "nunome:higo-count",
+        "title": "肥後象嵌の布目の本数",
+        "question": "肥後象嵌の布目は、1 mm に何本ですか？それは一方向の本数ですか、四方向の合計ですか？",
+        "why": "「1 mm 四方に 16 本」とする解説（未確認）は数え方が分からず、京象嵌の 7〜8 本とそのまま比べられない",
+        "reason": "本数で金銀の食いこみと、仕上がりの重さの見え方が決まるから"
+      },
+      {
+        "id": "nunome:sabidashi",
+        "title": "錆出しの回数と日数",
+        "question": "錆出しは、液を塗って焼くことを何回、何日かけてくり返しますか？",
+        "why": "「3〜4 回焼いて約 3 日」と「2 日に 3 回」の二つの要約（どちらも未確認）が食いちがう",
+        "reason": "錆のむらがそのまま地の黒さのむらになるから"
+      },
+      {
+        "id": "nunome:groove-depth",
+        "title": "溝の深さと刃の角度",
+        "question": "布目の溝は何 mm くらいの深さで、目切り鏨の刃は何度に研ぎますか？",
+        "why": "「浅いとはがれる」とあるだけで、深さと刃の角度の数字はどの資料にも無い",
+        "reason": "深さが足りないとはがれ、深すぎると鉄の面が荒れるから"
+      }
+    ]
+  },
+  "mokume": {
+    "name": "木目金",
+    "mark": "木",
+    "lead": "色のちがう金属の板を重ねてつなぎ、彫ってのばして木の目の模様を出す",
+    "rules": [
+      {
+        "id": "mokume-sheet",
+        "title": "板は 0.3〜2 mm、10〜40 枚以上",
+        "text": "重ねる金属の板は一般に 0.3〜2 mm の厚みで、10〜40 枚以上",
+        "reason": "板の厚みと枚数で、木目の細かさが決まる",
+        "source": {
+          "kind": "public",
+          "title": "日本の作り手の会社の解説（積層）",
+          "url": "https://mokume-gane.co.jp/lamination/"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "mokume-layers-jewelry",
+        "title": "装身具は 25 層まで",
+        "text": "装身具に使う地金は 25 層までにする。ある作り手はふだん 12〜18 層",
+        "reason": "小さな品で層が多すぎると、一層がうすすぎて模様が細かくなりすぎる",
+        "source": {
+          "kind": "public",
+          "title": "米国の作り手の手引き（地金の準備）",
+          "url": "https://www.mokume.com/mokume-gane-a-comprehensive-study/preparing-a-mokume-gane-billet-guide"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "mokume-clean",
+        "title": "重ねる前の洗浄がいちばん大事",
+        "text": "重ねる前に、油や指のあとを残さず洗う。一枚一枚の厚みは、どこも均一にする",
+        "reason": "洗浄の不足が失敗（はがれ・泡）のいちばんの原因",
+        "source": {
+          "kind": "public",
+          "title": "米国の作り手の手引き（地金の準備）",
+          "url": "https://www.mokume.com/mokume-gane-a-comprehensive-study/preparing-a-mokume-gane-billet-guide"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "mokume-bond",
+        "title": "接合は 800〜950 ℃が目安、むらなく",
+        "text": "つなぐ温度は 800〜950 ℃が目安で、材料による。焼きすぎ・温度不足・加熱むらをさける",
+        "reason": "温度がずれると、割れ・はがれ・中の泡になる",
+        "source": {
+          "kind": "public",
+          "title": "日本の作り手の会社の解説（積層）",
+          "url": "https://mokume-gane.co.jp/lamination/"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "mokume-forge-reduce",
+        "title": "一回の加熱で 20〜30% ずつ薄く",
+        "text": "鍛えるときは、一回熱するごとに 20〜30% 薄くし、はじめの厚みから 50% 薄くなるまで続ける",
+        "reason": "一度に薄くしすぎると、層の境目がはがれる",
+        "source": {
+          "kind": "public",
+          "title": "刃物づくりの雑誌の記事（木目金の作り方）",
+          "url": "https://blademag.com/knifemaking/knifemaking-101-how-to-make-mokume"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "mokume-cold-reduce",
+        "title": "冷たいままなら 10% から",
+        "text": "冷たいまま薄くするときは、焼きなましの前に 10% 以下からはじめ、薄くなってきたら 20% 近くまで",
+        "reason": "つないだばかりの地金は、冷たいまま強く加工するとはがれやすい",
+        "source": {
+          "kind": "public",
+          "title": "刃物づくりの雑誌の記事（木目金の作り方）",
+          "url": "https://blademag.com/knifemaking/knifemaking-101-how-to-make-mokume"
+        },
+        "date": "2026-11-04"
+      },
+      {
+        "id": "mokume-carve-third",
+        "title": "彫りは厚さの 1/3 まで",
+        "text": "模様を彫る深さは、そのときの地金の厚さの 1/3 より深くしない",
+        "reason": "深く彫りすぎると地金が弱くなり、のばすときに割れる",
+        "source": {
+          "kind": "public",
+          "title": "刃物づくりの雑誌の記事（木目金の作り方）",
+          "url": "https://blademag.com/knifemaking/knifemaking-101-how-to-make-mokume"
+        },
+        "date": "2026-11-04"
+      }
+    ],
+    "open": [
+      {
+        "id": "mokume:bond-heat",
+        "title": "接合の温度と時間",
+        "question": "地金の組み合わせごとに、何 ℃で何分（何時間）熱してつなぎますか？",
+        "why": "800〜950 ℃（作り手の会社）、約 730 ℃で 1 時間、900 ℃で 5 時間など（どれも未確認）で、資料ごとに大きくちがう",
+        "reason": "温度が足りないとはがれ、高すぎると層がとけて木目が消えるから"
+      },
+      {
+        "id": "mokume:shakudo-anneal",
+        "title": "赤銅・四分一の焼きなまし",
+        "question": "赤銅や四分一を焼きなますときは、何 ℃まで熱し、水で冷やしますか？",
+        "why": "赤銅・四分一の焼きなましの温度と冷やし方は、どの資料にも見つからない",
+        "reason": "合金によっては急に冷やすとひびが入ると言われるから"
+      },
+      {
+        "id": "mokume:carve-mm",
+        "title": "彫る深さの mm",
+        "question": "木目金の模様を彫るとき、地金が何 mm のときに何 mm まで彫りますか？",
+        "why": "資料は「厚さの 1/3 まで」という割合だけで、mm の目安は無い",
+        "reason": "彫る深さで、表に出る層の色と模様の形が決まるから"
+      }
+    ]
+  }
+}

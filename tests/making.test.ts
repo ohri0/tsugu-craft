@@ -25,9 +25,16 @@ describe("作り方の決まり", () => {
   it("知らない工程の名前は捨てる", () => {
     expect(stepsOfRule(rule({ title: "a", text: "b", steps: ["solder", "nope"] }))).toEqual(["solder"]);
   });
-  it("公開の目安は、工程に出さない（職人の決まりだけ）", () => {
-    const r = { ...rule({ title: "ヤスリ", text: "ヤスリ", steps: ["finish"] }), source: { kind: "public" as const, title: "x" } };
-    expect(makingRulesFor([r], "finish")).toHaveLength(0);
+  it("資料の決まりは、工程を明示したときだけ、職人の決まりのあとに出す（言葉から当てない）", () => {
+    const pub = { ...rule({ title: "ヤスリ", text: "ヤスリ", steps: ["finish"] }), source: { kind: "public" as const, title: "x" } };
+    const guess = { ...rule({ title: "ヤスリ2", text: "ヤスリで削る" }), source: { kind: "public" as const, title: "x" } };
+    const mine = rule({ title: "磨き", text: "磨く", steps: ["finish"] });
+    expect(makingRulesFor([pub, guess, mine], "finish").map((r) => r.title)).toEqual(["磨き", "ヤスリ"]);
+  });
+  it("帳面の資料の作り方の決まりは、どれかの工程に出る", () => {
+    const rules = (repo as { rules: Rule[] }).rules.filter((r) => r.source.kind === "public" && !isCheckRule(r));
+    expect(rules.length).toBeGreaterThanOrEqual(20);
+    for (const r of rules) expect(MAKING_STEP_IDS.some((s) => makingRulesFor([r], s).length === 1)).toBe(true);
   });
   it("帳面の職人の手の決まりは、どれも工程に結びついている", () => {
     const rules = (repo as { rules: Rule[] }).rules.filter((r) => r.source.kind === "craftsman" && !isCheckRule(r));

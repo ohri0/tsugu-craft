@@ -4,7 +4,7 @@
     {
       "id": "finger-gap",
       "title": "石の先を指から離す",
-      "text": "石の一番下（キューレット）は、指から 0.3 mm 以上離す",
+      "text": "石の一番下（キューレット）は、指から 0.3 mm 以上離す（仮の目安。公開の資料の値は「石の先を指から離す（資料）」を見る）",
       "reason": "石の先が指に当たると痛く、石も欠けやすい",
       "param": "height.minFingerGapMm",
       "value": 0.3,
@@ -12,8 +12,7 @@
         "finger-gap"
       ],
       "source": {
-        "kind": "public",
-        "title": "教科書・公開情報レベルの目安"
+        "kind": "provisional"
       },
       "date": "2026-11-02"
     },
@@ -58,8 +57,7 @@
         "corner"
       ],
       "source": {
-        "kind": "public",
-        "title": "教科書・公開情報レベルの目安"
+        "kind": "provisional"
       },
       "date": "2026-11-02"
     },
@@ -74,8 +72,7 @@
         "prong-gap"
       ],
       "source": {
-        "kind": "public",
-        "title": "教科書・公開情報レベルの目安"
+        "kind": "provisional"
       },
       "date": "2026-11-02"
     },
@@ -97,18 +94,570 @@
     {
       "id": "bezel-wall",
       "title": "覆輪の壁の厚み",
-      "text": "覆輪の壁は 0.5 mm、0.4 mm 未満は薄い",
+      "text": "覆輪の壁は 0.5 mm、0.45 mm 未満は薄い（0.5 mm は仮の目安）",
       "reason": "薄い壁は欠けたり曲がったりする",
       "param": "bezel.wallMinMm",
-      "value": 0.4,
+      "value": 0.45,
       "checks": [
         "bezel-wall"
       ],
       "source": {
         "kind": "public",
-        "title": "教科書・公開情報レベルの目安"
+        "title": "地金の会社の CAD の生産の決まり（第三者の写し）",
+        "url": "https://cdn.hackaday.io/files/1657037089437152/CADCAMProductionStandards.pdf"
       },
+      "unverified": true,
       "date": "2026-11-02"
+    },
+    {
+      "id": "prong-crown-cover",
+      "title": "爪が上側にかかる長さ",
+      "text": "爪は石の上側（クラウン）の 33〜50% にかける",
+      "reason": "かかりが浅いと石が抜け、深すぎると石が隠れる",
+      "source": {
+        "kind": "public",
+        "title": "宝石の研究機関の、石が落ちないための品質の目安",
+        "url": "https://www.gia.edu/bench-tip-avoid-stone-loss-with-quality-assurance-benchmarks"
+      },
+      "date": "2026-11-04",
+      "steps": [
+        "prong"
+      ]
+    },
+    {
+      "id": "prong-angle",
+      "title": "爪の角度",
+      "text": "斜めに立つふつうの爪は 70〜80 度にする",
+      "reason": "寝すぎると押さえる力が弱く、立ちすぎると石を包めない",
+      "source": {
+        "kind": "public",
+        "title": "宝石の研究機関の、石が落ちないための品質の目安",
+        "url": "https://www.gia.edu/bench-tip-avoid-stone-loss-with-quality-assurance-benchmarks"
+      },
+      "date": "2026-11-04",
+      "steps": [
+        "head",
+        "prong"
+      ]
+    },
+    {
+      "id": "prong-seat-depth",
+      "title": "爪の座は半分まで",
+      "text": "爪に座を切るときは、爪の太さの 40〜50% を削る。爪の太さの 50% 以上は必ず残す。石は座に水平に、すき間なく、石座の輪のすぐ上に座らせる",
+      "reason": "削りすぎると爪が弱くなる。傾きやすき間があると石が動き、ゆるむ",
+      "source": {
+        "kind": "public",
+        "title": "宝石の研究機関の品質の目安と、業界誌の石留めの連載",
+        "url": "https://www.jckonline.com/?p=18955"
+      },
+      "date": "2026-11-04",
+      "steps": [
+        "head",
+        "prong"
+      ]
+    },
+    {
+      "id": "round-prong-count",
+      "title": "丸い石は 4 本か 6 本",
+      "text": "丸い石は 4 本か 6 本。迷ったら 6 本。6 本は丸く見え、石をよりしっかり留める",
+      "reason": "爪が多いほど 1 本が折れても石が残りやすい",
+      "source": {
+        "kind": "public",
+        "title": "宝石の研究機関の一般向けの解説",
+        "url": "https://4cs.gia.edu/?p=7260"
+      },
+      "date": "2026-11-04",
+      "steps": [
+        "head",
+        "prong"
+      ]
+    },
+    {
+      "id": "square-four-prongs",
+      "title": "四角い石は 4 本を角に",
+      "text": "プリンセスなど四角い石は、4 本の爪で角を守る",
+      "reason": "4 本は四角い形に合い、角の欠けを防ぐ",
+      "source": {
+        "kind": "public",
+        "title": "宝石の研究機関の一般向けの解説",
+        "url": "https://4cs.gia.edu/?p=7260"
+      },
+      "date": "2026-11-04",
+      "steps": [
+        "head",
+        "prong"
+      ]
+    },
+    {
+      "id": "oval-centered",
+      "title": "楕円はまっすぐ真ん中に",
+      "text": "楕円は、上から見てどの爪も同じだけ見えるよう真ん中に置き、石の長い向きを両端の爪を結ぶ線にそろえる",
+      "reason": "ずれると爪の押さえがばらつき、見た目も曲がる",
+      "source": {
+        "kind": "public",
+        "title": "業界誌の石留めの連載（楕円）",
+        "url": "https://www.jckonline.com/?p=18955"
+      },
+      "date": "2026-11-04",
+      "steps": [
+        "prong"
+      ]
+    },
+    {
+      "id": "v-prong-points",
+      "title": "尖った先は V 字の爪",
+      "text": "洋なし・マーキース・ハートの尖った先は V 字の爪で包む",
+      "reason": "尖った先は薄く、欠けやすい。指輪はとくにぶつかる",
+      "source": {
+        "kind": "public",
+        "title": "技の解説記事（V 字の爪）",
+        "url": "https://www.ganoksin.com/article/v-prong-setting-to-v-or-not-to-v/"
+      },
+      "date": "2026-11-04",
+      "steps": [
+        "head",
+        "prong"
+      ]
+    },
+    {
+      "id": "v-prong-tip-relief",
+      "title": "先のまわりを空ける",
+      "text": "V の中で、石の先の上と下に空き（逃げ）を作る。目印の切り込みは爪の太さの 1/3 まで。マーキースは横の爪を先に倒し V は後、洋なし・ハートは V を先に倒す",
+      "reason": "下に支えがないまま上から押すと、先が割れる。倒す順で先にかかる力を小さくする",
+      "source": {
+        "kind": "public",
+        "title": "技の解説記事（V 字の爪）",
+        "url": "https://www.ganoksin.com/article/v-prong-setting-to-v-or-not-to-v/"
+      },
+      "date": "2026-11-04",
+      "steps": [
+        "prong"
+      ]
+    },
+    {
+      "id": "cushion-double-prong",
+      "title": "クッションは回りを止める",
+      "text": "クッションは角に 2 本爪にするか、石座の輪で回りを止める",
+      "reason": "角が丸いので、1 本爪 4 つでは回ってゆるみやすい",
+      "source": {
+        "kind": "public",
+        "title": "製造の会社の CAD の生産の決まり（第三者の写し）",
+        "url": "https://cdn.hackaday.io/files/1657037089437152/CADCAMProductionStandards.pdf"
+      },
+      "date": "2026-11-04",
+      "steps": [
+        "head",
+        "prong"
+      ],
+      "unverified": true
+    },
+    {
+      "id": "emerald-cut-corners",
+      "title": "エメラルドカットの角",
+      "text": "エメラルドカットは、切り落とした角の近くに爪を置くか、覆輪にする。数は 4 本か 6 本で、資料が分かれる",
+      "reason": "長い角は弱いという説と、角を切ってあるので弱くないという説がある",
+      "source": {
+        "kind": "public",
+        "title": "宝飾の用語集と買い手の掲示板",
+        "url": "https://skyjems.ca/pages/encyclopedia-4-prong-setting"
+      },
+      "date": "2026-11-04",
+      "steps": [
+        "head",
+        "prong"
+      ],
+      "unverified": true
+    },
+    {
+      "id": "bezel-wall-by-size",
+      "title": "覆輪の壁の厚み",
+      "text": "石が約 5 mm より小さければ壁 0.5 mm。8 mm 以上の石は 1 mm",
+      "reason": "薄いと倒すときに割れ、大きい石を守れない",
+      "source": {
+        "kind": "public",
+        "title": "技の解説記事（管の石留め）",
+        "url": "https://www.ganoksin.com/article/tube-setting-method"
+      },
+      "date": "2026-11-04",
+      "steps": [
+        "bezel_make",
+        "bezel"
+      ]
+    },
+    {
+      "id": "bezel-seat-ledge",
+      "title": "覆輪の座の位置",
+      "text": "石の外に壁が 0.2 mm 以上見えるように座を切る。石の縁は上の端から約 0.5 mm 下に",
+      "reason": "外の壁が残らないと押さえられず、縁が高すぎると寄せる地金が足りない",
+      "source": {
+        "kind": "public",
+        "title": "技の解説記事（管の石留め）",
+        "url": "https://www.ganoksin.com/article/tube-setting-method"
+      },
+      "date": "2026-11-04",
+      "steps": [
+        "bezel"
+      ]
+    },
+    {
+      "id": "bezel-bearing-crown",
+      "title": "覆輪は上側の半分以上",
+      "text": "覆輪の座は、壁の上の端が石の上側（クラウン）の高さの 50% 以上に来る深さで切る",
+      "reason": "壁が低いと石を包めない",
+      "source": {
+        "kind": "public",
+        "title": "宝石の研究機関の、覆輪留めの道具の解説",
+        "url": "https://www.gia.edu/bench-tip-modified-tool-to-bezel-set-round-faceted-stones"
+      },
+      "date": "2026-11-04",
+      "steps": [
+        "bezel"
+      ]
+    },
+    {
+      "id": "bezel-depth-and-relief",
+      "title": "覆輪は石より深く",
+      "text": "覆輪の深さは石の深さが入るだけ取り（例では 4.0 mm 以上）、下側と一番下が当たらない逃げを作る",
+      "reason": "一番下が当たると石が浮き、割れることもある",
+      "source": {
+        "kind": "public",
+        "title": "宝石の研究機関の、覆輪留めの道具の解説",
+        "url": "https://www.gia.edu/bench-tip-modified-tool-to-bezel-set-round-faceted-stones"
+      },
+      "date": "2026-11-04",
+      "steps": [
+        "bezel_make",
+        "bezel"
+      ]
+    },
+    {
+      "id": "culet-finger-gap",
+      "title": "石の先を指から離す",
+      "text": "石の一番下（キューレット）は、指側の面から 0.5 mm 以上離す",
+      "reason": "石の先が指に当たり、仕上げで削る分もなくなる",
+      "source": {
+        "kind": "public",
+        "title": "製造の会社の CAD の生産の決まり（第三者の写し）",
+        "url": "https://cdn.hackaday.io/files/1657037089437152/CADCAMProductionStandards.pdf"
+      },
+      "date": "2026-11-04",
+      "steps": [
+        "model",
+        "head"
+      ],
+      "unverified": true
+    },
+    {
+      "id": "head-height-choice",
+      "title": "石座の高さを選ぶ",
+      "text": "低め・標準・高めの決まった mm はない。高いとぶつけやすく、低いと重ねる指輪が石の下に当たる。使い方で選ぶ",
+      "reason": "高さで、守りやすさと重ねづけのしやすさが変わる",
+      "source": {
+        "kind": "public",
+        "title": "買い手の掲示板",
+        "url": "https://www.pricescope.com/community/threads/how-high-do-you-prefer-your-diamond-be-set.240277"
+      },
+      "date": "2026-11-04",
+      "steps": [
+        "model",
+        "head"
+      ],
+      "unverified": true
+    },
+    {
+      "id": "shank-min-thickness",
+      "title": "腕の厚み",
+      "text": "腕のいちばん薄い所は 1.2 mm を目安に。1.0 mm より薄くしない（仕上げで削れる分を見込む）",
+      "reason": "仕上げで削れる。薄い腕は曲がり、やわらかい K 数の高い金ではとくに弱い",
+      "source": {
+        "kind": "public",
+        "title": "製造の会社の CAD の決まりと、宝飾学校の教材",
+        "url": "https://learn.jdmis.edu.sg/wp-content/uploads/2023/09/1.1.3-Types-of-Ring-Styles-and-Drafting-LEARNER-GUIDE-ID78.pdf"
+      },
+      "date": "2026-11-04",
+      "unverified": true,
+      "param": "band.minThicknessMm",
+      "value": 1.2,
+      "checks": [
+        "band-thin"
+      ]
+    },
+    {
+      "id": "platinum-thicker",
+      "title": "プラチナは厚く",
+      "text": "プラチナは、金と同じ寸法では弱い。腕も爪も厚く・太くする（何 mm かは職人が決める）",
+      "reason": "同じ強さを出すには、プラチナはかなり厚みが要る",
+      "source": {
+        "kind": "public",
+        "title": "職人の掲示板（プラチナの婚約指輪）",
+        "url": "https://orchid.ganoksin.com/t/platinum-engagement-ring/8350"
+      },
+      "date": "2026-11-04",
+      "steps": [
+        "model",
+        "material",
+        "prong"
+      ]
+    },
+    {
+      "id": "shank-min-width",
+      "title": "腕の幅",
+      "text": "一粒石の指輪の腕の幅は 1.7〜2.0 mm 以上",
+      "reason": "細い腕は曲がって、石がゆるんだり落ちたりする",
+      "source": {
+        "kind": "public",
+        "title": "販売店の買い方の手引き",
+        "url": "https://www.briangavindiamonds.com/news/buyers-guide-thin-band-engagement-ring/"
+      },
+      "date": "2026-11-04",
+      "unverified": true,
+      "param": "band.minWidthMm",
+      "value": 1.7,
+      "checks": [
+        "band-narrow"
+      ]
+    },
+    {
+      "id": "gallery-rail",
+      "title": "石座の輪の線",
+      "text": "石座の輪の線の決まった太さはない。売られている飾り線は厚み 0.64〜0.66 mm の例。輪どうしの間は 0.4 mm 以上あける",
+      "reason": "輪が近すぎると鋳造で埋まり、磨けない",
+      "source": {
+        "kind": "public",
+        "title": "宝飾の用語集・販売店の製品の値と、製造の会社の CAD の決まり",
+        "url": "https://skyjems.ca/pages/encyclopedia-gallery-wire"
+      },
+      "date": "2026-11-04",
+      "steps": [
+        "head",
+        "model"
+      ],
+      "unverified": true
+    },
+    {
+      "id": "ring-size-go",
+      "title": "号と内径",
+      "text": "1 号は内径 13 mm・内周 40.84 mm。1 号ごとに内径は約 0.33 mm、内周は約 1 mm 大きくなる（例：10 号 内径 16 mm・内周 50.27 mm）",
+      "reason": "材料の長さや CAD の内径を、号から決めるため",
+      "source": {
+        "kind": "public",
+        "title": "指輪のサイズの一覧表（国内のサイズ）",
+        "url": "https://www.moocota.com/ring-size-ichiranhyo/"
+      },
+      "date": "2026-11-04",
+      "steps": [
+        "model",
+        "material",
+        "true"
+      ]
+    },
+    {
+      "id": "solder-order",
+      "title": "ロウは硬い順に",
+      "text": "何か所もつなぐときは、ハード → ミディアム → イージーの順に使う。同じロウを 2 回使わない。新しく作る・サイズ直しは温度の高いロウ、修理は中〜低いロウ",
+      "reason": "後のロウ付けで前のつなぎ目が溶け直さないように",
+      "source": {
+        "kind": "public",
+        "title": "宝石の学びの頁（ロウの種類）",
+        "url": "https://www.gemsociety.org/article/solder"
+      },
+      "date": "2026-11-04",
+      "steps": [
+        "solder",
+        "attach"
+      ]
+    },
+    {
+      "id": "silver-solder-temps",
+      "title": "銀ロウの温度",
+      "text": "銀ロウの流れる温度の例：ハード 774 ℃、ミディアム 754 ℃、イージー 718 ℃。別の会社ではハード 758 ℃、中 727 ℃、やわらかい 692 ℃。使うロウの表で確かめる",
+      "reason": "同じ名前でも会社で温度がちがう",
+      "source": {
+        "kind": "public",
+        "title": "宝石の学びの頁と、地金の会社の銀ロウの表",
+        "url": "https://www.gemsociety.org/article/solder"
+      },
+      "date": "2026-11-04",
+      "steps": [
+        "solder"
+      ]
+    },
+    {
+      "id": "gold-solder-temps",
+      "title": "K18 のロウ",
+      "text": "K18 イエローのロウの例：ハード 867 ℃、ミディアム 855 ℃、イージー 799 ℃。金のロウはつなぐ金より 1〜2 K 低い",
+      "reason": "地金を溶かさず、ロウだけを流すため",
+      "source": {
+        "kind": "public",
+        "title": "地金の会社の金ロウの表と、宝石の学びの頁",
+        "url": "https://www.unitedpmr.com/cadmium-free-solders/18k-22k-plumb-gold-solders/"
+      },
+      "date": "2026-11-04",
+      "steps": [
+        "solder",
+        "attach"
+      ]
+    },
+    {
+      "id": "platinum-sizing",
+      "title": "プラチナのサイズ直し",
+      "text": "プラチナは 1 サイズにつき約 2.2 mm を切る・足す。溶接か、温度の高いプラチナ用のロウでつなぐ",
+      "reason": "低い温度のロウはやわらかく、継ぎ目に黒い線が残る",
+      "source": {
+        "kind": "public",
+        "title": "技の解説記事（プラチナの指輪のサイズ直し）",
+        "url": "https://www.ganoksin.com/article/resize-platinum-rings"
+      },
+      "date": "2026-11-04",
+      "steps": [
+        "solder",
+        "true"
+      ]
+    },
+    {
+      "id": "casting-shrinkage",
+      "title": "鋳造で縮む分",
+      "text": "ワックスから地金で 1〜2% ほど小さくなる。ゴム型を通すと 6〜8%、もっと縮むことも。試し鋳造で測って決める",
+      "reason": "縮む分を足さないと、サイズや石座が小さくなる",
+      "source": {
+        "kind": "public",
+        "title": "職人の掲示板（鋳造の縮み）",
+        "url": "https://orchid.ganoksin.com/t/understanding-casting-shrinkage/32489"
+      },
+      "date": "2026-11-04",
+      "steps": [
+        "model",
+        "pour"
+      ]
+    },
+    {
+      "id": "anneal-temps",
+      "title": "焼きなましの温度",
+      "text": "SV925 は 593 ℃、K18 イエローは 676 ℃、K18 ホワイトは 732 ℃ で約 10 分。プラチナは 982 ℃（明るいオレンジ色）。長く熱しすぎない",
+      "reason": "地金をやわらかくして割れを防ぐ。熱しすぎると粒が大きくなり仕上げにくい",
+      "source": {
+        "kind": "public",
+        "title": "地金の会社の職人向けの焼きなましの記事",
+        "url": "https://stuller.com/benchjeweler/resources/bencharticles/view/annealing-gold"
+      },
+      "date": "2026-11-04",
+      "steps": [
+        "anneal"
+      ]
+    },
+    {
+      "id": "finish-allowance",
+      "title": "磨きで減る分を足す",
+      "text": "CAD の寸法は、仕上げで 0.2 mm ほど減ることを見込んで決める",
+      "reason": "最低の厚みぎりぎりだと、磨いた後に足りなくなる",
+      "source": {
+        "kind": "public",
+        "title": "製造の会社の CAD の生産の決まり（第三者の写し）",
+        "url": "https://cdn.hackaday.io/files/1657037089437152/CADCAMProductionStandards.pdf"
+      },
+      "date": "2026-11-04",
+      "steps": [
+        "model",
+        "finish"
+      ],
+      "unverified": true
+    },
+    {
+      "id": "heat-sensitive-stones",
+      "title": "熱に弱い石は外す",
+      "text": "エメラルド・オパール・真珠・トルコ石・スモーキークォーツなど熱に弱い石は、バーナーで熱する前に外す。外せないときはレーザー溶接で",
+      "reason": "熱で割れたり、色が変わったり、処理がこわれる",
+      "source": {
+        "kind": "public",
+        "title": "職人の掲示板と、宝石の研究機関の覆輪留めの解説",
+        "url": "https://orchid.ganoksin.com/t/beginner-soldering-a-ring-with-stones/13159"
+      },
+      "date": "2026-11-04",
+      "steps": [
+        "solder",
+        "true",
+        "attach"
+      ]
+    },
+    {
+      "id": "heat-tolerant-stones",
+      "title": "熱に強い石にも注意",
+      "text": "ダイヤ・ルビー・サファイアは、処理していなければある程度の熱に耐える。処理した石・処理が分からない石は外す",
+      "reason": "熱は多くの石の処理（すき間を埋める処理など）をこわす",
+      "source": {
+        "kind": "public",
+        "title": "地金の会社の職人向けのロウ付けの記事",
+        "url": "https://stuller.com/benchjeweler/resources/bencharticles/view/soldering-tips-for-success"
+      },
+      "date": "2026-11-04",
+      "steps": [
+        "solder",
+        "true"
+      ]
+    },
+    {
+      "id": "no-hot-quench-stones",
+      "title": "石つきは熱いうちに冷やさない",
+      "text": "石が入ったまま熱したときは、熱いうちに水や酸洗いの液に入れない。手でさわれるくらいに冷めてから",
+      "reason": "急な温度の変化で石が割れる",
+      "source": {
+        "kind": "public",
+        "title": "地金の会社の職人向けのロウ付けの記事と、職人の掲示板",
+        "url": "https://stuller.com/benchjeweler/resources/bencharticles/view/soldering-tips-for-success"
+      },
+      "date": "2026-11-04",
+      "steps": [
+        "solder",
+        "anneal"
+      ]
+    },
+    {
+      "id": "pickle-no-steel",
+      "title": "酸洗いに鉄を入れない",
+      "text": "酸洗いの液（硫酸水素ナトリウムは水 4 L に約半カップ）に、鉄のピンセットや針金を入れない。銅か樹脂のはさみを使う。煮つめない",
+      "reason": "鉄が入ると、液の銅が地金に付いて赤くなる",
+      "source": {
+        "kind": "public",
+        "title": "技の解説記事（酸洗いのメモ）",
+        "url": "https://www.ganoksin.com/lesson/pickling-notes/"
+      },
+      "date": "2026-11-04",
+      "steps": [
+        "solder",
+        "anneal",
+        "divest"
+      ]
+    },
+    {
+      "id": "stretch-limit",
+      "title": "広げてよいのは少しだけ",
+      "text": "広げてサイズを上げるのは 1/4〜1/2 サイズまで、石の入っていない指輪で。石つきや大きく変えるときは、切って地金を足す",
+      "reason": "広げると腕が細くなり、石座がゆがんで石がゆるむ",
+      "source": {
+        "kind": "public",
+        "title": "宝飾材料の販売店の、専門家の Q&A",
+        "url": "https://www.firemountaingems.com/learn/categories/ask-the-experts/A51W-ask-the-experts.html"
+      },
+      "date": "2026-11-04",
+      "steps": [
+        "true"
+      ]
+    },
+    {
+      "id": "prong-inspect-retip",
+      "title": "爪を見て、先を付け直す",
+      "text": "修理の前に拡大して爪を見る。1〜数本が減っていれば先を付け直す。ほとんどの爪が減っていれば石座ごと替える",
+      "reason": "細く曲がった爪は、今は留まっていても石が落ちる元になる",
+      "source": {
+        "kind": "public",
+        "title": "地金の会社の職人向けの石留めの修理の記事",
+        "url": "https://www.stuller.com/benchjeweler/resources/bencharticles/view/common-stone-setting-repairs-every-bench-jeweler-should-know/"
+      },
+      "date": "2026-11-04",
+      "steps": [
+        "prong",
+        "finish"
+      ]
     },
     {
       "title": "爪の最低の太さ（石の大きさで）",
@@ -164,5 +713,5 @@
     "rule-1vxmav6",
     "rule-mrekpa"
   ],
-  "owner": "工房 A"
+  "owner": "石川工房"
 }

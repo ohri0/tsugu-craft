@@ -4,6 +4,7 @@
 // 機械で確かめられない決まり（言葉だけの決まり）も残し、Claude が読んで判断に使う。
 import type { CheckId } from "./checks.js";
 import { GUIDES, type Guides } from "./guides.js";
+import ringPublic from "../../ledger/ring-public.json";
 
 /** 決まりの出どころ */
 export type RuleSource =
@@ -21,6 +22,8 @@ export const PARAMS = {
   "hold.requiredTop": { label: "必要な留まり（石が上）", unit: "×", checks: ["hold"] },
   "hold.requiredSide": { label: "必要な留まり（石が横）", unit: "×", checks: ["hold"] },
   "hold.requiredPalm": { label: "必要な留まり（手のひら側寄り）", unit: "×", checks: ["hold"] },
+  "band.minThicknessMm": { label: "腕の厚み（最低）", unit: "mm", checks: ["band-thin"] },
+  "band.minWidthMm": { label: "腕の幅（最低）", unit: "mm", checks: ["band-narrow"] },
   "hold.cornerSet": { label: "角が 3 つの石を、角に 1 本ずつの爪 3 本で留めたとき 4 本と同じ留まりとみなす（1 ＝ みなす）", unit: "", checks: ["hold"] },
 } as const satisfies Record<string, { label: string; unit: string; checks: readonly CheckId[] }>;
 
@@ -131,8 +134,22 @@ export interface Ledger<P extends string = ParamId> {
 
 const SKYJEMS = { kind: "public", title: "Prong wire（Skyjems）", url: "https://skyjems.ca/pages/encyclopedia-prong-wire" } as const;
 const GIA = { kind: "public", title: "GIA ベンチティップ", url: "https://www.gia.edu/jp/bench-tip-avoid-stone-loss-with-quality-assurance-benchmarks" } as const;
-const TEXTBOOK = { kind: "public", title: "教科書・公開情報レベルの目安" } as const;
+/** 地金の会社の CAD の生産の決まり（第三者の写し。中の文を開けて確かめられていないので、使う決まりは未確認） */
+const CAD_STD = { kind: "public", title: "地金の会社の CAD の生産の決まり（第三者の写し）", url: "https://cdn.hackaday.io/files/1657037089437152/CADCAMProductionStandards.pdf" } as const;
+const PROVISIONAL = { kind: "provisional" } as const;
 const START = "2026-11-02";
+
+/**
+ * 公開の資料から入れた、指輪の決まり（ledger/ring-public.json。調べは docs/RESEARCH-rules2.md）。
+ * 値に結びつく決まり（腕の厚み・幅）は、値を guides.ts から読む（JSON の言葉の数字と同じ値）。
+ */
+export function publicRingRules(): Rule[] {
+  const g = GUIDES;
+  return (ringPublic as Rule[]).map((r) => {
+    const value = r.param === "band.minThicknessMm" ? g.band.minThicknessMm : r.param === "band.minWidthMm" ? g.band.minWidthMm : undefined;
+    return structuredClone({ ...r, ...(value !== undefined ? { value, checks: [...PARAMS[r.param!].checks] } : {}) });
+  });
+}
 
 /** 出発点の目安帳（値は guides.ts から読み、ここに数字を書かない） */
 export function seedLedger(): Ledger {
@@ -143,12 +160,12 @@ export function seedLedger(): Ledger {
       {
         id: "finger-gap",
         title: "石の先を指から離す",
-        text: `石の一番下（キューレット）は、指から ${g.height.minFingerGapMm} mm 以上離す`,
+        text: `石の一番下（キューレット）は、指から ${g.height.minFingerGapMm} mm 以上離す（仮の目安。公開の資料の値は「石の先を指から離す（資料）」を見る）`,
         reason: "石の先が指に当たると痛く、石も欠けやすい",
         param: "height.minFingerGapMm",
         value: g.height.minFingerGapMm,
         checks: ["finger-gap"],
-        source: TEXTBOOK,
+        source: PROVISIONAL,
         date: START,
       },
       {
@@ -177,7 +194,7 @@ export function seedLedger(): Ledger {
         param: "prong.cornerReachMm",
         value: g.prong.cornerReachMm,
         checks: ["corner"],
-        source: TEXTBOOK,
+        source: PROVISIONAL,
         date: START,
       },
       {
@@ -188,7 +205,7 @@ export function seedLedger(): Ledger {
         param: "prong.maxGapRatio",
         value: g.prong.maxGapRatio,
         checks: ["prong-gap"],
-        source: TEXTBOOK,
+        source: PROVISIONAL,
         date: START,
       },
       {
@@ -205,14 +222,16 @@ export function seedLedger(): Ledger {
       {
         id: "bezel-wall",
         title: "覆輪の壁の厚み",
-        text: `覆輪の壁は ${g.bezel.wallMm} mm、${g.bezel.wallMinMm} mm 未満は薄い`,
+        text: `覆輪の壁は ${g.bezel.wallMm} mm、${g.bezel.wallMinMm} mm 未満は薄い（${g.bezel.wallMm} mm は仮の目安）`,
         reason: "薄い壁は欠けたり曲がったりする",
         param: "bezel.wallMinMm",
         value: g.bezel.wallMinMm,
         checks: ["bezel-wall"],
-        source: TEXTBOOK,
+        source: CAD_STD,
+        unverified: true,
         date: START,
       },
+      ...publicRingRules(),
     ],
   };
 }

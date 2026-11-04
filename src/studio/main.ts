@@ -21,7 +21,7 @@ import { rulePlans } from "../ui/design";
 import { loadPhoto } from "../ui/photo";
 import { Viewer, type DisplayMode } from "../ui/viewer";
 import { extractStone, type Extraction } from "../vision/extract";
-import { PARAMS, activeRules, addRule, seedLedger, valueFor, type Ledger, type ParamId, type Rule } from "../rules/ledger";
+import { PARAMS, activeRules, addRule, seedLedger, sourceLabel, valueFor, type Ledger, type ParamId, type Rule } from "../rules/ledger";
 import { askPassword, resetPassword } from "../app/password";
 import { esc, store, today } from "../app/store";
 import { bindVoice } from "../app/voice";
@@ -1702,9 +1702,17 @@ function makingRulesHtml(stepId: string | undefined): string {
   const rules = makingRulesFor(activeRules(store.ledger()), stepId);
   if (!rules.length) return "";
   const name = masterName(store.ledger());
-  return `<div class="past rule-in-step"><small>職人の決まり</small>${rules
-    .map((r) => `<p class="r-text">${esc(r.text)}</p>${r.reason ? `<p class="r-why">なぜ：${esc(r.reason)}</p>` : ""}${r.quote ? `<p class="r-q">「${esc(r.quote)}」<span>${esc(name)} ・ ${esc(r.date)}</span></p>` : ""}`)
-    .join("")}</div>`;
+  const mine = rules.filter((r) => r.source.kind === "craftsman");
+  const pub = rules.filter((r) => r.source.kind !== "craftsman");
+  const one = (r: Rule) => `<p class="r-text">${esc(r.text)}</p>${r.reason ? `<p class="r-why">なぜ：${esc(r.reason)}</p>` : ""}${r.quote ? `<p class="r-q">「${esc(r.quote)}」<span>${esc(name)} ・ ${esc(r.date)}</span></p>` : ""}`;
+  const src = (r: Rule) => (r.source.kind === "public" && r.source.url ? `<a href="${esc(r.source.url)}" target="_blank" rel="noopener">${esc(sourceLabel(r.source))}</a>` : esc(sourceLabel(r.source)));
+  return `${mine.length ? `<div class="past rule-in-step"><small>職人の決まり</small>${mine.map(one).join("")}</div>` : ""}${
+    pub.length
+      ? `<details class="past rule-in-step pub-in-step"><summary><small>資料の目安 ${pub.length}（職人がまだ確かめていない）</small></summary>${pub
+          .map((r) => `<p class="r-text"><b>${esc(r.title)}</b>：${esc(r.text)}</p><p class="r-why">なぜ：${esc(r.reason)}</p><p class="r-q"><span>${src(r)}${r.unverified ? " ・ 未確認" : ""} ・ ${esc(r.date)}</span></p>`)
+          .join("")}</details>`
+      : ""
+  }`;
 }
 function bindRules(box: HTMLElement) {
   const field = box.querySelector<HTMLTextAreaElement>(".ar-text");

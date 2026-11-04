@@ -2,6 +2,7 @@
 // #waza … 技を選ぶ（大きな札 3 つ：指輪の石留め → 設計・魚々子・途切れた技を組み立て直す）
 // #waza/nanako … 魚々子：図 → Claude の質問 → 帳面
 // #waza/rebuild … 途切れた技を、手がかりから組み立て直す（木目金）
+// #waza/bezel・milgrain・tsuchime・kebori・nunome・mokume … ほかの技：Claude の質問 → 帳面（src/app/tech-view.ts）
 // 指輪の石留めの聞き取りは「帳面」に移した（#waza/ring は帳面へ送る。src/app/routes.ts）
 import { activeRules, ledgerText } from "../rules/ledger";
 import { applyDraft, nanakoGaps, ringAnswerToDraft, ringGaps, answerToDraft, type RuleDraft } from "../rules/gaps";
@@ -14,6 +15,10 @@ import { flash, type InterviewTarget } from "./interview";
 import { masterName, sourceName } from "./master";
 import { mountNanako } from "./nanako-view";
 import { mountRebuild } from "./rebuild";
+import { mountTech } from "./tech-view";
+import { TECH_IDS, TECHS, isTechId } from "../rules/techniques";
+import { techGaps } from "../rules/gaps";
+import { esc } from "./store";
 import { store } from "./store";
 
 const RING = "指輪の石留め（一粒石の指輪）";
@@ -54,7 +59,8 @@ export function mountWaza(root: HTMLElement): { refresh(): void; route(sub: stri
 
   function list() {
     nanako = null;
-    const ringRules = activeRules(store.ledger()).filter((r) => r.source.kind === "craftsman").length;
+    const ringAll = activeRules(store.ledger());
+    const ringRules = ringAll.filter((r) => r.source.kind === "craftsman").length;
     const ringN = ringGaps(store.ledger()).length;
     const nl = store.nanakoLedger();
     const nanakoRules = activeRules(nl).length;
@@ -70,7 +76,7 @@ export function mountWaza(root: HTMLElement): { refresh(): void; route(sub: stri
       <ul class="big-techs">
         <li><a class="big-tech" href="studio.html">
           <span class="bt-mark" aria-hidden="true">石</span>
-          <span class="bt-body"><b>指輪の石留め</b><small>一粒石の指輪の枠を組み、職人の決まりで確かめる</small><span class="bt-meta">職人の決まり ${ringRules} ・ まだ決まっていない所 ${ringN}</span></span>
+          <span class="bt-body"><b>指輪の石留め</b><small>一粒石の指輪の枠を組み、職人の決まりで確かめる</small><span class="bt-meta">決まり ${ringAll.length}（職人 ${ringRules}）・ まだ決まっていない所 ${ringN}</span></span>
           <span class="bt-go" aria-hidden="true">›</span>
         </a></li>
         <li><a class="big-tech" href="#waza/nanako">
@@ -88,6 +94,16 @@ export function mountWaza(root: HTMLElement): { refresh(): void; route(sub: stri
             : ""
         }
       </ul>
+      <h3 class="pub-sec-h">ほかの技の帳面</h3>
+      <ul class="big-techs">${TECH_IDS.map((id) => {
+        const t = TECHS[id];
+        const l = store.techLedger(id);
+        return `<li><a class="big-tech" href="#waza/${id}">
+          <span class="bt-mark" aria-hidden="true">${esc(t.mark)}</span>
+          <span class="bt-body"><b>${esc(t.name)}</b><small>${esc(t.lead)}</small><span class="bt-meta">決まり ${activeRules(l).length} ・ まだ決まっていない所 ${techGaps(id, l).length}</span></span>
+          <span class="bt-go" aria-hidden="true">›</span>
+        </a></li>`;
+      }).join("")}</ul>
     </section>`;
   }
 
@@ -97,6 +113,8 @@ export function mountWaza(root: HTMLElement): { refresh(): void; route(sub: stri
     const gapId = new URLSearchParams(query ?? "").get("gap") ?? undefined;
     if (page === "nanako") {
       nanako = mountNanako(root, { gapId, onBack: () => (location.hash = "#waza") });
+    } else if (isTechId(page)) {
+      nanako = mountTech(root, page, { gapId, onBack: () => (location.hash = "#waza") });
     } else if (page === "rebuild") {
       nanako = null;
       mountRebuild(root, { onBack: () => (location.hash = "#waza") });
@@ -107,7 +125,7 @@ export function mountWaza(root: HTMLElement): { refresh(): void; route(sub: stri
     route,
     refresh() {
       const [page] = sub.split("?");
-      if (page === "nanako") nanako?.refresh();
+      if (page === "nanako" || isTechId(page)) nanako?.refresh();
       else if (page === "rebuild") return;
       else if (!root.hidden) list();
     },

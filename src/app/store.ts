@@ -1,6 +1,7 @@
 // このブラウザに残すもの：目安帳・職人への質問・合言葉・職人の名前。
 // 目安帳と質問の置き場所は、前の画面（src/ui/）と同じにする（前に残したものがそのまま使える）。
-import { loadLedger } from "../ui/ledger-ui";
+import { loadLedger, MAIN_NAME_STORE } from "../ui/ledger-ui";
+import { parseTechLedger, type TechId } from "../rules/techniques";
 import { loadTeacherQueue, TEACHER_QUEUE_STORE } from "../ui/teach-ui";
 import type { Ledger } from "../rules/ledger";
 import { activeLedger, MAIN, parseWorkshops, putLedger, type Workshops } from "../rules/workshops";
@@ -61,12 +62,42 @@ let ledger: Ledger = loadLedger();
 let workshops: Workshops = parseWorkshops(get(WORKSHOP_STORE) || null);
 let queue: TeacherQueue = loadTeacherQueue();
 let nanako: NanakoLedger = parseNanakoLedger(get(NANAKO_STORE) || null);
+const techKey = (id: TechId) => `tsugu.ledger.tech.${id}.v1`;
+const techs = new Map<TechId, Ledger<string>>();
+
+/** はじめの帳面の、工房の名前の既定（リポジトリの帳面に名前がないとき） */
+export const DEFAULT_WORKSHOP = "石川工房";
 
 export const store = {
   /** 使っている帳面（工房ごとの帳面を選んでいれば、その帳面） */
   ledger: () => activeLedger(workshops, ledger),
-  /** はじめの帳面（石川さんの帳面） */
+  /** はじめの帳面（工房の帳面。名前は mainName） */
   mainLedger: () => ledger,
+  /** はじめの帳面の工房の名前（帳面・学ぶ・技・スタジオのどこでも、この名前） */
+  mainName: () => ledger.owner?.trim() || DEFAULT_WORKSHOP,
+  /** 工房の名前を変える（ここ 1 か所。帳面の画面から） */
+  setMainName(name: string) {
+    const clean = name.trim();
+    if (!clean) return;
+    ledger = { ...ledger, owner: clean };
+    put(MAIN_NAME_STORE, clean);
+    put(LEDGER_STORE, JSON.stringify(ledger));
+    changed();
+  },
+  /** ほかの技の帳面（覆輪留め・ミル打ちなど） */
+  techLedger(id: TechId): Ledger<string> {
+    let l = techs.get(id);
+    if (!l) {
+      l = parseTechLedger(id, get(techKey(id)) || null);
+      techs.set(id, l);
+    }
+    return l;
+  },
+  setTechLedger(id: TechId, l: Ledger<string>) {
+    techs.set(id, l);
+    put(techKey(id), JSON.stringify(l));
+    changed();
+  },
   setLedger(l: Ledger) {
     if (workshops.active === MAIN) {
       ledger = l;
