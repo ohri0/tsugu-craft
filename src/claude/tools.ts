@@ -74,6 +74,8 @@ export interface AskTeacherResult {
 export type SettingStyle = "prong" | "bezel";
 export type HeightChoice = keyof typeof GUIDES.height.options;
 export type Orientation = "along" | "across";
+/** 石座と腕の付け方：on＝腕の上にのせる、between＝腕の間に挟む */
+export type Join = "on" | "between";
 export type Metal = "pt900" | "k18yg" | "k18wg" | "k18pg" | "sv925";
 export type View = "top" | "side" | "front" | "angle";
 
@@ -87,6 +89,8 @@ export interface SetSettingInput {
   v_corners?: boolean;
   height?: HeightChoice;
   orientation?: Orientation;
+  /** 石座と腕の付け方（爪留めだけ） */
+  join?: Join;
   reason: string;
 }
 
@@ -154,6 +158,8 @@ export interface SettingState {
   v_corners: boolean;
   height: HeightChoice;
   orientation: Orientation;
+  /** 石座と腕の付け方 */
+  join: Join;
   /** 覆輪の壁の厚み（爪のときは null） */
   bezel_wall_mm: number | null;
 }
@@ -297,6 +303,12 @@ export const TOOLS: ClaudeTool[] = [
           type: "string",
           enum: ["along", "across"],
           description: "石の向き。along＝長辺を指に沿って縦、across＝長辺を指を横切る向きに",
+        },
+        join: {
+          type: "string",
+          enum: ["on", "between"],
+          description:
+            "石座と腕の付け方（爪留めのときだけ）。on＝腕の上にのせる（腕の上に溝を入れて石座をのせ、ロウ付け）、between＝腕の間に挟む（腕のいちばん上を切り、腕の両端の間に、板を丸めた下の輪をはさんでロウ付け。職人の言う基本の作り方）",
         },
         reason: {
           type: "string",

@@ -10,7 +10,7 @@ import { MAKING_STEPS, isCheckRule, makingRulesFor, stepsOfRule } from "../rules
 import "./pro.css";
 import { findCorners } from "../geometry/corners";
 import { measureOutline, type StoneOutline } from "../geometry/measure";
-import { outlineIndexAtT } from "../geometry/setting";
+import { outlineIndexAtT, type JoinStyle } from "../geometry/setting";
 import { nameShape } from "../geometry/shape";
 import { runClaude, type LogEntry } from "../claude/loop";
 import { designPrompt, keepPrompt } from "../claude/prompt";
@@ -40,7 +40,7 @@ import { glossOf, markTerms, stepCard } from "./cards";
 import { NOTE, type AlloyId } from "./process";
 import type { Step } from "./howto";
 import { MAKE_BAND, SECTION_LABEL, bandHowTo, bandInnerDiameter, bandMesh, bandPrompt, checkBand, parseBand, type Band, type BandDraft, type SectionKind } from "./band";
-import { metalIdOf } from "./session";
+import { BAND_THIN_STEP_MM, COLLAR_STEP_MM, metalIdOf } from "./session";
 import { GUIDES, minProngMm } from "../rules/guides";
 import { callTool } from "../rebuild/run";
 import { dimsSvg, gizmoSvg, type Dim, type Rect } from "./dims";
@@ -856,7 +856,7 @@ function logLineTo(li: HTMLLIElement, e: LogEntry) {
       const parts = Object.entries(input)
         .filter(([k]) => k !== "reason")
         .map(([k, v]) => {
-          const name = { style: "留め方", prong_count: "爪", prong_mm: "爪の太さ", v_corners: "角の V 字の爪", height: "高さ", orientation: "向き", prong_positions: "爪の位置", section: "腕の断面", section_points: "腕の断面", section_curve: "腕の断面", width_mm: "幅", thickness_mm: "厚み", gou: "号", metal: "地金" }[k] ?? k;
+          const name = { style: "留め方", prong_count: "爪", prong_mm: "爪の太さ", v_corners: "角の V 字の爪", height: "高さ", orientation: "向き", join: "腕への付け方", prong_positions: "爪の位置", section: "腕の断面", section_points: "腕の断面", section_curve: "腕の断面", width_mm: "幅", thickness_mm: "厚み", gou: "号", metal: "地金" }[k] ?? k;
           const val =
             k === "section" ? (SHANK_SECTION_LABEL[v as ShankSection] ?? v) : k === "section_points" || k === "section_curve" ? "手で描いた形" : k === "v_corners" ? (v ? "あり" : "なし") : Array.isArray(v) ? v.join("・") : v;
           return `${name} ${val}`;
@@ -901,7 +901,7 @@ async function make() {
     type: "text",
     text:
       "この石で指輪を組み、check で確かめ、作れない所があれば直してください。\n" +
-      "この道具で変えられるのは、石座（留め方・爪の本数と太さと位置・角の V 字の爪・高さ・向き）と腕（断面・幅・厚み・号・地金）だけです。" +
+      "この道具で変えられるのは、石座（留め方・爪の本数と太さと位置・角の V 字の爪・高さ・向き・腕への付け方）と腕（断面・幅・厚み・号・地金）だけです。" +
       "希望や絵のうち、これで表せないこと（透かし・彫り・飾りの模様・ゴシック調などの装飾、石の数を増やす など）は、できたふりをせず、最後に「まだできないこと：」の行に正直に書いてください。すべて表せたときは「まだできないこと：なし」と書いてください。\n" +
       "最後に、やったこと・確かめたこと・残っていること・まだできないことを、それぞれ短く 1 行ずつ書いてください。",
   });
@@ -959,6 +959,8 @@ const SHORT: Record<string, string> = {
   "band-spike": "腕の断面が尖りすぎ",
   "stone-space": "となりの石と近すぎる",
   "metal-space": "石座の間のすき間が狭い",
+  "collar-wall": "石座の下の輪の板が薄い",
+  "band-end": "腕の端が石座に届いていない",
 };
 function grouped(b: Built) {
   const groups = new Map<string, { p: (typeof b.problems)[number]; n: number }>();
@@ -1236,6 +1238,16 @@ function resizeStone(longMm: number, final: boolean) {
 }
 let stoneLive = 0;
 let keepCamTimer = 0;
+/** 石座と腕の付け方を選ぶ所の名前と、ふたつの選び方の一行の説明（職人 石川の言葉 2026-11-04） */
+const JOIN_PICK = "腕への付け方";
+export const JOIN_LABEL: Record<JoinStyle, string> = { between: "腕の間に挟む", on: "腕の上にのせる" };
+export const JOIN_NOTE: Record<JoinStyle, string> = {
+  between: "腕のいちばん上を切り、腕の両はしの間に石座をはさんでロウ付けします。わりと基本の作り方（職人の言葉）",
+  on: "腕の上に浅い溝を入れて、石座をのせてロウ付けします",
+};
+function joinPickHtml(pick: <T extends string | number>(name: string, cur: T, list: [T, string][]) => string, cur: JoinStyle): string {
+  return `${pick(JOIN_PICK, cur, [["between", JOIN_LABEL.between], ["on", JOIN_LABEL.on]])}<ul class="pick-notes">${(["between", "on"] as const).map((j) => `<li${j === cur ? ' class="on"' : ""}><b>${JOIN_LABEL[j]}</b>${esc(JOIN_NOTE[j])}</li>`).join("")}</ul>`;
+}
 function gouSlider(gou: number): SliderSpec {
   return { cls: "r-gou", label: "号", min: 5, max: 25, step: 1, value: gou, unit: "号" };
 }
@@ -1284,6 +1296,7 @@ function renderCheck() {
       ${s.style === "prong" ? pick("爪の本数", s.prongCount ?? 0, [[0, "自動"], [3, "3"], [4, "4"], [5, "5"], [6, "6"]]) : ""}
       ${pick("高さ", s.height, [["low", "低め"], ["standard", "標準"], ["high", "高め"]])}
       ${pick("向き", s.orientation, [["along", "縦"], ["across", "横"]])}
+      ${s.style === "prong" && b.ring.stones.length === 1 ? joinPickHtml(pick, s.join ?? "on") : ""}
       ${pick("地金", s.metal, (["k18yg", "pt900", "k18wg", "k18pg", "sv925"] as Metal[]).map((m) => [m, METAL_LABEL[m]] as [Metal, string]))}
       <div class="sliders">
         ${s.style === "prong" ? sliderHtml(prongSlider(b)) : ""}
@@ -1341,6 +1354,7 @@ function renderCheck() {
       }
       if (k === "高さ") session!.setSetting({ height: v as "low", reason: "手で" });
       if (k === "向き") session!.setSetting({ orientation: v as "along", reason: "手で" });
+      if (k === JOIN_PICK) session!.setSetting({ join: v as JoinStyle, reason: "手で" });
       if (k === "地金") session!.setShank({ metal: v as Metal, reason: "手で" });
     }),
   );
@@ -1675,6 +1689,18 @@ function applyFix(id: string, sess: RingSession = session!, prob?: Problem) {
       break;
     case "widerBand":
       session!.setShank({ width_mm: GUIDES.band.minWidthMm, reason: "直し方から" });
+      break;
+    case "thickerCollar":
+      // 下の輪の板の厚みを、決まりの最低まで一度に
+      s.collarWallMm = Math.max(prob?.requiredValue ?? 0, session!.built!.ring.setting.collar?.wallMm ?? 0);
+      session!.build("直し方から");
+      break;
+    case "tallerCollar":
+      s.collarHeightMm = Math.round(((session!.built!.ring.setting.collar?.heightMm ?? 0) + COLLAR_STEP_MM) * 100) / 100;
+      session!.build("直し方から");
+      break;
+    case "thinnerBand":
+      session!.setShank({ thickness_mm: Math.max(GUIDES.band.minThicknessMm, Math.round((session!.built!.ring.shank.thicknessMm - BAND_THIN_STEP_MM) * 100) / 100), reason: "直し方から" });
       break;
     case "bluntTip":
       // とがりは形の好みに深くかかわるので、自動では直さない。断面を描く画面を開いて、赤い所を見せる
@@ -2154,6 +2180,8 @@ const CHECK_CONTROL: Record<string, string> = {
   "bezel-wall": '.pick:has(button[data-k="留め方"])',
   "stone-space": ".stones-sec",
   "metal-space": ".stones-sec",
+  "collar-wall": '.pick:has(button[data-k="腕への付け方"])',
+  "band-end": '.pick:has(button[data-k="腕への付け方"])',
 };
 function markBadControls() {
   document.querySelectorAll(".ctl-bad").forEach((e) => e.classList.remove("ctl-bad"));
@@ -2478,7 +2506,14 @@ function solitaireDrawing(b: Built, problems: string[], sess: RingSession = sess
         value: `${x.params.longMm.toFixed(2)} × ${x.params.widthMm.toFixed(2)} ・ ${x.setting.style === "bezel" ? "覆輪" : `爪 ${x.setting.prongs.length} ・ ø${x.setting.prongs[0]?.diameterMm.toFixed(2)}`} ・ ${placeText(x)}`,
       })),
       ...(r.notchDepthMm > 0 ? [{ label: "ザグり", value: `腕の上 深さ ${r.notchDepthMm.toFixed(2)}・丸いビット 直径 約 ${r.shank.notchBallDiameterMm.toFixed(1)}` }] : []),
-      ...(r.solder ? [{ label: "石座の座", value: `腕の上に下の輪の溝 深さ ${r.shank.railSeatDepthMm.toFixed(2)}・ロウ付け ${r.solder.contacts} か所` }] : []),
+      ...(r.setting.collar
+        ? [
+            { label: "石座の座", value: `腕の間に挟む ・ 下の輪 板 厚み ${r.setting.collar.wallMm.toFixed(2)} × 高さ ${r.setting.collar.heightMm.toFixed(2)}` },
+            { label: "ロウ付け", value: `腕の両はし ${r.solder?.contacts ?? 2} か所 ・ 上の輪は丸線をザグる` },
+          ]
+        : r.solder
+          ? [{ label: "石座の座", value: `腕の上に下の輪の溝 深さ ${r.shank.railSeatDepthMm.toFixed(2)}・ロウ付け ${r.solder.contacts} か所` }]
+          : []),
     ],
     views: views(
       [
@@ -2818,4 +2853,4 @@ if (new URLSearchParams(location.search).has("rec")) {
 
 setMode("make");
 void loadSample().catch((e) => ($(".make-status").textContent = `見本の石を読めませんでした：${(e as Error).message}`));
-(window as unknown as { __studio: unknown }).__studio = { get session() { return session; }, setMode, dimsAvoid };
+(window as unknown as { __studio: unknown }).__studio = { get session() { return session; }, setMode, dimsAvoid, loadPreset, viewer };

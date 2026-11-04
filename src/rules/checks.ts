@@ -41,6 +41,9 @@ export const FIXES = {
   bluntTip: { label: "先を丸く・厚くする", effectOnLook: "とがった線が少しやわらかく見える" },
   spreadStones: { label: "石の間を広げる", effectOnLook: "石と石の間に地金が少し見え、並びが少し長くなる" },
   smallerStones: { label: "横の石を小さくする", effectOnLook: "真ん中の石が引き立ち、横の石は控えめになる" },
+  thickerCollar: { label: "下の輪の板を厚くする", effectOnLook: "石座の下の輪が少し太く見える" },
+  tallerCollar: { label: "下の輪を高くする", effectOnLook: "石座の下の輪が少し高くなり、腕の端がまるごと輪に当たる" },
+  thinnerBand: { label: "腕を薄くする", effectOnLook: "腕が少し細く見え、少し軽くなる" },
 } as const satisfies Record<string, Omit<FixOption, "id">>;
 
 function fix(...ids: FixId[]): FixOption[] {
@@ -59,7 +62,9 @@ export type CheckId =
   | "band-narrow"
   | "band-spike"
   | "stone-space"
-  | "metal-space";
+  | "metal-space"
+  | "collar-wall"
+  | "band-end";
 
 /** 問題の場所（画面で赤くする所） */
 export type CheckTarget =
@@ -74,7 +79,11 @@ export type CheckTarget =
   | { kind: "corner"; index: number; point: Point }
   | { kind: "gap"; fromT: number; toT: number; point?: Point }
   /** となりの石・石座の間が狭い所（point は指輪の座標 mm。stones は 2 つの石の番号） */
-  | { kind: "space"; point: [number, number, number]; stones: [number, number] };
+  | { kind: "space"; point: [number, number, number]; stones: [number, number] }
+  /** 腕の間に挟む石座の、下の輪（板を丸めた輪）ぜんぶ */
+  | { kind: "collar" }
+  /** 腕の端が下の輪に当たる所（point は指輪の座標 mm） */
+  | { kind: "band-end"; point: [number, number, number] };
 
 export interface Problem {
   /** 確かめの種類と場所（例：prong-thin:2） */
@@ -163,7 +172,7 @@ export function cornerDistances(s: SettingResult): number[] {
 
 /** 指輪をまるごと確かめる。問題がなければ空の一覧 */
 export function checkRing(ring: RingDesign, opts: CheckOptions = {}): Problem[] {
-  const out = [...checkSetting(ring.setting, ring.culetGapMm, opts), ...checkShank(ring.shank, opts)];
+  const out = [...checkSetting(ring.setting, ring.culetGapMm, opts), ...checkShank(ring.shank, opts), ...checkBandEnds(ring, opts)];
   // 爪の間が空きすぎの所に、赤い印を出すための縁の点（石の座標）
   const gapPoints = (list: Problem[], outline: readonly Point[]) => {
     for (const p of list) {
@@ -189,6 +198,52 @@ export function checkRing(ring: RingDesign, opts: CheckOptions = {}): Problem[] 
     for (const p of list) out.push({ ...p, id: `s${i}:${p.id}`, where: `石 ${i + 1}・${p.where}`, stone: i });
   });
   out.push(...checkSpacing(ring, opts));
+  return out;
+}
+
+/**
+ * 腕の間に挟む石座：腕の両端が、下の輪（板を丸めた輪）の横に当たっているか。腕の端の高さのうち、輪に当たる割合で比べる。
+ * 数字は GUIDES.join.between（仮の目安）
+ */
+export function checkBandEnds(ring: Pick<RingDesign, "setting" | "transform">, opts: CheckOptions = {}): Problem[] {
+  const g: Guides = opts.guides ?? GUIDES;
+  const c = ring.setting.collar;
+  if (!c) return [];
+  const need = g.join.between.minEndContactRatio;
+  const out: Problem[] = [];
+  if (c.ends.length < 2) {
+    out.push({
+      id: "band-end:none",
+      check: "band-end",
+      where: "腕の両はしと石座の下の輪",
+      current: "腕の端が輪に届かない",
+      required: "腕の両はしが輪の横に当たる",
+      currentValue: 0,
+      requiredValue: need,
+      reason: "腕の端が石座に当たらないと、ロウ付けできない",
+      options: fix("tallerCollar"),
+      target: { kind: "setting" },
+    });
+    return out;
+  }
+  c.ends.forEach((e, i) => {
+    if (e.ratio >= need - 1e-9) return;
+    const [x, y, z] = e.point;
+    const cs = Math.cos(ring.transform.rotationZ);
+    const sn = Math.sin(ring.transform.rotationZ);
+    out.push({
+      id: `band-end:${i}`,
+      check: "band-end",
+      where: `腕の${e.v > 0 ? "右" : "左"}のはしと、石座の下の輪`,
+      current: e.ratio <= 0 ? "腕の端が輪に届かない" : `腕の端の高さの ${pct(e.ratio)} だけが輪に当たる`,
+      required: `${pct(need)} 以上（仮の目安）`,
+      currentValue: e.ratio,
+      requiredValue: need,
+      reason: "腕の端が輪からはみ出すと、ロウ付けの面が足りず、段も見える",
+      options: fix("tallerCollar", "thinnerBand"),
+      target: { kind: "band-end", point: [x * cs - y * sn, x * sn + y * cs, z + ring.transform.translateZ] },
+    });
+  });
   return out;
 }
 
@@ -429,6 +484,22 @@ export function checkSetting(s: SettingResult, culetGapMm: number = s.heights.cu
       reason: `爪の太さ・本数・長さから見た留まりが足りない（${HOLD_NOTE}）`,
       options: fix("thicker", "moreProngs", "lower", "bezel"),
       target: { kind: "setting" },
+    });
+  }
+
+  // 腕の間に挟む石座の、下の輪（板を丸めた輪）の板の厚み
+  if (s.collar && s.collar.wallMm < g.join.between.collarWallMinMm - 1e-9) {
+    out.push({
+      id: "collar-wall",
+      check: "collar-wall",
+      where: "石座の下の輪（板を丸めた輪）",
+      current: mm(s.collar.wallMm),
+      required: `${mm(g.join.between.collarWallMinMm)} 以上（仮の目安）`,
+      currentValue: s.collar.wallMm,
+      requiredValue: g.join.between.collarWallMinMm,
+      reason: "板が薄いと、丸めたときにゆがみ、腕とロウ付けするときに溶けやすい",
+      options: fix("thickerCollar"),
+      target: { kind: "collar" },
     });
   }
 

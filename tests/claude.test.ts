@@ -65,6 +65,7 @@ function fakeHost(opts: { failCheck?: boolean } = {}) {
       v_corners: false,
       height: "standard",
       orientation: "along",
+      join: "on",
       bezel_wall_mm: null,
     },
     gou: 11,

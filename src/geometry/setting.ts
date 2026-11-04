@@ -11,6 +11,13 @@ import { girdleCenter, stoneHeights, stoneKnots, stoneScaleAt, type StoneHeights
 
 export type SettingStyle = "bezel" | "prong";
 
+/**
+ * 石座と腕の付け方（爪留めだけ）。on ＝ 腕の上にのせる（腕の上に溝を入れて、下の輪をのせてロウ付け）。
+ * between ＝ 腕の間に挟む（腕のいちばん上を切り、腕の両端の間に、板を丸めた下の輪をはさんでロウ付け。職人 石川の言葉 2026-11-04）
+ */
+export type JoinStyle = "on" | "between";
+export const JOIN_STYLES = ["on", "between"] as const;
+
 /** 爪を 1 本ずつ手で決めるとき */
 export interface ProngSpec {
   /** 縁の上の位置（0〜1、縁の最初の点から反時計回りに、周に対する割合） */
@@ -53,6 +60,36 @@ export interface SettingParams {
   solid?: boolean;
   /** 一体の形の細かさ。preview は粗い格子で速く（つまみを動かしている間）、final は細かく（既定） */
   solidQuality?: SolidQuality;
+  /** 石座と腕の付け方（爪留めだけ）。既定は on（腕の上にのせる） */
+  join?: JoinStyle;
+  /**
+   * 指（腕の内側の円）。腕の間に挟むとき、下の輪の下の面を指の丸みに合わせる（ヤスリで合わせる）のに使う。
+   * innerRadiusMm：腕の内側の半径。axisRad：石の座標で、指の軸の向き（x 軸からの角度）。なければ指は平ら
+   */
+  finger?: { innerRadiusMm: number; axisRad: number };
+  /** 腕の間に挟むときの下の輪（板を丸めた輪）の高さ（mm、いちばん低い所）。なければ 腕の厚み × 目安の割合 */
+  collarHeightMm?: number;
+  /** 腕の間に挟むときの下の輪の板の厚み（mm）。なければ目安 */
+  collarWallMm?: number;
+}
+
+/** 腕の間に挟む石座の、下の輪（板を丸めた、断面が四角い短い筒）。石の座標 */
+export interface CollarInfo {
+  /** 上から見た、外の面の線と内の面の線（閉じた線。縁の点と同じ並び） */
+  outer: Point[];
+  inner: Point[];
+  wallMm: number;
+  /** いちばん低い所（指の真上）の高さ（mm） */
+  heightMm: number;
+  /** 上の面の z（平ら） */
+  topZ: number;
+  /** 下の面のいちばん低い z（下の面は指の丸みに合わせてある） */
+  bottomZ: number;
+  /** 指の真上（下の面のいちばん高い所）の z */
+  fingerZ: number;
+  triangles: TriangleRange;
+  /** 腕の端が当たる所（腕の真ん中の線が外の線と交わる 2 か所。指を渡したときだけ） */
+  ends: BandEndContact[];
 }
 
 export type SolidQuality = "preview" | "final";
@@ -146,6 +183,10 @@ export interface SettingResult {
   lowerRail: { pts: V3[]; radiusMm: number } | null;
   /** 上の輪の中心の線（石の座標、閉じた輪）と、輪の線の半径（mm）。爪留めだけ。三石で、となりの石座とつなぐ所を探すのに使う */
   upperRail: { pts: V3[]; radiusMm: number } | null;
+  /** 石座と腕の付け方（覆輪は on） */
+  join: JoinStyle;
+  /** 腕の間に挟むときの下の輪（板を丸めた輪）。それ以外は null */
+  collar: CollarInfo | null;
 }
 
 /** 縁を取り直す点の数（石座の 3D の細かさ） */
@@ -664,7 +705,27 @@ export function buildSetting(params: SettingParams): SettingResult {
   let lowerRail: { pts: V3[]; radiusMm: number } | null = null;
   let upperRail: { pts: V3[]; radiusMm: number } | null = null;
 
-  if (params.style === "prong") {
+  const between = params.style === "prong" && params.join === "between";
+  let collar: CollarInfo | null = null;
+  if (between) {
+    const plans = planProngs({ ...params, vAtCorners: false }, corners).map((p) => ({ ...p, isV: false }));
+    const b = betweenHead(f, params, plans, { wire: stdWire, shankT, height, total, addPart });
+    v = b.v;
+    tipZ = b.tipZ;
+    prongs.push(...b.prongs);
+    rings.push(...b.rings);
+    collar = b.collar;
+    upperRail = b.upperRail;
+    if (b.solid) {
+      solidNormals = b.solid.normals;
+      parts.length = 0;
+      parts.push(b.solid.positions);
+      triCount = b.solid.positions.length / 9;
+      prongs.forEach((pr, i) => (pr.triangles = b.solid!.ranges.get(i) ?? { start: 0, count: 0 }));
+      rings.forEach((rg, i) => (rg.triangles = b.solid!.ranges.get(RING_OWNER + i) ?? { start: 0, count: 0 }));
+      collar.triangles = rings[1].triangles;
+    }
+  } else if (params.style === "prong") {
     const plans = planProngs(params, corners);
     const meanD = plans.reduce((s, p) => s + p.diameterMm, 0) / Math.max(1, plans.length);
     // 輪の太さは標準の爪の太さから決める（爪だけ太く・細くしても、石座の高さは変わらないように）
@@ -878,6 +939,8 @@ export function buildSetting(params: SettingParams): SettingResult {
     standardLengthMm,
     lowerRail,
     upperRail,
+    join: between ? "between" : "on",
+    collar,
   };
 }
 
@@ -1114,6 +1177,345 @@ function solidHead(f: Frame, plans: ProngPlan[], v: Vertical, tz: number, wire: 
   return fine
     ? buildSolid(tubes, { cell: SOLID.cell, blend: SOLID.blend, subtract, boxes, fields })
     : buildSolid(tubes, { cell: SOLID_PREVIEW.cell, blend: SOLID.blend, smooth: SOLID_PREVIEW.smooth, normalsFrom: "mesh", subtract, boxes, fields });
+}
+
+// ---- 腕の間に挟む石座（職人 石川の言葉 2026-11-04） ----
+// 石座と腕は別に作る。腕のいちばん上を切り、腕の両端の間に石座の下の輪をはさんでロウ付けする（上にドン付けではない）。
+// 上の輪：丸線。石の縁が座る所をリューターでザグる（一体の形では、石の形で彫る所が座になる）。
+// 下の輪：板を丸めた輪（断面が四角い短い筒）。下の面は指の丸みに合わせる（ヤスリで合わせる）。
+// 爪：下の輪の外から立ち上がり、上の輪の外を通って、石の縁の外に沿って上がり、先が石の上側に乗る。
+/** 上の輪の中心を、縁の下からこの線の太さの割合だけ下げる（形を作るための決まり：輪の上の所が、石の縁のまわりの低い縁になる） */
+const BETWEEN_RING_DROP = 0.3;
+/** 爪の中心を、輪の外の面から、爪の半径のこの割合だけ外に置く（形を作るための決まり：爪は輪の外にロウ付けされ、半分ほど輪に寄りかかる） */
+const BETWEEN_PRONG_OUT = 0.5;
+/** 下の輪の上と上の輪の下の間に、少なくとも輪の線の太さのこの本数分あける（爪の見える所。形を作るための決まり） */
+const BETWEEN_ROOM_WIRES = 1;
+/** 下の輪の角の丸み（mm。板を切った角を軽く落とした丸み。形を作るための決まり） */
+export const COLLAR_EDGE_MM = 0.12;
+/** 下の輪の断面の角 1 つを何段の弧で作るか（線を管にした形） */
+const COLLAR_CORNER_STEPS = 3;
+/** 爪の下の先の細り（爪の半径に対する、先の半径） */
+const TAIL_TIP = 0.55;
+/** 一体の形で、指の面のこれだけ下で切る（mm）と、上の輪の座の縁の丸み（mm）。形を作るための決まり */
+const FINGER_CUT_BELOW_MM = 0.05;
+const SEAT_ROUND_MM = 0.12;
+
+/** 指の面の高さ z(x, y)（石の座標）。指の軸からの距離 v で、指の真上（fingerZ）から下がる。指がなければ平ら */
+export function fingerSurface(finger: SettingParams["finger"], fingerZ: number): (x: number, y: number) => number {
+  if (!finger) return () => fingerZ;
+  const R = finger.innerRadiusMm;
+  const ca = Math.cos(finger.axisRad);
+  const sa = Math.sin(finger.axisRad);
+  return (x, y) => {
+    const v = -x * sa + y * ca;
+    return fingerZ - (R - Math.sqrt(Math.max(0, R * R - v * v)));
+  };
+}
+
+/** 閉じた線が、指の軸に直角な線（腕の真ん中の線：u ＝ 0）と交わる所の v（指の軸からの距離。小さい順） */
+function bandLineCrossings(poly: readonly Point[], axisRad: number): number[] {
+  const ca = Math.cos(axisRad);
+  const sa = Math.sin(axisRad);
+  const out: number[] = [];
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i];
+    const b = poly[(i + 1) % poly.length];
+    const ua = a.x * ca + a.y * sa;
+    const ub = b.x * ca + b.y * sa;
+    if (ua === ub || ua > 0 === ub > 0) continue;
+    const w = ua / (ua - ub);
+    const va = -a.x * sa + a.y * ca;
+    const vb = -b.x * sa + b.y * ca;
+    out.push(va + (vb - va) * w);
+  }
+  return out.sort((p, q) => p - q);
+}
+
+/** 上から見た閉じた線までの、符号つきの距離（内は負）を返す関数。格子に覚えて間を補う（一体の形の場が何度も測るため） */
+export function polygonDistance(poly: readonly Point[], cell: number): (x: number, y: number) => number {
+  const n = poly.length;
+  const exact = (x: number, y: number) => {
+    let inside = false;
+    let best = Infinity;
+    for (let i = 0, j = n - 1; i < n; j = i++) {
+      const a = poly[j];
+      const b = poly[i];
+      if (b.y > y !== a.y > y && x < ((a.x - b.x) * (y - b.y)) / (a.y - b.y || 1e-12) + b.x) inside = !inside;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const L2 = dx * dx + dy * dy || 1e-12;
+      let t = ((x - a.x) * dx + (y - a.y) * dy) / L2;
+      t = t < 0 ? 0 : t > 1 ? 1 : t;
+      best = Math.min(best, (a.x + dx * t - x) ** 2 + (a.y + dy * t - y) ** 2);
+    }
+    const d = Math.sqrt(best);
+    return inside ? -d : d;
+  };
+  let x0 = Infinity;
+  let y0 = Infinity;
+  let x1 = -Infinity;
+  let y1 = -Infinity;
+  for (const p of poly) {
+    x0 = Math.min(x0, p.x);
+    y0 = Math.min(y0, p.y);
+    x1 = Math.max(x1, p.x);
+    y1 = Math.max(y1, p.y);
+  }
+  const pad = 1.5;
+  x0 -= pad;
+  y0 -= pad;
+  const nx = Math.ceil((x1 + pad - x0) / cell) + 1;
+  const ny = Math.ceil((y1 + pad - y0) / cell) + 1;
+  const g = new Float64Array(nx * ny).fill(NaN);
+  const at = (i: number, j: number) => {
+    const k = j * nx + i;
+    const c = g[k];
+    return c === c ? c : (g[k] = exact(x0 + i * cell, y0 + j * cell));
+  };
+  return (x, y) => {
+    const fx = (x - x0) / cell;
+    const fy = (y - y0) / cell;
+    const i = Math.floor(fx);
+    const j = Math.floor(fy);
+    if (i < 0 || j < 0 || i >= nx - 1 || j >= ny - 1) return exact(x, y);
+    const tx = fx - i;
+    const ty = fy - j;
+    return (at(i, j) * (1 - tx) + at(i + 1, j) * tx) * (1 - ty) + (at(i, j + 1) * (1 - tx) + at(i + 1, j + 1) * tx) * ty;
+  };
+}
+
+/** 腕の端が下の輪に当たる所（石の座標）と、腕の端の高さのうち輪に当たっている割合 */
+export interface BandEndContact {
+  point: V3;
+  /** 腕の端の高さのうち、下の輪の横に当たっている割合（0〜1） */
+  ratio: number;
+  /** 指の軸からの距離（mm、腕に沿った向き。＋と−の 2 つ） */
+  v: number;
+}
+
+interface BetweenCtx {
+  wire: number;
+  shankT: number;
+  height: HeightOption;
+  total: number;
+  addPart: (a: Float32Array) => TriangleRange;
+}
+
+function betweenHead(f: Frame, params: SettingParams, plans: ProngPlan[], ctx: BetweenCtx) {
+  const h = f.h;
+  const k = stoneKnots(h);
+  const g = GUIDES.join.between;
+  const cl = GUIDES.bezel.clearanceMm;
+  const { wire, shankT } = ctx;
+  const wall = params.collarWallMm ?? g.collarWallMm;
+  const collarH = params.collarHeightMm ?? g.collarHeightRatio * shankT;
+  // 上の輪（丸線）：縁の少し下。石の下側の面から中心まで dU（線の太さの seatDepthRatio だけ石の下側に食いこむ所が、ザグった座になる）
+  const zU = k.girdleBottom - BETWEEN_RING_DROP * wire;
+  const dU = cl + wire * (0.5 - g.seatDepthRatio);
+  // 下の輪の外の線：上の輪の外の線を、真ん中から collarTaper 倍に縮めた形（指へ向かって少しすぼまる）
+  const ringOuter = (s: Sample) => at(f, s, zU, dU + wire / 2);
+  const collarOuterAt = (s: Sample): Point => {
+    const q = ringOuter(s);
+    return { x: f.center.x + (q[0] - f.center.x) * g.collarTaper, y: f.center.y + (q[1] - f.center.y) * g.collarTaper };
+  };
+  const outer = f.pts.map((p, i) => collarOuterAt({ p, n: f.normals[i] }));
+  const inner = outer.map((q, i) => ({ x: q.x - f.normals[i].x * wall, y: q.y - f.normals[i].y * wall }));
+
+  // 高さ：下の輪の上と上の輪の下の間に、線 BETWEEN_ROOM_WIRES 本分。そこから石の一番下と指のすき間が決まる
+  const structural = h.culetZ - zU + (0.5 + BETWEEN_ROOM_WIRES) * wire + collarH;
+  const gap = params.culetGapMm ?? Math.max(GUIDES.height.minFingerGapMm, structural) + GUIDES.height.options[ctx.height];
+  const fingerZ = h.culetZ - gap;
+  const fingerAt = fingerSurface(params.finger, fingerZ);
+  const topZ = fingerZ + collarH;
+  let bottomZ = Infinity;
+  for (const q of outer) bottomZ = Math.min(bottomZ, fingerAt(q.x, q.y));
+  const v: Vertical = { culetGapMm: gap, fingerZ, shankTopZ: fingerZ + shankT, baseZ: bottomZ, lowerRingZ: (fingerZ + topZ) / 2, upperRingZ: zU };
+  const tz = params.tipRatio !== undefined ? h.culetZ + params.tipRatio * (h.tableZ - h.culetZ) : defaultTipZ(h);
+
+  // 爪の中心の線：下の先 → 下の輪の外（下から上）→ 上の輪の外 → 縁の外に沿って → 先が石の上側に乗る
+  const prongLine = (s: Sample, r: number) => {
+    const c = collarOuterAt(s);
+    const cx = c.x + s.n.x * BETWEEN_PRONG_OUT * r;
+    const cy = c.y + s.n.y * BETWEEN_PRONG_OUT * r;
+    // 下の先：下の輪の下の面より prongTailMm 下まで。ただし指の面より下へは出さない（指に当たらない所まで）
+    const tail = Math.max(fingerAt(c.x, c.y) - g.prongTailMm, fingerAt(cx, cy) + TAIL_TIP * r);
+    const u = ringOuter(s);
+    const ux = u[0] + s.n.x * BETWEEN_PRONG_OUT * r;
+    const uy = u[1] + s.n.y * BETWEEN_PRONG_OUT * r;
+    const lower: V3[] = [
+      [cx, cy, tail],
+      [cx, cy, Math.min(topZ, tail + 0.4 * (topZ - tail))],
+      [cx, cy, topZ],
+    ];
+    return { lower, ring: [ux, uy, zU] as V3, tail };
+  };
+
+  const prongs: ProngInfo[] = [];
+  for (const plan of plans) {
+    const r = plan.diameterMm / 2;
+    const s = sampleAt(f, plan.t);
+    const line = prongLine(s, r);
+    const dTouch = cl + r;
+    const ctrl: V3[] = [...line.lower, line.ring, at(f, s, k.girdleBottom, dTouch), at(f, s, k.girdleTop, dTouch)];
+    const capLength = (TIP.cap * r * (TIP.normal + TIP.side)) / 2;
+    ctrl.push(...clawBend(f, s, ctrl[ctrl.length - 1], tz, TIP.normal * r, capLength));
+    const path = smoothPath(ctrl, PATH_STEP);
+    const rest = lengthsToEnd(path);
+    const tris: number[] = [];
+    sweepTube(
+      path,
+      {
+        sides: PRONG_SIDES,
+        side: along(s),
+        radius: (j) => {
+          const w = smoothstep(1 - rest[j] / (TIP.taper * r));
+          // 下の先は細く（とがった短い先）
+          const tailW = 1 - (1 - TAIL_TIP) * (1 - smoothstep((rest[0] - rest[j]) / (2 * r)));
+          return [r * tailW * (1 - w * (1 - TIP.normal)), r * tailW * (1 - w * (1 - TIP.side))];
+        },
+        startCap: FOOT_CAP,
+        endCap: TIP.cap,
+        capSteps: CAP_STEPS,
+      },
+      tris,
+    );
+    const c = at(f, s, 0, dTouch);
+    prongs.push({
+      t: plan.t,
+      index: outlineIndexAtT(params.stone.outlineMm, plan.t),
+      isV: false,
+      legs: 1,
+      legTs: [plan.t],
+      point: { x: c[0], y: c[1] },
+      legPoints: [{ x: c[0], y: c[1] }],
+      diameterMm: plan.diameterMm,
+      lengthMm: tz - zU,
+      tipZ: tz,
+      triangles: ctx.addPart(closedParts([tris])),
+    });
+  }
+
+  // 上の輪：丸線の管
+  const rings: GalleryRing[] = [];
+  {
+    const a = wire / 2;
+    const profile: V3[][] = [];
+    for (let q = 0; q < RING_SIDES; q++) {
+      const th = (q / RING_SIDES) * Math.PI * 2;
+      profile.push(ringAt(f, zU, dU + a * Math.cos(th)).map((p) => [p[0], p[1], zU + a * Math.sin(th)] as V3));
+    }
+    const tris: number[] = [];
+    ringsToTube(profile, tris);
+    rings.push({ z: zU, wireMm: wire, triangles: ctx.addPart(closedPart(tris)) });
+  }
+  // 下の輪：板を丸めた輪。断面は角を軽く落とした四角。外の面から内へ測った位置 off と、高さ z の点を、角ごとに弧で並べる
+  const e = Math.min(COLLAR_EDGE_MM, wall / 3);
+  const bottomOf = (i: number) => Math.min(fingerAt(outer[i].x, outer[i].y), fingerAt(inner[i].x, inner[i].y));
+  const corner = (offCenter: number, zCenter: (i: number) => number, from: number): V3[][] =>
+    Array.from({ length: COLLAR_CORNER_STEPS + 1 }, (_, q) => {
+      const th = from + (q / COLLAR_CORNER_STEPS) * (Math.PI / 2);
+      return outer.map((o, i) => {
+        // off は外の面から内向きの距離。cos が正なら外へ
+        const off = offCenter - e * Math.cos(th);
+        return [o.x - f.normals[i].x * off, o.y - f.normals[i].y * off, zCenter(i) + e * Math.sin(th)] as V3;
+      });
+    });
+  // 断面を回る順：外の下の角 → 外の上の角 → 内の上の角 → 内の下の角（外向きを cos ＋ とする角度で、−90° から 270° まで）
+  const profile: V3[][] = [
+    ...corner(e, (i) => bottomOf(i) + e, -Math.PI / 2),
+    ...corner(e, () => topZ - e, 0),
+    ...corner(wall - e, () => topZ - e, Math.PI / 2),
+    ...corner(wall - e, (i) => bottomOf(i) + e, Math.PI),
+  ];
+  const collarTris: number[] = [];
+  ringsToTube(profile, collarTris);
+  const collarRange = ctx.addPart(closedPart(collarTris));
+  rings.push({ z: v.lowerRingZ, wireMm: collarH, triangles: collarRange });
+
+  // 腕の端が下の輪に当たる所：腕の真ん中の線（指の軸に直角）が、下の輪の外の線と交わる 2 か所
+  const ends: BandEndContact[] = [];
+  if (params.finger) {
+    const R = params.finger.innerRadiusMm;
+    const ca = Math.cos(params.finger.axisRad);
+    const sa = Math.sin(params.finger.axisRad);
+    const cross = bandLineCrossings(outer, params.finger.axisRad);
+    for (const vv of cross.length >= 2 ? [cross[0], cross[cross.length - 1]] : []) {
+      const bottom = fingerZ + Math.sqrt(Math.max(0, R * R - vv * vv)) - R;
+      const top = fingerZ + Math.sqrt(Math.max(0, (R + shankT) ** 2 - vv * vv)) - R;
+      const ratio = Math.max(0, Math.min(1, (Math.min(topZ, top) - bottom) / (top - bottom)));
+      ends.push({ point: [-vv * sa, vv * ca, (bottom + Math.min(top, topZ)) / 2], ratio, v: vv });
+    }
+  }
+  const collar: CollarInfo = { outer, inner, wallMm: wall, heightMm: collarH, topZ, bottomZ, fingerZ, triangles: collarRange, ends };
+  const upperRail = { pts: ringAt(f, zU, dU), radiusMm: wire / 2 };
+
+  const solid = params.solid ? solidBetween(f, plans, { prongLine, zU, dU, wire, tz, outer, wall, topZ, fingerAt, quality: params.solidQuality ?? "final" }) : null;
+  return { v, tipZ: tz, prongs, rings, collar, upperRail, solid };
+}
+
+interface BetweenSolid {
+  prongLine: (s: Sample, r: number) => { lower: V3[]; ring: V3; tail: number };
+  zU: number;
+  dU: number;
+  wire: number;
+  tz: number;
+  outer: Point[];
+  wall: number;
+  topZ: number;
+  fingerAt: (x: number, y: number) => number;
+  quality: SolidQuality;
+}
+
+/** 腕の間に挟む石座の、継ぎ目のない一体の形（爪・上の輪・下の輪をなめらかにつなぎ、石の形で座を彫り、下を指の丸みで切る） */
+function solidBetween(f: Frame, plans: ProngPlan[], b: BetweenSolid) {
+  const k = stoneKnots(f.h);
+  const cl = GUIDES.bezel.clearanceMm;
+  const fine = b.quality === "final";
+  const cell = fine ? SOLID.cell : SOLID_PREVIEW.cell;
+  const tubes: Tube[] = [];
+  plans.forEach((plan, i) => {
+    const r = plan.diameterMm / 2;
+    const s = sampleAt(f, plan.t);
+    const line = b.prongLine(s, r);
+    const dTouch = cl + r * 0.85;
+    const pts = smoothPath(
+      [...line.lower, line.ring, at(f, s, k.girdleBottom, dTouch), at(f, s, k.girdleTop, dTouch), at(f, s, (k.girdleTop + b.tz) / 2, cl + r * 0.95), at(f, s, b.tz - r * 0.6, cl + r * 0.75)],
+      // 下の先で太さが変わるので、細かく取る（粗いと、太さの変わる所に段ができる）
+      SOLID.step / 8,
+    );
+    const L = lengthsToEnd(pts);
+    tubes.push({ pts, radii: pts.map((_, j) => r * (1 - (1 - TAIL_TIP) * (1 - smoothstep((L[0] - L[j]) / (2 * r))))), owner: i });
+  });
+  // 上の輪（丸線）
+  const ring = f.pts.filter((_, i) => i % 2 === 0).map((p, i) => at(f, { p, n: f.normals[i * 2] }, b.zU, b.dU));
+  ring.push(ring[0]);
+  tubes.push({ pts: ring, radii: ring.map(() => b.wire / 2), owner: RING_OWNER });
+  // 下の輪（板を丸めた輪）：外の線からの距離で厚み wall の殻、上は平ら、下は指の面より少し下まで（あとで指の面で切る）
+  const dOut = polygonDistance(b.outer, cell / 2);
+  const bot = b.fingerAt;
+  const xs = b.outer.map((p) => p.x);
+  const ys = b.outer.map((p) => p.y);
+  const collarField: Field = {
+    dist: (x, y, z) => {
+      const shell = Math.abs(dOut(x, y) + b.wall / 2) - b.wall / 2;
+      return smax(shell, Math.max(bot(x, y) - z, z - b.topZ), COLLAR_EDGE_MM);
+    },
+    min: [Math.min(...xs) - 0.2, Math.min(...ys) - 0.2, Math.min(...b.outer.map((p) => bot(p.x, p.y))) - 0.1],
+    max: [Math.max(...xs) + 0.2, Math.max(...ys) + 0.2, b.topZ + 0.1],
+    owner: RING_OWNER + 1,
+  };
+  // 引く形：石（すき間 cl をあけて座を彫る）と、指（下の面を指の丸みに合わせる）
+  const seatDistance = stoneDistanceFn(f, SEAT_EXACT_MM);
+  let rMax = 0;
+  for (const p of f.pts) rMax = Math.max(rMax, Math.hypot(p.x - f.center.x, p.y - f.center.y));
+  const subtract = (x: number, y: number, z: number) => {
+    const far = Math.max(Math.hypot(x - f.center.x, y - f.center.y) - rMax, z - f.h.tableZ, f.h.culetZ - z);
+    const stone = (far > 0.3 ? far : seatDistance(x, y, z)) - cl;
+    // 指は、下の輪の下の面より少し下で切る（輪の下の面そのものは輪の形が決める。切る面と重ねると、格子でぎざぎざになる）
+    return Math.min(stone, z - b.fingerAt(x, y) + FINGER_CUT_BELOW_MM);
+  };
+  const o = { blend: SOLID.blend, subtract, subtractBlend: SEAT_ROUND_MM, fields: [collarField] };
+  return fine ? buildSolid(tubes, { ...o, cell: SOLID.cell }) : buildSolid(tubes, { ...o, cell: SOLID_PREVIEW.cell, smooth: SOLID_PREVIEW.smooth, normalsFrom: "mesh" });
 }
 
 function wrap(t: number): number {

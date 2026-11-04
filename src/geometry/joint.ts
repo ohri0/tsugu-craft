@@ -8,9 +8,9 @@ import { GUIDES } from "../rules/guides";
 import type { V3 } from "./mesh";
 import type { SeatCut } from "./notch";
 import type { RingTransform } from "./ring";
-import { buildSolid, smin } from "./sdf";
-import type { SettingResult } from "./setting";
-import { shoulderWidth, type ShankResult } from "./shank";
+import { buildSolid, smax, smin } from "./sdf";
+import { COLLAR_EDGE_MM, polygonDistance, type SettingResult } from "./setting";
+import { BAND_GAP_OVERLAP_MM, shoulderWidth, type ShankResult } from "./shank";
 
 /** 石座の下の輪（指輪の座標）：中心の線（閉じた輪）と、線の半径 */
 export interface Rail {
@@ -272,7 +272,7 @@ export function buildSolder(rail: Rail, shank: ShankResult, cut: SeatCut | null)
  * 面のつながり（同じ点を通る三角形）ごとに分け、面積がごく小さいかけら（0.001 mm² 未満）を捨てる。
  * 格子の上で、ロウの丸みの端がくぼみの面とちょうど重なる所に、離れた小さな四角がまれにでき、STL の開いた辺になるため
  */
-function dropSpecks(p: Float32Array, nrm: Float32Array): { positions: Float32Array; normals: Float32Array } {
+function dropSpecks(p: Float32Array, nrm: Float32Array, largestOnly = false): { positions: Float32Array; normals: Float32Array } {
   const nt = p.length / 9;
   const ids = new Map<string, number>();
   const vid = (i: number) => {
@@ -299,8 +299,13 @@ function dropSpecks(p: Float32Array, nrm: Float32Array): { positions: Float32Arr
     const r = find(tv[t * 3]);
     area.set(r, (area.get(r) ?? 0) + a);
   }
+  // largestOnly：いちばん大きいつながりだけを残す（腕の端のロウは、1 か所に 1 つのつながり。輪の上の縁にできる離れた小さな粒を捨てる）
+  const biggest = largestOnly ? Math.max(...area.values()) : 0;
   const keep: number[] = [];
-  for (let t = 0; t < nt; t++) if ((area.get(find(tv[t * 3])) ?? 0) >= 1e-3) keep.push(t);
+  for (let t = 0; t < nt; t++) {
+    const a = area.get(find(tv[t * 3])) ?? 0;
+    if (a >= 1e-3 && a >= biggest) keep.push(t);
+  }
   if (keep.length === nt) return { positions: p, normals: nrm };
   const positions = new Float32Array(keep.length * 9);
   const normals = new Float32Array(keep.length * 9);
@@ -319,4 +324,68 @@ function join(parts: Float32Array[]): Float32Array {
     o += p.length;
   }
   return out;
+}
+
+/** 腕の間に挟む石座の下の輪（板を丸めた輪）を、指輪の座標に置いたもの */
+export interface CollarRing {
+  /** 上から見た外の面の線（閉じた線、xy） */
+  outer: [number, number][];
+  wallMm: number;
+  /** 上の面の z（平ら） */
+  topZ: number;
+}
+
+/** 石座の下の輪を、指輪の座標に置く（腕の間に挟む石座でなければ null） */
+export function collarInRing(setting: SettingResult, t: RingTransform): CollarRing | null {
+  const c = setting.collar;
+  if (!c) return null;
+  const cs = Math.cos(t.rotationZ);
+  const sn = Math.sin(t.rotationZ);
+  return { outer: c.outer.map((p) => [p.x * cs - p.y * sn, p.x * sn + p.y * cs] as [number, number]), wallMm: c.wallMm, topZ: c.topZ + t.translateZ };
+}
+
+/**
+ * 腕の両端が、下の輪の外の面に当たる所のロウの丸み（腕の間に挟む石座）。buildSolder と同じ作り方：
+ * G ＝ max(smin(輪, 腕, k), 輪 − k, 腕 − k)。腕は端で切った形、輪は指の面で下を切った形。指の中には作らない
+ */
+export function buildEndSolder(collar: CollarRing, shank: ShankResult): Solder {
+  const ends = shank.ends;
+  if (!ends) return { positions: new Float32Array(0), normals: new Float32Array(0), contacts: 0, filletMm: 0 };
+  // 丸みの大きさ：下の輪の板の厚み × ロウの丸みの割合（腕の上にのせるときの「下の輪の線の太さ × 割合」と同じ決め方）
+  const k = GUIDES.gallery.solderFilletRatio * collar.wallMm;
+  const r = shank.innerRadiusMm;
+  const plain = bandDistance(shank, SOLDER_GRID.cellMm / 2);
+  const poly = collar.outer.map(([x, y]) => ({ x, y }));
+  const dOut = polygonDistance(poly, SOLDER_GRID.cellMm / 2);
+  // 腕：輪の外の線の中（overlap 分の内まで）は切ってある
+  const band = (x: number, y: number, z: number) => Math.max(plain(x, y, z), -dOut(x, y) - BAND_GAP_OVERLAP_MM);
+  const ring = (x: number, y: number, z: number) => {
+    const shell = Math.abs(dOut(x, y) + collar.wallMm / 2) - collar.wallMm / 2;
+    // 一体の石座の下の輪と同じ、上の縁の丸み（丸みが違うと、ロウが輪の縁の外へ小さく出て見える）
+    return Math.max(smax(shell, z - collar.topZ, COLLAR_EDGE_MM), r - Math.hypot(y, z));
+  };
+  const pos: Float32Array[] = [];
+  const nor: Float32Array[] = [];
+  const w = shank.widthMm;
+  for (const end of ends) {
+    const G = (x: number, y: number, z: number) => {
+      const dc = ring(x, y, z);
+      if (dc > k) return dc - k;
+      const db = band(x, y, z);
+      const g = Math.max(smin(dc, db, k) + SOLDER_GRID.sinkMm, dc - k, db - k);
+      return Math.max(g, r - Math.hypot(y, z));
+    };
+    const m = k + 0.15;
+    const sgn = Math.sign(end.y) || 1;
+    const yIn = end.y - sgn * (collar.wallMm + m);
+    const yOut = end.y + sgn * m;
+    const min: V3 = [-w / 2 - m, Math.min(yIn, yOut), end.bottomZ - m];
+    const max: V3 = [w / 2 + m, Math.max(yIn, yOut), end.topZ + m];
+    const solid = buildSolid([], { cell: SOLDER_GRID.cellMm, blend: SOLDER_GRID.cellMm, fields: [{ dist: G, min, max, owner: 0 }] });
+    const kept = dropSpecks(solid.positions, solid.normals, true);
+    if (!kept.positions.length) continue;
+    pos.push(kept.positions);
+    nor.push(kept.normals);
+  }
+  return { positions: join(pos), normals: join(nor), contacts: pos.length, filletMm: k };
 }

@@ -434,15 +434,20 @@ export class Viewer {
     // 覆輪の壁が薄いときはその石座ぜんぶ、腕が細い・薄いときは腕を赤く
     const badBezel = new Set(problems.flatMap((p) => (p.target.kind === "bezel" ? [stoneOf(p)] : [])));
     const badShank = problems.some((p) => p.target.kind === "shank");
+    // 腕の間に挟む石座の下の輪（板を丸めた輪）の板が薄いときは、その輪を赤く
+    const badCollar = new Set(problems.flatMap((p) => (p.target.kind === "collar" ? [stoneOf(p)] : [])));
     this.warnMat =
-      badProngs.size > 0 || badBezel.size > 0 || badShank || problems.some((p) => p.target.kind === "corner" || p.target.kind === "gap" || p.target.kind === "shank-spot" || p.target.kind === "space") ? warn : null;
+      badProngs.size > 0 || badBezel.size > 0 || badCollar.size > 0 || badShank || problems.some((p) => p.target.kind === "corner" || p.target.kind === "gap" || p.target.kind === "shank-spot" || p.target.kind === "space" || p.target.kind === "band-end") ? warn : null;
     const settingGeo = ring.ringPositions.settingNormals ? smoothGeometry(ring.ringPositions.setting, ring.ringPositions.settingNormals) : metalGeometry(ring.ringPositions.setting);
     const total = ring.ringPositions.setting.length / 9;
     const ranges = stones
       .flatMap((st, si) =>
         badBezel.has(si)
           ? [{ ...st.ranges.setting, bad: true }]
-          : st.setting.prongs.map((pr, i) => ({ start: st.ranges.setting.start + pr.triangles.start, count: pr.triangles.count, bad: badProngs.has(`${si}:${i}`) })).filter((r) => r.bad),
+          : [
+              ...st.setting.prongs.map((pr, i) => ({ start: st.ranges.setting.start + pr.triangles.start, count: pr.triangles.count, bad: badProngs.has(`${si}:${i}`) })),
+              ...(st.setting.collar ? [{ start: st.ranges.setting.start + st.setting.collar.triangles.start, count: st.setting.collar.triangles.count, bad: badCollar.has(si) }] : []),
+            ].filter((r) => r.bad),
       )
       .sort((a, b) => a.start - b.start);
     let cursor = 0;
@@ -460,7 +465,7 @@ export class Viewer {
     // 守られていない角の赤い印（石の座標 → 指輪の座標。石を並べた指輪では、その石の場所へ）
     for (const p of problems) {
       // となりの石・石座の間が狭い所（指輪の座標の点）
-      if (p.target.kind === "space") {
+      if (p.target.kind === "space" || p.target.kind === "band-end") {
         const [x, y, z] = p.target.point;
         const mark = new THREE.Mesh(new THREE.SphereGeometry(0.3, 24, 16), warn);
         mark.position.set(x, y, z + lift);

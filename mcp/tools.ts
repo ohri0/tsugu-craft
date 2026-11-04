@@ -75,6 +75,10 @@ const designShape = z
       .optional()
       .describe("腕の断面：kouman＝甲丸（既定）、hirauchi＝平打ち、hangouman＝半甲丸、kaku＝角（厚みを書かなければ幅と同じ）"),
     shank_width_mm: z.number().min(1).max(10).optional().describe(`腕の幅（mm）。省略で ${GUIDES.shank.widthMm} mm`),
+    join: z
+      .enum(["on", "between"])
+      .optional()
+      .describe("石座と腕の付け方（爪留めだけ）：on＝腕の上にのせる（腕の上に溝を入れてのせ、ロウ付け。既定）、between＝腕の間に挟む（腕の上を切り、腕の両端の間に、板を丸めた下の輪をはさんでロウ付け。職人の言う基本の作り方）"),
     shank_thickness_mm: z.number().min(0.5).max(5).optional().describe(`腕の厚み（mm）。省略で ${GUIDES.shank.thicknessMm} mm（角は幅と同じ）`),
   })
   .optional()
@@ -232,6 +236,7 @@ export function checkRingTool(ctx: ToolContext, input: CheckRingInput) {
     section: d.shank_section,
     shankWidthMm: d.shank_width_mm,
     shankThicknessMm: d.shank_thickness_mm,
+    join: d.join,
   };
   const built = build(stone.params, design, ledger);
   const { ring } = built;
@@ -257,6 +262,7 @@ export function checkRingTool(ctx: ToolContext, input: CheckRingInput) {
       bezel_wall_mm: s.bezel ? round(s.bezel.wallMm) : null,
       height: design.height,
       orientation: design.orientation,
+      join: s.join,
       metal: metalName(design.metal),
       gou: design.gou,
       position: design.position,

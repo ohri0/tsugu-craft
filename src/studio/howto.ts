@@ -130,8 +130,38 @@ function multiSteps(o: HowToInput, method: Method): Step[] {
   return [...before, ...heads, layout, ...attaches, ...seats, finish];
 }
 
+/**
+ * 腕の間に挟む石座の、形から出す数字（職人 石川の言葉 2026-11-04 の作り方）。
+ * 腕を切る長さ：腕の厚みの真ん中の線で測った、両端の間の弧。下の輪の板：厚み × 高さ（いちばん高い所。下は指の丸みに合わせて削る）× 長さ（板の厚みの真ん中の線の周）。
+ * 上の輪の丸線：太さ × 長さ（線の中心の周）。ザグりの深さ：線の太さ × 目安の割合
+ */
+export function betweenMeasures(r: RingDesign) {
+  const c = r.setting.collar;
+  const ends = r.shank.ends;
+  if (!c || !ends) return null;
+  const sh = r.shank;
+  const rm = sh.innerRadiusMm + sh.thicknessMm / 2;
+  const y = (Math.abs(ends[0].y) + Math.abs(ends[1].y)) / 2;
+  const cutArc = 2 * rm * Math.asin(Math.min(1, y / rm));
+  const mid = c.outer.map((q, i) => ({ x: (q.x + c.inner[i].x) / 2, y: (q.y + c.inner[i].y) / 2 }));
+  const sheetLength = perimeter(mid);
+  const sheetHeight = c.topZ - c.bottomZ;
+  const upper = r.setting.upperRail;
+  const wire = upper ? 2 * upper.radiusMm : 0;
+  const wireLength = upper ? perimeter(upper.pts.map(([x, yy]) => ({ x, y: yy }))) : 0;
+  return {
+    bandLength: (sh.innerDiameterMm + sh.thicknessMm) * Math.PI - cutArc,
+    cutArc,
+    cutChord: 2 * y,
+    sheet: { thickness: c.wallMm, height: sheetHeight, length: sheetLength, lowest: c.heightMm },
+    upperWire: { diameter: wire, length: wireLength },
+    seatDepth: wire * GUIDES.join.between.seatDepthRatio,
+  };
+}
+
 function soloSteps(o: HowToInput, method: Method): Step[] {
   const r = o.ring;
+  const bm = betweenMeasures(r);
   const m = measures(o);
   const sh = r.shank;
   const s = r.setting;
@@ -169,7 +199,14 @@ function soloSteps(o: HowToInput, method: Method): Step[] {
           ...head,
           { label: "腕", value: `${SHANK_SECTION_LABEL[sh.section]} ・ 幅 ${mm(sh.widthMm)} × 厚み ${mm(sh.thicknessMm)}` },
           ...(r.notchDepthMm > 0 ? [{ label: "ザグり", value: `腕の上 深さ ${mm(r.notchDepthMm, 2)}・丸いくぼみ 直径 約 ${mm(r.shank.notchBallDiameterMm, 1)}（3D データに入っている）` }] : []),
-          ...(r.solder ? [{ label: "石座の座", value: `腕の上に、下の輪の形の溝 深さ ${mm(r.shank.railSeatDepthMm, 2)}（3D データに入っている。ロウの丸みは原型に入れない）` }] : []),
+          ...(bm
+            ? [
+                { label: "石座の座", value: `腕のいちばん上を ${mm(bm.cutChord, 2)} 切り、腕の両はしの間に下の輪をはさむ形（3D データに入っている）` },
+                { label: "下の輪", value: `板を丸めた輪 ・ 厚み ${mm(bm.sheet.thickness, 2)} ・ 高さ ${mm(bm.sheet.lowest, 2)}（いちばん低い所。仮の目安）` },
+              ]
+            : r.solder
+              ? [{ label: "石座の座", value: `腕の上に、下の輪の形の溝 深さ ${mm(r.shank.railSeatDepthMm, 2)}（3D データに入っている。ロウの丸みは原型に入れない）` }]
+              : []),
           ...settingSpecs,
         ],
         sprueAt: "腕の下（石座の反対側）",
@@ -183,6 +220,7 @@ function soloSteps(o: HowToInput, method: Method): Step[] {
       finish,
     ];
   }
+  if (bm) return betweenHandSteps(o, bm, head, settingSpecs, seat, finish);
   return [
     ...forgeSteps({
       materialText: "腕の線と、石座の材料を用意する。",
@@ -229,3 +267,67 @@ function attachText(r: RingDesign): string {
   return `${zaguri}${where}は、腕の上を輪の丸みに合わせてヤスリで削り（深さ ${mm(r.shank.railSeatDepthMm, 2)}）、石座がぐらつかずに座るようにする。両側の接点に小さなロウを置いて流す（すみに小さな丸みが入るくらい。ロウは見えないくらい少し）。`;
 }
 
+
+/**
+ * 手作り・腕の間に挟む石座（職人 石川の言葉 2026-11-04）：石座と腕は別に作る。腕のいちばん上を切り、
+ * 板を丸めた下の輪を腕の両はしの間にはさんでロウ付けする。上の輪は丸線で、石の座をリューターでザグる
+ */
+function betweenHandSteps(o: HowToInput, bm: NonNullable<ReturnType<typeof betweenMeasures>>, head: Spec[], settingSpecs: Spec[], seat: Step, finish: Step): Step[] {
+  const r = o.ring;
+  const sh = r.shank;
+  const m = measures(o);
+  const sheet: Spec = { label: "下の輪の板", value: `厚み ${mm(bm.sheet.thickness, 2)} × 幅 ${mm(bm.sheet.height, 2)} × 長さ 約 ${mm(bm.sheet.length)}` };
+  const wire: Spec = { label: "上の輪の丸線", value: `ø ${mm(bm.upperWire.diameter, 2)} ・ 長さ 約 ${mm(bm.upperWire.length)}（線の中心の周）` };
+  return [
+    ...forgeSteps({
+      materialText: "腕の線と、石座の材料（下の輪の板・上の輪の丸線・爪の線）を用意する。",
+      materialSpecs: [...head, { label: "腕の線", value: `${SHANK_SECTION_LABEL[sh.section]} ${mm(sh.widthMm)} × ${mm(sh.thicknessMm)} ・ 長さ 約 ${mm(m.shankLength)}` }, sheet, wire, ...settingSpecs],
+      alloy: o.alloy ?? null,
+      innerMm: sh.innerDiameterMm,
+      gou: sh.gou,
+    }),
+    {
+      id: "cut_top",
+      title: "腕の上を切る",
+      text: `腕のいちばん上を、下の輪の外の幅だけ切り取る。切り口は、輪の外の丸みに合わせてヤスリで整える。`,
+      specs: [
+        { label: "切る幅", value: `${mm(bm.cutChord, 2)}（腕の真ん中で。腕の厚みの真ん中の線で 約 ${mm(bm.cutArc, 2)}）` },
+        { label: "残る腕の長さ", value: `約 ${mm(bm.bandLength)}` },
+      ],
+      watch: "切りすぎると、腕の端が輪に届かない。少し長めに切って、輪を当てながら削る。",
+    },
+    {
+      id: "collar",
+      title: "下の輪を板から作る",
+      text: "板を石の形に沿って丸め、継ぎ目をロウ付けして輪にする（断面が四角い短い筒）。下の面は、指の丸みに合わせてヤスリで削る。",
+      specs: [sheet, { label: "高さ", value: `いちばん低い所 ${mm(bm.sheet.lowest, 2)}・いちばん高い所 ${mm(bm.sheet.height, 2)}（仮の目安）` }],
+      watch: "継ぎ目は、腕の端が当たる所からずらす（ロウが 2 回流れないように）。",
+    },
+    {
+      id: "attach",
+      title: "下の輪を腕の間に挟んでロウ付けする",
+      text: "腕の両はしの間に下の輪をはさみ、腕の端が輪の横にぴったり当たるようにして、両側にロウを流す。上にのせるのではなく、腕の間に入れる。",
+      specs: [
+        { label: "ロウ付け", value: `腕の端 ${r.solder?.contacts ?? 2} か所${r.solder ? `・すみの丸み 約 ${mm(r.solder.filletMm, 2)}（仮の目安）` : ""}` },
+        { label: "指から石座の上まで", value: mm(m.heightAboveFinger, 2) },
+      ],
+      watch: "輪の下の面と腕の内側が、指の側でそろうように。",
+    },
+    {
+      id: "head",
+      title: "上の輪と爪をロウ付けする",
+      text: "丸線を輪にして閉じ、下の輪の外に爪を立ててロウ付けし、爪の外から上の輪をロウ付けする（上の輪は石の縁の真下）。",
+      specs: [wire, ...settingSpecs],
+      watch: "爪は石の周りに均等に。上の輪は下の輪と平らに。",
+    },
+    {
+      id: "bur_seat",
+      title: "上の輪をリューターでザグる",
+      text: "上の輪の内側の上を、リューターで石の下側の形に合わせて削り、石の縁が座る所を作る（丸線のままでは石が座らない）。",
+      specs: [{ label: "ザグる深さ", value: `線の太さの約 ${Math.round(GUIDES.join.between.seatDepthRatio * 100)}%・約 ${mm(bm.seatDepth, 2)}（仮の目安）` }],
+      watch: "石を当てて、縁がぐるりと同じ高さで座るか確かめる。",
+    },
+    seat,
+    finish,
+  ];
+}

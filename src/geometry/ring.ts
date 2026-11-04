@@ -7,7 +7,7 @@ import { buildSetting, type SettingParams, type SettingResult, type TriangleRang
 import { buildShank, weightG, type ShankHead, type ShankParams, type ShankResult, type ShankSeat } from "./shank";
 import { buildStone, meshVolume, type StoneMesh, type StoneParams } from "./stone";
 import { BALL_CUT, stoneSeatCut, type SeatCut } from "./notch";
-import { buildSolder, railInRing, type Rail } from "./joint";
+import { buildEndSolder, buildSolder, collarInRing, railInRing, type Rail } from "./joint";
 import { concat } from "./mesh";
 import { joinMesh, nearestRails, type HeadJoin, type RailLine } from "./bridge";
 
@@ -120,12 +120,17 @@ export function buildRing(p: RingParams): RingDesign {
   if ((p.others?.length ?? 0) > 0 || (p.atMm ?? 0) !== 0) return buildMulti(p);
   const orientation = p.orientation ?? "along";
   const plain = buildShank(p.shank);
-  const setting = buildSetting({ ...p.setting, stone: p.stone, shankThicknessMm: plain.thicknessMm });
+  const rotationZ = orientation === "across" ? Math.PI / 2 : 0;
+  // 腕の間に挟む石座は、下の輪の下の面を指の丸みに合わせる（石の座標で、指の軸は −rotationZ の向き）
+  const between = p.setting.style === "prong" && p.setting.join === "between";
+  const finger = between ? { innerRadiusMm: plain.innerRadiusMm, axisRad: -rotationZ } : undefined;
+  const setting = buildSetting({ ...p.setting, stone: p.stone, shankThicknessMm: plain.thicknessMm, finger });
   const stone = buildStone(p.stone);
   const transform: RingTransform = {
-    rotationZ: orientation === "across" ? Math.PI / 2 : 0,
+    rotationZ,
     translateZ: plain.innerRadiusMm - setting.heights.fingerZ,
   };
+  if (setting.collar) return betweenRing(p, orientation, setting, stone, transform);
   const ringStone = applyTransform(stone.positions, transform);
   const ringSetting = applyTransform(setting.positions, transform);
   // 石座の足が腕の中へ入る所の広さから、腕のいちばん上の肩を決めて、腕を作り直す
@@ -184,6 +189,62 @@ export function buildRing(p: RingParams): RingDesign {
 }
 
 /**
+ * 腕の間に挟む石座の指輪（職人 石川の言葉 2026-11-04）：腕のいちばん上を、石座の下の輪（板を丸めた輪）の外の面まで切り、
+ * 腕の両端の間に輪をはさむ。腕の端が輪の横に当たる所にロウの丸み。石の下は腕がないので、ザグらない（石の一番下は輪の中にある）
+ */
+function betweenRing(p: RingParams, orientation: Orientation, setting: SettingResult, stone: StoneMesh, transform: RingTransform): RingDesign {
+  const collar = collarInRing(setting, transform)!;
+  const ringStone = applyTransform(stone.positions, transform);
+  const ringSetting = applyTransform(setting.positions, transform);
+  const seatCut = stoneSeatCut(p.stone, stone.heights, transform, GUIDES.bezel.clearanceMm);
+  const shank = buildShank({ ...p.shank, head: undefined }, undefined, { gap: { outline: collar.outer } });
+  const wantSolder = p.solder ?? (p.setting.solid === true && p.setting.solidQuality !== "preview");
+  const solder = wantSolder ? buildEndSolder(collar, shank) : null;
+  const settingAll = solder?.positions.length ? concat([ringSetting, solder.positions]) : ringSetting;
+  const settingNormals = setting.normals ? rotateNormals(setting.normals, transform.rotationZ) : undefined;
+  const culetGapMm = stone.heights.culetZ + transform.translateZ - shank.innerRadiusMm;
+  const metal = shank.metal;
+  const solderInfo = solder && solder.contacts ? { contacts: solder.contacts, filletMm: solder.filletMm, triangles: { start: ringSetting.length / 9, count: solder.positions.length / 9 } } : null;
+  return {
+    params: p,
+    orientation,
+    stone,
+    setting,
+    shank,
+    transform,
+    ringPositions: {
+      stone: ringStone,
+      setting: settingAll,
+      shank: shank.positions,
+      settingNormals: settingNormals && solder?.positions.length ? concat([settingNormals, solder.normals]) : settingNormals,
+    },
+    solder: solderInfo,
+    culetGapMm,
+    notchDepthMm: 0,
+    seatCut,
+    metalWeightG: weightG(shank.volumeMm3 + meshVolume(setting.positions), metal),
+    metal,
+    stones: [
+      {
+        params: p.stone,
+        orientation,
+        stone,
+        setting,
+        transform,
+        atMm: 0,
+        phi: 0,
+        seatCut,
+        rail: null,
+        culetGapMm,
+        ranges: { stone: { start: 0, count: ringStone.length / 9 }, setting: { start: 0, count: settingAll.length / 9 } },
+        solder: solderInfo ? { contacts: solderInfo.contacts, filletMm: solderInfo.filletMm } : null,
+      },
+    ],
+    joins: [],
+  };
+}
+
+/**
  * 石を並べた指輪：石ごとに、一粒と同じ石座（buildSetting）を作り、その石の座標（石が腕の真上）で高さを決め、
  * 腕に沿った場所へ、指の軸のまわりに回して置く（石座は腕の丸みに沿って、腕に直角に立つ）。
  * 腕は石ごとに、その石の真下をザグり、下の輪の座を作る（buildShank の seats）。ロウの丸みも石ごと。
@@ -196,7 +257,8 @@ function buildMulti(p: RingParams): RingDesign {
   const places: StonePlace[] = [{ stone: p.stone, setting: p.setting, orientation: p.orientation, atMm: p.atMm ?? 0 }, ...(p.others ?? [])];
   const parts = places.map((pl) => {
     const orientation = pl.orientation ?? "along";
-    const setting = buildSetting({ ...pl.setting, stone: pl.stone, shankThicknessMm: plain.thicknessMm });
+    // 腕の間に挟む付け方は、一粒の指輪だけ（石を並べる指輪は、腕の上にのせる）
+    const setting = buildSetting({ ...pl.setting, join: "on", stone: pl.stone, shankThicknessMm: plain.thicknessMm });
     const stone = buildStone(pl.stone);
     const phi = pl.atMm / outerR;
     const local: RingTransform = { rotationZ: pl.turnRad ?? (orientation === "across" ? Math.PI / 2 : 0), translateZ: plain.innerRadiusMm - setting.heights.fingerZ };
@@ -312,6 +374,8 @@ export function placePoint(t: RingTransform, x: number, y: number, z: number): [
  * 肩（石座の足を受ける広い所）は、今の石座から buildRing と同じように決める。ザグりも同じ球のビットで削り、石座の座も作る（動かしている間は、削る所の格子を粗くして速くする。ロウの丸みは指を離したときに作る）
  */
 export function rebuildShank(ring: RingDesign, shank: ShankParams): ShankResult {
+  const collar = collarInRing(ring.setting, ring.transform);
+  if (collar) return buildShank({ ...shank, head: undefined }, undefined, { gap: { outline: collar.outer } });
   if (ring.stones.length > 1 || ring.stones[0]?.phi) {
     const seats = ring.stones.map((st, i) => ({ phi: st.phi, cut: i === 0 ? ring.seatCut : st.seatCut, rail: st.rail }));
     return buildShank({ ...shank, head: undefined }, undefined, { notchStepMm: BALL_CUT.dragStepMm, seats });
