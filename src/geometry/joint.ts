@@ -196,6 +196,10 @@ export interface Solder {
 
 /** ロウの丸みを作る格子の細かさと、丸みの面を内へ沈める量（mm。形を作るための決まり） */
 const SOLDER_GRID = { cellMm: 0.04, sinkMm: 0.02 };
+/** 腕の両端のロウの丸みを、腕の真ん中で切るときの重なり（mm。形を作るための決まり） */
+const SOLDER_MID_OVERLAP_MM = 0.02;
+/** ロウの丸みのある所を探す目の粗さ（mm。形を作るための決まり） */
+const SOLDER_SCAN_MM = 0.1;
 
 /**
  * 接点ごとのロウの丸み。下の輪と腕を「なめらかな最小」でつないだ形のうち、輪からも腕からも丸みの大きさ以内の所だけを取る：
@@ -346,6 +350,26 @@ export function collarInRing(setting: SettingResult, t: RingTransform): CollarRi
   return { outer: c.outer.map((p) => [p.x * cs - p.y * sn, p.x * sn + p.y * cs] as [number, number]), wallMm: c.wallMm, topZ: c.topZ + t.translateZ, taperTan: collarTaperTan(c) };
 }
 
+/** 距離の場 G が負になる所を、粗い目で探して囲む箱。距離は 1 mm 動いて高々 1 mm しか変わらないので、目の大きさ分の余白で取りこぼさない。何もなければ null */
+function solidExtent(G: (x: number, y: number, z: number) => number, lo: V3, hi: V3): [V3, V3] | null {
+  const h = SOLDER_SCAN_MM;
+  const min: V3 = [Infinity, Infinity, Infinity];
+  const max: V3 = [-Infinity, -Infinity, -Infinity];
+  for (let x = lo[0]; x <= hi[0] + h; x += h)
+    for (let y = lo[1]; y <= hi[1] + h; y += h)
+      for (let z = lo[2]; z <= hi[2] + h; z += h) {
+        if (G(x, y, z) > h) continue;
+        min[0] = Math.min(min[0], x);
+        min[1] = Math.min(min[1], y);
+        min[2] = Math.min(min[2], z);
+        max[0] = Math.max(max[0], x);
+        max[1] = Math.max(max[1], y);
+        max[2] = Math.max(max[2], z);
+      }
+  if (min[0] === Infinity) return null;
+  return [[min[0] - h, min[1] - h, min[2] - h], [max[0] + h, max[1] + h, max[2] + h]];
+}
+
 /**
  * 腕の両端が、下の輪の外の面に当たる所のロウの丸み（腕の間に挟む石座）。buildSolder と同じ作り方：
  * G ＝ max(smin(輪, 腕, k), 輪 − k, 腕 − k)。腕は端で切った形、輪は指の面で下を切った形。指の中には作らない
@@ -369,23 +393,25 @@ export function buildEndSolder(collar: CollarRing, shank: ShankResult): Solder {
   const pos: Float32Array[] = [];
   const nor: Float32Array[] = [];
   const w = shank.widthMm;
+  const G0 = (x: number, y: number, z: number) => {
+    const dc = ring(x, y, z);
+    if (dc > k) return dc - k;
+    const db = band(x, y, z);
+    const g = Math.max(smin(dc, db, k) + SOLDER_GRID.sinkMm, dc - k, db - k);
+    // 輪の上の縁の丸みより上には流さない（縁の上にロウの平らな粒ができないように）
+    return Math.max(g, r - Math.hypot(y, z), z - (collar.topZ - COLLAR_EDGE_MM));
+  };
+  const m = k + 0.15;
+  const yFar = Math.max(...collar.outer.map(([, y]) => Math.abs(y))) + m;
+  const zLow = Math.sqrt(Math.max(0, r * r - yFar * yFar)) - m;
   for (const end of ends) {
-    const G = (x: number, y: number, z: number) => {
-      const dc = ring(x, y, z);
-      if (dc > k) return dc - k;
-      const db = band(x, y, z);
-      const g = Math.max(smin(dc, db, k) + SOLDER_GRID.sinkMm, dc - k, db - k);
-      // 輪の上の縁の丸みより上には流さない（縁の上にロウの平らな粒ができないように）
-      return Math.max(g, r - Math.hypot(y, z), z - (collar.topZ - COLLAR_EDGE_MM));
-    };
-    const m = k + 0.15;
     const sgn = Math.sign(end.y) || 1;
-    // 輪の外の線が腕に斜めに当たる石（三角など）では、接する所が y の向きに広がる。腕の幅の中の輪の線がみな入る箱にする（箱で切ると、丸みが閉じない）
-    const ys = collar.outer.filter(([x, y]) => Math.abs(x) <= w / 2 + m && Math.sign(y) === sgn).map(([, y]) => y);
-    const yIn = (ys.length ? (sgn > 0 ? Math.min(...ys, end.y) : Math.max(...ys, end.y)) : end.y) - sgn * (collar.wallMm + m);
-    const yOut = (ys.length ? (sgn > 0 ? Math.max(...ys, end.y) : Math.min(...ys, end.y)) : end.y) + sgn * m;
-    const min: V3 = [-w / 2 - m, Math.min(yIn, yOut), end.bottomZ - m];
-    const max: V3 = [w / 2 + m, Math.max(yIn, yOut), end.topZ + m];
+    // 腕の幅より小さい輪では、丸みが輪の横を回って反対の端までつながる。真ん中で少し重ねて切り、切り口にもふたをする（両端で別の形のまま閉じる）
+    const G = (x: number, y: number, z: number) => Math.max(G0(x, y, z), -sgn * y - SOLDER_MID_OVERLAP_MM);
+    // 箱は、丸みが本当にある所から決める（三角など、輪が腕に斜めに当たる石や小さい石では、端の高さから決めた箱の面で丸みが切れて閉じなかった）
+    const box = solidExtent(G, [-w / 2 - m, sgn > 0 ? -SOLDER_MID_OVERLAP_MM : -yFar, zLow], [w / 2 + m, sgn > 0 ? yFar : SOLDER_MID_OVERLAP_MM, collar.topZ + m]);
+    if (!box) continue;
+    const [min, max] = box;
     const solid = buildSolid([], { cell: SOLDER_GRID.cellMm, blend: SOLDER_GRID.cellMm, fields: [{ dist: G, min, max, owner: 0 }] });
     const kept = dropSpecks(solid.positions, solid.normals, true);
     if (!kept.positions.length) continue;

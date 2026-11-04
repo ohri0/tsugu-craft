@@ -12,6 +12,8 @@ import { seedLedger } from "../src/rules/ledger";
 import { howToMake } from "../src/studio/howto";
 import { presetOutline, PRESETS } from "../src/studio/presets";
 import { RingSession } from "../src/studio/session";
+import { stoneFrom } from "./helpers/stones";
+import { regular, triangle } from "./helpers/synth";
 
 const preset = (id: string, longMm?: number, widthMm?: number, depthMm?: number): StoneParams => {
   const p0 = PRESETS.find((p) => p.id === id)!;
@@ -180,6 +182,60 @@ describe("腕の間に挟む石座：一体の形と STL", () => {
     let below = 0;
     for (const [, y, z] of verts(ring.ringPositions.setting)) if (z > 0 && Math.hypot(y, z) < r - 0.06) below++;
     expect(below).toBe(0);
+  }, 60000);
+});
+
+/** 三角形の面を頂点でつないで、いくつの形に分かれるかを数える */
+function shellCount(p: Float32Array): number {
+  const key = (i: number) => `${p[i].toFixed(4)},${p[i + 1].toFixed(4)},${p[i + 2].toFixed(4)}`;
+  const parent = new Map<string, string>();
+  const find = (a: string): string => {
+    let x = a;
+    while (parent.get(x) !== x) {
+      parent.set(x, parent.get(parent.get(x)!)!);
+      x = parent.get(x)!;
+    }
+    return x;
+  };
+  for (let t = 0; t < p.length; t += 9) {
+    const v = [key(t), key(t + 3), key(t + 6)];
+    for (const a of v) if (!parent.has(a)) parent.set(a, a);
+    parent.set(find(v[0]), find(v[1]));
+    parent.set(find(v[1]), find(v[2]));
+  }
+  return new Set([...parent.keys()].map(find)).size;
+}
+
+describe("腕の間に挟む石座：角のある石の STL（2026-11-05 作者：一部つながっていない）", () => {
+  const tri = (mm: number) => stoneFrom(triangle(200, 200, 160, 140), mm, mm * 0.4775);
+  const sq = (mm: number) => stoneFrom(regular(0, 0, 500, 4, 0.3), mm, mm * 0.6);
+  const cases: [string, StoneParams, "along" | "across"][] = [
+    ["既定の三角", stoneFrom(triangle(200, 200, 160, 140), 8.88, 4.24), "along"],
+    ["スクエア", preset("princess"), "along"],
+    ["スクエア（横）", preset("princess"), "across"],
+    // ロウの丸みが箱の面で切れていた大きさ
+    ["三角 5 mm（横）", tri(5), "across"],
+    ["三角 6 mm（横）", tri(6), "across"],
+    ["三角 12 mm", tri(12), "along"],
+    ["四角 3 mm", sq(3), "along"],
+    ["スクエア 3 mm", preset("princess", 3, 3, 2.2), "along"],
+  ];
+  it.each(cases)("%s：石座は 1 つの形で閉じ、ロウの丸みも腕の両はしの 2 か所で閉じる", (_n, stone, orientation) => {
+    // 腕は画面の既定の太さ（腕の幅で、丸みの当たり方が変わる）
+    const ring = buildRing(params({ stone, orientation, solder: true, shank: { gou: 11, metal: "k18y" } }, { prongCount: undefined, solid: true, solidQuality: "preview" }));
+    expect(shellCount(ring.setting.positions)).toBe(1);
+    expect(openEdges(ring.setting.positions)).toBe(0);
+    expect(ring.solder?.contacts).toBe(2);
+    expect(openEdges(ring.ringPositions.setting.subarray(ring.solder!.triangles.start * 9))).toBe(0);
+  }, 60000);
+
+  it("三角は、高さ・爪の本数を変えても 1 つの形", () => {
+    for (const height of ["low", "high"] as const) {
+      for (const prongCount of [3, 6]) {
+        const ring = buildRing(params({ stone: tri(8.88), shank: { gou: 11, metal: "k18y" } }, { height, prongCount, solid: true, solidQuality: "preview" }));
+        expect(shellCount(ring.setting.positions)).toBe(1);
+      }
+    }
   }, 60000);
 });
 
