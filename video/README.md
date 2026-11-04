@@ -1,6 +1,15 @@
 # 動画を組む仕組み
 
-## 最終案 5（2026-11-04 夜〜。いまの作り方）
+## 最終案 6（2026-11-05。いまの作り方）
+
+最終案 5 の仕組みのまま、並びを作り直したもの。設計は `PLAN-final.md`、声の台本は `../docs/NARRATION-ad.md`（38 行）。
+
+- 台本：`final_build6.py` → `final6.json`（声でのばす前 336 拍 ＝ 2:48）。場面は、はじめから拍で書く（最終案 5 までの `shift()` で、あとからずらす作りはやめた）。
+- 新しく撮った章：heart6（職人の一言のあと、これまでの作品を確かめ直す → まとめて直す。`node video/capture/story.cjs heart6`）。アプリの見本の作品に小粒の石を足したので、撮る前に `npx vite build --outDir video/work/dist-cap --emptyOutDir`。
+- 仮声：`KOKORO_SPEED=1.0` のふつうの速さ。`TSUGU_OWN_VOICE=$PWD/video/work/voice/sim6 OWN_TEMPO=auto OWN_TEMPO_MAX=1.10 video/work/.venv/bin/python -I video/final.py --plan 6 --jobs 14` → 速めずに 2:58（声の長い 5 か所で場面を 2 秒ずつのばす）。
+- 作者の録音：`work/voice/n<番号>.wav` に置いて `video/work/.venv/bin/python -I video/final.py --plan 6`。
+
+## 最終案 5（2026-11-04 夜〜）
 
 最終案 4 の仕組みのまま、最終案 4 を見た作者の 13 の声を入れたもの。設計は `PLAN-final.md`、声の台本は `../docs/NARRATION-ad.md`（53 行）。
 
