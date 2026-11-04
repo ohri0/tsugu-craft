@@ -126,7 +126,17 @@ app.innerHTML = `
         </div>
       </section>
       <section class="sec band-only" hidden><h4>形</h4><div class="band-ctrl"></div></section>
-      <section class="sec solitaire-only"><h4>石</h4>
+      <section class="sec solitaire-only"><h4>石<button type="button" class="shoot-help-btn" aria-label="石の写真の撮り方">？</button></h4>
+        <div class="shoot-help" hidden>
+          <b>石の写真の撮り方</b>
+          <ol>
+            <li><b>白い紙の上に置く。</b>模様や影のない、まっさらな所。</li>
+            <li><b>真上から撮る。</b>斜めから撮ると形がくずれます。石の長い辺が、そのままの長さで写るように。</li>
+            <li><b>石を画面のまん中に、大きめに。</b>ピントを石に合わせ、影ができにくい明るい所で。</li>
+            <li><b>長辺と深さだけ、ノギスで測って入れる。</b>形は写真から読みます。</li>
+          </ol>
+          <small>色の薄い石は、黒い紙の上でも読めます。</small>
+        </div>
         <label class="asset stone-card"><canvas class="stone-thumb" width="120" height="120"></canvas><span><b>石の写真</b><small class="stone-sub">—</small></span><span class="act">変える</span><input type="file" accept="image/*" class="stone-file" hidden></label>
         <div class="presets" role="group" aria-label="よくある形">${PRESETS.map((p) => `<button type="button" data-preset="${p.id}">${p.name}</button>`).join("")}</div>
         <div class="fields"><label class="field">長辺<span class="in"><input type="number" step="0.01" class="in-long" inputmode="decimal"><i>mm</i></span></label><label class="field">深さ<span class="in"><input type="number" step="0.01" class="in-depth" inputmode="decimal"><i>mm</i></span></label></div>
@@ -262,6 +272,11 @@ function bandDims(positions: Float32Array): Dim[] {
 }
 
 // ---- 石を読む ----
+document.querySelector(".shoot-help-btn")?.addEventListener("click", (e) => {
+  e.preventDefault();
+  const h = $(".shoot-help");
+  h.hidden = !h.hidden;
+});
 async function loadStone(img: ImageData, label: string, longMm: number, depthMm: number, opts: { intro?: boolean } = {}) {
   const extraction = extractStone(img);
   const measured = measureOutline({ outlinePx: extraction.outlinePx, longMm });
