@@ -1,5 +1,39 @@
 # 動画を組む仕組み
 
+## 最終案（2026-11-04〜。いまの作り方）
+
+デモ動画（2 分 56 秒）。映るのは、継ぐの本物の画面を本当に操作したもの（本物のボタン・本物の Claude）。それを 2 倍の細かさで 1 こまずつ撮り、あとから、見せたい所へなめらかに動くカメラ・拍に乗るつなぎ・大きな言葉・自作の音楽を付ける。場面の設計は `PLAN-final.md`、声の台本は `../docs/NARRATION-ad.md`。
+
+| ファイル | すること |
+| --- | --- |
+| `PLAN-final.md` | 場面ごとの設計（時刻・画面・カメラ・音・大きな言葉・声） |
+| `final_build.py` | 台本 `final.json` を作る。時刻はすべて「拍」（120 拍／分 → 1 拍 0.5 秒）。画面・言葉・音楽の場面・声の場所を 1 か所で決めるので、切り替えも言葉も音楽も拍に乗る |
+| `capture/story.cjs` | 継ぐの本物の画面を操作して、2 倍（3200×1800）で 1 こまずつ撮る。章：build・word・fix・views・section・present・ask・workshops・make・learn・nanako・rebuild。マウスの位置・見せたい所の枠・区切りを `meta.json` に残す |
+| `capture/vt.cjs` | ページの中の時計を、こちらで 1 こま（1/30 秒）ずつ進める。組み上がり・赤い点滅・回転・知らせ・スクロールが、撮るのが遅くても 30 こま／秒でなめらかに映る。待つ所（Claude の返事）は時計だけ早送り |
+| `capture/serve.cjs` | 撮るための継ぐ（組んだ物）を出し、`/api` だけ開発用のサーバー（本物の Claude）へ渡す。開発用のサーバーは、ほかの作業で src が変わるとページを読み直してしまうため |
+| `capture/tojpg.py` | 撮った PNG を JPEG に（組むときに速く読めるように） |
+| `reel.py` | 1 こまずつ組む：カメラ（寄る・引く・傾いて浮いた画面・速いときのぶれ）、つなぎ（切る・重ねる・寄って抜ける・横に流す・白く光る）、大きな言葉（1 語ずつ拍に）、数字の札、Claude の札、出どころ。押した所・打った所・つなぎの効果音の合図も書き出す。いくつも同時に組む |
+| `bgm3.py` | 音楽（自作）。覚えやすい 2 小節の旋律、ダン・ダン・ダン、上がる音、落ちる所の一瞬の無音、太鼓に合わせて低音が息をする。式年遷宮の所は同じ旋律を都節の音で、琴のような音と太鼓に |
+| `sfx.py` | 効果音（自作）：風・ドン・キー・カチッ・言葉の小さな音・キラッ（Claude）・作れます |
+| `tts_kokoro.py` | 仮の声（機械の声）。作者の声が届くまで |
+| `final.py` | 全部を順に回して、混ぜる |
+
+使い方（作業用のフォルダは `video/work/`、リポジトリに入れない）：
+
+1. 開発用のサーバー（本物の Claude）：`npx vite --port 5180 --strictPort`（`.env` にキー）。
+2. 撮るための継ぐ：`npx vite build --outDir video/work/dist-cap --emptyOutDir` → `node video/capture/serve.cjs`（5201 番）。
+3. 撮る：`node video/capture/story.cjs`（章の名前を並べると、その章だけ）。1 章 1〜4 分。GPU で 3D を描く（`--use-angle=metal`）。
+4. 仮の声：`SSL_CERT_FILE=$(video/work/.venv/bin/python -m certifi) video/work/.venv/bin/python -I video/tts_kokoro.py video/final.json k_ video/work/voice jm_kumo`
+5. 組む：`video/work/.venv/bin/python -I video/final.py` → `video/work/vc/継ぐ_デモ_最終案1.mp4`（音楽と効果音だけ）と `継ぐ_デモ_最終案1_仮声.mp4`（仮の声入り）。全部で 6〜7 分。画面を作り直さず音だけ混ぜ直すときは `--no-video`。
+   試しに一部だけ組む：`ONLY="拍のはじめ,拍のおわり" video/work/.venv/bin/python -I video/reel.py video/final.json 出力.mp4`
+
+作者の声：`video/work/voice/n<場面の番号>.wav`（例：`n3.wav`。台本は `docs/NARRATION-ad.md`）。置くと機械の声と入れ替わる。全部そろうと `_声.mp4` になる。
+作者が撮る素材：`video/work/footage/ring1.mov`（作業台の手元）・`ring2.mov`（できあがった本物の指輪）。置くと差し替わる（ないときは「見せる」の指輪で埋める）。
+
+venv に要るもの：pillow・numpy（組む・音楽・効果音）、kokoro-onnx・misaki・soundfile（仮の声）。字は Mac にもとからあるヒラギノ角ゴシック・ヒラギノ明朝を使う（字のファイルは配らない）。
+
+## 前の作り方（scenes11.json・scenes-ad.json）
+
 デモ動画（3 分）を、台本（`scenes11.json`）どおりに組む。画面は継ぐを本当に動かして撮ったもの、指輪は継ぐの 3D を 1 こまずつ撮ったもの。
 
 | ファイル | すること |
@@ -13,7 +47,7 @@
 | `cine/rec-html.cjs`・`cine/html/` | 問い・決まり・全部に・現場・学校・受け継ぎ方・万が一・締めの場面（文字と図の動き） |
 | `capture/` | 継ぐの画面を動いたまま録る（1920×1080）。`hero*.cjs` は太い爪と細い爪を並べる場面 |
 
-使い方（どのパソコンでも同じ。場所は `paths.cjs` の 1 か所にまとめた。作業用のフォルダは `video/work/`（リポジトリに入れない）。別の所にしたいときは `TSUGU_VIDEO_WORK`、継ぐを動かす所を変えるときは `TSUGU_BASE`）：
+使い方（場所は `paths.cjs` の 1 か所にまとめた。別の所にしたいときは `TSUGU_VIDEO_WORK`、継ぐを動かす所を変えるときは `TSUGU_BASE`）：
 
 0. 最初の 1 回：`npm install`・`npx playwright install chromium`。機械の声を使うなら `python3 -m venv video/work/.venv && video/work/.venv/bin/pip install pyopenjtalk numpy`。
 1. `npx vite build --outDir video/work/dist` → `npx vite preview --outDir video/work/dist --port 5200` で、組んだ継ぐを動かす。

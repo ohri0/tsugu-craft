@@ -1,207 +1,572 @@
 // 一つの指輪の物語として、継ぐの本物の画面を一歩ずつ操作し、2 倍の細かさで 1 こまずつ撮る（1600×900 → 3200×1800）。
-// 形の組み直しや Claude の返事を待つ間は撮らない（中身は同じ操作）。見せたい所の枠（boxes）をこまごとに残し、
-// あとで camera.py が、その枠へなめらかに動くカメラを付ける。node capture/story.cjs 章…（なしなら全部）
+// ページの中の時計は vt.cjs でこちらが進める（1 こま ＝ 1/30 秒）。組み上がり・赤い点滅・回転・知らせが、30 こま／秒でなめらかに映る。
+// 形の組み直しや Claude の返事を待つ間は、撮らずに時計だけ早送りする（中身は同じ操作）。
+// こまごとに、マウスの位置（cur）と、見せたい所の枠（boxes）・区切り（marks）を meta.json に残す。
+// あとで reel.py が、その枠へなめらかに動くカメラを付ける。
+// 使い方：node capture/story.cjs 章…（なしなら全部）。撮る相手は TSUGU_CAP（既定 http://localhost:5201 ＝ capture/serve.cjs）。
 // 作者の声：画面を並べるのでなく、一つの物が流れるように。字まで読めるように（2026-11-04）。
-const { chromium, SP, BASE } = require('../paths.cjs');
+const { chromium, SP } = require('../paths.cjs');
 const fs = require('fs');
+const path = require('path');
+const { execFileSync } = require('child_process');
+const VT = require('./vt.cjs');
+const BASE = process.env.TSUGU_CAP || 'http://localhost:5201';
 const OUT = `${SP}/story`;
+const PY = process.env.PY || path.join(__dirname, '..', 'work', '.venv', 'bin', 'python');
+// 3D を GPU で描く（ないと 1 こま 2 秒かかる。あると 5 ミリ秒）
+const GPU = ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'];
+const ease = (u) => (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2);
 
-const CURSOR_CSS = `#__cur{position:fixed;left:-40px;top:-40px;width:20px;height:20px;margin:-10px 0 0 -10px;border-radius:50%;background:rgba(255,255,255,.95);box-shadow:0 0 0 1.5px rgba(0,0,0,.55),0 2px 8px rgba(0,0,0,.45);z-index:2147483647;pointer-events:none}
-#__rip{position:fixed;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;border:2px solid rgba(255,255,255,.95);box-shadow:0 0 0 1px rgba(0,0,0,.3);z-index:2147483646;pointer-events:none;opacity:0}`;
+// マウスの印：矢印（自作の線）と、押したときの輪
+const CURSOR_CSS = `#__cur{position:fixed;left:-60px;top:-60px;width:26px;height:30px;margin:-3px 0 0 -5px;z-index:2147483647;pointer-events:none;filter:drop-shadow(0 2px 3px rgba(0,0,0,.45))}
+#__rip{position:fixed;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;border:2.5px solid rgba(255,255,255,.95);box-shadow:0 0 0 1px rgba(0,0,0,.25),0 0 14px rgba(255,255,255,.35);z-index:2147483646;pointer-events:none;opacity:0}`;
+const ARROW = `<svg width="26" height="30" viewBox="0 0 26 30"><path d="M5 3v20.5l5.2-4.9 3.6 8.2 3.6-1.6-3.6-8.1h7.1z" fill="#fff" stroke="#111" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
 
 async function chapter(name, fn) {
-  const D = `${OUT}/${name}/`; fs.rmSync(D, { recursive: true, force: true }); fs.mkdirSync(D, { recursive: true });
-  const b = await chromium.launch();
+  const D = `${OUT}/${name}/`;
+  fs.rmSync(D, { recursive: true, force: true });
+  fs.mkdirSync(D, { recursive: true });
+  const b = await chromium.launch({ args: GPU });
   const ctx = await b.newContext({ viewport: { width: 1600, height: 900 }, deviceScaleFactor: 2 });
   await ctx.addInitScript(() => { try { localStorage.setItem('tsugu.password.v1', 'dev-local'); } catch {} });
+  await ctx.addInitScript(VT.INIT);
   const p = await ctx.newPage();
+  p.setDefaultTimeout(120000);
   p.on('pageerror', (e) => console.log(name, 'pageerror', e.message));
-  let i = 0; let cur = { x: 1500, y: 860 }; const boxes = {}; const marks = {};
-  const ensureCursor = () => p.evaluate((css) => {
+  let i = 0;
+  let cur = { x: 1480, y: 860 };
+  const boxes = {};
+  const marks = {};
+  const curs = [];
+  const t0 = Date.now();
+  const ensure = () => p.evaluate(({ css, arrow }) => {
     if (!document.getElementById('__curcss')) { const s = document.createElement('style'); s.id = '__curcss'; s.textContent = css; document.head.appendChild(s); }
-    for (const id of ['__cur', '__rip']) if (!document.getElementById(id)) { const e = document.createElement('div'); e.id = id; document.body.appendChild(e); }
-  }, CURSOR_CSS);
-  const api = {
+    if (!document.getElementById('__cur')) { const e = document.createElement('div'); e.id = '__cur'; e.innerHTML = arrow; document.body.appendChild(e); }
+    if (!document.getElementById('__rip')) { const e = document.createElement('div'); e.id = '__rip'; document.body.appendChild(e); }
+  }, { css: CURSOR_CSS, arrow: ARROW });
+  const centerOf = async (sel) => {
+    const bx = await p.locator(sel).first().boundingBox();
+    if (!bx) { console.log(name, '見つからない', sel); return null; }
+    return { x: bx.x + bx.width / 2, y: bx.y + bx.height / 2, bx };
+  };
+  const a = {
     p,
-    /** 1 こま撮る。rip：押した波紋の濃さ */
-    shot: async (rip = 0, turn = 0) => {
-      await ensureCursor();
-      await p.evaluate(({ x, y, rip, turn }) => {
-        const c = document.getElementById('__cur'); c.style.left = x + 'px'; c.style.top = y + 'px';
-        const r = document.getElementById('__rip'); r.style.left = x + 'px'; r.style.top = y + 'px'; r.style.opacity = String(rip); r.style.transform = `scale(${1.5 - rip})`;
+    get i() { return i; },
+    /** 1 こま撮る（時計を 1/30 秒進めてから）。rip：押した輪の濃さ。turn：3D を回す角（ラジアン） */
+    shot: async ({ rip = 0, turn = 0, hide = false } = {}) => {
+      await ensure();
+      await p.evaluate(({ x, y, rip, turn, hide }) => {
+        const c = document.getElementById('__cur'); c.style.left = x + 'px'; c.style.top = y + 'px'; c.style.opacity = hide ? '0' : '1';
+        const r = document.getElementById('__rip'); r.style.left = x + 'px'; r.style.top = y + 'px'; r.style.opacity = String(rip); r.style.transform = `scale(${1.6 - rip * 0.9})`;
         if (turn && window.__viewer) window.__viewer.turn(turn);
-      }, { ...cur, rip, turn });
-      await p.waitForTimeout(20);
-      await p.screenshot({ path: `${D}${String(i++).padStart(4, '0')}.jpg`, type: 'jpeg', quality: 92 });
+        return window.__vt.step(1000 / 30);
+      }, { ...cur, rip, turn, hide });
+      await p.screenshot({ path: `${D}${String(i).padStart(4, '0')}.png`, timeout: 180000 });
+      curs.push([Math.round(cur.x), Math.round(cur.y), Math.round(rip * 100) / 100]);
+      i++;
     },
-    hold: async (n, turn = 0) => { for (let k = 0; k < n; k++) await api.shot(0, turn); },
+    hold: async (n, o = {}) => { for (let k = 0; k < n; k++) await a.shot(o); },
     mark: (k) => { marks[k] = i; },
     /** 見せたい所の枠を、今のこまに残す（ページの px。2 倍の画像では ×2） */
     box: async (k, sel, pad = 12) => {
-      const bx = await p.locator(sel).first().boundingBox();
-      if (bx) boxes[k] = { f: i, x: bx.x - pad, y: bx.y - pad, w: bx.width + pad * 2, h: bx.height + pad * 2 };
+      const bx = await p.locator(sel).first().boundingBox().catch(() => null);
+      if (bx) boxes[k] = { f: i, x: Math.round(bx.x - pad), y: Math.round(bx.y - pad), w: Math.round(bx.width + pad * 2), h: Math.round(bx.height + pad * 2) };
       else console.log(name, '枠が見つからない', sel);
     },
     boxRaw: (k, x, y, w, h) => { boxes[k] = { f: i, x, y, w, h }; },
-    move: async (sel, n = 14) => {
-      const bx = await p.locator(sel).first().boundingBox();
-      if (!bx) { console.log(name, '見つからない', sel); return null; }
-      const to = { x: bx.x + bx.width / 2, y: bx.y + bx.height / 2 }; const from = { ...cur };
-      for (let k = 1; k <= n; k++) { const u = k / n; const e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2; cur = { x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e }; await api.shot(); }
-      return bx;
+    /** マウスを sel（または {x, y}）へ n こまで動かす。本物のマウスも動かす（指したときの色が出る） */
+    move: async (to, n = 14, o = {}) => {
+      const c = typeof to === 'string' ? await centerOf(to) : to;
+      if (!c) return null;
+      const from = { ...cur };
+      for (let k = 1; k <= n; k++) {
+        const e = ease(k / n);
+        cur = { x: from.x + (c.x - from.x) * e, y: from.y + (c.y - from.y) * e };
+        await p.mouse.move(cur.x, cur.y);
+        await a.shot(o);
+      }
+      return c;
     },
-    /** 押す：動いて、押した波紋。押した後の組み直しは撮らない（wait ミリ秒待つ） */
-    press: async (sel, { n = 14, wait = 600, js = false } = {}) => {
-      if (!(await api.move(sel, n))) return;
-      await api.shot(0.9);
-      if (js) await p.evaluate((s) => document.querySelector(s).click(), sel); else await p.click(sel);
-      await p.waitForTimeout(wait);
-      await p.evaluate(() => window.__studio?.session?.flush?.());
-      await api.shot(0.6); await api.shot(0.3);
+    /** 押す：動いて、押した輪。押した後は after こま撮る（形の組み直しは押した中で済む） */
+    press: async (sel, { n = 14, after = 4, js = false, turn = 0 } = {}) => {
+      const c = await a.move(sel, n, { turn });
+      if (!c) return false;
+      await a.shot({ rip: 1, turn });
+      if (js) await p.evaluate((s) => document.querySelector(s).click(), sel);
+      else await p.mouse.click(c.x, c.y);
+      await a.shot({ rip: 0.65, turn });
+      await a.shot({ rip: 0.3, turn });
+      await a.hold(after, { turn });
+      return true;
     },
     /** 打つ：1 字ずつ、each こまずつ */
-    type: async (sel, text, each = 2) => {
-      await api.press(sel, { wait: 150 });
-      for (const ch of text) { await p.keyboard.type(ch); for (let k = 0; k < each; k++) await api.shot(); }
+    type: async (sel, text, { each = 2, n = 12 } = {}) => {
+      await a.press(sel, { n, after: 2 });
+      for (const ch of text) {
+        await p.keyboard.insertText(ch);
+        for (let k = 0; k < each; k++) await a.shot();
+      }
     },
-    settle: async (ms = 800) => { await p.waitForTimeout(ms); await p.evaluate(() => window.__studio?.session?.flush?.()); },
+    /** 撮らずに早送りして、条件が成り立つまで待つ */
+    until: (fn, arg, o = {}) => VT.until(p, fn, arg, o),
+    /** 撮らずに早送り（仮の時計で ms） */
+    ff: (ms) => VT.ff(p, ms),
+    /** 待つ間、probe の値が変わったら per こま撮る（Claude の作業の記録が 1 行ずつ増えるのを、早回しで見せる） */
+    watch: async (done, probe, { per = 6, timeout = 240000, onChange } = {}) => {
+      const t = Date.now();
+      let last = await p.evaluate(probe).catch(() => null);
+      for (;;) {
+        if (await p.evaluate(done).catch(() => false)) return true;
+        if (Date.now() - t > timeout) { console.log(name, '待ちきれない（watch）'); return false; }
+        const v = await p.evaluate(probe).catch(() => null);
+        if (v !== last) { last = v; if (onChange) await onChange(); await a.hold(per); }
+        else { await VT.step(p, 100); await new Promise((r) => setTimeout(r, 40)); }
+      }
+    },
+    /** sel が見える所まで、入れ物を n こまかけてなめらかにスクロールする */
+    scroll: async (sel, { block = 'start', n = 16, offset = 0 } = {}) => {
+      const plan = await p.evaluate(({ sel, block, offset }) => {
+        const el = document.querySelector(sel);
+        if (!el) return null;
+        let c = el.parentElement;
+        while (c && !(c.scrollHeight > c.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(c).overflowY))) c = c.parentElement;
+        c = c || document.scrollingElement;
+        const before = c.scrollTop;
+        el.scrollIntoView({ block });
+        const after = Math.max(0, c.scrollTop - offset);
+        c.scrollTop = before;
+        window.__scr = c;
+        return { before, after };
+      }, { sel, block, offset });
+      if (!plan) { console.log(name, 'スクロールの先がない', sel); return; }
+      for (let k = 1; k <= n; k++) {
+        const y = plan.before + (plan.after - plan.before) * ease(k / n);
+        await p.evaluate((y) => { window.__scr.scrollTop = y; }, y);
+        await a.shot();
+      }
+    },
+    /** 場面を整える（撮らない） */
+    settle: (ms = 800) => VT.ff(p, ms),
   };
-  try { await fn(api); } catch (e) { console.log(name, 'しくじり', e.message); }
-  fs.writeFileSync(`${D}meta.json`, JSON.stringify({ frames: i, marks, boxes }));
-  console.log(name, i, 'こま', JSON.stringify(marks));
+  try {
+    await fn(a);
+  } catch (e) {
+    console.log(name, 'しくじり', e.message.split('\n')[0]);
+  }
+  fs.writeFileSync(`${D}meta.json`, JSON.stringify({ frames: i, marks, boxes, cur: curs }));
   await b.close();
+  execFileSync(PY, ['-I', path.join(__dirname, 'tojpg.py'), D], { stdio: 'inherit' });
+  console.log(name, i, 'こま', Math.round((Date.now() - t0) / 1000), '秒', JSON.stringify(marks));
 }
 
-const studio = async (p) => {
-  await p.goto(`${BASE}/studio.html?nointro`, { waitUntil: 'networkidle' });
-  await p.waitForFunction(() => window.__studio?.session?.built, null, { timeout: 180000 });
-  await p.waitForTimeout(800);
+/** 継ぐのエディター（設計）を開いて、組み上がるまで待つ（撮らない） */
+const studio = async (a, { intro = false } = {}) => {
+  const { p } = a;
+  await p.goto(`${BASE}/studio.html?rec${intro ? '' : '&nointro'}`, { waitUntil: 'load' });
+  await a.until(() => !!(window.__studio && window.__studio.session && window.__studio.session.built && window.__viewer), null, { label: '組み上がり', chunk: 50 });
+  await a.settle(1200);
 };
 /** 工房 B（ネットの公開情報だけの帳面）を作り、三角の角の決まりだけ入れておく（撮らない） */
-const workshopB = async (p) => {
-  await p.click('.tabs [data-mode="refine"]'); await p.waitForTimeout(800);
+const workshopB = async (a) => {
+  const { p } = a;
+  await p.click('.tabs [data-mode="refine"]'); await a.settle(800);
   await p.evaluate(() => { const s = document.querySelector('.ws-pick'); s.value = '__new'; s.dispatchEvent(new Event('change')); });
-  await p.waitForTimeout(300); await p.fill('.ws-name', '工房 B'); await p.click('.ws-make'); await p.waitForTimeout(2500);
+  await a.settle(300); await p.fill('.ws-name', '工房 B'); await p.click('.ws-make'); await a.settle(2500);
   await p.evaluate(() => { document.querySelector('.manual-rule').open = true; });
   await p.selectOption('.mr-param', 'hold.cornerSet'); await p.fill('.mr-value', '1'); await p.fill('.mr-quote', '三角の石は、角に 1 本ずつの 3 本で留まる');
-  await p.click('.mr-go'); await p.waitForTimeout(2500);
+  await p.click('.mr-go'); await a.settle(2500);
   await p.evaluate(() => { document.querySelector('.manual-rule').open = false; document.querySelector('.studio-refine').scrollTop = 0; });
-  await p.waitForTimeout(800);
+  await a.settle(800);
 };
+const refine = async (a) => { await a.p.click('.tabs [data-mode="refine"]'); await a.settle(1000); };
+const openManual = async (a) => {
+  if (!(await a.p.locator('details.manual[open]').count())) { await a.p.click('details.manual > summary'); await a.settle(500); }
+};
+const specsText = (p) => p.evaluate(() => document.querySelector('.sb .specs')?.innerText.replace(/\s+/g, ' '));
 
 const CH = {
-  // 職人の一言：太い爪の指輪 → 言葉を打つ → Claude の案 → これでいい → 爪が変わる
+  // 組む：石の写真に輪郭 → 石が立体に → 線から指輪が組み上がる → 寸法 → 図面と作り方（工房 B ＝ ネットの公開情報だけ。爪が太い）
+  build: async (a) => {
+    const { p } = a;
+    await studio(a); await workshopB(a);
+    await p.click('.tabs [data-mode="make"]'); await a.settle(500);
+    await p.goto(`${BASE}/studio.html?rec`, { waitUntil: 'load' });
+    await a.until(() => { const s = document.querySelector('.intro-stage'); return s && !s.hidden; }, null, { label: '写真', chunk: 33 });
+    await a.box('photo', '.intro-frame', 10); a.mark('photo');
+    let stage = 'photo';
+    for (let k = 0; k < 600; k++) {
+      await a.shot({ hide: true });
+      const st = await p.evaluate(() => ({ stage: !document.querySelector('.intro-stage').hidden, sheet: !!document.querySelector('.intro-sheet'), disp: document.querySelector('.disp [aria-pressed="true"]')?.dataset.disp, timer: !!document.querySelector('.intro-timer') }));
+      if (stage === 'photo' && !st.stage) { stage = 'stone'; a.mark('stone'); await a.box('ring', '.vp', 0); }
+      if (stage === 'stone' && st.disp === 'wire') { stage = 'wire'; a.mark('wire'); }
+      if (stage === 'wire' && st.disp === 'shaded') { stage = 'shaded'; a.mark('shaded'); }
+      if (stage === 'shaded' && st.disp === 'render') { stage = 'render'; a.mark('render'); }
+      if (stage === 'render' && st.sheet) { stage = 'sheet'; a.mark('sheet'); await a.box('card', '.intro-sheet', 10); await a.box('timer', '.intro-timer', 10); }
+      if (stage === 'sheet' && !st.sheet && !st.timer) { stage = 'done'; a.mark('done'); break; }
+    }
+    await a.box('specs', '.sb .specs', 6); await a.box('ring2', '.vp', 0);
+    console.log('build の数字', await specsText(p));
+    await a.hold(45, { turn: 0.004, hide: true });
+  },
+  // 職人の一言：太い爪の指輪 → 言葉を打つ → Claude の案 → これでいい → 爪が変わる → 決まりを外して比べる（表）
   word: async (a) => {
     const { p } = a;
-    await studio(p); await workshopB(p);
-    await a.box('ring', '.vp', 0); a.mark('start');
-    await a.hold(30, 0.004);
+    await studio(a); await workshopB(a);
     await p.locator('.ar-text').scrollIntoViewIfNeeded(); await a.settle(300);
-    await a.box('field', '.rules-sec', 8); a.mark('type');
-    await a.type('.ar-text', 'この大きさの石なら、爪は最低 0.7 ミリ、基本は 0.8 から 1 ミリくらい。細すぎると曲がって石が落ちる。', 2);
-    await a.hold(8);
-    a.mark('go');
-    await a.press('.ar-go', { wait: 300 });
-    await p.waitForFunction(() => /これでいい/.test(document.querySelector('.ar-proposal')?.innerText || ''), null, { timeout: 150000 });
+    console.log('word 前の数字', await specsText(p));
+    await a.box('ring', '.vp', 0); await a.box('specs', '.sb .specs', 6); a.mark('start');
+    await a.hold(24, { turn: 0.004 });
+    await a.box('field', '.ar-text', 10); await a.box('rules', '.rules-sec', 8); a.mark('type');
+    await a.type('.ar-text', 'この大きさの石なら、爪は最低 0.7 ミリ、基本は 0.8 から 1 ミリくらい。細すぎると曲がって石が落ちる。', { each: 2 });
+    a.mark('typed');
+    await a.hold(6);
+    await a.box('go', '.ar-go', 8);
+    await a.press('.ar-go', { after: 0 });
+    a.mark('wait');
+    await a.hold(10);
+    await a.until(() => /これでいい/.test(document.querySelector('.ar-proposal')?.innerText || ''), null, { label: 'Claude の案', timeout: 180000 });
     await a.box('proposal', '.ar-proposal', 10); a.mark('proposal');
-    await a.hold(40);
-    await a.press('.ar-proposal button:has-text("これでいい")', { wait: 2500 });
-    await a.settle(1500);
-    await p.evaluate(() => document.querySelector('.rule-flash')?.scrollIntoView({ block: 'start' })); await a.settle(400);
-    await a.box('ring2', '.vp', 0); await a.box('flash', '.rule-flash', 10); a.mark('after');
-    await a.hold(60, 0.004);
+    await a.hold(36);
+    await a.box('ok', '.ar-proposal button.ok', 8);
+    await a.press('.ar-proposal button.ok', { after: 0 });
+    a.mark('applied');
+    await a.hold(30, { turn: 0.003 });
+    await a.box('flash', '.rule-flash', 10); await a.box('ring2', '.vp', 0); await a.box('specs2', '.sb .specs', 6); a.mark('after');
+    console.log('word 後の数字', await specsText(p));
+    await a.hold(50, { turn: 0.004 });
+    // 決まりを外して比べる：公開情報だけの形と、職人の決まりの形
+    await a.scroll('.compare-btn', { block: 'center', n: 14 });
+    await a.press('.compare-btn', { after: 6 });
+    a.mark('cmp');
+    await a.box('cmpTable', '.compare', 8); await a.box('ring3', '.vp', 0);
+    console.log('比べる', await p.evaluate(() => document.querySelector('.compare')?.innerText.replace(/\s+/g, ' ')));
+    await a.hold(60, { turn: 0.003 });
+    await a.press('.compare-back', { after: 4 });
+    a.mark('back');
+    await a.hold(30, { turn: 0.003 });
   },
-  // 確かめる：爪を細くしていくと、赤く光る。赤い所を押すと理由
-  thin: async (a) => {
+  // 確かめる：爪を細くしていくと、赤く点滅。「作れない所」を押す → どこが・なぜ・直す → Claude で直す
+  fix: async (a) => {
     const { p } = a;
-    await studio(p);
-    await p.click('.tabs [data-mode="refine"]'); await a.settle(1000);
-    if (!(await p.locator('details.manual[open]').count())) { await p.click('details.manual > summary'); await a.settle(500); }
+    await studio(a); await refine(a); await openManual(a);
     await p.locator('.slider[data-s="r-prong"]').scrollIntoViewIfNeeded(); await a.settle(300);
-    await a.box('slider', '.slider[data-s="r-prong"]', 16); await a.box('ring', '.vp', 0); a.mark('start');
-    for (let k = 0; k < 7; k++) { await a.press('.slider[data-s="r-prong"] .sl-step[data-d="-1"]', { n: k ? 4 : 14, wait: 500 }); await a.hold(3); }
+    await a.box('slider', '.slider[data-s="r-prong"]', 14); await a.box('ring', '.vp', 0); a.mark('start');
+    await a.hold(12, { turn: 0.003 });
+    for (let k = 0; k < 8; k++) {
+      const ok = await a.press('.slider[data-s="r-prong"] .sl-step[data-d="-1"]', { n: k ? 4 : 14, after: 3 });
+      if (!ok) break;
+      const n = await p.evaluate(() => window.__studio.session.built.problems.length);
+      if (n > 0 && k >= 2) break;
+    }
     a.mark('red');
-    await p.evaluate(() => document.querySelector('.studio-refine').scrollTop = 0); await a.settle(400);
-    await a.box('probs', '.probs', 10);
-    await a.hold(45, 0.003);
+    await a.box('chip', '.verdict-chip', 8);
+    await a.hold(40, { turn: 0.002 });
+    await a.press('.verdict-chip', { n: 16, after: 2 });
+    await a.box('pop', '.fix-pop', 10); a.mark('pop');
+    console.log('fix の札', await p.evaluate(() => document.querySelector('.fix-pop')?.innerText.replace(/\s+/g, ' ')));
+    await a.hold(45);
+    await a.press('.fix-pop .fp-claude', { after: 2 });
+    a.mark('claude');
+    await p.evaluate(() => document.querySelector('.fix-log')?.scrollIntoView({ block: 'center' }));
+    await a.box('log', '.fix-log', 10);
+    await a.watch(
+      () => !/直しています/.test(document.querySelector('.fix-log')?.innerText || '') && document.querySelectorAll('.fix-log li').length > 2,
+      () => document.querySelector('.fix-log')?.innerText.length || 0,
+      { per: 8, onChange: async () => { await p.evaluate(() => document.querySelector('.fix-log')?.scrollIntoView({ block: 'center' })); await a.box('log', '.fix-log', 10); } },
+    );
+    await p.evaluate(() => document.querySelector('.fix-log')?.scrollIntoView({ block: 'center' }));
+    await a.box('log', '.fix-log', 10); a.mark('fixed');
+    console.log('fix の記録', await p.evaluate(() => document.querySelector('.fix-log')?.innerText.replace(/\s+/g, ' ')));
+    await a.hold(30);
+    await a.box('chip2', '.verdict-chip', 8); await a.box('ring2', '.vp', 0);
+    await a.hold(40, { turn: 0.004 });
   },
-  // 描く：腕の断面を指で動かす → 薄すぎると赤
+  // 正面・横・上：パースのない平らな図。ワイヤー・シェード・レンダー
+  views: async (a) => {
+    const { p } = a;
+    await studio(a); await refine(a);
+    await a.box('ring', '.vp', 0); await a.box('tools', '.tools', 6); a.mark('start');
+    await a.hold(16, { turn: 0.004 });
+    for (const v of ['front', 'side', 'top']) {
+      await a.press(`.view-btn[data-view="${v}"]`, { n: 10, after: 2 });
+      a.mark(v); await a.box(`vp_${v}`, '.vp', 0);
+      await a.hold(26);
+    }
+    await a.press('.view-btn[data-view="angle"]', { n: 10, after: 2 }); a.mark('angle');
+    await a.hold(14, { turn: 0.004 });
+    await a.box('disp', '.disp', 6);
+    for (const d of ['wire', 'shaded', 'render']) {
+      await a.press(`.disp [data-disp="${d}"]`, { n: 10, after: 2 });
+      a.mark(d);
+      await a.hold(22, { turn: 0.004 });
+    }
+  },
+  // 描く：腕の断面を、自由に描く → なめらかな線に直る → 点を動かして薄くすると赤
   section: async (a) => {
     const { p } = a;
-    await studio(p);
-    await p.click('.tabs [data-mode="refine"]'); await a.settle(1000);
-    if (!(await p.locator('details.manual[open]').count())) { await p.click('details.manual > summary'); await a.settle(500); }
-    await p.locator('.sec-edit').scrollIntoViewIfNeeded(); await a.settle(500);
+    await studio(a); await refine(a); await openManual(a);
+    await a.p.evaluate(() => document.querySelector('.sec-edit')?.scrollIntoView({ block: 'center' })); await a.settle(400);
     await a.box('editor', '.sec-edit', 10); await a.box('ring', '.vp', 0); a.mark('start');
-    const dot = (await p.locator('.sec-edit .se-handles .dot, .sec-edit .hit').count()) > 1 ? p.locator('.sec-edit .se-handles .dot, .sec-edit .hit').nth(1) : p.locator('.sec-edit .se-handles .dot, .sec-edit .hit').first();
-    const bx = await dot.boundingBox();
-    const sx = bx.x + bx.width / 2, sy = bx.y + bx.height / 2;
-    await a.move('.sec-edit', 12);
-    await p.mouse.move(sx, sy); await p.mouse.down();
-    for (let k = 1; k <= 40; k++) { const u = k / 40; const x = sx + 30 * Math.sin(u * Math.PI) , y = sy + 60 * u; await p.mouse.move(x, y); await a.settle(120); await p.evaluate(({ x, y }) => { const c = document.getElementById('__cur'); if (c) { c.style.left = x + 'px'; c.style.top = y + 'px'; } }, { x, y }); await a.shot(0.4); }
-    await p.mouse.up(); await a.settle(2500);
-    a.mark('red');
-    await a.hold(40, 0.003);
+    await a.hold(10, { turn: 0.003 });
+    await a.press('.se-mode[data-mode="draw"]', { n: 14, after: 2 });
+    // SVG の mm の座標 → ページの px
+    const map = await p.evaluate(() => {
+      const svg = document.querySelector('.sec-edit svg'); const m = svg.getScreenCTM();
+      return { a: m.a, d: m.d, e: m.e, f: m.f };
+    });
+    const px = (x, y) => ({ x: map.a * x + map.e, y: map.d * y + map.f });
+    // 外側を、右の端 → 上 → 左の端へなぞる（高めの丸い断面）。y は上が負（SVG の上向き）
+    const pts = [];
+    for (let k = 0; k <= 36; k++) { const u = k / 36; const th = Math.PI * u; pts.push(px(1.5 * Math.cos(th), -0.05 - 2.1 * Math.pow(Math.sin(th), 0.8))); }
+    await a.move(pts[0], 10);
+    await p.mouse.down();
+    a.mark('draw');
+    for (const q of pts.slice(1)) await a.move(q, 1, { rip: 0.15 });
+    await p.mouse.up();
+    a.mark('drawn');
+    await a.hold(30, { turn: 0.004 });
+    await a.box('editor2', '.sec-edit', 10);
+    // 点を動かす：いちばん上の点を下へ（薄くする）
+    await a.press('.se-mode[data-mode="move"]', { n: 12, after: 2 });
+    const top = await p.evaluate(() => {
+      const hs = [...document.querySelectorAll('.sec-edit .se-handles .se-h:not(.end)')];
+      let best = null; for (const h of hs) { const r = h.getBoundingClientRect(); if (!best || r.y < best.y) best = { x: r.x + r.width / 2, y: r.y + r.height / 2 }; }
+      return best;
+    });
+    if (top) {
+      await a.move(top, 12);
+      await p.mouse.down();
+      a.mark('thin');
+      for (let k = 1; k <= 30; k++) { const q = { x: top.x, y: top.y + (k / 30) * (map.d * 1.75) }; await a.move(q, 1, { rip: 0.15 }); }
+      await p.mouse.up();
+      a.mark('thinned');
+      await a.hold(40, { turn: 0.003 });
+    }
   },
-  // 見せる：全画面の黒。押して切り替える
+  // 見せる：全画面の黒。押して、石の大きさ・腕の断面・留め方・地金を切り替える
   present: async (a) => {
     const { p } = a;
-    await studio(p);
-    await p.evaluate(() => [...document.querySelectorAll('.presets button')].find((x) => x.textContent.trim() === 'ラウンド').click()); await a.settle(7000);
-    await p.evaluate(() => window.__studio.session.setShank({ metal: 'pt900', reason: 'story' })); await a.settle(1200);
+    await studio(a);
     a.mark('start');
-    await a.press('.act-present', { wait: 2500 });
-    await p.evaluate(() => { window.__viewer.setAutoRotate(false); });
-    await a.box('panel', '.pr-panel', 20); a.mark('present');
-    await a.hold(30, 0.006);
-    for (const v of ['5', '8', '10', '6.5']) { await a.press(`.pr-opt button[data-v="${v}"]`, { n: 10, wait: 1200 }); await a.hold(16, 0.006); }
-    await a.press('.pr-tabs button[data-g="section"]', { n: 8, wait: 200 });
-    for (const v of ['hirauchi', 'kaku', 'kouman']) { await a.press(`.pr-opt button[data-v="${v}"]`, { n: 8, wait: 1200 }); await a.hold(14, 0.006); }
-    await a.press('.pr-tabs button[data-g="setting"]', { n: 8, wait: 200 });
-    for (const v of ['6', 'bezel', '4']) { await a.press(`.pr-opt button[data-v="${v}"]`, { n: 8, wait: 1500 }); await a.hold(16, 0.006); }
-    await a.press('.pr-tabs button[data-g="metal"]', { n: 8, wait: 200 });
-    for (const v of ['k18yg', 'k18pg', 'pt900']) { await a.press(`.pr-opt button[data-v="${v}"]`, { n: 8, wait: 1000 }); await a.hold(14, 0.006); }
+    await a.hold(6);
+    await a.press('.act-present', { n: 16, after: 0 });
+    await a.settle(200);
+    a.mark('present');
+    await a.box('panel', '.pr-panel', 20); await a.box('ring', '.vp', 0);
+    await a.hold(30);
+    const groups = { stone: ['5', '8', '10', '6.5'], section: null, setting: ['6', 'bezel', '4'], metal: ['pt900', 'k18pg', 'k18wg', 'k18yg'] };
+    for (const [g, vals] of Object.entries(groups)) {
+      if (g !== 'stone') { await a.press(`.pr-tabs button[data-g="${g}"]`, { n: 8, after: 2 }); }
+      const list = vals || (await p.evaluate(() => [...document.querySelectorAll('.pr-opt button')].map((b) => b.dataset.v).filter((v) => v !== 'free')));
+      const order = g === 'section' ? [...list.filter((v) => v !== 'kouman'), 'kouman'] : list;
+      a.mark(g);
+      for (const v of order) {
+        await a.press(`.pr-opt button[data-v="${v}"]`, { n: 8, after: 0 });
+        a.mark(`${g}_${v}`);
+        await a.hold(13);
+      }
+    }
     a.mark('end');
+    await a.hold(20);
   },
-  // Claude が聞きに来る：質問 → 答えを打つ → 案 → 帳面に入れる
+  // Claude が聞きに来る：帳面 → Claude から質問 → 答える → 打つ → 案 → 帳面に入れる
   ask: async (a) => {
     const { p } = a;
-    await p.goto(`${BASE}/app.html?nointro#waza/ring`, { waitUntil: 'networkidle' });
-    await p.waitForFunction(() => /Claude が聞いています/.test(document.body.innerText), null, { timeout: 60000 }).catch(() => {});
-    await p.waitForFunction(() => document.querySelector('.iv-q')?.innerText.length > 5, null, { timeout: 90000 }).catch(() => {});
-    await a.settle(1500);
-    await a.box('card', '.iv-q', 120); a.mark('question');
+    await p.goto(`${BASE}/app.html?nointro#ledger`, { waitUntil: 'load' });
+    await a.until(() => !!document.querySelector('.rule-card, .rule-cards li'), null, { label: '帳面' });
+    await a.settle(800);
+    await a.box('cards', '.rule-cards', 10); a.mark('ledger');
+    await a.hold(20);
+    await a.scroll('.iv-card', { block: 'center', n: 18 });
+    await a.box('question', '.iv-card', 14); a.mark('question');
+    console.log('ask の質問', await p.evaluate(() => document.querySelector('.iv-card')?.innerText.replace(/\s+/g, ' ')));
+    await a.hold(26);
+    await a.press('.iv-card .answer', { after: 2 });
+    await a.until(() => { const q = document.querySelector('.iv-q'); return q && !q.classList.contains('pending') && /Claude が聞いています/.test(document.body.innerText); }, null, { label: 'Claude の問い', timeout: 120000 });
+    await a.settle(300);
+    await p.evaluate(() => document.querySelector('.iv-card')?.scrollIntoView({ block: 'start' })); await a.settle(200);
+    await a.box('interview', '.iv-card', 12); a.mark('asked');
+    console.log('ask の問い（Claude）', await p.evaluate(() => document.querySelector('.iv-q')?.innerText));
     await a.hold(30);
-    await a.type('textarea[aria-label="答え"]', '5.5 ミリくらいの石なら、0.65 ミリはほしい', 2);
+    await a.box('answer', '.answer-box textarea', 10);
+    await a.type('.answer-box textarea', '5.5 ミリくらいの石なら、0.65 ミリはほしい', { each: 2 });
+    await a.hold(6);
+    await a.press('.answer-box button.make', { after: 0 });
+    a.mark('wait');
     await a.hold(8);
-    await a.press('button.make', { wait: 300 });
-    await p.waitForFunction(() => /帳面に入れる/.test(document.body.innerText), null, { timeout: 150000 });
-    await a.settle(500);
-    await a.box('draft', 'button[data-a="ok"]', 260); a.mark('draft');
+    await a.until(() => /帳面に入れる/.test(document.querySelector('.proposal-slot')?.innerText || ''), null, { label: 'Claude の決まり', timeout: 180000 });
+    await a.settle(200);
+    await a.box('draft', '.proposal-slot .proposal', 10); a.mark('draft');
+    console.log('ask の案', await p.evaluate(() => document.querySelector('.proposal-slot')?.innerText.replace(/\s+/g, ' ')));
     await a.hold(40);
-    await a.press('button[data-a="ok"]', { wait: 1500 });
+    await a.press('.proposal-slot [data-a="ok"]', { after: 6 });
     a.mark('saved');
-    await a.hold(30);
+    await a.scroll('.rule-cards', { block: 'start', n: 20, offset: 80 });
+    await a.box('cards2', '.rule-cards', 10);
+    await a.hold(40);
   },
-  // 作り方：工程のカード → 詳しく → 言葉を押すと意味 → 図面
+  // 工房ごとに：同じ指輪を、工房 A（職人の決まり）と工房 B（公開情報だけ）で。帳面ごとに比べる表
+  workshops: async (a) => {
+    const { p } = a;
+    await studio(a); await workshopB(a);
+    // 工房 A に戻してから撮る
+    const mainVal = await p.evaluate(() => document.querySelector('.ws-pick option').value);
+    await p.selectOption('.ws-pick', mainVal); await a.settle(2000);
+    await p.evaluate(() => { document.querySelector('.studio-refine').scrollTop = 0; });
+    await a.box('ring', '.vp', 0); await a.box('bar', '.ws-bar', 8); a.mark('A');
+    console.log('工房 A', await specsText(p));
+    await a.hold(30);
+    const bVal = await p.evaluate(() => [...document.querySelectorAll('.ws-pick option')].find((o) => /工房 B/.test(o.textContent))?.value);
+    await a.move('.ws-pick', 14); await a.shot({ rip: 1 });
+    await p.selectOption('.ws-pick', bVal); await a.shot({ rip: 0.6 }); await a.shot({ rip: 0.3 });
+    a.mark('B');
+    console.log('工房 B', await specsText(p));
+    await a.hold(30);
+    await a.press('.ws-cmp', { after: 4 });
+    await a.box('table', '.ws-table', 8); a.mark('table');
+    console.log('帳面ごと', await p.evaluate(() => document.querySelector('.ws-table')?.innerText.replace(/\s+/g, ' ')));
+    await a.hold(45);
+  },
+  // 作り方：工程の札 → 詳しく → 言葉を押すと意味 → 図面
   make: async (a) => {
     const { p } = a;
-    await studio(p);
-    await a.press('.tabs [data-mode="hand"]', { wait: 1500 });
+    await studio(a);
+    await a.hold(4);
+    await a.press('.tabs [data-mode="hand"]', { after: 2 });
     await a.box('cards', '.build-panel', 0); a.mark('cards');
-    await a.hold(24);
-    await a.press('.build-panel button:has-text("詳しく"), .build-panel summary:has-text("詳しく")', { wait: 600 });
     await a.hold(16);
-    await a.press('.build-panel .term', { wait: 500 });
-    await a.hold(30);
+    await a.press('.build-panel .method button[data-m="cast"]', { n: 12, after: 2 }); a.mark('cast');
+    await a.hold(18);
+    await a.press('.build-panel .method button[data-m="hand"]', { n: 8, after: 2 }); a.mark('hand');
+    await a.hold(10);
+    const det = await p.evaluate(() => { const d = [...document.querySelectorAll('.build-panel details.more > summary')]; return d.length; });
+    if (det) {
+      await a.scroll('.build-panel details.more', { block: 'center', n: 14 });
+      await a.press('.build-panel details.more > summary', { after: 4 });
+      a.mark('more');
+      await a.hold(16);
+      if (await p.locator('.build-panel details.more[open] .term').count()) {
+        await a.press('.build-panel details.more[open] .term', { after: 4 });
+        a.mark('term');
+        await a.hold(26);
+      }
+    }
+    await a.scroll('.build-panel .p-instr', { block: 'center', n: 22 });
+    a.mark('scrolled');
+    await a.hold(10);
+    await a.press('.disp [data-disp="draw"]', { after: 2 });
     a.mark('draw');
-    await a.press('.disp [data-disp="draw"]', { wait: 3500 });
+    await a.settle(300);
     await a.box('sheet', '.vp', 0);
-    await a.hold(40);
+    await a.hold(50);
+  },
+  // 学ぶ：次の人が、職人の決まりに聞く
+  learn: async (a) => {
+    const { p } = a;
+    await p.goto(`${BASE}/app.html?nointro#learn`, { waitUntil: 'load' });
+    await a.settle(1500);
+    await a.box('page', '.view.ask', 0); a.mark('start');
+    await a.hold(16);
+    await a.box('composer', '.composer', 10);
+    await a.type('.composer textarea', '三角の石は、爪 3 本で大丈夫ですか？', { each: 2 });
+    await a.hold(6);
+    await a.press('.composer .send', { after: 6 });
+    a.mark('wait');
+    await a.until(() => !!document.querySelector('.thread .a-short'), null, { label: '学ぶの答え', timeout: 180000 });
+    await a.settle(300);
+    await a.box('answer', '.thread', 10); a.mark('answer');
+    console.log('学ぶの答え', await p.evaluate(() => document.querySelector('.thread')?.innerText.replace(/\s+/g, ' ')));
+    await a.hold(30);
+    if (await p.locator('.thread .why-btn').count()) {
+      await a.press('.thread .why-btn', { after: 4 });
+      a.mark('why');
+      await a.box('why', '.thread .a-why', 10);
+      await a.hold(40);
+    }
+  },
+  // 魚々子：Claude が「打つ位置のずれ」を聞く → 職人が答える → 決まり → ずれた粒だけが赤くなる。荒らし（重ねる）にも
+  nanako: async (a) => {
+    const { p } = a;
+    await p.goto(`${BASE}/app.html?nointro#waza/nanako?gap=nanako:strike.maxOffsetMm`, { waitUntil: 'load' });
+    await a.settle(1200);
+    await p.evaluate(() => { window.scrollTo(0, 0); });
+    await a.settle(300);
+    await a.box('svg', '.nk-svg', 8); await a.box('preview', '.nk-preview', 8); a.mark('start');
+    await a.hold(14);
+    const drag = async (key, to, frames = 24) => {
+      const r = await p.evaluate((key) => { const i = document.querySelector(`.nk-ctrl input[data-k="${key}"]`); const b = i.getBoundingClientRect(); return { x: b.x, y: b.y + b.height / 2, w: b.width, min: +i.min, max: +i.max, v: +i.value }; }, key);
+      const xOf = (v) => r.x + 8 + ((v - r.min) / (r.max - r.min)) * (r.w - 16);
+      await a.move({ x: xOf(r.v), y: r.y }, 12);
+      await p.mouse.down();
+      for (let k = 1; k <= frames; k++) { const v = r.v + (to - r.v) * ease(k / frames); await a.move({ x: xOf(v), y: r.y }, 1, { rip: 0.15 }); }
+      await p.mouse.up();
+    };
+    await drag('rows', 10, 16); a.mark('rows');
+    await a.hold(8);
+    // Claude の質問（打つ位置のずれ）
+    await a.until(() => { const q = document.querySelector('.iv-root .iv-q'); return q && !q.classList.contains('pending'); }, null, { label: '魚々子の問い', timeout: 120000 });
+    await a.scroll('.iv-root', { block: 'start', n: 20, offset: 40 });
+    await a.box('ask', '.iv-root', 10); a.mark('ask');
+    console.log('魚々子の質問', await p.evaluate(() => document.querySelector('.iv-root .iv-q')?.innerText));
+    await a.hold(30);
+    await a.type('.iv-root textarea', 'はい。0.1 ミリまで。それよりずれると、後の粒がそろわない', { each: 2 });
+    await a.hold(4);
+    await a.press('.iv-root button.make', { after: 0 });
+    a.mark('wait');
+    await a.hold(6);
+    await a.until(() => /帳面に入れる/.test(document.querySelector('.iv-root .proposal-slot')?.innerText || ''), null, { label: '魚々子の決まり', timeout: 180000 });
+    await a.settle(200);
+    await a.box('draft', '.iv-root .proposal', 10); a.mark('draft');
+    console.log('魚々子の案', await p.evaluate(() => document.querySelector('.iv-root .proposal-slot')?.innerText.replace(/\s+/g, ' ')));
+    await a.hold(30);
+    await a.press('.iv-root [data-a="ok"]', { after: 4 });
+    a.mark('saved');
+    await a.scroll('.nk-preview', { block: 'start', n: 22, offset: 20 });
+    await a.box('svg2', '.nk-svg', 8); await a.box('preview2', '.nk-preview', 8);
+    await a.hold(6);
+    await drag('offsetMm', 0.22, 36); a.mark('offset');
+    await a.box('verdict', '.nk-verdict', 8);
+    console.log('魚々子', await p.evaluate(() => document.querySelector('.nk-verdict')?.innerText));
+    await a.hold(30);
+    await a.press('.nk-layout button[data-layout="arashi"]', { after: 2 }); a.mark('arashi');
+    await a.hold(26);
+  },
+  // 組み立て直す：手がかりだけから、Claude が作り方を組み立てる → 答え合わせ
+  rebuild: async (a) => {
+    const { p } = a;
+    await p.goto(`${BASE}/app.html?nointro#waza/rebuild`, { waitUntil: 'load' });
+    await a.settle(1500);
+    await a.box('page', '.view', 0); a.mark('start');
+    await a.hold(16);
+    await a.press('.actions .go', { after: 4 });
+    a.mark('wait');
+    await a.until(() => !!document.querySelector('.steps-h li'), null, { label: '組み立て', timeout: 300000 });
+    await a.settle(400);
+    await a.box('steps', '.steps-h', 10); a.mark('steps');
+    console.log('組み立て直す', await p.evaluate(() => document.querySelector('.steps-h')?.innerText.slice(0, 300).replace(/\s+/g, ' ')));
+    await a.hold(20);
+    await a.scroll('.steps-h li:nth-child(3)', { block: 'center', n: 30 });
+    await a.hold(10);
+    if (await p.locator('.actions .check').count()) {
+      await a.scroll('.actions', { block: 'center', n: 24 });
+      await a.press('.actions .check', { after: 4 });
+      a.mark('check');
+      await a.until(() => !!document.querySelector('.score'), null, { label: '答え合わせ', timeout: 300000 });
+      await a.settle(400);
+      await p.evaluate(() => document.querySelector('.score')?.scrollIntoView({ block: 'center' }));
+      await a.box('score', '.score', 12); a.mark('score');
+      console.log('答え合わせ', await p.evaluate(() => document.querySelector('.score')?.innerText.replace(/\s+/g, ' ')));
+      await a.hold(30);
+      await a.scroll('.steps-h li:nth-child(2)', { block: 'center', n: 26 });
+      await a.hold(30);
+    }
   },
 };
 
 (async () => {
   const names = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(CH);
-  for (const n of names) await chapter(n, CH[n]);
+  for (const n of names) {
+    if (!CH[n]) { console.log('ない章', n); continue; }
+    await chapter(n, CH[n]);
+  }
 })();

@@ -1,5 +1,5 @@
 # 仮の動画の声を、人に近い機械の声で読ませる（本番は作者の声に替えるかもしれない）。
-# 使い方：python -I tts_kokoro.py <scenes.json> <出力の前置き> <出力のフォルダ> [声]   例：python -I tts_kokoro.py scenes11.json k_ work/voice jm_kumo
+# 使い方：python -I tts_kokoro.py <scenes.json か final.json> <出力の前置き> <出力のフォルダ> [声]   例：python -I tts_kokoro.py final.json k_ work/voice jm_kumo
 # 要るもの：kokoro-onnx（MIT）と Kokoro-82M の重みと声（Apache-2.0。work/kokoro/ に置く。リポジトリには入れない）、misaki[ja]、unidic-lite
 import json, subprocess, sys, os
 import soundfile as sf
@@ -13,13 +13,16 @@ k = Kokoro(f"{here}/work/kokoro/kokoro-v1.0.onnx", f"{here}/work/kokoro/voices-v
 g2p = ja.JAG2P()
 # 数字・名前・英字の読み（機械が読み違えるもの）
 R = [("Claude Code", "クロード・コード"), ("Claude", "クロード"), ("AI", "エーアイ"), ("CAD", "キャド"),
-     ("1.66 ミリ", "いってんろくろくミリ"), ("0.7 ミリ", "れいてんななミリ"), ("0.7 ミリ、", "れいてんななミリ、"), ("0.8 ミリから 1 ミリ", "れいてんはちミリから、いちミリ"), ("0.8 から 1 ミリ", "れいてんはちから、いちミリ"),
+     ("1.66 ミリ", "いってんろくろくミリ"), ("3.2 グラム", "さんてんにグラム"), ("2.5 グラム", "にてんごグラム"), ("0.7、", "れいてんなな、"), ("0.8 から 1 ミリ", "れいてんはちから、いちミリ"), ("24 年", "にじゅうよねん"), ("6 割", "ろくわり"), ("清書", "せいしょ"), ("組み立て直す", "くみたてなおす"), ("帳面", "ちょうめん"), ("0.7 ミリ", "れいてんななミリ"), ("0.7 ミリ、", "れいてんななミリ、"), ("0.8 ミリから 1 ミリ", "れいてんはちミリから、いちミリ"), ("0.8 から 1 ミリ", "れいてんはちから、いちミリ"),
      ("20 年", "にじゅうねん"), ("2 回ほど", "にかいほど"), ("1 時間", "いちじかん"),
      ("伊勢神宮", "いせじんぐう"), ("式年遷宮", "しきねんせんぐう"), ("御装束神宝", "おしょうぞくしんぽう"),
      ("宝飾", "ほうしょく"), ("彫金", "ちょうきん"), ("継ぐ", "つぐ"), ("鋳造", "ちゅうぞう"), ("暗黙知", "あんもくち"), ("魚々子", "ななこ"), ("金工", "きんこう"), ("3D", "スリーディー"), ("帳面", "ちょうめん"), ("工房", "こうぼう"), ("石留め", "いしどめ"), ("爪", "つめ")]
-for i, s in enumerate(json.load(open(scenes))):
-    text = s["say"].strip()
-    dst = f"{out}/{prefix}{i}.wav"
+data = json.load(open(scenes))
+# 最終案（final.json）：{"voice": [{"n": 場面の番号, "text": 言葉}]} → <前置き>n<番号>.wav
+items = [(f"n{v['n']}", v["text"], f"場面 {v['n']}") for v in data["voice"]] if isinstance(data, dict) else [(str(i), s["say"], s["name"]) for i, s in enumerate(data)]
+for key, say, name in items:
+    text = say.strip()
+    dst = f"{out}/{prefix}{key}.wav"
     if not text:
         subprocess.run(["ffmpeg", "-y", "-v", "error", "-f", "lavfi", "-i", "anullsrc=r=48000:cl=stereo", "-t", "0.2", dst], check=True)
         continue
@@ -31,4 +34,4 @@ for i, s in enumerate(json.load(open(scenes))):
     sf.write(tmp, a, sr)
     subprocess.run(["ffmpeg", "-y", "-v", "error", "-i", tmp, "-af", "loudnorm=I=-16:TP=-1.5", "-ar", "48000", "-ac", "2", dst], check=True)
     os.remove(tmp)
-    print(i, s["name"])
+    print(key, name)

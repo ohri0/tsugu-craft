@@ -1,0 +1,97 @@
+# 最終案を、はじめから終わりまで組む（画面 → 音楽 → 効果音 → 声 → 混ぜる）。
+# 使い方：python -I final.py [--no-video] [--jobs 12]
+#  1. final_build.py：台本（final.json。拍で書いた場面・言葉・音楽・声）
+#  2. reel.py：本物の画面のこまに、カメラ・つなぎ・大きな言葉 → work/vc/final_video.mp4（＋効果音の合図）
+#  3. bgm3.py：音楽（自作）　4. sfx.py：効果音（自作）
+#  5. 声：作者の録音 work/voice/n<場面>.wav があればそれ、なければ機械の声 work/voice/k_n<場面>.wav（tts_kokoro.py）
+#  6. 混ぜる → work/vc/継ぐ_デモ_最終案1.mp4（音楽と効果音だけ）と、声入り（_仮声 か _声）
+import json, os, subprocess, sys
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+WORK = os.environ.get("TSUGU_VIDEO_WORK", os.path.join(HERE, "work"))
+VC = os.path.join(WORK, "vc")
+PY = sys.executable
+NAME = os.environ.get("NAME", "継ぐ_デモ_最終案1")
+args = sys.argv[1:]
+jobs = args[args.index("--jobs") + 1] if "--jobs" in args else "12"
+
+
+def run(cmd, **kw):
+    print("→", " ".join(os.path.basename(c) if i < 3 else c for i, c in enumerate(cmd))[:160])
+    subprocess.run(cmd, check=True, **kw)
+
+
+def dur(f):
+    return float(subprocess.check_output(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", f]).decode())
+
+
+os.makedirs(VC, exist_ok=True)
+run([PY, "-I", os.path.join(HERE, "final_build.py")])
+tl = json.load(open(os.path.join(HERE, "final.json")))
+total = tl["len"] * 60 / tl.get("bpm", 120)
+video = os.path.join(VC, "final_video.mp4")
+cues = os.path.join(VC, "final_video_cues.json")
+if "--no-video" not in args or not os.path.exists(video):
+    run([PY, "-I", os.path.join(HERE, "reel.py"), os.path.join(HERE, "final.json"), video, jobs])
+bgm = os.path.join(VC, "final_bgm.wav")
+run([PY, "-I", os.path.join(HERE, "bgm3.py"), os.path.join(HERE, "final.json"), bgm])
+fx = os.path.join(VC, "final_sfx.wav")
+run([PY, "-I", os.path.join(HERE, "sfx.py"), cues, fx, str(total)])
+
+# ---- 声を並べる（場面の頭の拍 ＋ 0.15 秒。前の声が長ければ、終わって 0.3 秒あけてから）
+VO = os.path.join(WORK, "voice")
+lines, mine = [], 0
+prev_end = 0.0
+for v in sorted(tl["voice"], key=lambda x: x["at"]):
+    own = os.path.join(VO, f"n{v['n']}.wav")
+    tts = os.path.join(VO, f"k_n{v['n']}.wav")
+    f = own if os.path.exists(own) else tts if os.path.exists(tts) else None
+    if not f:
+        continue
+    mine += f == own
+    at = max(v["at"] * 60 / tl.get("bpm", 120) + 0.15, prev_end + 0.3)
+    prev_end = at + dur(f)
+    lines.append((f, at))
+    if prev_end > total:
+        print("声が長すぎて、終わりを越えます：", v["n"])
+print("声", len(lines), "（作者の録音", mine, "）")
+
+
+def loud(src, dst, target=-14.0):
+    """2 回で、聞こえる大きさをそろえる（YouTube の目安 -14 LUFS、頭打ち -1.5 dB）"""
+    out = subprocess.run(["ffmpeg", "-hide_banner", "-i", src, "-af", f"loudnorm=I={target}:TP=-1.5:LRA=11:print_format=json", "-f", "null", "-"], capture_output=True, text=True).stderr
+    j = json.loads(out[out.rindex("{") : out.rindex("}") + 1])
+    flt = f"loudnorm=I={target}:TP=-1.5:LRA=11:measured_I={j['input_i']}:measured_TP={j['input_tp']}:measured_LRA={j['input_lra']}:measured_thresh={j['input_thresh']}:offset={j['target_offset']}:linear=true"
+    run(["ffmpeg", "-v", "error", "-y", "-i", src, "-af", flt, "-ar", "48000", dst])
+
+
+# ---- 音楽と効果音だけ
+mixA = os.path.join(VC, "_mixA.wav")
+run(["ffmpeg", "-v", "error", "-y", "-i", bgm, "-i", fx, "-filter_complex",
+     f"[0:a]atrim=0:{total},volume=0.85[m];[1:a]atrim=0:{total},volume=0.42[f];[m][f]amix=inputs=2:normalize=0,afade=t=out:st={total - 3}:d=3[a]",
+     "-map", "[a]", mixA])
+mixA2 = os.path.join(VC, "_mixA2.wav")
+loud(mixA, mixA2)
+outA = os.path.join(VC, f"{NAME}.mp4")
+run(["ffmpeg", "-v", "error", "-y", "-i", video, "-i", mixA2, "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", "-b:a", "256k", "-shortest", outA])
+
+# ---- 声入り（声が出ている間、音楽を下げる）
+if lines:
+    ins, flt = ["-i", bgm, "-i", fx], []
+    for k, (f, at) in enumerate(lines):
+        ins += ["-i", f]
+        ms = int(at * 1000)
+        flt.append(f"[{k + 2}:a]aresample=48000,aformat=channel_layouts=stereo,adelay={ms}|{ms}[v{k}]")
+    flt.append("".join(f"[v{k}]" for k in range(len(lines))) + f"amix=inputs={len(lines)}:normalize=0,apad,atrim=0:{total},volume=1.0,asplit=2[vo][vk]")
+    flt.append(f"[0:a]atrim=0:{total},volume=0.75[m]")
+    flt.append("[m][vk]sidechaincompress=threshold=0.025:ratio=7:attack=25:release=420:makeup=1[md]")
+    flt.append(f"[1:a]atrim=0:{total},volume=0.3[f]")
+    flt.append(f"[vo][md][f]amix=inputs=3:normalize=0,afade=t=out:st={total - 3}:d=3[a]")
+    mixB = os.path.join(VC, "_mixB.wav")
+    run(["ffmpeg", "-v", "error", "-y", *ins, "-filter_complex", ";".join(flt), "-map", "[a]", mixB])
+    mixB2 = os.path.join(VC, "_mixB2.wav")
+    loud(mixB, mixB2)
+    outB = os.path.join(VC, f"{NAME}_{'声' if mine == len(lines) else '仮声'}.mp4")
+    run(["ffmpeg", "-v", "error", "-y", "-i", video, "-i", mixB2, "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", "-b:a", "256k", "-shortest", outB])
+    print("できた：", outB)
+print("できた：", outA, round(total, 1), "秒")
