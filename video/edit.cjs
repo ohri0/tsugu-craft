@@ -12,7 +12,7 @@ const dur = (f) => Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries
   const b = await chromium.launch(); const p = await b.newPage({ viewport: { width: 1920, height: 1080 } });
   const shoot = async (q, out, n) => { await p.goto(`file://${VIDEO}/${process.env.OVERLAY || 'ov3.html'}?n=${n}#${encodeURIComponent(JSON.stringify(q))}`); await p.waitForTimeout(200); await p.screenshot({ path: out, omitBackground: true }); };
   const clips = []; let n = 0; const used = []; const missing = [];
-  let t = 0; const voices = [];
+  let t = 0; const voices = []; const sfx = [];
   for (const [si, sc] of scenes.entries()) {
     const ov = `${M}/ov${si}.png`; await shoot({ ...sc, mode: 'ov' }, ov, n++);
     const vname = process.env.VOICE === 'tts' ? `${process.env.VPREFIX || 't'}${si}` : sc.voice;
@@ -22,8 +22,16 @@ const dur = (f) => Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries
     const shots = vids.length ? vids.map((v) => ({ v })) : sc.shots;
     const fixed = shots.reduce((a, x) => a + (x.d ?? 0), 0);
     const flex = shots.filter((x) => !x.d).length;
+    let st = 0;
     for (const [k, sh] of shots.entries()) {
       const each = sh.d ?? (sc.d - fixed) / (flex || 1);
+      // 効果音：切り替わりにシュッ、寄るときにドン、打つ所にキー、押す所にカチッ（時刻はカットの頭からの秒）
+      const at0 = t + st;
+      if (si > 0 || k > 0) sfx.push({ k: 'whoosh', at: at0 - 0.12 });
+      if (sh.zoom && sh.zoom[1] > sh.zoom[0] + 0.15) sfx.push({ k: 'hit', at: at0 + 0.05 });
+      for (const ty of sh.type ?? []) for (let q = 0; q < ty.n; q++) sfx.push({ k: 'key', at: at0 + ty.at + q * (ty.gap ?? 0.07) });
+      for (const c of sh.click ?? []) sfx.push({ k: 'click', at: at0 + c });
+      st += each;
       const out = `${M}/c${String(clips.length).padStart(3, '0')}.mp4`;
       const fades = `fade=t=in:st=0:d=0.25,fade=t=out:st=${(each - 0.25).toFixed(2)}:d=0.25`;
       if (sh.seq) {
@@ -39,7 +47,7 @@ const dur = (f) => Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries
         // frame：本物の画面を、上に見出しの帯をあけて大きく置く（見出しと画面が重ならないように）
         const fr = sh.frame ? `scale=1520:855:force_original_aspect_ratio=decrease,pad=1920:1080:200:205:color=black,drawbox=x=199:y=204:w=1522:h=857:color=0x2a2a2e:t=1,` : `scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2:color=0x111113,`;
         // zoom：[はじめの倍率, おわりの倍率, 寄る所の横 0〜1, 縦 0〜1]。画面の大事な所へ、ゆっくり寄る
-        const zm = sh.zoom ? (() => { const [z0, z1, fx, fy] = sh.zoom; const n = Math.max(1, Math.round(each * 30)); return `fps=30,scale=1920:1080,zoompan=z='${z0}+(${z1}-${z0})*on/${n}':x='(iw-iw/zoom)*${fx}':y='(ih-ih/zoom)*${fy}':d=1:s=1920x1080:fps=30,`; })() : '';
+        const zm = sh.zoom ? (() => { const [z0, z1, fx, fy] = sh.zoom; const n = Math.max(1, Math.round(each * 30)); return `fps=30,scale=1920:1080,zoompan=z='${z0}+(${z1}-${z0})*min(1\\,on/${sh.punch === false ? n : 10})':x='(iw-iw/zoom)*${fx}':y='(ih-ih/zoom)*${fy}':d=1:s=1920x1080:fps=30,`; })() : '';
         const vf = `[0:v]setpts=(PTS-STARTPTS)/${sp},${cr}${zm}${fr}fps=30,tpad=stop_mode=clone:stop_duration=60,trim=duration=${each.toFixed(3)},format=rgba[bg];[bg][1:v]overlay=0:0,${fades},format=yuv420p[v]`;
         execFileSync('ffmpeg', ['-v', 'error', '-y', '-ss', String(sh.from ?? 0), '-i', src, '-loop', '1', '-i', ov, '-filter_complex', vf, '-map', '[v]', '-an', '-t', each.toFixed(3), '-r', '30', '-c:v', 'libx264', '-crf', '20', '-preset', 'veryfast', out]);
       } else if (sh.v) {
@@ -62,6 +70,7 @@ const dur = (f) => Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries
     t += sc.d;
   }
   await b.close();
+  fs.writeFileSync(`${S}/sfx.json`, JSON.stringify(sfx));
   fs.writeFileSync(`${M}/list.txt`, clips.map((c) => `file '${c}'`).join('\n') + '\n');
   const silent = `${M}/video.mp4`;
   execFileSync('ffmpeg', ['-v', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', `${M}/list.txt`, '-c', 'copy', silent]);
@@ -69,7 +78,12 @@ const dur = (f) => Number(execFileSync('ffprobe', ['-v', 'error', '-show_entries
   let prev = 0; const args = ['-v', 'error', '-y', '-i', silent]; const flt = [];
   voices.forEach((x, i) => { const at = Math.max(x.at, prev + 0.4); prev = at + dur(x.f); args.push('-i', x.f); const ms = Math.round(at * 1000); flt.push(`[${i + 1}:a]adelay=${ms}|${ms}[a${i}]`); });
   const out = process.env.OUT ? `${S}/${process.env.OUT}` : process.env.VOICE === 'tts' ? `${S}/継ぐ_仮の動画_機械の声.mp4` : `${S}/継ぐ_動画_編集.mp4`;
-  if (voices.length && process.env.BGM) {
+  if (!voices.length && process.env.BGM) {
+    // 声なし：音楽（bgm.py）と効果音（sfx.py）だけ
+    const fx = `${S}/sfx.wav`;
+    execFileSync(process.env.PY || 'python3', ['-I', path.join(VIDEO, 'sfx.py'), `${S}/sfx.json`, fx, String(t)]);
+    execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', silent, '-i', process.env.BGM, '-i', fx, '-filter_complex', `[1:a]atrim=0:${t},volume=${process.env.BGM_GAIN || '0.9'}[bg];[2:a]atrim=0:${t},volume=0.55[fx];[bg][fx]amix=inputs=2:normalize=0,afade=t=out:st=${Math.max(0, t - 2.5)}:d=2.5[aout]`, '-map', '0:v', '-map', '[aout]', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '256k', '-shortest', out]);
+  } else if (voices.length && process.env.BGM) {
     // 音楽（bgm.py で作ったもの）を、声が出ている間だけ下げて重ねる
     args.push('-i', process.env.BGM);
     const bi = voices.length + 1;

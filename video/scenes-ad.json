@@ -1,0 +1,736 @@
+[
+ {
+  "name": "つかみ",
+  "key": "",
+  "key2": "",
+  "d": 8,
+  "lv": 0.95,
+  "say": "",
+  "shots": [
+   {
+    "seq": "../cine/film",
+    "from": 163,
+    "fps": 30,
+    "d": 1
+   },
+   {
+    "seq": "../cine/film",
+    "from": 320,
+    "fps": 30,
+    "d": 1
+   },
+   {
+    "seq": "../cine/film",
+    "from": 421,
+    "fps": 30,
+    "d": 1
+   },
+   {
+    "seq": "../cine/film",
+    "from": 525,
+    "fps": 30,
+    "d": 1
+   },
+   {
+    "seq": "../cine/film",
+    "from": 200,
+    "fps": 30,
+    "d": 1
+   },
+   {
+    "seq": "../cine/film",
+    "from": 360,
+    "fps": 30,
+    "d": 1
+   },
+   {
+    "seq": "../cine/film",
+    "from": 469,
+    "fps": 30,
+    "d": 1
+   },
+   {
+    "seq": "../cine/film",
+    "from": 563,
+    "fps": 30,
+    "d": 1
+   }
+  ],
+  "drop": true
+ },
+ {
+  "name": "問い",
+  "key": "",
+  "key2": "",
+  "d": 5,
+  "lv": 0.25,
+  "say": "",
+  "shots": [
+   {
+    "clip": "../cine/q.mp4"
+   }
+  ]
+ },
+ {
+  "name": "組む",
+  "key": "組む。",
+  "key2": "石の写真から、指輪を",
+  "d": 4,
+  "lv": 0.4,
+  "say": "",
+  "shots": [
+   {
+    "clip": "mov2/intro.webm",
+    "from": 1,
+    "d": 4,
+    "frame": true,
+    "speed": 1.6
+   }
+  ]
+ },
+ {
+  "name": "ネットの情報で",
+  "key": "ネットの情報で。",
+  "key2": "公開情報だけの帳面：爪 1.66 mm",
+  "d": 3.5,
+  "lv": 0.45,
+  "say": "",
+  "shots": [
+   {
+    "seq": "../cine/film",
+    "from": 4,
+    "fps": 30,
+    "d": 3.5
+   }
+  ]
+ },
+ {
+  "name": "職人の一言",
+  "key": "職人の一言。",
+  "key2": "話した言葉を、Claude が決まりに",
+  "d": 9,
+  "lv": 0.7,
+  "say": "",
+  "shots": [
+   {
+    "clip": "demo/claude.webm",
+    "from": 46.6,
+    "crop": [
+     160,
+     40,
+     1440,
+     810
+    ],
+    "frame": true,
+    "d": 1.2
+   },
+   {
+    "clip": "demo/claude.webm",
+    "from": 47.6,
+    "crop": [
+     800,
+     330,
+     800,
+     450
+    ],
+    "d": 2.8,
+    "type": [
+     {
+      "at": 0,
+      "n": 40,
+      "gap": 0.068
+     }
+    ]
+   },
+   {
+    "clip": "demo/claude.webm",
+    "from": 50.9,
+    "crop": [
+     800,
+     330,
+     800,
+     450
+    ],
+    "d": 0.6,
+    "click": [
+     0.15
+    ]
+   },
+   {
+    "clip": "demo/claude.webm",
+    "from": 56.5,
+    "crop": [
+     800,
+     500,
+     800,
+     450
+    ],
+    "d": 2.4
+   },
+   {
+    "clip": "demo/claude.webm",
+    "from": 60.5,
+    "crop": [
+     160,
+     40,
+     1440,
+     810
+    ],
+    "frame": true,
+    "d": 2,
+    "click": [
+     0
+    ]
+   }
+  ],
+  "drop": true
+ },
+ {
+  "name": "決まりで組み直す",
+  "key": "",
+  "key2": "",
+  "d": 3,
+  "lv": 0.8,
+  "say": "",
+  "shots": [
+   {
+    "seq": "../cine/film",
+    "from": 72,
+    "fps": 30,
+    "d": 3
+   }
+  ]
+ },
+ {
+  "name": "確かめる",
+  "key": "確かめる。",
+  "key2": "細くしすぎると、赤く光る",
+  "d": 3.5,
+  "lv": 0.8,
+  "say": "",
+  "shots": [
+   {
+    "clip": "demo/thin.webm",
+    "from": 101,
+    "crop": [
+     160,
+     40,
+     1440,
+     810
+    ],
+    "frame": true,
+    "d": 3.5
+   }
+  ]
+ },
+ {
+  "name": "描く",
+  "key": "描く。",
+  "key2": "腕の断面を、指で",
+  "d": 5,
+  "lv": 0.85,
+  "say": "",
+  "shots": [
+   {
+    "clip": "demo/section.webm",
+    "from": 29.3,
+    "crop": [
+     800,
+     300,
+     800,
+     450
+    ],
+    "d": 3
+   },
+   {
+    "clip": "demo/section.webm",
+    "from": 88,
+    "crop": [
+     160,
+     40,
+     1440,
+     810
+    ],
+    "frame": true,
+    "d": 2
+   }
+  ]
+ },
+ {
+  "name": "広げる",
+  "key": "広げる。",
+  "key2": "石の大きさを変えると、組み直す",
+  "d": 4.5,
+  "lv": 0.9,
+  "say": "",
+  "shots": [
+   {
+    "seq": "../cine/film",
+    "from": 150,
+    "fps": 32,
+    "d": 4.5
+   }
+  ]
+ },
+ {
+  "name": "選ぶ",
+  "key": "選ぶ。",
+  "key2": "断面 ・ 留め方 ・ 地金",
+  "d": 8,
+  "lv": 0.95,
+  "say": "",
+  "shots": [
+   {
+    "seq": "../cine/film",
+    "from": 290,
+    "fps": 40,
+    "d": 8
+   }
+  ],
+  "drop": true
+ },
+ {
+  "name": "聞きに来る",
+  "key": "Claude が、聞きに来る。",
+  "key2": "帳面の、まだ決まっていない所を",
+  "d": 10,
+  "lv": 0.75,
+  "say": "",
+  "shots": [
+   {
+    "clip": "demo/answer.webm",
+    "from": 4,
+    "crop": [
+     330,
+     40,
+     940,
+     529
+    ],
+    "frame": true,
+    "d": 2.5
+   },
+   {
+    "clip": "demo/answer.webm",
+    "from": 7.1,
+    "crop": [
+     340,
+     170,
+     920,
+     518
+    ],
+    "d": 3,
+    "type": [
+     {
+      "at": 0.1,
+      "n": 22,
+      "gap": 0.12
+     }
+    ]
+   },
+   {
+    "clip": "demo/answer.webm",
+    "from": 19.4,
+    "crop": [
+     340,
+     170,
+     920,
+     518
+    ],
+    "d": 2.5,
+    "click": [
+     0.2
+    ]
+   },
+   {
+    "clip": "demo/answer.webm",
+    "from": 24.6,
+    "crop": [
+     340,
+     170,
+     920,
+     518
+    ],
+    "d": 2,
+    "click": [
+     0.1
+    ]
+   }
+  ]
+ },
+ {
+  "name": "工房ごとに",
+  "key": "工房ごとに。",
+  "key2": "同じ指輪を、帳面ごとに比べる",
+  "d": 4.5,
+  "lv": 0.8,
+  "say": "",
+  "shots": [
+   {
+    "clip": "demo/workshops.webm",
+    "from": 40,
+    "crop": [
+     160,
+     40,
+     1440,
+     810
+    ],
+    "frame": true,
+    "d": 1.5,
+    "click": [
+     0.1
+    ]
+   },
+   {
+    "clip": "demo/workshops.webm",
+    "from": 42,
+    "crop": [
+     1000,
+     150,
+     600,
+     338
+    ],
+    "d": 3
+   }
+  ]
+ },
+ {
+  "name": "作り方も",
+  "key": "作り方も。",
+  "key2": "工程 ・ 数字 ・ 道具",
+  "d": 4.5,
+  "lv": 0.8,
+  "say": "",
+  "shots": [
+   {
+    "clip": "demo/make.webm",
+    "from": 12,
+    "crop": [
+     160,
+     40,
+     1440,
+     810
+    ],
+    "frame": true,
+    "d": 2.2
+   },
+   {
+    "clip": "demo/make.webm",
+    "from": 26,
+    "crop": [
+     160,
+     40,
+     1440,
+     810
+    ],
+    "frame": true,
+    "d": 2.3
+   }
+  ]
+ },
+ {
+  "name": "図面も",
+  "key": "図面も。",
+  "key2": "正面 ・ 側面 ・ 上面",
+  "d": 3,
+  "lv": 0.8,
+  "say": "",
+  "shots": [
+   {
+    "clip": "demo/make.webm",
+    "from": 40,
+    "crop": [
+     160,
+     40,
+     1440,
+     810
+    ],
+    "frame": true,
+    "d": 3,
+    "click": [
+     0
+    ]
+   }
+  ]
+ },
+ {
+  "name": "現場",
+  "key": "",
+  "key2": "",
+  "d": 12,
+  "lv": 0.55,
+  "say": "",
+  "shots": [
+   {
+    "clip": "../cine/genba.mp4",
+    "from": 0.3,
+    "d": 6
+   },
+   {
+    "clip": "../cine/genba.mp4",
+    "from": 9.6,
+    "d": 6
+   }
+  ]
+ },
+ {
+  "name": "学校と工房",
+  "key": "",
+  "key2": "",
+  "d": 12,
+  "lv": 0.55,
+  "say": "",
+  "shots": [
+   {
+    "clip": "../cine/gakko.mp4",
+    "from": 0.3,
+    "d": 5.5
+   },
+   {
+    "clip": "../cine/gakko.mp4",
+    "from": 7.2,
+    "d": 3.5
+   },
+   {
+    "clip": "../cine/gakko.mp4",
+    "from": 12.4,
+    "d": 3
+   }
+  ]
+ },
+ {
+  "name": "学ぶ人には",
+  "key": "学ぶ人には。",
+  "key2": "帳面の、職人の言葉で答える",
+  "d": 6,
+  "lv": 0.65,
+  "say": "",
+  "shots": [
+   {
+    "clip": "demo/learn2.webm",
+    "from": 2.3,
+    "crop": [
+     330,
+     40,
+     940,
+     529
+    ],
+    "frame": true,
+    "d": 3,
+    "speed": 1.3,
+    "type": [
+     {
+      "at": 0.2,
+      "n": 27,
+      "gap": 0.06
+     }
+    ]
+   },
+   {
+    "clip": "demo/learn2.webm",
+    "from": 125.6,
+    "crop": [
+     330,
+     40,
+     940,
+     529
+    ],
+    "frame": true,
+    "d": 3
+   }
+  ]
+ },
+ {
+  "name": "その先に",
+  "key": "その先に。",
+  "key2": "20 年に一度、作り直される品々",
+  "d": 16,
+  "lv": 0.35,
+  "say": "",
+  "shots": [
+   {
+    "clip": "../cine/keisho.mp4",
+    "from": 0.3,
+    "d": 6
+   },
+   {
+    "clip": "../cine/keisho.mp4",
+    "from": 6.8,
+    "d": 4
+   },
+   {
+    "clip": "../cine/keisho.mp4",
+    "from": 10.6,
+    "d": 6
+   }
+  ]
+ },
+ {
+  "name": "ほかの技にも",
+  "key": "同じしくみを、ほかの技にも。",
+  "key2": "Claude が、技ごとに聞きに来る",
+  "d": 4,
+  "lv": 0.6,
+  "say": "",
+  "shots": [
+   {
+    "clip": "demo/claudeAsk.webm",
+    "from": 3,
+    "crop": [
+     330,
+     40,
+     940,
+     529
+    ],
+    "frame": true,
+    "d": 4
+   }
+  ]
+ },
+ {
+  "name": "形だけでなく",
+  "key": "形だけでなく。",
+  "key2": "なぜ ・ どう作るか も残す",
+  "d": 7,
+  "lv": 0.5,
+  "say": "",
+  "shots": [
+   {
+    "clip": "../cine/saigen.mp4",
+    "from": 0.3,
+    "d": 7
+   }
+  ]
+ },
+ {
+  "name": "途切れても",
+  "key": "途切れても。",
+  "key2": "残った手がかりから、Claude が組み立て直す",
+  "d": 6,
+  "lv": 0.7,
+  "say": "",
+  "shots": [
+   {
+    "clip": "demo/rebuild2.webm",
+    "from": 6.2,
+    "crop": [
+     330,
+     40,
+     940,
+     529
+    ],
+    "frame": true,
+    "d": 2.5,
+    "speed": 8,
+    "click": [
+     0
+    ]
+   },
+   {
+    "clip": "demo/rebuild2.webm",
+    "from": 42,
+    "crop": [
+     330,
+     40,
+     940,
+     529
+    ],
+    "frame": true,
+    "d": 3.5
+   }
+  ]
+ },
+ {
+  "name": "まとめ",
+  "key": "",
+  "key2": "",
+  "d": 9,
+  "lv": 1,
+  "say": "",
+  "shots": [
+   {
+    "seq": "../cine/film",
+    "from": 72,
+    "fps": 30,
+    "d": 1.2
+   },
+   {
+    "clip": "demo/thin.webm",
+    "from": 104,
+    "crop": [
+     160,
+     40,
+     1440,
+     810
+    ],
+    "frame": true,
+    "d": 1
+   },
+   {
+    "seq": "../cine/film",
+    "from": 160,
+    "fps": 30,
+    "d": 1
+   },
+   {
+    "clip": "demo/section.webm",
+    "from": 30.5,
+    "crop": [
+     800,
+     300,
+     800,
+     450
+    ],
+    "d": 1
+   },
+   {
+    "seq": "../cine/film",
+    "from": 300,
+    "fps": 30,
+    "d": 1
+   },
+   {
+    "clip": "demo/answer.webm",
+    "from": 25,
+    "crop": [
+     340,
+     170,
+     920,
+     518
+    ],
+    "d": 1
+   },
+   {
+    "clip": "demo/make.webm",
+    "from": 40,
+    "crop": [
+     160,
+     40,
+     1440,
+     810
+    ],
+    "frame": true,
+    "d": 1
+   },
+   {
+    "seq": "../cine/film",
+    "from": 520,
+    "fps": 30,
+    "d": 1.8
+   }
+  ],
+  "drop": true
+ },
+ {
+  "name": "継ぐ",
+  "key": "",
+  "key2": "",
+  "d": 8,
+  "lv": 0.2,
+  "say": "",
+  "shots": [
+   {
+    "clip": "../cine/end.mp4"
+   }
+  ]
+ }
+]

@@ -89,6 +89,43 @@ async function clip(name, fn) {
 
 const PASS = async (p) => p.addInitScript(() => { try { localStorage.setItem('tsugu.password.v1', 'dev-local'); } catch {} });
 const CLIPS = {
+  // Claude の質問に職人が答える → 決まりの案 → 帳面に入れる（本物の Claude）
+  answer: async (p) => {
+    await PASS(p);
+    await p.goto(`${BASE}/app.html?nointro#waza/ring`, { waitUntil: 'networkidle' });
+    await p.waitForFunction(() => /Claude が聞いています|Claude なし/.test(document.body.innerText), null, { timeout: 60000 }).catch(() => {});
+    await p.waitForTimeout(4000);
+    M('question');
+    await type(p, 'textarea[aria-label="答え"]', '5.5 ミリくらいの石なら、0.65 ミリはほしい', 70);
+    M('typed');
+    await click(p, 'button.make', { after: 300 });
+    await p.waitForFunction(() => /帳面に入れる/.test(document.body.innerText), null, { timeout: 120000 }).catch(() => {});
+    M('draft');
+    await p.waitForTimeout(2000);
+    await click(p, 'button[data-a="ok"]', { after: 2500 });
+    M('saved');
+    await p.waitForTimeout(1500);
+  },
+  // 腕の断面を指で描く（自由な断面）。薄くしすぎると赤くなる
+  section: async (p) => {
+    await studioReady(p);
+    await click(p, '.tabs [data-mode="refine"]', { after: 1200 });
+    if (!(await p.locator('details.manual[open]').count())) await click(p, 'details.manual > summary', { after: 800 });
+    await p.locator('.sec-edit').scrollIntoViewIfNeeded(); await p.waitForTimeout(800);
+    M('start');
+    const dots = p.locator('.sec-edit .se-handles .dot, .sec-edit .hit');
+    const n = await dots.count();
+    const bx = n ? await dots.nth(Math.min(1, n - 1)).boundingBox() : null;
+    if (bx) {
+      const x = bx.x + bx.width / 2, y = bx.y + bx.height / 2;
+      await p.mouse.move(x, y, { steps: 20 }); await p.mouse.down();
+      for (let k = 0; k <= 30; k++) { await p.mouse.move(x + k * 1.2, y - k * 1.4); await p.waitForTimeout(40); }
+      for (let k = 0; k <= 30; k++) { await p.mouse.move(x + 36 - k * 0.5, y - 42 + k * 2.6); await p.waitForTimeout(40); }
+      await p.mouse.up();
+    }
+    M('end2');
+    await p.waitForTimeout(2500);
+  },
   // 見せる（本物の機能）：工房 B（公開情報だけ）で開く → 太い爪 → 閉じて職人の一言を決まりに → また見せる → 石の大きさ・断面・留め方・地金を押して切り替える
   present: async (p) => {
     await PASS(p);
