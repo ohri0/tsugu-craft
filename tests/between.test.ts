@@ -373,6 +373,32 @@ describe("腕の間に挟む石座：爪の位置は腕を避ける（職人 202
   });
 });
 
+describe("腕の間に挟めない石（2026-11-05 点検：石座が塔のようにのびても「作れます」と出た）", () => {
+  const small = (id: string, mm: number) => {
+    const p0 = PRESETS.find((p) => p.id === id)!;
+    const k = mm / p0.longMm;
+    return preset(id, mm, p0.widthMm * k, p0.depthMm * k);
+  };
+  it.each([["marquise", 5], ["marquise", 6], ["emerald", 3.5], ["pear", 5]] as const)("%s %s mm：石座はのびず、腕の上にのる。別の留め方をすすめる印が立つ", (id, mm) => {
+    const s = new RingSession(small(id, mm), () => seedLedger(), () => undefined, () => "");
+    const r = s.build("x").ring;
+    expect(r.culetGapMm).toBeLessThan(3);
+    expect(r.setting.join).toBe("on");
+  });
+  it("人が「腕の間に挟む」を選べば従い、収まらないことを確かめが知らせる", () => {
+    const s = new RingSession(small("marquise", 5), () => seedLedger(), () => undefined, () => "");
+    s.build("x");
+    s.setSetting({ join: "between", reason: "x" });
+    const b = s.built!;
+    expect(b.ring.setting.join).toBe("between");
+    expect(b.problems.map((p) => p.check)).toContain("collar-stone");
+  });
+  it("7.5 mm の三角は腕の間に挟める（小さな石の扱いにならない）", () => {
+    const s = new RingSession(stoneFrom(triangle(200, 200, 160, 140), 7.5, 3.6), () => seedLedger(), () => undefined, () => "");
+    expect(s.build("x").ring.setting.join).toBe("between");
+  });
+});
+
 describe("腕の間に挟む石座：爪の下の端（職人 2026-11-05：輪に埋まっている。丸い先が輪の下に出ることはない）", () => {
   const tri = stoneFrom(triangle(200, 200, 160, 140), 8.88, 4.24);
   const cases: [string, StoneParams, "along" | "across"][] = [

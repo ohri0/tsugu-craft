@@ -171,6 +171,8 @@ export interface SettingResult {
   prongs: ProngInfo[];
   /** 腕の間に挟むとき、腕を避けきれず腕の上に立つ爪の数（小さな石）。この形は、別の留め方をすすめる（職人 2026-11-05） */
   prongsOnArm: number;
+  /** 腕の間に挟むとき、下の輪の内の壁が石に当たり、下げても収まらない（細い・小さい石） */
+  collarBlocked: boolean;
   rings: GalleryRing[];
   bezel: BezelInfo | null;
   heights: SettingHeights;
@@ -720,10 +722,12 @@ export function buildSetting(params: SettingParams): SettingResult {
   const between = params.style === "prong" && params.join === "between";
   let collar: CollarInfo | null = null;
   let prongsOnArm = 0;
+  let collarBlocked = false;
   if (between) {
     const plans = planProngs({ ...params, vAtCorners: false }, corners).map((p) => ({ ...p, isV: false }));
     const b = betweenHead(f, params, plans, { wire: stdWire, shankT, height, total, addPart, corners });
     prongsOnArm = b.prongsOnArm;
+    collarBlocked = b.collarBlocked;
     v = b.v;
     tipZ = b.tipZ;
     prongs.push(...b.prongs);
@@ -955,6 +959,7 @@ export function buildSetting(params: SettingParams): SettingResult {
     upperRail,
     join: between ? "between" : "on",
     prongsOnArm,
+    collarBlocked,
     collar,
   };
 }
@@ -1666,7 +1671,9 @@ function betweenHead(f: Frame, params: SettingParams, plans0: ProngPlan[], ctx: 
       return (ix - px) * q.n.x + (iy - py) * q.n.y >= clearH - EPS;
     });
   let topZ = zU - wire / 2 - room;
-  for (let it = 0; it < 400 && !clears(topZ); it++) topZ -= 0.02;
+  // 石の一番下まで下げても当たるなら、この石（細い・小さい）は下の輪に収まらない。それ以上下げない（下げ続けると石座が塔のようにのびた）
+  for (let it = 0; it < 400 && !clears(topZ) && topZ > h.culetZ; it++) topZ -= 0.02;
+  const collarBlocked = !clears(topZ);
   // 下の輪の高さ：目安（腕の厚み × 割合）。ただし腕の端の上が輪の上からはみ出さない高さ以上（腕の端は指の丸みで下がるので、腕の厚みより少し低くてよい）。
   // 高さを直接決めたときは、その値（はみ出すかどうかは確かめが見る）
   let collarH = params.collarHeightMm ?? g.collarHeightRatio * shankT;
@@ -1853,7 +1860,7 @@ function betweenHead(f: Frame, params: SettingParams, plans0: ProngPlan[], ctx: 
   const upperRail = { pts: ringPts.map((p) => [p.x, p.y, zU] as V3), radiusMm: wire / 2 };
 
   const solid = params.solid ? solidBetween(f, plans, { prongLine, ringPts, bridges, zU, wire, tz, outer, outerLow, wall, topZ, bottomZ, fingerAt, armTopAt: (c, r) => bandTopUnder({ x: c[0], y: c[1] }, r), armSurface, quality: params.solidQuality ?? "final" }) : null;
-  return { v, tipZ: tz, prongs, rings, collar, upperRail, solid, prongsOnArm };
+  return { v, tipZ: tz, prongs, rings, collar, upperRail, solid, prongsOnArm, collarBlocked };
 }
 
 interface BetweenSolid {

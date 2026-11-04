@@ -6,7 +6,7 @@ import { PRESETS, presetOutline } from "./presets";
 import { autoOrientation, tAtOutlineIndex, type JoinStyle, type SolidQuality } from "../geometry/setting";
 import type { SectionCurve, SectionPoint, ShankSection } from "../geometry/shank";
 import type { StoneParams } from "../geometry/stone";
-import { FIXES, checkRing, holdRatio, type FixId, type Problem } from "../rules/checks";
+import { FIXES, checkRing, cornerDistances, holdRatio, type FixId, type Problem } from "../rules/checks";
 import { GUIDES, requiredHold, stoneSizeMm, type HeightOption, type MetalId, type StonePosition } from "../rules/guides";
 import { effectiveGuides, prongMinOverride, ruleForCheck, type Ledger, type Rule } from "../rules/ledger";
 import type {
@@ -320,8 +320,24 @@ export class RingSession implements ToolHost<RingState> {
       orientation: s.orientation,
     };
     let ring = buildRing(ringParams);
-    // 小さな石は腕を避けられないので、付け方を選んでいなければ、腕の上にのせる（職人 2026-11-05。別の留め方をすすめる一言は画面が出す）
-    if (!s.joinSet && ring.setting.prongsOnArm > 0) ring = buildRing({ ...ringParams, setting: { ...ringParams.setting, join: "on" as const } });
+    // 腕の間に挟めない石：爪が腕を避けられない・角を爪で守れない・下の輪が石に収まらない
+    const blocked = (r: typeof ring) =>
+      r.setting.join === "between" && (r.setting.prongsOnArm > 0 || r.setting.collarBlocked || cornerDistances(r.setting).some((d) => d > guides.prong.cornerReachMm + 1e-9));
+    if (!s.joinSet && !trio && !s.layout && blocked(ring)) {
+      // 向きを人が選んでいなければ、もう一方の向きを試す
+      let done = false;
+      if (!s.orientationSet) {
+        const other = s.orientation === "along" ? "across" : "along";
+        const r2 = buildRing({ ...ringParams, orientation: other });
+        if (!blocked(r2)) {
+          ring = r2;
+          s.orientation = other;
+          done = true;
+        }
+      }
+      // それでもだめなら、腕の上にのせる（職人 2026-11-05。別の留め方をすすめる一言は画面が出す）
+      if (!done) ring = buildRing({ ...ringParams, setting: { ...ringParams.setting, join: "on" as const } });
+    }
     const problems = checkRing(ring, { position: s.position, guides, guidesFor: (i) => (i === 0 ? guides : slotGuides[i - 1]) }).map((p) => ({ ...p, rule: ruleForCheck(ledger, p.check) }));
     return { ring, problems };
   }

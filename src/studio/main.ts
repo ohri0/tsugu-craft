@@ -1296,14 +1296,14 @@ function renderCheck() {
       // 石の先（キューレット）が腕の厚みの中まで下りているときは、形の方で腕の上をもうザグってある（geometry/notch.ts）
       const zaguri = r.notchDepthMm > 0 ? `<p class="look-note"><b>ザグり</b>石の先が当たる所を、腕の上で自動でザグりました（深さ ${r.notchDepthMm.toFixed(2)} mm、丸いビット 直径 約 ${r.shank.notchBallDiameterMm.toFixed(1)} mm）。<small>石の先〜指 ${r.culetGapMm.toFixed(2)} mm、腕の厚み ${r.shank.thicknessMm.toFixed(1)} mm。石とのすき間 ${GUIDES.bezel.clearanceMm} mm を残しています。3D・図面・重さ・STL に入っています（作り方の「石座を腕に付ける」）</small></p>` : "";
       const small = r.setting.style === "prong" && r.setting.join === "on" && !session?.state.joinSet || r.setting.prongsOnArm > 0;
-      return (small ? `<p class="look-note"><b>小さな石は、別の留め方がおすすめ</b>この大きさでは、爪を腕から避ける場所がありません。おちょこ留めや、腕に下穴を開けて留めるミル留め・パヴェのような留め方をすすめます。覆輪にする、腕を細くするのも手です。この爪留めのままなら、腕の上にのせる形になります（職人の言葉）<small>覆輪と腕の太さは「手で変える」で選べます。ほかの留め方は、まだ形にできません</small></p>` : "") + (note ? `<p class="look-note"><b>見た目の注意</b>${esc(note)}<small>作れますが、形に対して不自然に見えることがあります（確かめの決まりではありません）</small></p>` : "") + zaguri;
+      return (small ? `<p class="look-note"><b>この石は、別の留め方がおすすめ</b>この大きさ・形では、爪を腕から避けたり、下の輪に収めたりできません。おちょこ留めや、腕に下穴を開けて留めるミル留め・パヴェのような留め方をすすめます。覆輪にする、腕を細くするのも手です。この爪留めのままなら、腕の上にのせる形になります（職人の言葉）<small>覆輪と腕の太さは「手で変える」で選べます。ほかの留め方は、まだ形にできません</small></p>` : "") + (note ? `<p class="look-note"><b>見た目の注意</b>${esc(note)}<small>作れますが、形に対して不自然に見えることがあります（確かめの決まりではありません）</small></p>` : "") + zaguri;
     })()}
     <details class="manual" ${manualOpen ?? !probs.length ? "open" : ""}><summary>手で変える</summary>
       ${pick("留め方", patternOf(b), PATTERNS.filter(([v]) => v !== "v"))}
       ${s.style === "prong" ? pick("爪の本数", s.prongCount ?? 0, [[0, "自動"], [3, "3"], [4, "4"], [5, "5"], [6, "6"]]) : ""}
       ${pick("高さ", s.height, [["low", "低め"], ["standard", "標準"], ["high", "高め"]])}
       ${pick("向き", s.orientation, [["along", "縦"], ["across", "横"]])}
-      ${s.style === "prong" && b.ring.stones.length === 1 ? joinPickHtml(pick, s.join ?? "between") : ""}
+      ${s.style === "prong" && b.ring.stones.length === 1 ? joinPickHtml(pick, b.ring.setting.join) : ""}
       ${pick("地金", s.metal, (["k18yg", "pt900", "k18wg", "k18pg", "sv925"] as Metal[]).map((m) => [m, METAL_LABEL[m]] as [Metal, string]))}
       <div class="sliders">
         ${s.style === "prong" ? sliderHtml(prongSlider(b)) : ""}

@@ -57,6 +57,7 @@ export type CheckId =
   | "hold"
   | "prong-gap"
   | "corner"
+  | "collar-stone"
   | "bezel-wall"
   | "band-thin"
   | "band-narrow"
@@ -483,6 +484,22 @@ export function checkSetting(s: SettingResult, culetGapMm: number = s.heights.cu
       requiredValue: need,
       reason: `爪の太さ・本数・長さから見た留まりが足りない（${HOLD_NOTE}）`,
       options: fix("thicker", "moreProngs", "lower", "bezel"),
+      target: { kind: "setting" },
+    });
+  }
+
+  // 腕の間に挟む石座の、下の輪が石に収まらない（細い・小さい石）
+  if (s.collarBlocked) {
+    out.push({
+      id: "collar-stone",
+      check: "collar-stone",
+      where: "石座の下の輪（板を丸めた輪）",
+      current: "下の輪が石の下側に当たる",
+      required: "石と下の輪の間にすき間",
+      currentValue: 0,
+      requiredValue: g.join.between.pavilionClearanceMm,
+      reason: "この石は細い、または小さいので、下の輪が石の下に収まらない。腕の上にのせるか、別の留め方にする",
+      options: fix("bezel"),
       target: { kind: "setting" },
     });
   }
