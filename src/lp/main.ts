@@ -2,8 +2,12 @@
 // 書いてあることは、どれも今のアプリでできること。数字は、撮った画面の数字か、出典・記録のあるものだけ。
 // 3D は読み込まない（軽く速く）。写真は 2 倍の細かさの webp で、見える所に来てから読む。
 import "./lp.css";
+import repoLedger from "../../ledger/jewelry.json";
+import { ledgerCounts, type Ledger } from "../rules/ledger";
 
 const STUDIO = "studio.html";
+/** 帳面の決まりの数（数字を書かず、はじめて開いた人に見えるリポジトリの帳面から数える） */
+const BOOK = ledgerCounts(repoLedger as Ledger);
 const WAZA = "app.html#waza";
 
 const arrow = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10M9 4l4 4-4 4"/></svg>`;
@@ -149,25 +153,6 @@ const html = `
     </figure>
   </section>
 
-  <section class="sec" id="trio" aria-labelledby="trio-h">
-    <div class="head">
-      <p class="k rv">石を並べる</p>
-      <h2 id="trio-h" class="rv">三石も、<br>同じ決まりで。</h2>
-      <p class="body rv">「石を並べる」で三石を選ぶと、脇の石座を真ん中より低く寄せ、石座どうしを短い線でつないでロウ付けする形に組みます。脇の石は、丸い石かペア。</p>
-    </div>
-    <div class="ba">
-      <figure class="ba-card rv">
-        ${shot("trio-round", 1440, 1600, "三石の指輪。真ん中にラウンド 6.5 mm、両脇に小さめのラウンドの石", "(max-width: 760px) 92vw, 560px")}
-        <figcaption><span class="tag">脇の石</span><b>ラウンド</b><span class="v">真ん中 <span class="num">6.5 mm</span> ・ 脇 <span class="num">4.2 mm</span> ・ 作れます</span></figcaption>
-      </figure>
-      <figure class="ba-card rv" style="--d:100ms">
-        ${shot("trio-pear", 1440, 1600, "三石の指輪。真ん中にラウンド 6.5 mm、両脇に先を外へ向けたペアの石", "(max-width: 760px) 92vw, 560px")}
-        <figcaption><span class="tag">脇の石</span><b>ペア</b><span class="v">真ん中 <span class="num">6.5 mm</span> ・ 脇 <span class="num">6.3 mm</span> ・ 作れます</span></figcaption>
-      </figure>
-    </div>
-    <p class="fine rv">石どうし <span class="num">0.3 mm</span>・爪どうし <span class="num">0.15 mm</span> あけます（仮の目安・最後は職人が決める）。</p>
-  </section>
-
   <section class="sec" id="choose" aria-labelledby="choose-h">
     <div class="head">
       <p class="k rv">選べる</p>
@@ -183,7 +168,7 @@ const html = `
     <div class="head">
       <p class="k rv">帳面</p>
       <h2 id="ledger-h" class="rv">だれの判断かを、<br>分けて蓄える。</h2>
-      <p class="body rv">石川工房の帳面には、決まりが <span class="num">42</span>。職人の言葉から <span class="num">2</span>、公開の資料から <span class="num">40</span>（出どころのリンクつき）。資料に数字がない所は「仮」と書きます。そして、まだ決まっていない所を、Claude が職人に聞きに来ます。</p>
+      <p class="body rv">石川工房の帳面には、決まりが <span class="num">${BOOK.total}</span>。職人の言葉から <span class="num">${BOOK.craftsman}</span>、公開の資料から <span class="num">${BOOK.others}</span>（出どころのリンクつき）。資料に数字がない所は「仮」と書きます。そして、まだ決まっていない所を、Claude が職人に聞きに来ます。</p>
     </div>
     <ul class="who rv">
       <li><i class="dot gold"></i><b>職人</b><span>職人の言葉と日付</span></li>
@@ -191,8 +176,8 @@ const html = `
       <li><i class="dot warn"></i><b>仮</b><span>出典のない目安。職人が決める</span></li>
     </ul>
     <div class="phones">
-      <figure class="rv">${shot("ledger", 960, 1653, "石川工房の帳面。職人：石川 の決まり 2 つ（爪の最低の太さ・三角の石は爪 3 本）と、その言葉。下に「Claude から質問が 1 つあります：石の大きさが 5.5 mm くらいの石だと、爪の太さは最低何ミリにしますか？」と、話して答える・書いて答えるのボタン", "(max-width: 760px) 92vw, 480px")}<figcaption>職人の決まりと、Claude からの質問</figcaption></figure>
-      <figure class="rv" style="--d:100ms">${shot("ledger-pub", 960, 932, "資料から入れた決まり 40。「石の先を指から離す」に仮の札、「爪の先の高さ」に公開情報の出どころ", "(max-width: 760px) 92vw, 480px")}<figcaption>資料から入れた決まり <span class="num">40</span>。出どころか「仮」</figcaption></figure>
+      <figure class="rv">${shot("ledger", 960, 1653, "石川工房の帳面。職人：石川 の決まり（爪の最低の太さ・三角の石は爪 3 本）と、その言葉。下に「Claude から質問が 1 つあります：石の大きさが 5.5 mm くらいの石だと、爪の太さは最低何ミリにしますか？」と、話して答える・書いて答えるのボタン", "(max-width: 760px) 92vw, 480px")}<figcaption>職人の決まりと、Claude からの質問</figcaption></figure>
+      <figure class="rv" style="--d:100ms">${shot("ledger-pub", 960, 941, "資料から入れた決まり ${BOOK.others}。「石の先を指から離す」に仮の札、「爪の先の高さ」に公開情報の出どころ", "(max-width: 760px) 92vw, 480px")}<figcaption>資料から入れた決まり <span class="num">${BOOK.others}</span>。出どころか「仮」</figcaption></figure>
     </div>
   </section>
 

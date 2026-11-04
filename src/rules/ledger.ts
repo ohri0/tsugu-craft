@@ -248,6 +248,13 @@ export function activeRules<R extends { id: string; replaces?: string }>(ledger:
   return ledger.rules.filter((r) => !replaced.has(r.id));
 }
 
+/** 帳面の決まりの数（入口のページなど。職人の言葉から・それ以外＝資料と仮） */
+export function ledgerCounts(ledger: { rules: Pick<Rule, "id" | "replaces" | "source">[] }): { total: number; craftsman: number; others: number } {
+  const rules = activeRules(ledger);
+  const craftsman = rules.filter((r) => r.source.kind === "craftsman").length;
+  return { total: rules.length, craftsman, others: rules.length - craftsman };
+}
+
 /** 決まりを足す。同じ値に結びついた今の決まりがあれば、それを置き換える（古い決まりは履歴に残る） */
 export function addRule<P extends string = ParamId>(ledger: Ledger<P>, rule: Omit<Rule<P>, "id" | "replaces"> & { id?: string; replaces?: string }): Ledger<P> {
   const current = rule.param ? activeRules(ledger).find((r) => r.param === rule.param) : undefined;
