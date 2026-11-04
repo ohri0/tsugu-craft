@@ -49,9 +49,9 @@ describe("はじめから入れた決まりの出どころ", () => {
     expect(new Set(pub.map((r) => r.id)).size).toBe(pub.length);
   });
 
-  it("職人の決まりは 3 つ（爪の最低の太さ・角に 1 本ずつ・腕の間に挟む 2026-11-04）、名前は石川", () => {
+  it("職人の決まりは 5 つ（爪の最低の太さ・角に 1 本ずつ・腕の間に挟む・覆輪の壁・ロウ付けのあとの冷まし方）、名前は石川", () => {
     const mine = activeRules(ring).filter((r) => r.source.kind === "craftsman");
-    expect(mine).toHaveLength(3);
+    expect(mine).toHaveLength(5);
     for (const r of mine) expect(sourceLabel(r.source)).toBe("職人：石川");
   });
 });

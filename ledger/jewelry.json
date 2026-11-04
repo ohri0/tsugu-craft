@@ -736,6 +736,38 @@
       },
       "date": "2026-11-04",
       "id": "rule-head-between-ishikawa"
+    },
+    {
+      "title": "覆輪の壁は 0.5 mm 以上で十分",
+      "text": "覆輪の壁の厚みは、0.5 mm 以上あれば十分（貴金属装身具製作の技能検定でも、この厚み）",
+      "reason": "壁が薄いと石を押さえる力が弱く、へこみやすい。0.5 mm あれば足りる",
+      "quote": "0.5 mm 以上あったら十分",
+      "steps": [
+        "bezel_make",
+        "bezel"
+      ],
+      "source": {
+        "kind": "craftsman",
+        "name": "石川"
+      },
+      "date": "2026-11-04",
+      "id": "rule-bezel-wall-ishikawa"
+    },
+    {
+      "title": "ロウ付けのあとは、ゆっくり冷ます",
+      "text": "ロウ付けしたあとは、ゆっくり冷ます方が安全。水に入れることもあるが、ゆっくりの方が曲がらず、ロウ目が割れることも減る",
+      "reason": "急に冷やすと、形が曲がったり、ロウ目（ロウでつないだ所）が割れたりすることがある",
+      "quote": "ゆっくり冷ます方が安全。曲がらないし、ロウ目が割れる可能性も減る。水に入れることもあるけど",
+      "steps": [
+        "solder",
+        "attach"
+      ],
+      "source": {
+        "kind": "craftsman",
+        "name": "石川"
+      },
+      "date": "2026-11-04",
+      "id": "rule-solder-slow-cool-ishikawa"
     }
   ],
   "retired": [

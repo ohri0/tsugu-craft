@@ -4,9 +4,9 @@ import { describe, expect, it } from "vitest";
 import { openEdges } from "../src/cad/solid";
 import { buildRing, type RingParams } from "../src/geometry/ring";
 import { polygonDistance } from "../src/geometry/setting";
-import type { StoneParams } from "../src/geometry/stone";
+import { stoneScaleAt, type StoneParams } from "../src/geometry/stone";
 import { parseToolCall } from "../src/claude/tools";
-import { checkRing } from "../src/rules/checks";
+import { checkRing, holdRatio } from "../src/rules/checks";
 import { GUIDES } from "../src/rules/guides";
 import { seedLedger } from "../src/rules/ledger";
 import { howToMake } from "../src/studio/howto";
@@ -70,7 +70,9 @@ describe("腕の間に挟む石座：形", () => {
     expect(collar.length).toBeGreaterThan(0);
     expect(openEdges(collar)).toBe(0);
     expect(c.wallMm).toBe(GUIDES.join.between.collarWallMm);
-    expect(c.heightMm).toBeCloseTo(ring.shank.thicknessMm * GUIDES.join.between.collarHeightRatio, 6);
+    // 高さは目安（腕の厚み × 割合）以上で、腕の端の上が輪の上からはみ出さない高さ
+    expect(c.heightMm).toBeGreaterThanOrEqual(ring.shank.thicknessMm * GUIDES.join.between.collarHeightRatio - 1e-9);
+    expect(c.heightMm).toBeLessThanOrEqual(ring.shank.thicknessMm + 0.1);
     // 上は平ら、下は指の丸みに合わせてある（指の真上がいちばん高く、腕の端の所で下がる）
     expect(c.topZ - c.fingerZ).toBeCloseTo(c.heightMm, 6);
     expect(c.bottomZ).toBeLessThan(c.fingerZ);
@@ -79,9 +81,47 @@ describe("腕の間に挟む石座：形", () => {
     expect(d).toBeCloseTo(c.wallMm, 6);
   });
 
-  it("腕の両はしが、下の輪の横にまるごと当たる（腕の端の高さの 100 %）", () => {
+  it("腕の両はしが、下の輪の横にまるごと当たる（腕の端の上も輪の上からはみ出さない）", () => {
     expect(c.ends).toHaveLength(2);
     for (const e of c.ends) expect(e.ratio).toBeCloseTo(1, 6);
+  });
+
+  it("上から見て、上の輪は石に隠れる（輪の外の線が石の縁の内）。輪は縁の下で、石の下側の斜めの面に当たる", () => {
+    const rail = ring.setting.upperRail!;
+    const R = round.longMm / 2;
+    for (const [x, y] of rail.pts) expect(Math.hypot(x, y) + rail.radiusMm).toBeLessThan(R - 0.1);
+    // 輪の高さで、石の下側の面より外に輪の中心があり、輪の内の端は下側の面にくいこむ（ザグって当てる）
+    const h = ring.setting.heights;
+    const z = h.upperRingZ!;
+    const pavR = R * stoneScaleAt(h, z);
+    const rc = Math.hypot(rail.pts[0][0], rail.pts[0][1]);
+    expect(rc).toBeGreaterThan(pavR);
+    expect(rc - rail.radiusMm).toBeLessThan(pavR);
+    // 縁の下から 1/3 ほど下（CAD の手引きの三分の一の決まり）
+    expect(-z).toBeGreaterThan(h.pavilionMm * 0.25);
+    expect(-z).toBeLessThan(h.pavilionMm * 0.75);
+  });
+
+  it("石は低く、下側が下の輪にくっつくぐらい：石の一番下は下の輪の上の端より下（輪の中）で、上の輪と下の輪の間は狭い", () => {
+    const h = ring.setting.heights;
+    expect(h.culetZ).toBeLessThan(c.topZ);
+    const window = h.upperRingZ! - ring.setting.upperRail!.radiusMm - c.topZ;
+    expect(window).toBeGreaterThan(0.05);
+    expect(window).toBeLessThan(0.6);
+  });
+
+  it("留まりの基準は同じ付け方の標準の形：標準の太さの爪なら 1.0×（腕の上にのせる形の基準は変わらない）", () => {
+    expect(holdRatio(ring.setting)).toBeCloseTo(1, 6);
+    const on = buildRing(params({}, { join: "on" }));
+    expect(on.setting.standardLengthMm).not.toBeCloseTo(ring.setting.standardLengthMm, 3);
+  });
+
+  it("爪はまっすぐ斜め（水平から目安の角度）。下の輪の外も同じ傾きで、指へ向かって少しすぼまる", () => {
+    const tanA = Math.tan(((90 - GUIDES.join.between.prongAngleDeg) * Math.PI) / 180);
+    const top = Math.hypot(c.outer[0].x, c.outer[0].y);
+    const low = Math.hypot(c.outerLow[0].x, c.outerLow[0].y);
+    expect((top - low) / (c.topZ - c.bottomZ)).toBeCloseTo(tanA, 1);
+    expect(low).toBeLessThan(top);
   });
 
   it("石の下は腕がないのでザグらない。石の一番下は下の輪の中にある", () => {
@@ -110,7 +150,7 @@ describe("腕の間に挟む石座：形", () => {
     expect(Math.abs(across.shank.ends![0].y)).toBeGreaterThan(Math.abs(along.shank.ends![0].y) + 0.3);
     for (const r of [across, along]) {
       expect(openEdges(r.shank.positions)).toBe(0);
-      expect(r.setting.collar!.ends.every((e) => e.ratio > 0.99)).toBe(true);
+      expect(r.setting.collar!.ends.every((e) => e.ratio >= GUIDES.join.between.minEndContactRatio)).toBe(true);
     }
   });
 

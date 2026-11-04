@@ -1243,7 +1243,7 @@ const JOIN_PICK = "腕への付け方";
 export const JOIN_LABEL: Record<JoinStyle, string> = { between: "腕の間に挟む", on: "腕の上にのせる" };
 export const JOIN_NOTE: Record<JoinStyle, string> = {
   between: "腕のいちばん上を切り、腕の両はしの間に石座をはさんでロウ付けします。わりと基本の作り方（職人の言葉）",
-  on: "腕の上に浅い溝を入れて、石座をのせてロウ付けします",
+  on: "腕の上に浅い溝を入れて、石座をのせてロウ付けします。だめではないが、あまり一般的ではない作り方（職人の言葉）",
 };
 function joinPickHtml(pick: <T extends string | number>(name: string, cur: T, list: [T, string][]) => string, cur: JoinStyle): string {
   return `${pick(JOIN_PICK, cur, [["between", JOIN_LABEL.between], ["on", JOIN_LABEL.on]])}<ul class="pick-notes">${(["between", "on"] as const).map((j) => `<li${j === cur ? ' class="on"' : ""}><b>${JOIN_LABEL[j]}</b>${esc(JOIN_NOTE[j])}</li>`).join("")}</ul>`;

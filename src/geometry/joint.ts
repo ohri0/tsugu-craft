@@ -9,7 +9,7 @@ import type { V3 } from "./mesh";
 import type { SeatCut } from "./notch";
 import type { RingTransform } from "./ring";
 import { buildSolid, smax, smin } from "./sdf";
-import { COLLAR_EDGE_MM, polygonDistance, type SettingResult } from "./setting";
+import { COLLAR_EDGE_MM, collarTaperTan, polygonDistance, type SettingResult } from "./setting";
 import { BAND_GAP_OVERLAP_MM, shoulderWidth, type ShankResult } from "./shank";
 
 /** 石座の下の輪（指輪の座標）：中心の線（閉じた輪）と、線の半径 */
@@ -333,6 +333,8 @@ export interface CollarRing {
   wallMm: number;
   /** 上の面の z（平ら） */
   topZ: number;
+  /** 円すいの傾き：上の端から下へ 1 mm で、外の面が内へ寄る長さ */
+  taperTan: number;
 }
 
 /** 石座の下の輪を、指輪の座標に置く（腕の間に挟む石座でなければ null） */
@@ -341,7 +343,7 @@ export function collarInRing(setting: SettingResult, t: RingTransform): CollarRi
   if (!c) return null;
   const cs = Math.cos(t.rotationZ);
   const sn = Math.sin(t.rotationZ);
-  return { outer: c.outer.map((p) => [p.x * cs - p.y * sn, p.x * sn + p.y * cs] as [number, number]), wallMm: c.wallMm, topZ: c.topZ + t.translateZ };
+  return { outer: c.outer.map((p) => [p.x * cs - p.y * sn, p.x * sn + p.y * cs] as [number, number]), wallMm: c.wallMm, topZ: c.topZ + t.translateZ, taperTan: collarTaperTan(c) };
 }
 
 /**
@@ -360,7 +362,7 @@ export function buildEndSolder(collar: CollarRing, shank: ShankResult): Solder {
   // 腕：輪の外の線の中（overlap 分の内まで）は切ってある
   const band = (x: number, y: number, z: number) => Math.max(plain(x, y, z), -dOut(x, y) - BAND_GAP_OVERLAP_MM);
   const ring = (x: number, y: number, z: number) => {
-    const shell = Math.abs(dOut(x, y) + collar.wallMm / 2) - collar.wallMm / 2;
+    const shell = Math.abs(dOut(x, y) + (collar.topZ - z) * collar.taperTan + collar.wallMm / 2) - collar.wallMm / 2;
     // 一体の石座の下の輪と同じ、上の縁の丸み（丸みが違うと、ロウが輪の縁の外へ小さく出て見える）
     return Math.max(smax(shell, z - collar.topZ, COLLAR_EDGE_MM), r - Math.hypot(y, z));
   };
@@ -373,7 +375,8 @@ export function buildEndSolder(collar: CollarRing, shank: ShankResult): Solder {
       if (dc > k) return dc - k;
       const db = band(x, y, z);
       const g = Math.max(smin(dc, db, k) + SOLDER_GRID.sinkMm, dc - k, db - k);
-      return Math.max(g, r - Math.hypot(y, z));
+      // 輪の上の縁の丸みより上には流さない（縁の上にロウの平らな粒ができないように）
+      return Math.max(g, r - Math.hypot(y, z), z - (collar.topZ - COLLAR_EDGE_MM));
     };
     const m = k + 0.15;
     const sgn = Math.sign(end.y) || 1;
