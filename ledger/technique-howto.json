@@ -1,0 +1,394 @@
+{
+  "ring": {
+    "name": "指輪の石留め",
+    "mark": "石",
+    "lead": "一粒石の指輪。腕を作り、石座を付け、爪を倒して石を留める",
+    "steps": [
+      {
+        "title": "腕を作る",
+        "text": "地金を板か線にのばし、硬くなったら焼きなます。金は暗い赤（イエロー 676 ℃・10 分）、銀（SV925）は 593 ℃・10 分で、どちらも水で冷やす。長さは号から出す（内径 ≒ 13 ＋（号 − 1）÷ 3 mm）。切って丸め、ロウ付けで閉じ、芯金で丸く整える。",
+        "tools": "圧延機・バーナー・糸のこ・芯金・木槌",
+        "fail": "長く熱しすぎると粒が大きくなり、仕上げで肌が荒れる。時間を決めて焼く。",
+        "sources": [
+          { "label": "地金の会社の職人向け記事（焼きなまし）", "url": "https://stuller.com/benchjeweler/resources/bencharticles/view/annealing-gold" },
+          { "label": "指輪のサイズの一覧", "url": "https://www.moocota.com/ring-size-ichiranhyo/" }
+        ]
+      },
+      {
+        "title": "石座を組み、腕に付ける",
+        "text": "腕の上を石座の下の輪の丸みに合わせて削り、当てて確かめながら合わせる。ロウは溶ける温度の高い順（ハード → ミディアム → イージー）に使い、前のつなぎ目を溶かし直さない。",
+        "tools": "やすり・ロウ・フラックス（プラチナには使わない）",
+        "fail": "エメラルド・オパール・真珠など熱に弱い石は、入れたままロウ付けしない。迷ったら外す。",
+        "sources": [
+          { "label": "宝石の学びの頁（ロウの順）", "url": "https://www.gemsociety.org/article/solder" },
+          { "label": "地金の会社の職人向け記事（ロウ付け）", "url": "https://stuller.com/benchjeweler/resources/bencharticles/view/soldering-tips-for-success" },
+          { "label": "職人の掲示板（石つきのロウ付け）", "url": "https://orchid.ganoksin.com/t/beginner-soldering-a-ring-with-stones/13159" }
+        ]
+      },
+      {
+        "title": "座を彫る",
+        "text": "爪の内側に、石の縁（ガードル）が入る座を彫る。削るのは爪の太さの 40〜50%。爪の太さの 50% 以上は必ず残す。石は石座の輪のすぐ上に、水平に座らせる。",
+        "tools": "座ぐり用のバー（回る削る道具）・ルーペ",
+        "fail": "爪の太さの 50% より多く削らない。上から見て、どの爪も同じだけ見えるか確かめる。",
+        "sources": [
+          { "label": "宝石の研究機関の品質の目安", "url": "https://www.gia.edu/bench-tip-avoid-stone-loss-with-quality-assurance-benchmarks" },
+          { "label": "業界誌の連載（楕円を爪に留める）", "url": "https://www.jckonline.com/?p=18955" }
+        ]
+      },
+      {
+        "title": "爪を倒して留める",
+        "text": "爪を石の上側（クラウン）へ倒す。爪の角度は 70〜80 度、かかりは上側の 33〜50%、仕上がりの爪の高さはテーブル（上面）までの高さの 75〜85%。尖った先は V 字の爪で守り、先の上下に逃げを作る。",
+        "tools": "爪寄せ（ヤットコ）・押し棒・やすり",
+        "fail": "尖った先を上から押して、下に支えがないと先が割れる。洋なし・ハートは V を先に倒す。",
+        "sources": [
+          { "label": "宝石の研究機関の品質の目安", "url": "https://www.gia.edu/bench-tip-avoid-stone-loss-with-quality-assurance-benchmarks" },
+          { "label": "技の解説記事（V 字の爪）", "url": "https://www.ganoksin.com/article/v-prong-setting-to-v-or-not-to-v/" }
+        ]
+      },
+      {
+        "title": "仕上げて、見る",
+        "text": "爪の先を丸く整えてみがく。拡大して、残っている地金の厚みと爪のそろい方を見る。酸洗いの液に鉄のピンセットを入れない（地金に銅が付く）。",
+        "tools": "ルーペ・バフ・鉄でないピンセット",
+        "fail": "石つきの品を、熱いうちに水へ入れない（急な温度の変化で石が割れる）。",
+        "sources": [
+          { "label": "地金の会社の職人向け記事（石留めの修理）", "url": "https://www.stuller.com/benchjeweler/resources/bencharticles/view/common-stone-setting-repairs-every-bench-jeweler-should-know/" },
+          { "label": "技の解説記事（酸洗いのメモ）", "url": "https://www.ganoksin.com/lesson/pickling-notes/" },
+          { "label": "地金の会社の職人向け記事（ロウ付け）", "url": "https://stuller.com/benchjeweler/resources/bencharticles/view/soldering-tips-for-success" }
+        ]
+      }
+    ]
+  },
+  "bezel": {
+    "steps": [
+      {
+        "title": "覆輪（輪）を作る",
+        "text": "石より少し高い帯を巻き、ロウ付けで閉じて、芯金で石の形に合わせる。上から見て、石のまわりに縁が見える大きさ。壁の厚みはふつう 0.50〜0.80 mm。",
+        "tools": "帯の地金・芯金・ロウ",
+        "fail": "壁が薄いと、倒すときに欠ける。毎日つける指輪は厚めにする（掲示板の一人は 1 mm 以上）。",
+        "sources": [
+          { "label": "工房のブログ（石の留め方）", "url": "https://www.hitotsuchi.com/blog/7645.html" },
+          { "label": "米国の特許文書（宝石の留め）", "url": "https://patents.google.com/patent/US10602814" },
+          { "label": "職人の掲示板（覆輪の厚み）", "url": "https://orchid.ganoksin.com/t/bezel-construction-ratio-of-stone-size-to-metal-thickness-of-bezel/54415" }
+        ]
+      },
+      {
+        "title": "座を切る",
+        "text": "内側をバーですり鉢の形に削り、石の縁が座る段を作る。覆輪の上の端が、石の上側（クラウン）の高さの 50% 以上に来る深さ。石の縁が壁に入るのは約 0.10〜0.20 mm。",
+        "tools": "座ぐり用のバー",
+        "fail": "石は水平に座らせる。入れてみて、上から見た縁の幅がどこも同じか見る。",
+        "sources": [
+          { "label": "宝石の教育機関の技の頁（丸いカット石の覆輪）", "url": "https://www.gia.edu/bench-tip-modified-tool-to-bezel-set-round-faceted-stones" },
+          { "label": "米国の特許文書（宝石の留め）", "url": "https://patents.google.com/patent/US10602814" },
+          { "label": "工房のブログ（石の留め方）", "url": "https://www.hitotsuchi.com/blog/7645.html" }
+        ]
+      },
+      {
+        "title": "壁の高さを決める",
+        "text": "石を入れる前に壁を下げ、上側の 25〜50% が壁の上に出る高さにする。1 mm に開いたコンパスで、縁の高さの目安の線を引いてから削る。",
+        "tools": "コンパス（ディバイダー）・やすり",
+        "fail": "壁が高すぎると倒す手間が増え、地金が石に密着しにくい。",
+        "sources": [
+          { "label": "業界誌の記事（四角い覆輪の石留め）", "url": "https://www.jckonline.com/magazine-article/square-bezel-setting/" }
+        ]
+      },
+      {
+        "title": "対角の順に倒す",
+        "text": "小さな金づちと鏨（長さ約 8 cm）で、対角の位置を順に少しずつ倒し、一周したら最初にもどってくり返す。しわが寄らないよう押さえながら、すき間がなくなるまで。四角い石は、角に約 1 mm の切れ目を入れる資料もある（要らないという声もあり、職人に聞く）。",
+        "tools": "覆輪鏨・小さな金づち（または押し棒）",
+        "fail": "一か所を一気に倒すと石が片寄る。強く打つと石が割れ、叩きすぎると肌がでこぼこになる。",
+        "sources": [
+          { "label": "工房のブログ（石の留め方）", "url": "https://www.hitotsuchi.com/blog/7645.html" },
+          { "label": "作り手の記事（覆輪留め）", "url": "https://note.com/finedays_2005/n/nf34894e56bcb" },
+          { "label": "業界誌の記事（四角い覆輪の石留め）", "url": "https://www.jckonline.com/magazine-article/square-bezel-setting/" }
+        ]
+      },
+      {
+        "title": "当たりを見て、仕上げる",
+        "text": "倒した地金が上側の 10% 以上にかかり、360° すき間なく当たっているかルーペで見る。かぶせすぎると石が小さく見える。",
+        "tools": "ルーペ・平らな鏨・へら",
+        "fail": "すき間が残ると石がゆるむ。光にかざして、縁にすき間の線が見えないか確かめる。",
+        "sources": [
+          { "label": "宝石の教育機関の技の頁（丸いカット石の覆輪）", "url": "https://www.gia.edu/bench-tip-modified-tool-to-bezel-set-round-faceted-stones" },
+          { "label": "石留めの解説（カット石は縁を少し覆う）", "url": "https://jewelry-craft.online/jewelry-making/basic-make-stone-frame/stone-setting-overview/" }
+        ]
+      }
+    ]
+  },
+  "milgrain": {
+    "steps": [
+      {
+        "title": "ミル鏨を選ぶ",
+        "text": "ミル鏨は先が丸くくぼんだ鏨で、くぼみの形がそのまま粒になる。手打ちの鏨は 0.25〜0.75 mm。粒の大きさは石枠の縁の幅と同じにする。くぼみの内側がよくみがかれているか確かめる。",
+        "tools": "ミル鏨（手打ち）・転がすミル（1〜15 番）",
+        "fail": "転がす道具の番号は mm と合わない、と測った職人がいる。番号でなく、縁に当てて選ぶ。",
+        "sources": [
+          { "label": "指輪の工房の解説（ミル打ち）", "url": "https://ringreform.com/mill.html" },
+          { "label": "作り手の記事（ミル打ちで石を留める）", "url": "https://j-kouki.com/engagement-ring-11/" },
+          { "label": "作り手の制作の記事", "url": "https://www.ateliermarriage.com/column/craftsmanship/86167" },
+          { "label": "職人の掲示板（ミルの番号）", "url": "https://orchid.ganoksin.com/t/what-does-milgrain-size-refer-to/35015" }
+        ]
+      },
+      {
+        "title": "基準の 1 粒と、溝",
+        "text": "縁に 1 粒だけ打って基準にする。それに合わせて、毛彫り鏨で縁と平行な溝を、同じ深さでまっすぐ彫る（筋彫りの跡は消えるが、ミルの溝は残る）。先に軽く位置をつけると、一周に打てる数とつり合いが分かる。",
+        "tools": "ミル鏨・毛彫り鏨",
+        "fail": "溝の深さがそろわないと、粒の大きさもそろわない。",
+        "sources": [
+          { "label": "作り手の制作の記事", "url": "https://www.ateliermarriage.com/column/craftsmanship/86167" },
+          { "label": "彫金の解説記事（筋彫り）", "url": "https://choukinyorozu.com/imulta111-1083.html" },
+          { "label": "作り手の記事（ミル打ちで石を留める）", "url": "https://j-kouki.com/engagement-ring-11/" }
+        ]
+      },
+      {
+        "title": "一粒ずつ打つ",
+        "text": "溝に鏨を合わせ、となりと離れず重ならないように一粒ずつ押しこむ。力は粒ごとに均等に。銀は弱い力で入り、銅の多いピンクゴールドは硬く、強い力が要る。",
+        "tools": "ミル鏨・小さな金づち・ルーペ",
+        "fail": "強すぎるとまわりの地金がつぶれて列が乱れる。鏨がすべると縁がえぐれ、直せない（一発勝負）。",
+        "sources": [
+          { "label": "作り手の制作の記事", "url": "https://www.ateliermarriage.com/column/craftsmanship/86167" },
+          { "label": "作り手の記事（ミル打ちで石を留める）", "url": "https://j-kouki.com/engagement-ring-11/" }
+        ]
+      },
+      {
+        "title": "途中でルーペで見る",
+        "text": "何粒か打つたびにルーペで見て、列がまっすぐか、粒の大きさがそろっているかを確かめる。",
+        "tools": "ルーペ",
+        "fail": "一粒のずれは、そのあとの粒に広がる。早く見つけて直す。",
+        "sources": [
+          { "label": "指輪の工房の解説（ミル打ち）", "url": "https://ringreform.com/mill.html" }
+        ]
+      },
+      {
+        "title": "仕上げ",
+        "text": "ミルのあと、へらで鏡面を出し、布（バフ）でみがく。削るみがきの後にミルを入れる、とする海外の職人もいる（みがき粉で粒が消えるため）。",
+        "tools": "へら・バフ",
+        "fail": "全周にミルがあると、サイズ直しがむずかしい。注文のときに伝える。",
+        "sources": [
+          { "label": "作り手の記事（ミル打ちで石を留める）", "url": "https://j-kouki.com/engagement-ring-11/" },
+          { "label": "職人の掲示板（ミルの道具）", "url": "https://orchid.ganoksin.com/t/bead-and-milgrain-tools/40504" },
+          { "label": "指輪の工房の解説（ミル打ち）", "url": "https://ringreform.com/mill.html" }
+        ]
+      }
+    ]
+  },
+  "tsuchime": {
+    "steps": [
+      {
+        "title": "焼きなましてから打つ",
+        "text": "銅は叩くと硬くなる。約 650 ℃の炉でやわらかくし、熱することと叩くことをくり返す。銀（SV925）は 593 ℃で 10 分。冷やし方（水か、ゆっくりか）は資料で食いちがうので、職人に聞く。",
+        "tools": "炉かバーナー・酸洗いの液",
+        "fail": "硬いまま打ちつづけると割れる。",
+        "sources": [
+          { "label": "工芸の紹介サイト（燕の鎚起銅器・英語）", "url": "https://kogeijapan.com/locale/en_US/tsubametsuikidoki/" },
+          { "label": "地金の会社の職人向け記事（焼きなまし）", "url": "https://stuller.com/benchjeweler/resources/bencharticles/view/annealing-gold" },
+          { "label": "金属加工の会社の解説（鎚目）", "url": "https://www.kikukawa.com/technology/tsuchime-hammertone-finish/" }
+        ]
+      },
+      {
+        "title": "金づちを選ぶ",
+        "text": "鎚目は面をみがいたならし鎚か、丸みのあるいも鎚でつける。小さい槌は細かな輝き、大きい槌は荒々しい表情。面を荒らした荒らし鎚は、つやを抑えた質感に使う。",
+        "tools": "ならし鎚・いも鎚・荒らし鎚・当て金",
+        "fail": "ならし鎚で鏨などを打つと面が荒れ、その荒れが模様に写る。荒らし鎚は焼きが入っているので、芯金・金床の上で使わない。",
+        "sources": [
+          { "label": "道具の店の解説（金づち）", "url": "https://crucible.jp/blog/?p=2755" },
+          { "label": "金属加工の会社の解説（鎚目）", "url": "https://www.kikukawa.com/technology/tsuchime-hammertone-finish/" }
+        ]
+      },
+      {
+        "title": "見本で確かめる",
+        "text": "同じ模様でも、材と板の厚みで硬さが変わり、凹凸に差が出る。本番の前に、同じ材・同じ厚みの見本を打って、色と模様を見る。",
+        "tools": "同じ地金の切れ端",
+        "fail": "材か板厚が変わったら、そのたびに見本を打つ。",
+        "sources": [
+          { "label": "金属加工の会社の解説（鎚目）", "url": "https://www.kikukawa.com/technology/tsuchime-hammertone-finish/" }
+        ]
+      },
+      {
+        "title": "そろえて打つ",
+        "text": "跡の大きさ・深さ・密度・並べ方をそろえて打つ。打つたびに板がゆがむので、ゆがみを取りながら進める。模様の名の例：重ね円・あらし・さざなみ。打つ順の資料は無い（職人に聞く）。",
+        "tools": "金づち・当て金・木台",
+        "fail": "ゆがんだまま打つと面がそろわず、跡の大きさもばらつく。",
+        "sources": [
+          { "label": "金属加工の会社の解説（鎚目）", "url": "https://www.kikukawa.com/technology/tsuchime-hammertone-finish/" },
+          { "label": "鍛金の工房の記事（鎚目について）", "url": "https://camp-fire.jp/projects/319063/activities/203837" }
+        ]
+      },
+      {
+        "title": "色をつける（銅）",
+        "text": "燕の鎚起銅器では、緑青と硫酸銅の液で煮て色をつける。液の割合と時間は資料に無い。",
+        "tools": "銅の鍋・緑青・硫酸銅",
+        "fail": "薬品は毒がある。換気して、手袋をする。",
+        "unverified": true,
+        "sources": [
+          { "label": "伝統的工芸品の英語の頁（燕鎚起銅器）", "url": "https://kougeihin.jp/en/craft/0704/", "unverified": true }
+        ]
+      }
+    ]
+  },
+  "kebori": {
+    "steps": [
+      {
+        "title": "鏨を選び、研ぐ",
+        "text": "毛彫り鏨は刃先が三角にとがり、V の溝を彫る。片切り鏨は先が平らで、「レ」の溝を彫る。練習は刃の幅 1.2 mm 以上、表面をなぞる筋彫りなら 0.5 mm でもよい（刃の幅で、線の幅ではない）。",
+        "tools": "毛彫り鏨・片切り鏨・砥石",
+        "fail": "よく研げていない鏨は食いこまない。よく研げた鏨は、当てるだけで刃が入る感じがある。",
+        "sources": [
+          { "label": "彫金の解説記事（毛彫り鏨）", "url": "https://choukinyorozu.com/imulta105-1026.html" },
+          { "label": "彫金の解説記事（研ぎ）", "url": "https://choukinyorozu.com/imulta436-16889.html" },
+          { "label": "公的な頁（彫金のわざ）", "url": "https://www.nihonkogeikai.or.jp/waza/technique/4/" }
+        ]
+      },
+      {
+        "title": "ヤニ台に固定する",
+        "text": "温めた松やにに地金を貼り、打っても動かないようにする。",
+        "tools": "ヤニ台・バーナー",
+        "fail": "温めたやには熱い。やけどに気をつける。",
+        "sources": [
+          { "label": "彫金の解説記事（片切り）", "url": "https://choukinyorozu.com/imulta172-1908.html" }
+        ]
+      },
+      {
+        "title": "浅く筋彫り",
+        "text": "本番の前に、毛彫り鏨で浅く細く線を入れて当たりをつける。",
+        "tools": "毛彫り鏨（細め）",
+        "fail": "深く彫ってからずれると直せない。まず浅い線で位置を決める。",
+        "sources": [
+          { "label": "彫金の解説記事（筋彫り）", "url": "https://choukinyorozu.com/imulta111-1083.html" }
+        ]
+      },
+      {
+        "title": "本彫り",
+        "text": "刃は狙った所にまっすぐ入れ、同じ深さで進め、終わりは細く抜く。金づちは「置く」つもりで重さに任せる。毛彫り鏨は傾けず、曲線のきつい所は細かく叩く。片切りは傾きを絵の内側へ向け、筆の先にあたる所ほど深く、腹ほど浅く。",
+        "tools": "鏨・彫金の金づち",
+        "fail": "強い抵抗は深さがそろっていない合図。叩く角度を直す。鏨を強くつまむと線がカクカクする。硬い地金は一気に彫らず、何回かに分ける（刃が欠ける）。",
+        "sources": [
+          { "label": "彫金の解説記事（筋彫り）", "url": "https://choukinyorozu.com/imulta111-1083.html" },
+          { "label": "彫金の解説記事（直線）", "url": "https://choukinyorozu.com/imulta357-11110.html" },
+          { "label": "彫金の解説記事（毛彫り鏨）", "url": "https://choukinyorozu.com/imulta105-1026.html" },
+          { "label": "彫金の解説記事（片切り）", "url": "https://choukinyorozu.com/imulta172-1908.html" }
+        ]
+      }
+    ]
+  },
+  "nunome": {
+    "steps": [
+      {
+        "title": "鉄の地を整える",
+        "text": "地金は鉄（鋼）。切り出して形を整え、みがく。肥後象嵌では、はめこむ所に筆で下絵を描く。鉄の厚みの決まりは資料に無い（職人に聞く）。",
+        "tools": "鉄の板・やすり・砥石・筆",
+        "unverified": true,
+        "sources": [
+          { "label": "伝統的工芸品の協会の頁（肥後象がん）", "url": "https://www.jtco.or.jp/japanese-crafts/?act=detail&id=86&p=43&c=5", "unverified": true },
+          { "label": "観光庁の多言語解説（肥後象嵌）", "url": "https://www.mlit.go.jp/tagengo-db/en/R2-02047.html", "unverified": true }
+        ]
+      },
+      {
+        "title": "布目を切る",
+        "text": "布目切り鏨を当てて金づちで打ち、少しずつずらしながら細い溝を刻む。京象嵌は 1 mm に 7〜8 本を縦横に、間かくは指先の感覚で。肥後象嵌は縦・横・斜め 2 方向の四方向。",
+        "tools": "布目切り鏨（目切り鏨）・金づち",
+        "fail": "溝が浅いと、金銀を打ちこんでもはがれる。工程の要で、身につけるのに約 10 年の修業がいるとされる。",
+        "sources": [
+          { "label": "京都の象嵌の工房の解説", "url": "https://www.nakajima-zougan.jp/about/" },
+          { "label": "雑誌の記事（京象嵌）", "url": "https://serai.jp/hobby/1186148" },
+          { "label": "熊本の伝統工芸の館の頁（肥後象嵌）", "url": "https://kumamoto-kougeikan.jp/archive/higozogan/" }
+        ]
+      },
+      {
+        "title": "金銀を打ちこむ（入嵌）",
+        "text": "直径 0.15〜1.0 mm 位の純金・純銀の線や、模様に抜いた平金を布目に当て、鹿の角の槌で打ちこむ。下絵は無く、頭の中の形で打つ。",
+        "tools": "鹿の角の槌・純金・純銀の線と平金",
+        "fail": "鉄の槌で打つと布目の針が曲がって模様が抜けず、金銀がのびすぎる。角の槌は光沢も出る。",
+        "sources": [
+          { "label": "京都の象嵌の工房の解説", "url": "https://www.nakajima-zougan.jp/about/" }
+        ]
+      },
+      {
+        "title": "錆を出し、錆を止める",
+        "text": "京象嵌：酸化鉄で腐食させ、アンモニア水で錆を出して布目を消し、タンニンで錆を止める。肥後象嵌：錆出しの液を塗って焼くことをくり返し、茶の液に 30 分ひたして錆を止める。錆出しの日数・回数は資料で食いちがう（職人に聞く）。",
+        "tools": "錆出しの液・茶（タンニン）の液",
+        "fail": "液をむらなく塗らないと、地の黒にむらが出る。",
+        "sources": [
+          { "label": "京都の象嵌の工房の解説", "url": "https://www.nakajima-zougan.jp/about/" },
+          { "label": "熊本の伝統工芸の館の頁（肥後象嵌）", "url": "https://kumamoto-kougeikan.jp/archive/higozogan/" },
+          { "label": "伝統的工芸品の協会の頁（肥後象がん）", "url": "https://www.jtco.or.jp/japanese-crafts/?act=detail&id=86&p=43&c=5", "unverified": true }
+        ]
+      },
+      {
+        "title": "漆を焼き、研ぎ出す",
+        "text": "網の上で漆を塗って焼くことを 3〜4 回くり返し、地を黒くして錆から守る。傷をつけないよう丁寧に研いで金銀を出し、最後に毛彫りで花や葉の筋を入れる。",
+        "tools": "漆・網・研ぐ炭・毛彫り鏨",
+        "fail": "金銀に傷をつけないよう、丁寧に研ぐ。",
+        "sources": [
+          { "label": "京都の象嵌の工房の解説", "url": "https://www.nakajima-zougan.jp/about/" },
+          { "label": "雑誌の記事（京象嵌）", "url": "https://serai.jp/hobby/1186148" }
+        ]
+      }
+    ]
+  },
+  "mokume": {
+    "steps": [
+      {
+        "title": "色金（いろがね）を選ぶ",
+        "text": "銅・赤銅（銅に金を少し。辞典では金 3〜4% ほどと銀 1% ほど、古い事典は金 6〜7%）・四分一（銅 3 に銀 1 ほど。銀灰色）・銀・金などから、色の差が出る組み合わせを選ぶ。煮色で、赤銅は紫がかった黒、四分一は灰、銅は赤茶になり、金銀は変わらない。",
+        "tools": "色金の板",
+        "fail": "とける温度のちがう金属を組むほど、つなぐ温度がむずかしくなる。",
+        "sources": [
+          { "label": "辞典（赤銅・四分一）", "url": "https://kotobank.jp/word/赤銅" },
+          { "label": "秋田県の資料（杢目金）", "url": "https://www.pref.akita.lg.jp/uploads/public/archive_0000070402_00/02_杢目金.pdf" },
+          { "label": "英語の百科事典（煮色の色）", "url": "https://en.wikipedia.org/wiki/Niiro", "unverified": true }
+        ]
+      },
+      {
+        "title": "板をそろえ、洗って重ねる",
+        "text": "板は一般に 0.3〜2 mm の厚みで 10〜40 枚以上。装身具は 25 層まで（ある作り手はふだん 12〜18 層）。一枚一枚の厚みをどこも均一にし、模様に出ない下の一枚は全体の 1/3 まで厚くしてよい。重ねる面は油も指のあとも残さず洗う。",
+        "tools": "糸のこ・やすり・脱脂の道具",
+        "fail": "洗浄の不足が、はがれ・中の泡のいちばんの原因。洗った面は素手でさわらない。",
+        "sources": [
+          { "label": "日本の作り手の会社の解説（積層）", "url": "https://mokume-gane.co.jp/lamination/" },
+          { "label": "米国の作り手の手引き（地金の用意）", "url": "https://www.mokume.com/mokume-gane-a-comprehensive-study/preparing-a-mokume-gane-billet-guide" }
+        ]
+      },
+      {
+        "title": "締めて、つなぐ（拡散接合）",
+        "text": "重ねた板を鉄（鋼）の板ではさみ、伝統は太い鉄の針金で、今はボルトで締める。ろうを使わず熱してつなぐ。温度は 800〜950 ℃が目安で材料による。資料によって温度も時間も大きくちがうので、自分の地金で職人に聞く。",
+        "tools": "鉄の当て板・針金かボルト・炉（伝統は木炭の火床）",
+        "fail": "焼きすぎ・温度不足・加熱むらで、割れ・はがれ・中の泡になる。銀と銅の境目は、とける温度が下がるので熱しすぎない。",
+        "sources": [
+          { "label": "日本の作り手の会社の解説（積層）", "url": "https://mokume-gane.co.jp/lamination/" },
+          { "label": "米国の作り手の工房の解説", "url": "https://mokume-gane.com/jbma-mokume-studio/mokume-gane/", "unverified": true }
+        ]
+      },
+      {
+        "title": "鍛えて、のばす",
+        "text": "火から出してすぐ叩き、つながりを仕上げる。鍛えるときは、一回熱するごとに 20〜30% ずつ薄くし、はじめの厚みから 50% 薄くなるまで続ける。冷たいまま薄くするなら、焼きなましの前に 10% 以下からはじめ、薄くなってから 20% 近くまで。",
+        "tools": "金づち・金床・圧延機・炉",
+        "fail": "一度に薄くしすぎると、層の境目がはがれる。赤銅・四分一の焼きなましの温度は資料に無い（職人に聞く）。",
+        "sources": [
+          { "label": "刃物づくりの雑誌の記事（木目金）", "url": "https://blademag.com/knifemaking/knifemaking-101-how-to-make-mokume" },
+          { "label": "米国の作り手の工房の解説", "url": "https://mokume-gane.com/jbma-mokume-studio/mokume-gane/", "unverified": true }
+        ]
+      },
+      {
+        "title": "彫って、また平らにする",
+        "text": "鏨で表面を彫り、叩いて平らにすると、彫りの形が色の帯になって出る。彫る深さは、そのときの地金の厚さの 1/3 まで。深さを変えると出る層（色）が変わる。彫る・平らにする、をくり返すほど模様は細かくなる。",
+        "tools": "鏨・金づち（今はドリル・ポンチも）",
+        "fail": "1/3 より深く彫ると地金が弱くなり、のばすときに割れる。",
+        "sources": [
+          { "label": "刃物づくりの雑誌の記事（木目金）", "url": "https://blademag.com/knifemaking/knifemaking-101-how-to-make-mokume" },
+          { "label": "美術大学の紀要（木目金）", "url": "https://kanazawa-bidai.repo.nii.ac.jp/record/507/files/KJ00006515819.pdf", "unverified": true }
+        ]
+      },
+      {
+        "title": "煮色で色を出す",
+        "text": "みがいて脱脂し、緑青と硫酸銅をとかした水で煮る（明礬を足す配合もある）。配合の一例は、水 1 L に緑青 3 g・硫酸銅 3 g。配合と煮る時間は工房ごとにちがうので、見本で確かめる。",
+        "tools": "銅の鍋・竹のかご・緑青・硫酸銅・大根（洗うのに使う例がある）",
+        "fail": "脱脂が甘いと色むらになる。薬品は毒がある。換気して手袋をする。",
+        "unverified": true,
+        "sources": [
+          { "label": "辞典（赤銅の色の出し方）", "url": "https://kotobank.jp/word/赤銅" },
+          { "label": "英語の百科事典（煮色の配合の例）", "url": "https://en.wikipedia.org/wiki/Niiro", "unverified": true }
+        ]
+      }
+    ]
+  }
+}

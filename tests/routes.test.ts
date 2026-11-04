@@ -9,11 +9,13 @@ describe("前の画面の名前を、新しい場所へ送る", () => {
     expect(redirectHash("#keep")).toBe("#ledger");
     expect(redirectHash("#rebuild")).toBe("#waza/rebuild");
   });
-  it("指輪の聞き取りは帳面へ。聞く所（gap）はそのまま", () => {
-    expect(redirectHash("#waza/ring")).toBe("#ledger");
-    expect(redirectHash("#waza/ring?gap=abc")).toBe("#ledger?gap=abc");
+  it("魚々子は外したので、技の一覧へ。指輪の石留めは技の頁のまま", () => {
+    expect(redirectHash("#waza/nanako")).toBe("#waza");
+    expect(redirectHash("#waza/nanako?gap=x")).toBe("#waza");
+    expect(redirectHash("#waza/ring")).toBeNull();
+    expect(redirectHash("#waza/ring?gap=abc")).toBeNull();
   });
   it("今の場所は、そのまま", () => {
-    for (const h of ["", "#ledger", "#learn", "#learn/hands", "#waza", "#waza/nanako", "#waza/nanako?gap=x", "#waza/rebuild"]) expect(redirectHash(h)).toBeNull();
+    for (const h of ["", "#ledger", "#learn", "#learn/hands", "#waza", "#waza/ring", "#waza/mokume", "#waza/rebuild"]) expect(redirectHash(h)).toBeNull();
   });
 });

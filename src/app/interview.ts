@@ -1,5 +1,5 @@
 // Claude の聞き取り：帳面の「まだ決まっていない所」を 1 つずつ職人に聞き、答えを決まりにする部品。
-// 指輪の石留めの帳面にも、魚々子の帳面にも使う（どちらも src/rules/gaps.ts で見つける）。
+// 指輪の石留めの帳面にも、ほかの技の帳面にも使う（どれも src/rules/gaps.ts で見つける）。
 // 合言葉があれば Claude が問いを言い直し、答えを決まりにまとめる。なければ、決まった問いと数字を読むしくみで動く（画面にそう書く）。
 import { askGapPrompt, askGapUser, ASK_GAP, gapRulePrompt, gapRuleUser, GAP_RULE, parseAskGap, parseGapRule, type GapRuleOut } from "../claude/gap";
 import { callTool } from "../rebuild/run";
@@ -233,7 +233,7 @@ export function mountInterview(root: HTMLElement, target: InterviewTarget, opts:
   };
 }
 
-/** 決まりの値の単位（指輪の値は PARAMS、魚々子は mm） */
+/** 決まりの値の単位（指輪の値は PARAMS、ほかは mm） */
 function unitOf(param?: string): string {
   return param && param in PARAMS ? PARAMS[param as ParamId].unit : "mm";
 }

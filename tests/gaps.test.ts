@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 import repoLedger from "../ledger/jewelry.json";
 import { activeRules, addRule, effectiveGuides, seedLedger, valueFor, type Ledger } from "../src/rules/ledger";
-import { answerToDraft, applyDraft, isYes, nanakoGaps, pickNumber, readNumbers, ringAnswerToDraft, ringGaps, type Gap } from "../src/rules/gaps";
+import { answerToDraft, applyDraft, isYes, pickNumber, readNumbers, ringAnswerToDraft, ringGaps, type Gap } from "../src/rules/gaps";
 import { parseAskGap, parseGapRule } from "../src/claude/gap";
-import { checkNanako, grainLayout, nanakoRuleFor, seedNanakoLedger, type NanakoDesign, type NanakoLedger } from "../src/rules/nanako";
 
 const ctx = { name: "石川", date: "2026-11-03" };
 
@@ -25,105 +24,38 @@ describe("答えの数字を読む", () => {
   });
 });
 
-describe("魚々子の、まだ決まっていない所", () => {
-  it("資料に数字のない値は決まりがなく、聞く所になる。数字のある未確認の決まりは確かめる所になる", () => {
-    const l = seedNanakoLedger();
-    expect(nanakoRuleFor(l, "plate.minThicknessMm")).toBeUndefined();
-    const gaps = nanakoGaps(l);
-    expect(gaps[0].id).toBe("nanako:plate.minThicknessMm");
-    expect(gaps[0].question).toBe("板の厚みが何ミリより薄いと、打ったときに穴があきますか？");
-    expect(gaps.map((g) => g.id)).toContain("nanako:grain.gapMinMm");
-    const precision = gaps.find((g) => g.id === "nanako:strike.maxOffsetMm")!;
-    expect(precision.kind).toBe("unverified");
-    expect(precision.current).toBe(0.1);
-    // 帳面の決まりは、どれも出どころの URL と「未確認」がついている
-    for (const r of l.rules) {
-      expect(r.unverified).toBe(true);
-      expect(r.source.kind === "public" && r.source.url?.startsWith("https://")).toBe(true);
-    }
-  });
+// 数字で答える所（形だけの例。魚々子の帳面を 2026-11-04 に外したので、ここで作る）
+const numberGap: Gap = {
+  id: "t:plate",
+  technique: "bezel",
+  kind: "missing",
+  expects: "number",
+  param: "plate.minThicknessMm",
+  unit: "mm",
+  title: "板の厚み",
+  question: "板の厚みが何ミリより薄いと、打ったときに穴があきますか？",
+  why: "資料に数字がない",
+  reason: "うすい板は穴があく",
+};
 
-  it("答えると決まりになり（職人・名前・日付・言葉そのまま）、その所はもう聞かない", () => {
-    let l: NanakoLedger = seedNanakoLedger();
-    const gap = nanakoGaps(l)[0];
+describe("数字で答える所", () => {
+  it("答えの数字だけが決まりの値になる（職人・名前・日付・言葉そのまま）", () => {
     const said = "0.5ミリより薄いと、だいたい穴があくね";
-    const r = answerToDraft(gap, said, ctx);
+    const r = answerToDraft(numberGap, said, ctx);
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.value).toBe(0.5);
-    expect(r.draft).toMatchObject({ param: "plate.minThicknessMm", value: 0.5, quote: said, source: { kind: "craftsman", name: "石川" }, date: "2026-11-03", gap: gap.id });
-    l = applyDraft(l, r.draft as never);
-    expect(nanakoRuleFor(l, "plate.minThicknessMm")!.value).toBe(0.5);
-    expect(nanakoGaps(l).map((g) => g.id)).not.toContain(gap.id);
+    expect(r.draft).toMatchObject({ param: "plate.minThicknessMm", value: 0.5, quote: said, source: { kind: "craftsman", name: "石川" }, date: "2026-11-03", gap: numberGap.id });
   });
 
   it("数字がない・2 つあるときは決まりにせず、聞き直すか選んでもらう", () => {
-    const gap = nanakoGaps(seedNanakoLedger())[0];
+    const gap = numberGap;
     expect(answerToDraft(gap, "場合による", ctx).ok).toBe(false);
     const two = answerToDraft(gap, "0.4か0.5ミリかな", ctx);
     expect(two.ok).toBe(false);
     if (!two.ok) expect(two.candidates).toEqual([0.4, 0.5]);
     const chosen = answerToDraft(gap, "0.4か0.5ミリかな", ctx, 0.5);
     expect(chosen.ok && chosen.value).toBe(0.5);
-  });
-
-  it("未確認の決まりを「はい」で確かめると、職人の決まりに置き換わる。言葉の決まりも置き換わる", () => {
-    let l: NanakoLedger = seedNanakoLedger();
-    const g = nanakoGaps(l).find((x) => x.id === "nanako:strike.maxOffsetMm")!;
-    const r = answerToDraft(g, "はい、そのくらい", ctx);
-    expect(r.ok).toBe(true);
-    if (!r.ok) return;
-    l = applyDraft(l, r.draft as never);
-    const now = nanakoRuleFor(l, "strike.maxOffsetMm")!;
-    expect(now.source).toEqual({ kind: "craftsman", name: "石川" });
-    expect(now.value).toBe(0.1);
-    expect(now.unverified).toBeUndefined();
-    const v = nanakoGaps(l).find((x) => x.id === "nanako:confirm:nanako-vertical")!;
-    const r2 = answerToDraft(v, "傾けて打つこともある", ctx);
-    expect(r2.ok && r2.draft.text).toBe("傾けて打つこともある");
-    if (r2.ok) l = applyDraft(l, r2.draft as never);
-    expect(activeRules(l).some((x) => x.id === "nanako-vertical")).toBe(false);
-  });
-});
-
-describe("魚々子の図を、帳面の決まりで確かめる", () => {
-  const d: NanakoDesign = { grainMm: 0.6, pitchMm: 0.8, rows: 3, cols: 5, plateMm: 0.4, offsetMm: 0, layout: "nanakoji" };
-
-  it("決まりがない値は確かめず「まだ決まりがない」", () => {
-    const c = checkNanako(d, seedNanakoLedger());
-    const plate = c.findings.find((f) => f.key === "plate.minThicknessMm")!;
-    expect(plate.status).toBe("none");
-    expect(plate.gapId).toBe("nanako:plate.minThicknessMm");
-    expect(c.bad.size).toBe(0);
-  });
-
-  it("職人が答えた板の厚みより薄いと、全部の粒が赤くなり、理由と出どころが出る", () => {
-    const gap = nanakoGaps(seedNanakoLedger())[0];
-    const r = answerToDraft(gap, "0.5ミリより薄いと穴があく", ctx);
-    if (!r.ok) throw new Error(r.why);
-    const l = applyDraft(seedNanakoLedger(), r.draft as never);
-    const c = checkNanako(d, l);
-    const plate = c.findings.find((f) => f.key === "plate.minThicknessMm")!;
-    expect(plate.status).toBe("ng");
-    expect(plate.rule!.source).toEqual({ kind: "craftsman", name: "石川" });
-    expect(c.plateBad).toBe(true);
-    expect(c.bad.size).toBe(15);
-    expect(checkNanako({ ...d, plateMm: 0.6 }, l).bad.size).toBe(0);
-  });
-
-  it("魚子地で粒が重なると赤。荒らしなら重ねてよい", () => {
-    const over = { ...d, plateMm: 1, pitchMm: 0.5 };
-    expect(checkNanako(over, seedNanakoLedger()).findings.find((f) => f.key === "nanako-no-overlap")!.status).toBe("ng");
-    expect(checkNanako({ ...over, layout: "arashi" }, seedNanakoLedger()).findings.some((f) => f.key === "nanako-no-overlap")).toBe(false);
-  });
-
-  it("打つ位置のずれは、決まり（資料の 0.1 mm）より大きくずれた粒だけ赤", () => {
-    const dd = { ...d, plateMm: 1, offsetMm: 0.2, rows: 6, cols: 10 };
-    const c = checkNanako(dd, seedNanakoLedger());
-    const over = grainLayout(dd).filter((g) => g.offset > 0.1).length;
-    expect(over).toBeGreaterThan(0);
-    expect(over).toBeLessThan(60);
-    expect(c.bad.size).toBe(over);
   });
 });
 
@@ -181,7 +113,7 @@ describe("指輪の石留めの、まだ決まっていない所", () => {
 });
 
 describe("Claude の聞き取りの返事を確かめる（言っていない数字を入れない）", () => {
-  const gap = nanakoGaps(seedNanakoLedger())[0];
+  const gap = numberGap;
   it("問いに、もとの問いにない数字があれば受け取らない", () => {
     expect(parseAskGap({ question: "板が何ミリより薄いと穴があきますか？" }, gap).ok).toBe(true);
     expect(parseAskGap({ question: "板が 0.5 ミリより薄いと穴があきますか？" }, gap).ok).toBe(false);

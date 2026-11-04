@@ -1,12 +1,11 @@
 // 聞き取り：帳面の「まだ決まっていない所」を見つけ、職人に 1 つずつ聞き、答えを決まりにする。
-// 指輪の石留めの帳面にも、魚々子の帳面にも同じ形で使う。
+// 指輪の石留めの帳面にも、ほかの技の帳面にも同じ形で使う。
 // Claude がなくても動くように、質問は決まった文、答えは数字を読む簡単なしくみで決まりにする（Claude があれば言い直しを任せる）。
 // 決まりの数字は、職人が答えた言葉の中の数字だけ。ここで数字を作らない。
 import { effectiveGuides, PARAMS, activeRules, addRule, sourceLabel, type Ledger, type ParamId, type Rule, type SizeStep } from "./ledger.js";
 import { TECHS, type TechId } from "./techniques.js";
-import { NANAKO_PARAMS, nanakoGapId, type NanakoLedger, type NanakoParam } from "./nanako.js";
 
-export type Technique = "ring" | "nanako" | TechId;
+export type Technique = "ring" | TechId;
 
 /**
  * missing＝値の決まりがまだない / unverified＝原文で確かめていない決まり / uncovered＝職人の点が届いていない石の大きさ /
@@ -177,110 +176,9 @@ export function answerToDraft<P extends string = string>(gap: Gap, answer: strin
 function numberRule(gap: Gap, v: number): { param?: string; value?: number; text: string } {
   const unit = gap.unit ?? "mm";
   switch (gap.param) {
-    case "plate.minThicknessMm":
-      return { param: gap.param, value: v, text: `板の厚みは ${valueText(v)} 以上（これより薄いと、打ったときに穴があく）` };
-    case "grain.gapMinMm":
-      return { param: gap.param, value: v, text: `となりの粒とのすき間（縁と縁）は ${valueText(v)} 以上（これより近いと粒がくずれる）` };
-    case "grain.gapMaxMm":
-      return { param: gap.param, value: v, text: `となりの粒とのすき間（縁と縁）は ${valueText(v)} まで（これより遠いと、打っていない島が残る）` };
-    case "strike.maxOffsetMm":
-      return { param: gap.param, value: v, text: `打つ位置のずれは ${valueText(v)} まで` };
     default:
       return { param: gap.param, value: v, text: `${gap.title}：${valueText(v, unit)}` };
   }
-}
-
-// ---- 魚々子の「まだ決まっていない所」 ----
-
-const NANAKO_ASK: Record<NanakoParam, { question: string; why: string; reason: string } | undefined> = {
-  "plate.minThicknessMm": {
-    question: "板の厚みが何ミリより薄いと、打ったときに穴があきますか？",
-    why: "資料には「うすい板に粗い鏨で打つと穴があく」とだけあり、何 mm からかは書いていない。",
-    reason: "うすい板に打つと、鏨の先が突き抜けて穴があく",
-  },
-  "grain.gapMinMm": {
-    question: "となりの粒とのすき間（粒の縁と縁）が何ミリより近いと、粒がくずれますか？",
-    why: "資料には「近すぎると粒がくずれる」とだけあり、数字がない。",
-    reason: "近すぎると、前に打った粒を次の粒がつぶす",
-  },
-  "grain.gapMaxMm": {
-    question: "となりの粒とのすき間が何ミリより広いと、打っていない「島」が目立ちますか？",
-    why: "資料には「間かくが遠いと島が残る」とだけあり、数字がない。",
-    reason: "遠いと、粒の間に打っていない島が残る",
-  },
-  // 打つ位置のずれは資料に数字がある（未確認）。確かめる問いとして出す
-  "strike.maxOffsetMm": undefined,
-};
-
-/** 魚々子の、言葉で答える問い（資料で見つからなかった・食いちがったこと） */
-const NANAKO_OPEN: { id: string; title: string; question: string; why: string; reason: string }[] = [
-  {
-    id: "nanako:punch-number",
-    title: "鏨の番号と先の丸の大きさ",
-    question: "鏨の番号は、数字が小さいほど先の丸が小さいですか？大きいですか？",
-    why: "資料によって言い方が逆で、決められない。",
-    reason: "番号の向きを取りちがえると、うすい板に粗い鏨で打ってしまう",
-  },
-  {
-    id: "nanako:row-guide",
-    title: "列をまっすぐに保つ目印",
-    question: "列をまっすぐに保つのに、何を目印にしますか？（線を引く・前の粒のふちに合わせる など）",
-    why: "列をそろえるやり方は、資料に見つからなかった。",
-    reason: "位置が少しずれると、後の粒がすべて合わなくなる",
-  },
-];
-
-/** 魚々子の帳面の、まだ決まっていない所（聞く順） */
-export function nanakoGaps(ledger: NanakoLedger): Gap[] {
-  const active = activeRules(ledger);
-  const answered = new Set(active.flatMap((r) => (r.gap ? [r.gap] : [])));
-  const gaps: Gap[] = [];
-  // 1. 値の決まりがない
-  for (const [param, ask] of Object.entries(NANAKO_ASK) as [NanakoParam, (typeof NANAKO_ASK)[NanakoParam]][]) {
-    if (!ask) continue;
-    if (active.some((r) => r.param === param && r.value !== undefined)) continue;
-    gaps.push({ id: nanakoGapId(param), technique: "nanako", kind: "missing", expects: "number", param, unit: "mm", title: NANAKO_PARAMS[param].label, ...ask });
-  }
-  // 2. 数字のある未確認の決まり
-  const unverified = active.filter((r) => r.unverified);
-  for (const r of unverified.filter((x) => x.param && x.value !== undefined)) {
-    gaps.push({
-      id: nanakoGapId(r.param!),
-      technique: "nanako",
-      kind: "unverified",
-      expects: "confirm",
-      param: r.param,
-      unit: "mm",
-      current: r.value,
-      ruleId: r.id,
-      ruleText: r.text,
-      title: NANAKO_PARAMS[r.param!].label,
-      reason: r.reason,
-      question: `「${r.text}」という話が資料にあります（原文は未確認）。あなたの仕事でもそうですか？ちがえば数字で教えてください。`,
-      why: `出どころ：${sourceLabel(r.source)}。検索結果の要約で、原文を確かめていない。`,
-    });
-  }
-  // 3. 言葉で答える問い
-  for (const o of NANAKO_OPEN) {
-    if (answered.has(o.id)) continue;
-    gaps.push({ id: o.id, technique: "nanako", kind: "open", expects: "text", title: o.title, question: o.question, why: o.why, reason: o.reason });
-  }
-  // 4. 言葉の未確認の決まり
-  for (const r of unverified.filter((x) => !x.param)) {
-    gaps.push({
-      id: `nanako:confirm:${r.id}`,
-      technique: "nanako",
-      kind: "unverified",
-      expects: "confirm",
-      ruleId: r.id,
-      ruleText: r.text,
-      title: r.title,
-      reason: r.reason,
-      question: `「${r.text}」と資料にあります（原文は未確認）。あなたの仕事でもそうですか？ちがえば、あなたの言葉で教えてください。`,
-      why: `出どころ：${sourceLabel(r.source)}。検索結果の要約で、原文を確かめていない。`,
-    });
-  }
-  return gaps;
 }
 
 // ---- 指輪の石留めの「まだ決まっていない所」 ----
@@ -486,8 +384,7 @@ export function techGaps(id: TechId, ledger: Ledger<string>): Gap[] {
 }
 
 /** その技の帳面の、まだ決まっていない所 */
-export function gapsFor(technique: Technique, ledger: Ledger | NanakoLedger | Ledger<string>): Gap[] {
+export function gapsFor(technique: Technique, ledger: Ledger | Ledger<string>): Gap[] {
   if (technique === "ring") return ringGaps(ledger as Ledger);
-  if (technique === "nanako") return nanakoGaps(ledger as NanakoLedger);
   return techGaps(technique, ledger as Ledger<string>);
 }
