@@ -1,5 +1,6 @@
 # 最終案を、はじめから終わりまで組む（画面 → 音楽 → 効果音 → 声 → 混ぜる）。
-# 使い方：python -I final.py [--plan 2] [--variant A|B] [--no-video] [--jobs 12]（--plan 2 で最終案 2：final_build2.py・bgm4.py。--variant は終わり方の 2 案）
+# 使い方：python -I final.py [--plan 2|3] [--variant A|B] [--no-video] [--jobs 12]
+#   --plan 2 で最終案 2（final_build2.py・bgm4.py。--variant は終わり方の 2 案）、--plan 3 で最終案 3（final_build3.py・bgm5.py）
 #  1. final_build.py：台本（final.json。拍で書いた場面・言葉・音楽・声）
 #  2. reel.py：本物の画面のこまに、カメラ・つなぎ・大きな言葉 → work/vc/final_video.mp4（＋効果音の合図）
 #  3. bgm3.py：音楽（自作）　4. sfx.py：効果音（自作）
@@ -20,8 +21,13 @@ if VARIANT:
 NAME = os.environ.get("NAME", f"継ぐ_デモ_最終案{PLAN}" + (f"_{VARIANT}" if VARIANT else ""))
 BUILD = "final_build.py" if PLAN == "1" else f"final_build{PLAN}.py"
 JSON = "final.json" if PLAN == "1" else (f"final{PLAN}.json" if VARIANT in ("", "A") else f"final{PLAN}{VARIANT}.json")
-BGM = "bgm3.py" if PLAN == "1" else "bgm4.py"
+BGM = {"1": "bgm3.py", "2": "bgm4.py"}.get(PLAN, "bgm5.py")
+VPRE = {"1": "k_", "2": "k2_"}.get(PLAN, f"k{PLAN}_")  # 仮の声（機械の声）のファイルの前置き
 TAG = ("final" if PLAN == "1" else f"final{PLAN}") + VARIANT
+
+
+# 音の圧縮：Mac の AudioToolbox の AAC があれば、それを使う（ffmpeg の内蔵の AAC は、この曲の打つ音で山が +2.5 dB まで出た。AudioToolbox は -0.8 dB）
+AAC = "aac_at" if "aac_at" in subprocess.run(["ffmpeg", "-hide_banner", "-encoders"], capture_output=True, text=True).stdout else "aac"
 
 
 def run(cmd, **kw):
@@ -55,7 +61,7 @@ vs = sorted(tl["voice"], key=lambda x: x["at"])
 head = lambda v: v["at"] * 60 / tl.get("bpm", 120) + 0.15  # noqa: E731
 for i, v in enumerate(vs):
     own = os.path.join(VO, f"n{v['n']}.wav")
-    tts = os.path.join(VO, f"{'k_' if PLAN == '1' else 'k2_'}n{v['n']}.wav")
+    tts = os.path.join(VO, f"{VPRE}n{v['n']}.wav")
     f = own if os.path.exists(own) else tts if os.path.exists(tts) else None
     if not f:
         continue
@@ -79,18 +85,22 @@ def loud(src, dst, target=-14.0):
     out = subprocess.run(["ffmpeg", "-hide_banner", "-i", src, "-af", f"loudnorm=I={target}:TP=-1.5:LRA=11:print_format=json", "-f", "null", "-"], capture_output=True, text=True).stderr
     j = json.loads(out[out.rindex("{") : out.rindex("}") + 1])
     flt = f"loudnorm=I={target}:TP=-1.5:LRA=11:measured_I={j['input_i']}:measured_TP={j['input_tp']}:measured_LRA={j['input_lra']}:measured_thresh={j['input_thresh']}:offset={j['target_offset']}:linear=true"
+    if PLAN not in ("1", "2"):
+        # 最終案 3：AAC にすると山が少しはみ出すので、先に山だけを -3 dB で抑える（その分、聞こえる大きさを 0.3 だけ上げておく → -14 LUFS）
+        flt = flt.replace(f"I={target}:", f"I={target + 0.3}:") + ",alimiter=limit=0.708:attack=2:release=60:level=disabled:asc=1"
     run(["ffmpeg", "-v", "error", "-y", "-i", src, "-af", flt, "-ar", "48000", dst])
 
 
 # ---- 音楽と効果音だけ
 mixA = os.path.join(VC, "_mixA.wav")
+FXV = 0.42 if PLAN in ("1", "2") else 0.22  # 最終案 3：効果音は押す音と打つ音だけ、小さく（拍は音楽が作る）
 run(["ffmpeg", "-v", "error", "-y", "-i", bgm, "-i", fx, "-filter_complex",
-     f"[0:a]atrim=0:{total},volume=0.85[m];[1:a]atrim=0:{total},volume=0.42[f];[m][f]amix=inputs=2:normalize=0,afade=t=out:st={total - 3}:d=3[a]",
+     f"[0:a]atrim=0:{total},volume=0.85[m];[1:a]atrim=0:{total},volume={FXV}[f];[m][f]amix=inputs=2:normalize=0,afade=t=out:st={total - 3}:d=3[a]",
      "-map", "[a]", mixA])
 mixA2 = os.path.join(VC, "_mixA2.wav")
 loud(mixA, mixA2)
 outA = os.path.join(VC, f"{NAME}.mp4")
-run(["ffmpeg", "-v", "error", "-y", "-i", video, "-i", mixA2, "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", "-b:a", "256k", "-shortest", outA])
+run(["ffmpeg", "-v", "error", "-y", "-i", video, "-i", mixA2, "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", AAC, "-b:a", "256k", "-shortest", outA])
 
 # ---- 声入り（声が出ている間、音楽を下げる）
 if lines:
@@ -103,14 +113,15 @@ if lines:
     flt.append("".join(f"[v{k}]" for k in range(len(lines))) + f"amix=inputs={len(lines)}:normalize=0,apad,atrim=0:{total},volume=1.0,asplit=2[vo][vk]")
     flt.append(f"[0:a]atrim=0:{total},volume=0.75[m]")
     flt.append("[m][vk]sidechaincompress=threshold=0.025:ratio=7:attack=25:release=420:makeup=1[md]")
-    flt.append(f"[1:a]atrim=0:{total},volume=0.3[f]")
-    flt.append(f"[vo][md][f]amix=inputs=3:normalize=0,afade=t=out:st={total - 3}:d=3[a]")
+    flt.append(f"[1:a]atrim=0:{total},volume={0.3 if PLAN in ('1', '2') else 0.16}[f]")
+    fo = 3 if PLAN in ("1", "2") else 1.0  # 最終案 3：音楽は自分で消えていく。終わりの声（作りました）を消さないよう、最後の 1 秒だけ
+    flt.append(f"[vo][md][f]amix=inputs=3:normalize=0,afade=t=out:st={total - fo}:d={fo}[a]")
     mixB = os.path.join(VC, "_mixB.wav")
     run(["ffmpeg", "-v", "error", "-y", *ins, "-filter_complex", ";".join(flt), "-map", "[a]", mixB])
     mixB2 = os.path.join(VC, "_mixB2.wav")
     loud(mixB, mixB2)
     outB = os.path.join(VC, f"{NAME}_{'声' if mine == len(lines) else '仮声'}.mp4")  # noqa
-    run(["ffmpeg", "-v", "error", "-y", "-i", video, "-i", mixB2, "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", "-b:a", "256k", "-shortest", outB])
+    run(["ffmpeg", "-v", "error", "-y", "-i", video, "-i", mixB2, "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", AAC, "-b:a", "256k", "-shortest", outB])
     print("できた：", outB)
 print("できた：", outA, round(total, 1), "秒")
 
@@ -119,7 +130,7 @@ def phone(src):
     """スマホで見る・送る用（1280 px・30 MB 以下）"""
     dst = src[:-4] + "_スマホ.mp4"
     for crf in (28, 30, 32, 34):
-        run(["ffmpeg", "-v", "error", "-y", "-i", src, "-vf", "scale=1280:-2", "-c:v", "libx264", "-preset", "slow", "-crf", str(crf), "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", dst])
+        run(["ffmpeg", "-v", "error", "-y", "-i", src, "-vf", "scale=1280:-2", "-c:v", "libx264", "-preset", "slow", "-crf", str(crf), "-pix_fmt", "yuv420p", "-c:a", AAC, "-b:a", "128k" if PLAN in ("1", "2") else "192k", "-movflags", "+faststart", dst])
         mb = os.path.getsize(dst) / 1e6
         print("スマホ用", os.path.basename(dst), f"crf {crf}", round(mb, 1), "MB")
         if mb < 30:

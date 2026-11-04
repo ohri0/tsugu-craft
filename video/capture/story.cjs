@@ -1072,6 +1072,44 @@ const CH = {
       await a.hold(40);
     }
   },
+  // 誰でも（作者の声：いまもう誰でも使える）：石の写真 → 指輪が組み上がる → 腕の断面を指で描く → 作れます → 見せる。ひと続きの本物の流れ
+  anyone3b: async (a) => {
+    const { p } = a;
+    await p.goto(`${BASE}/studio.html?rec`, { waitUntil: 'load' });
+    await a.until(() => { const s = document.querySelector('.intro-stage'); return s && !s.hidden; }, null, { label: '写真', chunk: 33 });
+    await a.box('photo', '.intro-frame', 10); a.mark('photo');
+    let stage = 'photo';
+    for (let k = 0; k < 600; k++) {
+      await a.shot({ hide: true });
+      const st = await p.evaluate(() => ({ stage: !document.querySelector('.intro-stage').hidden, sheet: !!document.querySelector('.intro-sheet'), disp: document.querySelector('.disp [aria-pressed="true"]')?.dataset.disp, timer: !!document.querySelector('.intro-timer') }));
+      if (stage === 'photo' && !st.stage) { stage = 'stone'; a.mark('stone'); }
+      if (stage === 'stone' && st.disp === 'render') { stage = 'render'; a.mark('render'); }
+      if (stage === 'render' && st.sheet) { stage = 'sheet'; a.mark('sheet'); }
+      if (stage === 'sheet' && !st.sheet && !st.timer) { stage = 'done'; a.mark('done'); break; }
+    }
+    await a.hold(6, { hide: true });
+    await a.press('.tabs [data-mode="refine"]', { n: 14, after: 2 });
+    await openManual(a); await renderDisp(a);
+    await p.evaluate(() => document.querySelector('.sec-edit')?.scrollIntoView({ block: 'center' })); await a.settle(300);
+    await a.box('editor', '.sec-edit', 10);
+    await a.press('.se-mode[data-mode="draw"]', { n: 12, after: 2 });
+    const px = await secMap(p);
+    // ゆるやかに平たい、幅の広い腕（厚み 1.5 mm）
+    const pts = [];
+    for (let k = 0; k <= 30; k++) { const th = Math.PI * (k / 30); pts.push(px(1.7 * Math.cos(th), -0.05 - 1.5 * Math.pow(Math.sin(th), 0.5))); }
+    await a.move(pts[0], 8);
+    await p.mouse.down(); a.mark('draw');
+    for (const q of pts.slice(1)) await a.move(q, 1, { rip: 0.15 });
+    await p.mouse.up(); a.mark('drawn');
+    await a.box('chip', '.verdict-chip', 8); await a.box('verdict', '.big-verdict', 8);
+    console.log('anyone3b', (await probsOf(p)).join(',') || '作れます', await specsText(p));
+    await a.hold(36, { turn: 0.003 });
+    await a.press('.act-present', { n: 14, after: 0 });
+    await a.settle(200);
+    await p.evaluate(() => window.__viewer.setView('angle'));
+    a.mark('present'); await a.box('ring2', '.vp', 0);
+    await a.hold(80, { hide: true });
+  },
   // 誰でも：石を選ぶ → 腕の断面を指で描く → 作れます → 見せる（金の指輪）。カーソルの動きをそのまま
   anyone3: async (a) => {
     const { p } = a;

@@ -1,6 +1,29 @@
 # 動画を組む仕組み
 
-## 最終案 2（2026-11-04 夕方〜。いまの作り方）
+## 最終案 3（2026-11-04 夜〜。いまの作り方）
+
+最終案 2 の仕組みのまま、編集の決まり・字・音楽を作り直したもの。設計は `PLAN-final.md`、声の台本は `../docs/NARRATION-ad.md`。
+
+- 台本：`final_build3.py` → `final3.json`（2 分 59 秒 ＝ 358 拍）。音楽の楽譜（段・止める所・一打・上がる音・金床の音）も同じ台本に書く。
+  - 回すと、編集の決まりを確かめる：1 拍に 2 つ以上新しく出ないか、見出し・本文が左の欄（590 px）からはみ出さないか、拍の途中で切っていないか、すき間がないか。気になる所は「！」で出る。
+- 組む：`reel.py`（`style: 3` の台本のとき、最終案 3 の決まりで組む。最終案 1・2 の台本は前のまま組める）。
+  - 字は `head`（左の同じ所。言葉ごとに拍で出る。見出し 64 px・本文 32 px）・`logo`（題）・`tag3`（数字の札）。
+  - 図は `flow3`（イメージ → デザイン ⇄ CAD → 職人、継ぐでたたまれる）・`school3`（学校）・`senior3`（工房）・`check3`（答え合わせの 11 工程）・`stat3`（作り手の数）。
+  - カメラは 3 次のゆっくり・速く・ゆっくり（`cio`）。理由なく寄らない（ゆっくり寄り続ける drift なし、ぶれなし）。ふちをごく少し暗くする（vignette）。
+  - スマホの幅で撮った章（960 × 1800）も組める（`meta.json` の `size`）。
+- 音楽：`bgm5.py`（120 拍／分。vi–IV–I–V。4 音のモチーフ、締まったキックとクラップ、サイドチェーンの低音、止める → 打つ、合成の上がる音と逆回しのシンバル。最後は全音上げる。-14 LUFS、サンプルの間の山も -1.5 dB 以下）。
+  - 試しに一部だけ：`video/work/.venv/bin/python -I video/bgm5.py video/final3.json 出力.wav --from 拍 --to 拍`
+- 撮る：`capture/story.cjs` の hero3・build3・word3・fix3・section3・same3・workshops3・make3・rebuild3・anyone3b（1600 × 900）と、ledger3m・learn3m・waza3m（スマホの幅 480 × 900）。
+  - アプリが変わったら、`npx vite build --outDir video/work/dist-cap --emptyOutDir` で組み直してから撮る。撮るたびに、新しい空の localStorage で始まる。
+  - rebuild3 は、答え合わせの中身（どの本当の工程にたどり着いたか）を `work/story/rebuild3/grade.json` に残す。答え合わせの図は、これを読む。
+- 仮の声：`SSL_CERT_FILE=$(video/work/.venv/bin/python -m certifi) video/work/.venv/bin/python -I video/tts_kokoro.py video/final3.json k3_ video/work/voice jm_kumo`
+- 組む：`video/work/.venv/bin/python -I video/final.py --plan 3`。次のファイルができる。
+  - `video/work/vc/継ぐ_デモ_最終案3.mp4`（音楽と効果音だけ）・`継ぐ_デモ_最終案3_仮声.mp4`（仮の声入り）
+  - それぞれの `_スマホ.mp4`（1280 px・30 MB 以下）
+  - 効果音は、押す音と打つ音だけを小さく（拍は音楽が作る）。音だけ混ぜ直すときは `--no-video`。
+- 作者の声：`video/work/voice/n<番号>.wav`（台本は `docs/NARRATION-ad.md`）。
+
+## 最終案 2（2026-11-04 夕方）
 
 最終案 1 の仕組みのまま、見せ方と音を作り直したもの。設計は `PLAN-final2.md`、声の台本は `../docs/NARRATION-ad.md`。
 

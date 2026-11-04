@@ -927,7 +927,7 @@ def render_check3(clip, tl):
         a = appear * clamp01(1 - 0.0 * i)
         col_t = C3["white"] if lit else (C3["gray"] if tl < hit or kind != "miss" else C3["dim"])
         P.text(x0 + 70, y, f"{num}", S3, C3["gray"], a, "g4", "lm")
-        P.text(x0 + 150, y, name, S3, col_t, a, "g4", "lm")
+        P.text(x0 + 168, y, name, S3, col_t, a, "g4", "lm")
         cx_ = x0 + 26
         P.ring(cx_, y, 15, C3["dim"], a * (1 - u), 3)
         if lit:
