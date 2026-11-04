@@ -438,7 +438,7 @@ def render_img(clip, tl):
     ax, ay, aw, ah = clip.get("area", [0, 0, W, H])
     s = min(aw / bw, ah / bh)
     dw, dh = int(bw * s), int(bh * s)
-    out = Image.new("RGB", (W, H), hexrgb(clip.get("bg", "#000000")))
+    out = Image.new("RGB", (W, H), hexrgb(clip.get("innerBg", clip.get("bg", "#000000"))))  # innerBg：窓の中だけの地の色（絵の地に合わせる）
     out.paste(im.resize((dw, dh), Image.BICUBIC, box=bx, reducing_gap=2.5), (int(ax + (aw - dw) / 2), int(ay + (ah - dh) / 2)))
     return out
 
@@ -938,7 +938,7 @@ def render_check3(clip, tl):
                 P.d.pieslice([(cx_ - 15) * 2, (y - 15) * 2, (cx_ + 15) * 2, (y + 15) * 2], 90, 270, fill=_mix(C3["gold"], u))
     if tl >= hit:
         a = _ap(tl, hit, 0.4)
-        P.text(ow - 110, 84 + 30, "9 / 11", H3 * 1.0, C3["gold"], a, "g6", "rm")
+        P.text(ow - 110, y0 + len(rows) * lh + 24, k.get("score", "9 / 11"), H3 * 1.0, C3["gold"], a, "g6", "rm")
         P.text(x0, y0 + len(rows) * lh + 24, k.get("legend", ""), S3, C3["gray"], _ap(tl, hit + 1, 0.5), "g4", "lm")
     return P.out()
 
@@ -964,6 +964,107 @@ def render_stat3(clip, tl):
     return P.out()
 
 
+def render_flow4(clip, tl):
+    """最終案 4：デザイン ⇄ 設計（CAD）（作れない、と何度も戻る）→ 制作（職人）。
+    p2 から：継ぐがデザインの所に入り（デザインの時点で、職人の判断で作れるか分かる）、印は戻らずにまっすぐ制作まで。設計（CAD）はそのまま残す（継ぐは CAD の代わりではない）"""
+    ow, oh = OUT
+    P = Pad(ow, oh, clip.get("bg", C3["bg"]))
+    k = clip.get("k", {})
+    p2 = k.get("p2", 16)
+    cy = oh * 0.5
+    nw, nh = 236, 128
+    xs = [ow * 0.18, ow * 0.5, ow * 0.82]
+    c2 = _u(tl, p2, p2 + 1.0) if tl >= p2 else 0.0
+    appear = _ap(tl, 0, 0.8)
+    names = [("デザイン", ""), ("設計", "（CAD）"), ("制作", "（職人）")]
+    for i in range(2):
+        col = C3["gold"] if c2 > 0.5 else C3["dim"]
+        P.arrow(xs[i] + nw / 2 + 12, cy, xs[i + 1] - nw / 2 - 14, cy, col, appear, 3)
+    for i, (nm, sub) in enumerate(names):
+        gold = i == 0 and c2 > 0
+        P.box(xs[i], cy, nw, nh, appear, outline=C3["gold"] if gold else C3["line"], width=3 if gold else 2)
+        col = C3["gold"] if gold else C3["white"]
+        if sub:
+            P.text(xs[i], cy - 20, nm, S3, col, appear, "g6")
+            P.text(xs[i], cy + 24, sub, S3, C3["gray"], appear, "g4")
+        else:
+            P.text(xs[i], cy, nm, S3, col, appear, "g6")
+    if c2 > 0:
+        P.text(xs[0], cy - nh / 2 - 40, "継ぐ", S3, C3["gold"], c2, "g6")
+        P.text(xs[0], cy + nh / 2 + 44, "この時点で、", S3, C3["white"], _ap(tl, p2 + 0.6), "g4")
+        P.text(xs[0], cy + nh / 2 + 92, "作れるか分かる", S3, C3["white"], _ap(tl, p2 + 0.6), "g4")
+    ty = cy + nh / 2 + 46
+    path = k.get("path", [])
+    tok = None
+    for (b0, x0, _), (b1, x1, back) in zip(path, path[1:]):
+        if b0 <= tl < b1:
+            u = _u(tl, b0, b1)
+            xa, xb = xs[int(x0)], xs[int(x1)]
+            if back:
+                tok = (xa + (xb - xa) * u, cy - nh / 2 - 26 - math.sin(math.pi * u) * oh * 0.2, C3["red"])
+            else:
+                tok = (xa + (xb - xa) * u, ty, C3["gold"])
+    if c2 == 0 and path and tl >= path[-1][0]:
+        tok = (xs[int(path[-1][1])], ty, C3["gold"])
+    nb = sum(1 for (b0, _, _), (b1, _, back) in zip(path, path[1:]) if back and tl >= b0)
+    if nb and c2 < 1:
+        a = (1 - c2) * appear
+        pts = [(xs[1] + (xs[0] - xs[1]) * (q / 40), cy - nh / 2 - 26 - math.sin(math.pi * q / 40) * oh * 0.2) for q in range(41)]
+        for q in range(0, 40, 2):
+            P.line([pts[q], pts[q + 1]], C3["red"], a, 3)
+        ex, ey = pts[-1]
+        P.d.polygon([(ex * 2, (ey + 6) * 2), ((ex - 9) * 2, (ey - 12) * 2), ((ex + 10) * 2, (ey - 8) * 2)], fill=_mix(C3["red"], a))
+        P.text((xs[0] + xs[1]) / 2, cy - nh / 2 - 26 - oh * 0.2 - 40, f"作れない、と戻る　{nb} 回目", S3, C3["red"], a, "g6")
+    if tok and c2 == 0:
+        P.ring(tok[0], tok[1], 14, tok[2], appear, 5)
+    # 継ぐのあと：印は戻らずに、デザイン → 設計 → 制作へまっすぐ
+    g2 = k.get("go2", [p2 + 2, p2 + 4])
+    if c2 > 0:
+        u = _u(tl, g2[0], g2[1])
+        P.ring(xs[0] + (xs[2] - xs[0]) * u, cy - nh / 2 - 100, 14, C3["gold"], c2, 5)
+        okb = k.get("ok", g2[1])
+        if tl >= okb:
+            a = _ap(tl, okb, 0.5)
+            P.check(xs[2] - 52, ty + 52, 12, C3["green"], a, 4)
+            P.text(xs[2] - 30, ty + 52, "戻らずに", S3, C3["green"], a, "g6", "lm")
+    return P.out()
+
+
+def render_term(clip, tl):
+    """作った記録（git の履歴）を、端末のような黒い板に。動かさない"""
+    ow, oh = OUT
+    P = Pad(ow, oh, clip.get("bg", "#0b0b0d"))
+    k = clip["k"]
+    appear = _ap(tl, 0, 0.6)
+    x0, y0, lh = 70, 96, 50
+    P.text(x0, y0, k.get("cmd", "$ git log --oneline"), S3, C3["green"], appear, "g4", "lm")
+    for i, (h, msg) in enumerate(k["lines"]):
+        y = y0 + (i + 1) * lh + 10
+        a = appear * _ap(tl, 0.15 + 0.04 * i, 0.4)
+        P.text(x0, y, h, S3, C3["gold"], a, "g4", "lm")
+        P.text(x0 + 178, y, msg, S3, C3["white"], a, "g4", "lm")
+    if k.get("foot"):
+        P.text(x0, y0 + (len(k["lines"]) + 1) * lh + 40, k["foot"], S3, C3["gray"], _ap(tl, k.get("foot_at", 1), 0.5), "g4", "lm")
+    return P.out()
+
+
+def render_imgs(clip, tl):
+    """公開の画像を何枚か、決めた所に並べる（動かさない・寄らない）"""
+    ow, oh = OUT
+    out = Image.new("RGB", (ow, oh), hexrgb(clip.get("bg", "#000000")))
+    for it in clip["items"]:
+        im = load_img(it["img"])
+        ax, ay, aw, ah = it["area"]
+        sc = min(aw / im.width, ah / im.height)
+        dw, dh = int(im.width * sc), int(im.height * sc)
+        a = _ap(tl, it.get("at", 0), 0.6)
+        tile = im.resize((dw, dh), Image.LANCZOS)
+        if a < 1:
+            tile = Image.blend(Image.new("RGB", tile.size, hexrgb(clip.get("bg", "#000000"))), tile, a)
+        out.paste(tile, (int(ax + (aw - dw) / 2), int(ay + (ah - dh) / 2)))
+    return out
+
+
 _VIG = None
 
 
@@ -979,12 +1080,28 @@ def vignette(img):
     return Image.fromarray(np.clip(a, 0, 255).astype(np.uint8))
 
 
+def local(c, b):
+    """場面の中の時刻（拍）。warp があれば、のばした所はその絵で止める（作者の声に合わせて場面をのばしたとき。final_build4.py）。
+    返すのは（中の長さに直した場面, 中の時刻）"""
+    tl = b - c["at"]
+    w = c.get("warp")
+    if not w:
+        return c, tl
+    c2 = dict(c, len=c.get("len0", c["len"]))
+    if tl <= w[0][0]:
+        return c2, w[0][1] + (tl - w[0][0])
+    for (o0, i0), (o1, i1) in zip(w, w[1:]):
+        if tl <= o1:
+            return c2, i0 + (i1 - i0) * (tl - o0) / max(1e-6, o1 - o0)
+    return c2, w[-1][1] + (tl - w[-1][0])
+
+
 def src_to_out(clip_at, x, y, b):
     """撮った画面の点（ページの px）→ いまの出力の点（カメラを通して）"""
     c = next((c for c in TL["clips"] if abs(c["at"] - clip_at) < 1e-6), None)
     if c is None:
         return None
-    tl = b - c["at"]
+    c, tl = local(c, b)
     if c.get("win"):
         wx, wy, ww, wh = c["win"]
     else:
@@ -1056,6 +1173,33 @@ def draw3(base, card, b):
         if card.get("sub"):
             im2, pad2, asc2, _ = token_img(card["sub"], "g4", S3, C3["gray"])
             place(base, im2, lx - pad2, ly + S3 * 1.25 - asc2 * 0.62 - pad2, 1, ua * A, 0)
+    elif mode == "type3":
+        # 打つ字（つかみ：職人の一言）：1 字ずつ出る。打っている所に金色の細い棒（打ち終わったら 1 拍で消える）
+        x, y0 = card.get("x", 120), card.get("y", 400)
+        hs = card.get("H", H3)
+        t = sec(tb0) - card.get("delay", 0.0)
+        cps = card.get("cps", 10.0)
+        n = int(max(0.0, t) * cps)
+        total = sum(len(l_[0]) for l_ in card["lines"])
+        d = ImageDraw.Draw(base)
+        f = font("g6", hs)
+        start, cur, yb = 0, None, y0
+        for txt, acc in card["lines"]:
+            col = C3["gold"] if acc else C3["white"]
+            k = max(0, min(len(txt), n - start))
+            im, pad, asc, desc = token_img(txt, "g6", hs, col)
+            wpx = f.getlength(txt[:k], features=["palt"]) if k else 0
+            if k > 0:
+                crop = im.crop((0, 0, int(pad + wpx + 2), im.height))
+                place(base, crop, x - pad, yb - asc - pad, 1, A, 0)
+            if start <= n <= start + len(txt):
+                cur = (x + wpx + 4, yb)
+            start += len(txt)
+            yb += int(hs * 1.3)
+        if cur and t >= 0:
+            fade = 1.0 if n < total else clamp01(1 - (t - total / cps) / 0.5)
+            if fade > 0:
+                d.rectangle([cur[0], cur[1] - hs * 0.82, cur[0] + 4, cur[1] + hs * 0.12], fill=hexrgb(C3["gold"]) + (int(255 * A * fade),))
     elif mode == "logo":
         im, pad, asc, desc = token_img(card["text"], card.get("font", "g3"), card.get("size", 200), C3["white"])
         t = sec(tb0)
@@ -1066,7 +1210,7 @@ def draw3(base, card, b):
         place(base, im, x - pad, yb - asc - pad + 10 * (1 - u), 1, u * A, 0)
 
 
-KINDS3 = {"flow3": render_flow3, "school3": render_school3, "senior3": render_senior3, "check3": render_check3, "stat3": render_stat3}
+KINDS3 = {"flow3": render_flow3, "flow4": render_flow4, "imgs": render_imgs, "term": render_term, "school3": render_school3, "senior3": render_senior3, "check3": render_check3, "stat3": render_stat3}
 
 
 def render_clip(clip, tl):
@@ -1122,18 +1266,35 @@ def main_at(t):
             cur = i
     if cur is None:
         return Image.new("RGB", (W, H), (0, 0, 0))
-    c = clips[cur]
-    tl = b - c["at"]
+    c0 = clips[cur]
+    c, tl = local(c0, b)
     img = grade(render_clip(c, tl), c, tl)
     tr = c.get("tr")
+    tin = b - c0["at"]  # つなぎは、外の時刻で
     if tr and cur > 0:
         L = tr.get("len", 0.5)
-        if tl < L:
-            p = clips[cur - 1]
-            ptl = b - p["at"]
-            u = tl / L
+        if tin < L:
+            p, ptl = local(clips[cur - 1], b)
+            u = tin / L
             kind = tr["type"]
-            if kind == "xfade":
+            if kind == "wipe":
+                # 前と後：同じ構図で、左から右へ拭う（境に細い金の線）。窓の中だけが変わる
+                prev = grade(render_clip(p, ptl), p, ptl)
+                wx, wy, ww, wh = c.get("win") or (0, 0, W, H)
+                xb = wx + ww * ease_io(u)
+                xs = np.arange(W, dtype=np.float32)
+                m = np.clip((xb - xs) / 6.0 + 0.5, 0, 1)
+                a_ = np.asarray(img, dtype=np.float32)
+                b_ = np.asarray(prev, dtype=np.float32)
+                out_ = b_ + (a_ - b_) * m[None, :, None]
+                la = math.sin(math.pi * u) * 0.9
+                x_ = int(round(xb))
+                if wx + 2 < x_ < wx + ww - 2 and la > 0.02:
+                    g_ = np.array(hexrgb(C3["gold"]), np.float32)
+                    sl = out_[wy:wy + wh, x_ - 1:x_ + 1]
+                    out_[wy:wy + wh, x_ - 1:x_ + 1] = sl + (g_ - sl) * la
+                img = Image.fromarray(np.clip(out_, 0, 255).astype(np.uint8))
+            elif kind == "xfade":
                 prev = grade(render_clip(p, ptl), p, ptl)
                 img = Image.blend(prev, img, ease_io(u))
             elif kind == "dip":
@@ -1292,7 +1453,7 @@ def draw_card(img, card, t):
     if A <= 0:
         return img
     mode = card.get("mode", "stack")
-    if mode in ("head", "tag3", "logo"):
+    if mode in ("head", "tag3", "logo", "type3"):
         base = img.convert("RGBA")
         draw3(base, card, b)
         return base.convert("RGB")
@@ -1593,8 +1754,8 @@ def cues(tl):
             nb = int(sec(c["len"]) * FPS)
             prev_idx = None
             for k in range(nb):
-                tl_ = k / FPS / BEAT
-                idx = src_index(c, tl_)
+                c2, tl_ = local(c, c["at"] + k / FPS / BEAT)
+                idx = src_index(c2, tl_)
                 if idx == prev_idx:
                     continue
                 lo = prev_idx + 1 if prev_idx is not None and idx > prev_idx else idx
@@ -1610,7 +1771,7 @@ def cues(tl):
                 fa, fb = frame_ref(c["ch"], a_), frame_ref(c["ch"], b_)
                 last = -1
                 for k in range(nb):
-                    idx = src_index(c, k / FPS / BEAT)
+                    idx = src_index(*local(c, c["at"] + k / FPS / BEAT))
                     if fa <= idx <= fb and (idx - fa) % 2 == 0 and idx != last:
                         ev.append({"k": "key", "at": t0 + k / FPS})
                         last = idx
