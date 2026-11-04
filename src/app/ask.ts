@@ -1,5 +1,5 @@
 // 聞く：学ぶ人が、職人の残した決まりに質問する。答えは短く、「なぜ？」で理由と職人の言葉が開く。
-// 目安帳で答えられないことは、職人への質問（残す）に回す。
+// 目安帳で答えられないことは、職人への質問（帳面の「届いている質問」）に回す。
 // Claude につながらないときは、目安帳から近い決まりを探して出す（デモが止まらないように）。
 import { parseAskAnswer, type AskAnswer } from "../claude/answer";
 import { runClaude } from "../claude/loop";
@@ -20,6 +20,10 @@ const SUGGEST = ["9 mm くらいの石の爪は、何 mm にする？", "メレ�
 export function mountAsk(root: HTMLElement): { refresh(): void } {
   root.innerHTML = `
   <section class="view ask">
+    <header class="view-head learn-head">
+      <div><h2>職人に聞く</h2><p class="lead">帳面の決まりから、理由つきで答えます。</p></div>
+      <a class="ghost btnlike to-hands" href="#learn/hands">手の動きで比べる ›</a>
+    </header>
     <div class="master-card">
       <div class="avatar" aria-hidden="true"></div>
       <div class="who"><b class="master-title"></b><small>宝飾の彫金職人 ・ ヤスリ・ロウ付け</small></div>
@@ -27,7 +31,6 @@ export function mountAsk(root: HTMLElement): { refresh(): void } {
     </div>
     <div class="thread" aria-live="polite">
       <div class="empty">
-        <h2>何でも聞いてください</h2>
         <p class="master-lead"></p>
         <div class="chips"></div>
       </div>
@@ -52,7 +55,7 @@ export function mountAsk(root: HTMLElement): { refresh(): void } {
     const mine = activeRules(ledger).filter((r) => r.source.kind === "craftsman");
     $(".avatar").textContent = name.slice(0, 1);
     $(".master-title").textContent = `${name}さんの技`;
-    $(".master-lead").textContent = `${name}さんが残した決まり ${mine.length} 個から、理由つきで答えます。答えられないことは、${name}さんに回します。`;
+    $(".master-lead").textContent = `下の例を押すか、書いて聞いてください。答えられないことは${name}さんに回します。`;
     const open = groupQuestions(store.queue()).filter((g) => !g.answeredRuleId).length;
     $(".master-stats").innerHTML = `<span><b>${mine.length}</b>決まり</span><span><b>${open}</b>質問中</span>`;
   }
@@ -85,7 +88,7 @@ export function mountAsk(root: HTMLElement): { refresh(): void } {
     return `<p class="a-short">${esc(a.short)}</p>
       ${a.why || rules.length ? `<button type="button" class="why-btn" aria-expanded="false">なぜ？</button>
       <div class="a-why" hidden>${a.why ? `<p>${esc(a.why)}</p>` : ""}${rules.map(ruleBlock).join("")}</div>` : ""}
-      <p class="a-meta">${asked ? `<span class="tag gold">${esc(name)}さんに回しました ・ 残す に届きます</span>` : ""}${via === "local" ? `<span class="tag">Claude なし ・ 目安帳から探しました</span>` : ""}${rules.length ? `<span>決まり ${rules.length} つから</span>` : ""}</p>`;
+      <p class="a-meta">${asked ? `<span class="tag gold">${esc(name)}さんに回しました ・ 帳面に届きます</span>` : ""}${via === "local" ? `<span class="tag">Claude なし ・ 目安帳から探しました</span>` : ""}${rules.length ? `<span>決まり ${rules.length} つから</span>` : ""}</p>`;
   }
 
   /** 職人が動画で見せた答えがあれば、なぜ？の中に出す */

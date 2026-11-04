@@ -472,3 +472,54 @@ input[type="range"]::-moz-range-thumb { width: 13px; height: 13px; border-radius
 .nk-side { max-width: 420px; }
 .nk-side-cap { margin: 0; text-align: center; }
 .waza .techs { margin-top: 12px; }
+
+/* ---- 4 つのタブにしてから（帳面・学ぶ・技）：札は大きく、説明は 1 行 ---- */
+a.back { display: inline-flex; align-items: center; border: 1px solid transparent; border-radius: var(--r); text-decoration: none; font-size: 12px; }
+.view-head h2 { font-size: 22px; }
+.learn-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; padding-bottom: 12px; }
+.learn-head .to-hands { flex: none; min-height: 32px; }
+.ask .empty { padding-top: 18px; }
+@media (max-width: 480px) {
+  .learn-head { flex-direction: column; align-items: stretch; }
+  .learn-head .to-hands { align-self: flex-start; }
+}
+
+/* 帳面：職人の決まりの札 */
+.rule-cards { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.rule-card { padding: 16px; background: var(--panel); border: 1px solid var(--line-2); border-left: 3px solid var(--master); border-radius: var(--radius); }
+.rc-title { margin: 0 0 4px; font-size: 11px; font-weight: 600; color: var(--fg-3); }
+.rc-text { margin: 0; font-size: 17px; line-height: 1.65; font-weight: 500; color: var(--fg); }
+.rule-card blockquote { margin: 10px 0 0; border-left-color: var(--master); background: rgba(233, 196, 106, 0.07); font-size: 13px; }
+.rc-meta { margin: 10px 0 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 11px; color: var(--fg-3); }
+.rc-player { width: 100%; max-height: 360px; margin-top: 10px; border-radius: var(--r); background: #111113; }
+.empty-card { padding: 22px 16px; text-align: center; border: 1px dashed var(--line-2); border-radius: var(--radius); color: var(--fg-2); }
+.empty-card p { margin: 0 0 12px; font-size: 14px; }
+.public-rules { margin-top: 12px; }
+.public-rules .book-list { margin-top: 6px; padding: 0 14px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+.public-rules .book-list li:first-child { border-top: 0; }
+.iv-card { margin-top: 18px; }
+.iv-card .iv-q { font-size: 16px; }
+.acts { display: grid; gap: 6px; }
+.acts .act { display: grid; gap: 2px; text-align: left; padding: 12px 14px; min-height: 56px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--panel); }
+.acts .act:hover { border-color: var(--line-2); }
+.acts .act b { font-size: 14px; font-weight: 600; }
+.acts .act small { font-size: 11px; color: var(--fg-3); }
+.free-panel .free-body { margin: 0; padding: 0; border: 0; }
+
+/* 技：大きな札 */
+.big-techs { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.big-tech { display: flex; align-items: center; gap: 14px; padding: 18px 16px; border-radius: 10px; border: 1px solid var(--line-2); background: var(--panel); color: var(--fg); text-decoration: none; transition: background 0.12s, border-color 0.12s; }
+.big-tech:hover { background: #28282b; border-color: rgba(10, 132, 255, 0.45); }
+.bt-mark { flex: none; width: 48px; height: 48px; border-radius: 10px; display: grid; place-items: center; background: var(--accent-weak); border: 1px solid rgba(10, 132, 255, 0.45); color: var(--accent-2); font-size: 20px; font-weight: 600; }
+.bt-body { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.bt-body b { font-size: 16px; font-weight: 600; line-height: 1.45; }
+.bt-body small { font-size: 12px; color: var(--fg-2); line-height: 1.6; }
+.bt-meta { font: 11px var(--mono); font-variant-numeric: tabular-nums; color: var(--fg-3); }
+.bt-go { flex: none; font-size: 22px; color: var(--fg-3); }
+
+/* 組み立て直す：長い注意はたたむ */
+.caveat { margin-top: 20px; padding: 10px 12px; border: 1px dashed var(--line-2); border-radius: var(--radius); }
+.caveat summary { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--caution); }
+.caveat p { margin: 8px 0 0; font-size: 12px; color: var(--fg-2); line-height: 1.75; }
+.rebuild .actions { margin-top: 14px; }
+.rebuild .actions .go { min-height: 40px; padding: 0 20px; font-size: 14px; }
