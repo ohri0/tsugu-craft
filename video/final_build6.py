@@ -260,8 +260,9 @@ say(0, T + 15, "答えると、それが決まりになる。")
 T = 124
 HALF = [436, 95, 387, 640]
 clips.append(dict(at=T, len=8, kind="split", win=WIN, bg=BG, borderColor="#2a2a2e", radius=18, sides=[
-    {"ch": "workshops3", "from": 10, "speed": 0.5, "cam": [[0, {"v": HALF, "pad": 0.0}]], "noblur": True},
-    {"ch": "workshops3", "from": 60, "speed": 0.5, "cam": [[0, {"v": HALF, "pad": 0.0}]], "noblur": True}]))
+    # 撮った素材は 0〜49 こまが石川工房、50〜99 こまが工房 B。速さ 0.5 だと左が 50 こまを越えて工房 B に替わり、左右が同じ指輪になっていた（作者の指摘）
+    {"ch": "workshops3", "from": 10, "speed": 0.25, "cam": [[0, {"v": HALF, "pad": 0.0}]], "noblur": True},
+    {"ch": "workshops3", "from": 60, "speed": 0.25, "cam": [[0, {"v": HALF, "pad": 0.0}]], "noblur": True}]))
 ev(T, "絵：工房ごと")
 head(T, 8, ["決まりは、", "*工房ごとに。"])
 tag(T + 3, 5, "石川工房 ・ ø 0.80 mm", (WIN[0] + 60, WIN[1] + WIN[3] - 70), color=GOLD)
