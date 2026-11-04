@@ -144,6 +144,7 @@ app.innerHTML = `
         <div class="fields"><label class="field">長辺<span class="in"><input type="number" step="0.01" class="in-long" inputmode="decimal"><i>mm</i></span></label><label class="field">深さ<span class="in"><input type="number" step="0.01" class="in-depth" inputmode="decimal"><i>mm</i></span></label></div>
       </section>
       <section class="sec"><h4>Claude の作業</h4>
+        <p class="make-note" hidden></p>
         <ol class="worklog"><li class="note">下の欄に希望を書いて「生む」。Claude が組み、作れるか確かめて直します。</li></ol>
       </section>
     </div>
@@ -274,6 +275,41 @@ function bandDims(positions: Float32Array): Dim[] {
     { a: [band.top.width / 2 + 0.9, 0, cz + ri], b: [band.top.width / 2 + 0.9, 0, ztop], label: `厚み ${band.top.thickness.toFixed(1)}`, bad: thin },
     { a: [band.bottom.width / 2 + 0.9, 0, zmin], b: [band.bottom.width / 2 + 0.9, 0, zmin + band.bottom.thickness], label: `下 ${band.bottom.thickness.toFixed(1)}`, bad: thin },
   ];
+}
+
+// ---- 知らせ ----
+/**
+ * 知らせを、下の帯と「Claude の作業」の欄の先頭の両方に出す。
+ * スマホには下の帯がなく、PC の帯は長い文が切れる（2026-11-05 点検）。押すボタン（確かめる → など）も両方に出す
+ */
+function setStatus(text: string, opts: { busy?: boolean; links?: { label: string; run: () => void }[] } = {}) {
+  const note = $(".make-note");
+  const bar = $(".make-status");
+  for (const el of [bar, note]) {
+    el.textContent = "";
+    if (opts.busy) {
+      const dot = document.createElement("span");
+      dot.className = "pulse";
+      el.appendChild(dot);
+    }
+    if (text) {
+      const t = document.createElement("span");
+      t.className = "st-text";
+      t.textContent = text;
+      el.appendChild(t);
+    }
+    for (const l of opts.links ?? []) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "link";
+      b.textContent = l.label;
+      b.addEventListener("click", l.run);
+      el.appendChild(b);
+    }
+  }
+  bar.title = text;
+  note.hidden = !text && !opts.links?.length;
+  if (!note.hidden && note.offsetParent) note.scrollIntoView({ block: "nearest" });
 }
 
 // ---- 石を読む ----
@@ -541,7 +577,7 @@ async function loadPreset(p: StonePreset) {
   g.fill();
   document.querySelectorAll<HTMLButtonElement>(".presets button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.preset === p.id)));
   await loadStone(g.getImageData(0, 0, W, W), `${p.name}の石`, p.longMm, p.depthMm, { intro: false });
-  $(".make-status").textContent = `${p.name}（${p.longMm} × ${p.widthMm} mm、深さは例）。ノギスの値があれば、長辺と深さを直してください。`;
+  setStatus(`${p.name}（${p.longMm} × ${p.widthMm} mm、深さは例）。ノギスの値があれば、長辺と深さを直してください。`);
 }
 document.querySelectorAll<HTMLButtonElement>(".presets button").forEach((b) => b.addEventListener("click", () => void loadPreset(PRESETS.find((p) => p.id === b.dataset.preset)!)));
 
@@ -560,19 +596,19 @@ async function loadSample() {
 /** 石の写真を入れ替える（ファイルを選ぶ・3D の所や石の欄へ落とす、のどちらからも） */
 async function useStonePhoto(f: File) {
   if (/heic|heif/i.test(f.type) || /\.hei[cf]$/i.test(f.name)) {
-    $(".make-status").textContent = "この写真の形式（HEIC）は、このブラウザで読めません。iPhone の写真は「互換性優先」で撮るか、JPEG に書き出してから選んでください。";
+    setStatus("この写真の形式（HEIC）は、このブラウザで読めません。iPhone の写真は「互換性優先」で撮るか、JPEG に書き出してから選んでください。");
     return;
   }
   // 自分の石の写真にしたら、よくある形の選択は外す（長辺と深さは今の欄の値で読み、あとでノギスの値に直せる）
   document.querySelectorAll<HTMLButtonElement>(".presets button").forEach((b) => b.setAttribute("aria-pressed", "false"));
-  $(".make-status").textContent = `「${f.name}」を読んでいます…`;
+  setStatus(`「${f.name}」を読んでいます…`);
   $(".stone-card").classList.add("busy");
   try {
     const img = await loadPhoto(f);
     await loadStone(img, f.name, Number($<HTMLInputElement>(".in-long").value) || 8, Number($<HTMLInputElement>(".in-depth").value) || 4);
-    $(".make-status").textContent = "石を入れ替えました。長辺と深さをノギスの値にすると、組み直します。";
+    setStatus("石を入れ替えました。長辺と深さをノギスの値にすると、組み直します。");
   } catch (err) {
-    $(".make-status").textContent = `石が読めませんでした。白い紙の上で真上から撮った写真か、確かめてください（${(err as Error).message}）`;
+    setStatus(`石が読めませんでした。白い紙の上で真上から撮った写真か、確かめてください（${(err as Error).message}）`);
   } finally {
     $(".stone-card").classList.remove("busy");
   }
@@ -889,15 +925,14 @@ async function make() {
   if (kind === "band") return makeBand();
   if (!session || !stone || making) return;
   const wish = $<HTMLInputElement>(".wish").value.trim();
-  const st = $(".make-status");
   const pass = store.password() || (await askPassword(true));
   if (!pass) {
-    st.textContent = "生むには Claude が要ります。合言葉がないので、希望の言葉は使えません。形は今の案（決まりごとから作った案）のままです。「確かめる」の「手で変える」で変えられます。";
+    setStatus("生むには Claude が要ります。合言葉がないので、希望の言葉は使えません。形は今の案（決まりごとから作った案）のままです。「確かめる」の「手で変える」で変えられます。");
     return;
   }
   making = true;
   $(".worklog").innerHTML = "";
-  st.innerHTML = `<span class="pulse"></span> Claude が組んで、作れるか確かめています…`;
+  setStatus("Claude が組んで、作れるか確かめています…", { busy: true });
   const content: ClaudeContentBlockParam[] = [{ type: "text", text: `${stoneText()}\n${wish ? `希望：${wish}` : "希望：特になし（ふつうの普段使いの一粒石の指輪）"}` }];
   if (sketch) {
     content.push({ type: "text", text: "デザイナーの絵：この雰囲気に近づけてください。絵から分かることと分からないことを分けて書いてください。" });
@@ -925,18 +960,18 @@ async function make() {
   undoClaude = r.undo;
   if (r.offline || (r.error && !r.log.length)) {
     if (r.error?.code === "wrong_password") resetPassword();
-    st.textContent = `Claude につながりませんでした${r.error?.message ? `（${r.error.message}）` : ""}。決まりごとから作った案を出しています。`;
+    setStatus(`Claude につながりませんでした${r.error?.message ? `（${r.error.message}）` : ""}。決まりごとから作った案を出しています。`);
     return;
   }
   reason = r.finalText.replace(/\*\*/g, "");
   // 表せなかった希望を、目立つ所に出す（できたふりをさせない）
   const cannot = /まだできないこと[：:]\s*(.+)/.exec(reason)?.[1]?.trim() ?? "";
   showCannot(cannot && !/^(なし|ありません|特になし)/.test(cannot) ? cannot : "");
-  st.innerHTML = `${r.remaining !== undefined ? `今日あと ${r.remaining} 回 ・ ` : ""}<button type="button" class="link go-refine">確かめる →</button><button type="button" class="link undo-claude">元に戻す</button>`;
-  st.querySelector(".go-refine")!.addEventListener("click", () => setMode("refine"));
-  st.querySelector(".undo-claude")!.addEventListener("click", () => {
-    undoClaude?.();
-    st.textContent = "Claude の作業を戻しました。";
+  setStatus(r.remaining !== undefined ? `今日あと ${r.remaining} 回` : "", {
+    links: [
+      { label: "確かめる →", run: () => setMode("refine") },
+      { label: "元に戻す", run: () => setStatus(undoClaude?.() ? "Claude の作業を戻しました。" : "戻せませんでした（石を変えた後か、Claude がまだ形を変えていません）。") },
+    ],
   });
 }
 
@@ -2363,6 +2398,7 @@ function setKind(k: Kind) {
   document.querySelectorAll<HTMLElement>(".solitaire-only").forEach((e) => (e.hidden = k !== "solitaire"));
   document.querySelectorAll<HTMLElement>(".band-only").forEach((e) => (e.hidden = k !== "band"));
   showCannot("");
+  setStatus("");
   $(".worklog").innerHTML = `<li class="note">${k === "band" ? "下の行に希望（例：細めで、手のひら側を薄く）を書いて「生む」。上の「形」の数字で、手でも変えられます。" : "下の行に希望を書いて「生む」を押すと、Claude が組み、作れるか確かめて直します。"}</li>`;
   if (k === "band") {
     bandControls($(".band-ctrl"));
@@ -2442,19 +2478,18 @@ function renderBandBuild() {
 async function makeBand() {
   if (making) return;
   const wish = $<HTMLInputElement>(".wish").value.trim();
-  const st = $(".make-status");
   const pass = store.password() || (await askPassword(true));
   if (!pass) {
-    st.textContent = "生むには Claude が要ります。合言葉がなくても、「形」の数字を変えて手で作れます。";
+    setStatus("生むには Claude が要ります。合言葉がなくても、「形」の数字を変えて手で作れます。");
     return;
   }
   making = true;
-  st.innerHTML = `<span class="pulse"></span> Claude が形を考えています…`;
+  setStatus("Claude が形を考えています…", { busy: true });
   const r = await callTool<BandDraft>({ system: bandPrompt(), user: wish || "ふつうの普段使いの指輪", tool: MAKE_BAND, parse: parseBand, password: pass, speed: "fast" });
   making = false;
   if (!r.ok) {
     if (r.code === "wrong_password") resetPassword();
-    st.textContent = r.error;
+    setStatus(r.error);
     return;
   }
   const d = r.value;
@@ -2464,8 +2499,7 @@ async function makeBand() {
   showBand();
   $(".worklog").innerHTML = `<li class="wl-tool set_shank">${esc(`${SECTION_LABEL[d.kind]}・上 ${d.top.width}×${d.top.thickness}・下 ${d.bottom.width}×${d.bottom.thickness} mm・${d.gou} 号・${METAL_LABEL[d.metal]}`)}</li><li class="note">${esc(d.reason)}</li>`;
   showCannot(d.cannotDo);
-  st.innerHTML = `${r.remaining !== undefined ? `今日あと ${r.remaining} 回 ・ ` : ""}<button type="button" class="link go-refine">確かめる →</button>`;
-  st.querySelector(".go-refine")!.addEventListener("click", () => setMode("refine"));
+  setStatus(r.remaining !== undefined ? `今日あと ${r.remaining} 回` : "", { links: [{ label: "確かめる →", run: () => setMode("refine") }] });
 }
 
 // ---- 図面：3D から正面・横・上の線画を描き、寸法を入れる ----
@@ -2856,5 +2890,5 @@ if (new URLSearchParams(location.search).has("rec")) {
 }
 
 setMode("make");
-void loadSample().catch((e) => ($(".make-status").textContent = `見本の石を読めませんでした：${(e as Error).message}`));
+void loadSample().catch((e) => setStatus(`見本の石を読めませんでした：${(e as Error).message}`));
 (window as unknown as { __studio: unknown }).__studio = { get session() { return session; }, setMode, dimsAvoid, loadPreset, viewer };
