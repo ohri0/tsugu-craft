@@ -380,8 +380,10 @@ export function buildEndSolder(collar: CollarRing, shank: ShankResult): Solder {
     };
     const m = k + 0.15;
     const sgn = Math.sign(end.y) || 1;
-    const yIn = end.y - sgn * (collar.wallMm + m);
-    const yOut = end.y + sgn * m;
+    // 輪の外の線が腕に斜めに当たる石（三角など）では、接する所が y の向きに広がる。腕の幅の中の輪の線がみな入る箱にする（箱で切ると、丸みが閉じない）
+    const ys = collar.outer.filter(([x, y]) => Math.abs(x) <= w / 2 + m && Math.sign(y) === sgn).map(([, y]) => y);
+    const yIn = (ys.length ? (sgn > 0 ? Math.min(...ys, end.y) : Math.max(...ys, end.y)) : end.y) - sgn * (collar.wallMm + m);
+    const yOut = (ys.length ? (sgn > 0 ? Math.max(...ys, end.y) : Math.min(...ys, end.y)) : end.y) + sgn * m;
     const min: V3 = [-w / 2 - m, Math.min(yIn, yOut), end.bottomZ - m];
     const max: V3 = [w / 2 + m, Math.max(yIn, yOut), end.topZ + m];
     const solid = buildSolid([], { cell: SOLDER_GRID.cellMm, blend: SOLDER_GRID.cellMm, fields: [{ dist: G, min, max, owner: 0 }] });

@@ -425,6 +425,10 @@ interface Frame {
 interface Sample {
   p: Point;
   n: Point;
+  /** 下の輪の外の線が、爪の線の深さ d でどちらへ動くか（なければ n）。角のある石で角を爪へ届かせる（collarDirections） */
+  m?: Point;
+  /** 下の輪の外の線から内へ、板の厚みの分だけ入る向き（なければ n） */
+  w?: Point;
 }
 
 function frameOf(stone: StoneParams): Frame {
@@ -1192,6 +1196,10 @@ function solidHead(f: Frame, plans: ProngPlan[], v: Vertical, tz: number, wire: 
 // 爪：縁の座から下へ、まっすぐ斜めの線。上の輪と下の輪の外にロウ付けされ、先だけクイと石の上側へ曲がる（反らない）。
 /** 爪の中心を、輪の外の面から、爪の半径のこの割合だけ内に入れる（爪は輪の外にロウ付けされ、少し輪に寄りかかる。形を作るための決まり） */
 const BETWEEN_PRONG_EMBED = 0.15;
+/** 下の輪の外の線が、爪の内の端からこれより離れていたら、爪に届いていないとみなす（mm） */
+const COLLAR_REACH_MM = 0.02;
+/** 下の輪の外の線を角の向きに動かすとき、法線の向きに必ず残す動きの割合 */
+const COLLAR_MIN_INSET = 0.3;
 /** 下の輪の角の丸み（mm。板を切った角を軽く落とした丸み。形を作るための決まり） */
 export const COLLAR_EDGE_MM = 0.12;
 /** 下の輪の断面の角 1 つを何段の弧で作るか（線を管にした形） */
@@ -1324,6 +1332,98 @@ interface BetweenLines {
   line: (s: Sample, z: number) => Point;
   /** 下の輪の外の面の、高さ z での位置（xy） */
   collarOuter: (s: Sample, z: number) => Point;
+  /** 下の輪の外の線の、爪の線からの深さ（高さ z で） */
+  collarDepth: (z: number) => number;
+}
+
+/**
+ * 下の輪の外の線を、角が爪へ届く形にする向き（縁の点ごと）。
+ * 縁の点を法線の向きに内へ動かすと、角の丸みより深い所で線が折り返す（尖った角ほど早い）。折り返した分を除いた本当の輪の角は、
+ * 爪の線より内へ速く逃げるので、三角・スクエアの石では爪から離れていた（2026-11-05 作者：STL の一部がつながっていない）。
+ * 折り返す角は、爪の線と同じ向き（角の法線）に動かし、角と角の間は、両端の向きをなめらかにつなぐ（辺は平らなまま、角どうしを結ぶ）。
+ * depth は、いちばん下で爪の線からどれだけ入るか
+ */
+function collarDirections(f: Frame, depth: number): { m: Point[]; w: Point[] } {
+  const n = f.pts.length;
+  const fold = f.pts.map((p, i) => {
+    const j = (i + 1) % n;
+    const ds = Math.hypot(f.pts[j].x - p.x, f.pts[j].y - p.y);
+    const turn = Math.atan2(f.normals[i].x * f.normals[j].y - f.normals[i].y * f.normals[j].x, f.normals[i].x * f.normals[j].x + f.normals[i].y * f.normals[j].y);
+    return turn > 0 && ds < depth * turn;
+  });
+  const m = f.normals.map((q) => ({ ...q }));
+  const w = f.normals.map((q) => ({ ...q }));
+  const start = fold.findIndex((b, i) => b && !fold[(i + n - 1) % n]);
+  if (start < 0) return { m, w };
+  // 折り返す角ごとに：[最初の点, 最後の点の次] と、角の法線（両端の法線の真ん中）
+  const runs: { a: number; b: number; dir: Point }[] = [];
+  for (let c = 0; c < n; ) {
+    const i = (start + c) % n;
+    if (!fold[i]) {
+      c++;
+      continue;
+    }
+    let len = 0;
+    while (len < n && fold[(i + len) % n]) len++;
+    const a = i;
+    const b = (i + len) % n;
+    const dir = normalizePoint({ x: f.normals[a].x + f.normals[b].x, y: f.normals[a].y + f.normals[b].y });
+    runs.push({ a, b, dir });
+    c += len;
+  }
+  // 角が 3 つ以上の形（三角・スクエア）だけ。角が 1〜2 つ（ペア・マーキス）は、角を結ぶと辺が平らにならない
+  if (runs.length < 3) return { m, w };
+  runs.forEach((r, ri) => {
+    const next = runs[(ri + 1) % runs.length];
+    const count = ((next.a - r.b + n - 1) % n) + 1;
+    let total = 0;
+    for (let c = 0; c < count; c++) {
+      const i = (r.b + c) % n;
+      const j = (i + 1) % n;
+      total += Math.hypot(f.pts[j].x - f.pts[i].x, f.pts[j].y - f.pts[i].y);
+    }
+    let s = 0;
+    for (let c = 0; c < count; c++) {
+      const i = (r.b + c) % n;
+      const j = (i + 1) % n;
+      const t = total > 0 ? s / total : 0;
+      s += Math.hypot(f.pts[j].x - f.pts[i].x, f.pts[j].y - f.pts[i].y);
+      const q = { x: r.dir.x * (1 - t) + next.dir.x * t, y: r.dir.y * (1 - t) + next.dir.y * t };
+      // 向かい合う角（細長い石）では、真ん中で動かなくなるので、法線の向きの動きを少し残す
+      const along = q.x * f.normals[i].x + q.y * f.normals[i].y;
+      const lift = Math.max(0, COLLAR_MIN_INSET - along);
+      m[i] = { x: q.x + f.normals[i].x * lift, y: q.y + f.normals[i].y * lift };
+      const c0 = Math.max(COLLAR_MIN_INSET, along);
+      w[i] = { x: m[i].x / c0, y: m[i].y / c0 };
+    }
+    // 角の点：みな角の法線の向きに。板の厚みの向きは、隣の辺の点とそろえる（内の角がとがったまま折り返さない）
+    const edge = f.normals[(r.b + 1) % n];
+    const c1 = Math.max(COLLAR_MIN_INSET, r.dir.x * edge.x + r.dir.y * edge.y);
+    for (let i = r.a; i !== r.b; i = (i + 1) % n) {
+      m[i] = r.dir;
+      w[i] = { x: r.dir.x / c1, y: r.dir.y / c1 };
+    }
+  });
+  return { m, w };
+}
+
+function normalizePoint(p: Point): Point {
+  const d = Math.hypot(p.x, p.y) || 1;
+  return { x: p.x / d, y: p.y / d };
+}
+
+/** 縁の点を法線の向きに動かした輪の線（折り返しをふくむ）の中で、本当に輪の中の点か（巻き数で見る。折り返しの中は内に数えない） */
+function insideUnfolded(poly: readonly Point[], x: number, y: number): boolean {
+  let wind = 0;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+    const a = poly[j];
+    const b = poly[i];
+    const side = (b.x - a.x) * (y - a.y) - (x - a.x) * (b.y - a.y);
+    if (a.y <= y) {
+      if (b.y > y && side > 0) wind++;
+    } else if (b.y <= y && side < 0) wind--;
+  }
+  return wind > 0;
 }
 
 function betweenLines(f: Frame, meanD: number, wire: number): BetweenLines {
@@ -1363,11 +1463,13 @@ function betweenLines(f: Frame, meanD: number, wire: number): BetweenLines {
     const d = dP + z * tanA;
     return { x: q.p.x + q.n.x * d, y: q.p.y + q.n.y * d };
   };
+  const collarDepth = (z: number) => dP + z * tanA - (r - ov);
   const collarOuter = (q: Sample, z: number): Point => {
-    const l = line(q, z);
-    return { x: l.x - q.n.x * (r - ov), y: l.y - q.n.y * (r - ov) };
+    const d = collarDepth(z);
+    const m = q.m ?? q.n;
+    return { x: q.p.x + m.x * d, y: q.p.y + m.y * d };
   };
-  return { zc, ringCenter, line, collarOuter };
+  return { zc, ringCenter, line, collarOuter, collarDepth };
 }
 
 function betweenHead(f: Frame, params: SettingParams, plans: ProngPlan[], ctx: BetweenCtx) {
@@ -1381,7 +1483,18 @@ function betweenHead(f: Frame, params: SettingParams, plans: ProngPlan[], ctx: B
   const wall = params.collarWallMm ?? g.collarWallMm;
   const L = betweenLines(f, meanD, wire);
   const zU = L.zc;
-  const samples = f.pts.map((p, i) => ({ p, n: f.normals[i] }));
+  // 下の輪の外の線：爪が届かない角のある石（三角・スクエア）だけ、角を爪へ届かせる形にする（丸い石や、届いている石は法線の向きのまま）
+  const plain: Sample[] = f.pts.map((p, i) => ({ p, n: f.normals[i] }));
+  const collarZ = zU - wire / 2 - g.windowMm;
+  const unfolded = plain.map((q) => L.collarOuter(q, collarZ));
+  const reaches = plans.every((plan) => {
+    const s = sampleAt(f, plan.t);
+    const c = L.line(s, collarZ);
+    const r = plan.diameterMm / 2 - COLLAR_REACH_MM;
+    return insideUnfolded(unfolded, c.x - s.n.x * r, c.y - s.n.y * r);
+  });
+  const dirs = reaches ? null : collarDirections(f, Math.abs(L.collarDepth(h.culetZ - shankT)));
+  const samples: Sample[] = dirs ? plain.map((q, i) => ({ ...q, m: dirs.m[i], w: dirs.w[i] })) : plain;
 
   // 下の輪の上の端：上の輪の下から明り取り（高さの選び方で ±）だけ下。内の上の縁が、石の下側の面からすき間を残すまで下げる
   const room = Math.max(WINDOW_MIN_MM, g.windowMm + GUIDES.height.options[ctx.height] - GUIDES.height.options.standard);
@@ -1390,8 +1503,9 @@ function betweenHead(f: Frame, params: SettingParams, plans: ProngPlan[], ctx: B
   const clears = (z: number) =>
     samples.every((q) => {
       const o = L.collarOuter(q, z);
-      const ix = o.x - q.n.x * wall;
-      const iy = o.y - q.n.y * wall;
+      const iw = q.w ?? q.n;
+      const ix = o.x - iw.x * wall;
+      const iy = o.y - iw.y * wall;
       const ks = stoneScaleAt(h, Math.max(h.culetZ, z));
       const px = f.center.x + (q.p.x - f.center.x) * ks;
       const py = f.center.y + (q.p.y - f.center.y) * ks;
@@ -1422,7 +1536,8 @@ function betweenHead(f: Frame, params: SettingParams, plans: ProngPlan[], ctx: B
   const gap = h.culetZ - fingerZ;
   const fingerAt = fingerSurface(params.finger, fingerZ);
   const outer = samples.map((q) => L.collarOuter(q, topZ));
-  const inner = outer.map((o, i) => ({ x: o.x - samples[i].n.x * wall, y: o.y - samples[i].n.y * wall }));
+  const inward = (i: number) => samples[i].w ?? samples[i].n;
+  const inner = outer.map((o, i) => ({ x: o.x - inward(i).x * wall, y: o.y - inward(i).y * wall }));
   let bottomZ = Infinity;
   for (const q of outer) bottomZ = Math.min(bottomZ, fingerAt(q.x, q.y));
   const outerLow = samples.map((q) => L.collarOuter(q, bottomZ));
@@ -1519,7 +1634,7 @@ function betweenHead(f: Frame, params: SettingParams, plans: ProngPlan[], ctx: B
   const e = Math.min(COLLAR_EDGE_MM, wall / 3);
   const bottomOf = (i: number) => {
     const o = L.collarOuter(samples[i], bottomZ);
-    return Math.min(fingerAt(o.x, o.y), fingerAt(o.x - samples[i].n.x * wall, o.y - samples[i].n.y * wall));
+    return Math.min(fingerAt(o.x, o.y), fingerAt(o.x - inward(i).x * wall, o.y - inward(i).y * wall));
   };
   const corner = (offCenter: number, zCenter: (i: number) => number, from: number): V3[][] =>
     Array.from({ length: COLLAR_CORNER_STEPS + 1 }, (_, q) => {
@@ -1528,7 +1643,7 @@ function betweenHead(f: Frame, params: SettingParams, plans: ProngPlan[], ctx: B
         const z = zCenter(i) + e * Math.sin(th);
         const o = L.collarOuter(sm, z);
         const off = offCenter - e * Math.cos(th);
-        return [o.x - sm.n.x * off, o.y - sm.n.y * off, z] as V3;
+        return [o.x - inward(i).x * off, o.y - inward(i).y * off, z] as V3;
       });
     });
   const profile: V3[][] = [
@@ -1584,9 +1699,23 @@ interface BetweenSolid {
 export function collarTaperTan(c: Pick<CollarInfo, "outer" | "outerLow" | "topZ" | "bottomZ">): number {
   const dz = c.topZ - c.bottomZ;
   if (dz <= 1e-9) return 0;
+  // 外の線に直角な向きの動きを、辺の長さで重みをつけて平均する（角のある輪では、点は辺に沿っても動くので、動いた長さそのままでは大きすぎる）
+  const n = c.outer.length;
   let sum = 0;
-  c.outer.forEach((o, i) => (sum += Math.hypot(o.x - c.outerLow[i].x, o.y - c.outerLow[i].y)));
-  return sum / c.outer.length / dz;
+  let total = 0;
+  for (let i = 0; i < n; i++) {
+    const a = c.outer[i];
+    const b = c.outer[(i + 1) % n];
+    const L = Math.hypot(b.x - a.x, b.y - a.y);
+    if (L < 1e-9) continue;
+    const nx = (b.y - a.y) / L;
+    const ny = -(b.x - a.x) / L;
+    const dx = (a.x - c.outerLow[i].x + b.x - c.outerLow[(i + 1) % n].x) / 2;
+    const dy = (a.y - c.outerLow[i].y + b.y - c.outerLow[(i + 1) % n].y) / 2;
+    sum += Math.abs(dx * nx + dy * ny) * L;
+    total += L;
+  }
+  return total > 0 ? sum / total / dz : 0;
 }
 
 /** 腕の間に挟む石座の、継ぎ目のない一体の形（爪・上の輪・下の輪をなめらかにつなぎ、石の形で座を彫り、下を指の丸みで切る） */
