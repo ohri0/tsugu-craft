@@ -1486,6 +1486,16 @@ function betweenHead(f: Frame, params: SettingParams, plans: ProngPlan[], ctx: B
 
   // 上の輪：丸線の管
   const ringPts = samples.map((q) => L.ringCenter(q));
+  // 上の輪と爪のつなぎ（ロウ付けの所）：輪は石の下側の面に沿い、爪は縁からまっすぐ下りるので、角のある石（三角・スクエア・ペア・マーキス）では
+  // 角の爪から輪が離れ、STL で別々の形になっていた（2026-11-05 作者：一部つながっていない）。
+  // それぞれの爪の、上の輪の高さの中心から、いちばん近い輪の中心まで、輪の線と同じ太さ（爪より太くしない）の短い管でつなぐ
+  const bridges: [V3, V3, number][] = plans.map((plan) => {
+    const s = sampleAt(f, plan.t);
+    const pc = L.line(s, zU);
+    let best = ringPts[0];
+    for (const q of ringPts) if (Math.hypot(q.x - pc.x, q.y - pc.y) < Math.hypot(best.x - pc.x, best.y - pc.y)) best = q;
+    return [[best.x, best.y, zU], [pc.x, pc.y, zU], Math.min(wire / 2, plan.diameterMm / 2)];
+  });
   const rings: GalleryRing[] = [];
   {
     const a = wire / 2;
@@ -1496,7 +1506,14 @@ function betweenHead(f: Frame, params: SettingParams, plans: ProngPlan[], ctx: B
     }
     const tris: number[] = [];
     ringsToTube(profile, tris);
-    rings.push({ z: zU, wireMm: wire, triangles: ctx.addPart(closedPart(tris)) });
+    const joins = bridges
+      .filter(([a0, b0]) => Math.hypot(a0[0] - b0[0], a0[1] - b0[1]) > 1e-3)
+      .map(([a0, b0, rb]) => {
+        const t: number[] = [];
+        sweepTube([a0, b0], { sides: RING_SIDES, side: [0, 0, 1], radius: () => [rb, rb], startCap: 1, endCap: 1, capSteps: CAP_STEPS }, t);
+        return t;
+      });
+    rings.push({ z: zU, wireMm: wire, triangles: ctx.addPart(closedParts([tris, ...joins])) });
   }
   // 下の輪：板を丸めた輪（円すい）。断面は角を軽く落とした四角。外の面から内へ測った位置 off と高さ z の点を、角ごとに弧で並べる
   const e = Math.min(COLLAR_EDGE_MM, wall / 3);
@@ -1542,13 +1559,15 @@ function betweenHead(f: Frame, params: SettingParams, plans: ProngPlan[], ctx: B
   const collar: CollarInfo = { outer, inner, outerLow, wallMm: wall, heightMm: collarH, topZ, bottomZ, fingerZ, triangles: collarRange, ends };
   const upperRail = { pts: ringPts.map((p) => [p.x, p.y, zU] as V3), radiusMm: wire / 2 };
 
-  const solid = params.solid ? solidBetween(f, plans, { prongLine, ringPts, zU, wire, tz, outer, outerLow, wall, topZ, bottomZ, fingerAt, quality: params.solidQuality ?? "final" }) : null;
+  const solid = params.solid ? solidBetween(f, plans, { prongLine, ringPts, bridges, zU, wire, tz, outer, outerLow, wall, topZ, bottomZ, fingerAt, quality: params.solidQuality ?? "final" }) : null;
   return { v, tipZ: tz, prongs, rings, collar, upperRail, solid };
 }
 
 interface BetweenSolid {
   prongLine: (s: Sample, r: number) => V3[];
   ringPts: Point[];
+  /** 上の輪と爪のつなぎ：[輪の中心, 爪の中心, 半径] */
+  bridges: [V3, V3, number][];
   zU: number;
   wire: number;
   tz: number;
@@ -1594,6 +1613,7 @@ function solidBetween(f: Frame, plans: ProngPlan[], b: BetweenSolid) {
   const ring: V3[] = b.ringPts.filter((_, i) => i % 2 === 0).map((p) => [p.x, p.y, b.zU] as V3);
   ring.push(ring[0]);
   tubes.push({ pts: ring, radii: ring.map(() => b.wire / 2), owner: RING_OWNER });
+  for (const [p0, p1, rb] of b.bridges) tubes.push({ pts: [p0, p1], radii: [rb, rb], owner: RING_OWNER });
   // 下の輪（板を丸めた円すいの輪）：上の端の外の線からの距離を、円すいの傾きで高さに合わせて直し、厚み wall の殻。上は平ら、下は指の面
   const dOut = polygonDistance(b.outer, cell / 2);
   const tanC = collarTaperTan(b);

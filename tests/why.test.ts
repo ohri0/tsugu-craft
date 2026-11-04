@@ -10,7 +10,9 @@ describe("なぜ継ぐ", () => {
     const html = whyHtml();
     expect(html).toContain("20 年に一度しか作り直さない技");
     expect(html).toContain("式年遷宮");
-    expect(html).toContain("/heritage/naiku-goshinpozu.jpg");
+    // 御神宝図は横に長すぎて分かりにくいので、太刀と拵えの写真に替えた（2026-11-05 作者）。内宮の写真は残す
+    expect(html).toContain("/heritage/naiku-1953.jpg");
+    expect(html).toContain("/heritage/tachi.jpg");
     expect(html).toContain("パブリックドメイン");
   });
 });
