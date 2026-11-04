@@ -37,7 +37,8 @@ describe("留め方の型", () => {
     expect(r6.hold.value).toBeGreaterThan(1.0);
   });
 
-  it("V 字の爪：尖った角ごとに V 字の爪が立ち、角が守られる", () => {
+  // V 字の爪は、形の出来がまだ足りないので画面では使わない（作者と決めた。2026-11-04）。形の処理は残してある
+  it.skip("V 字の爪：尖った角ごとに V 字の爪が立ち、角が守られる", () => {
     const s = session(triangleStone());
     const r = s.setSetting({ v_corners: true, reason: "角を包む" });
     expect(r.setting.v_corners).toBe(true);
@@ -51,7 +52,7 @@ describe("留め方の型", () => {
     expect(v).toBeGreaterThanOrEqual(plain);
   });
 
-  it("角を守っていない爪の置き方では「角」の確かめが出て、直し方の V 字の爪で消える", () => {
+  it("角を守っていない爪の置き方では「角」の確かめが出て、直し方（角に 1 本ずつ爪）で消える", () => {
     const s = session(denseTriangle());
     // 爪を辺の真ん中に置く（角から遠い）
     s.setSetting({ prong_positions: [10, 30, 50], reason: "辺に置く" });
@@ -62,9 +63,9 @@ describe("留め方の型", () => {
     const hint = s
       .check()
       .problems.find((p) => p.check === "尖った角の守り")!
-      .options.find((o) => o.tool_hint?.tool === "set_setting" && "v_corners" in o.tool_hint.input);
+      .options.find((o) => o.tool_hint?.tool === "set_setting" && "prong_count" in o.tool_hint.input);
     expect(hint).toBeTruthy();
-    s.setSetting({ v_corners: true, reason: "直し方から" });
+    s.setSetting({ v_corners: false, prong_count: 0, reason: "直し方から" });
     expect(s.built!.problems.filter((p) => p.check === "corner")).toEqual([]);
   });
 

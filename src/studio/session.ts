@@ -97,7 +97,8 @@ function hintFor(id: FixId, s: RingState, std: number): FixOption["tool_hint"] {
     case "bezel":
       return { tool: "set_setting", input: { style: "bezel" } };
     case "vAtCorner":
-      return { tool: "set_setting", input: { style: "prong", v_corners: true } };
+      // 爪の本数を自動に戻すと、尖った角に 1 本ずつ置く（V 字の爪は画面では使わない）
+      return { tool: "set_setting", input: { style: "prong", v_corners: false, prong_count: 0 } };
     case "thickerBand":
       return { tool: "set_shank", input: { thickness_mm: GUIDES.band.minThicknessMm } };
     case "widerBand":
@@ -195,7 +196,8 @@ export class RingSession implements ToolHost<RingState> {
         solid: this.solid,
         solidQuality: quality,
         // 既定は、角を丸い爪で押さえる普通の爪留め（作者の判断）。V 字の爪は選んだときだけ
-        vAtCorners: s.vCorners ?? false,
+        // V 字の爪は、形の出来がまだ足りないので画面では使わない（作者と決めた。2026-11-04）
+        vAtCorners: false,
       },
       shank: {
         gou: s.gou,
@@ -237,7 +239,8 @@ export class RingSession implements ToolHost<RingState> {
       if (input.v_corners && !input.prong_positions) s.prongPositions = undefined;
     }
     if (input.prong_count !== undefined) {
-      s.prongCount = input.prong_count;
+      // 0 は「自動」（角の数・石の形から決める）
+      s.prongCount = input.prong_count > 0 ? input.prong_count : undefined;
       s.prongPositions = undefined;
     }
     if (input.prong_positions) s.prongPositions = input.prong_positions;

@@ -33,7 +33,13 @@ ${DRAWING_CSS}
 * { box-sizing: border-box; }
 body { margin: 0; font-family: "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif; color: #111; }
 .page { width: 210mm; min-height: 297mm; padding: 14mm 14mm 10mm; page-break-after: always; }
-.page:last-child { page-break-after: auto; padding: 0; }
+.page:last-child { page-break-after: auto; }
+/* 画面で見るとき：紙を灰色の上にまん中にそろえて並べる（印刷のときは紙のまま） */
+@media screen {
+  html { background: #e5e5e7; }
+  body { padding: 16px 0; }
+  .page, .dw { margin: 0 auto 16px; background: #fff; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.12); }
+}
 header { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 0.4mm solid #111; padding-bottom: 2mm; }
 h1 { margin: 0; font-weight: 700; font-size: 17pt; }
 header small { font-size: 8.5pt; color: #666; }

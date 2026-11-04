@@ -29,7 +29,7 @@ export const FIXES = {
   moreProngs: { label: "爪の本数を増やす", effectOnLook: "細いまま支えが増える" },
   lower: { label: "石座を低くする", effectOnLook: "引っかかりも減るが輝きは控えめ" },
   bezel: { label: "覆輪にする", effectOnLook: "いちばん取れにくいが見た目が大きく変わる" },
-  vAtCorner: { label: "角に V 字の爪", effectOnLook: "角の先が金属で包まれ、角の形がくっきり見える" },
+  vAtCorner: { label: "角に 1 本ずつ爪を置く", effectOnLook: "尖った角が爪で守られ、角の形がそのまま見える" },
   tipUp: { label: "爪の先を上げる", effectOnLook: "石をしっかり押さえるが、爪が少し目立つ" },
   tipDown: { label: "爪の先を下げる", effectOnLook: "石の上面が広く見えるが、かかりは浅くなる" },
   addProng: { label: "爪を足す", effectOnLook: "支えが増え、爪が少し目立つ" },

@@ -102,7 +102,7 @@ export function forgeSteps(o: ForgeInput): Step[] {
       details: STEP_DETAILS.anneal,
     },
     { id: "bend", title: "切って、丸める", text: "計算した長さで切り、両端をまっすぐにして丸める。", specs: [], details: STEP_DETAILS.bend },
-    { id: "solder", title: "ロウ付けで閉じる", text: "継ぎ目をぴったり合わせ、フラックスを塗ってロウ付けする。", specs: [], watch: "ロウはすき間を埋めない。", details: STEP_DETAILS.solder },
+    { id: "solder", title: "ロウ付けで閉じる", text: "継ぎ目をぴったり合わせ、フラックスを塗ってロウ付けする。", specs: [], watch: "ロウですき間を埋めようとせず、ぴったり合わせてからつなぐ。", details: STEP_DETAILS.solder },
     { id: "true", title: "芯金で丸く整える", text: "芯金にはめて叩き、真円にして号を合わせる。", specs: [{ label: "内径", value: `${o.innerMm.toFixed(1)} mm（${o.gou} 号）` }], details: STEP_DETAILS.true },
   ];
 }

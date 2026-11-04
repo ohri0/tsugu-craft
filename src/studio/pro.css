@@ -720,3 +720,15 @@ dialog.sheet input:focus { border-color: var(--accent); }
   .pr-grid { gap: 12px 24px; }
   .pr-grid .pv { font-size: 15px; }
 }
+
+/* スマホの最初の見せ場：図面の札と時計は小さく、下と上の端に（指輪を隠さない） */
+@media (max-width: 760px) {
+  .intro-sheet { left: 12px; right: 12px; bottom: 76px; padding: 8px; gap: 10px; }
+  .intro-sheet img { width: 56px; }
+  .intro-sheet b { font-size: 12px; }
+  .intro-timer { top: 12px; white-space: nowrap; font-size: 11px; padding: 4px 10px; }
+  .intro-timer span { font-size: 12px; }
+}
+.look-note { margin: 0 14px 10px; padding: 10px 12px; border-radius: 8px; background: rgba(255, 214, 10, 0.08); border: 1px solid rgba(255, 214, 10, 0.25); font-size: 12px; color: var(--fg-1); }
+.look-note b { margin-right: 8px; color: #ffd60a; font-weight: 600; }
+.look-note small { display: block; margin-top: 4px; color: var(--fg-3); font-size: 11px; }

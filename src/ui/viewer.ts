@@ -45,7 +45,7 @@ export class Viewer {
   private camera = new THREE.PerspectiveCamera(30, 1, 0.1, 1000);
   private controls: OrbitControls;
   private content = new THREE.Group();
-  private grid: THREE.GridHelper;
+  private grid: THREE.Object3D;
   private shadow: ContactShadow;
   private framedFor = "";
   /** true の間は、形が変わってもカメラを寄せ直さない（石の大きさを変えるとき、大きさの違いが見えるように） */
@@ -228,6 +228,14 @@ export class Viewer {
         lm.color.setHex(0x141416);
         lm.opacity = 0.55;
       } else {
+        // ワイヤー：なめらかな形（一体の石座・腕）は折れ目がほとんどなく線が出ないので、網目そのものを細い線で見せる
+        if (o.geometry.userData.smooth && !isStone(ud.render)) {
+          if (!ud.wire) ud.wire = new THREE.MeshBasicMaterial({ color: this.darkOn ? 0x3a3b3f : 0xd8d8dc, wireframe: true, transparent: true, opacity: 0.09, depthWrite: false });
+          o.material = ud.wire;
+          o.visible = true;
+          edges.visible = false;
+          continue;
+        }
         o.visible = false;
         edges.visible = true;
         lm.color.setHex(isStone(ud.render) ? (this.darkOn ? 0x1d5fb0 : 0x8fc3ff) : this.darkOn ? 0x2a2b2e : 0xd8d8dc);
@@ -412,6 +420,7 @@ export class Viewer {
     }
     this.applyMode();
     if (!this.keepCamera) this.frame("ring", new THREE.Vector3(0.9, -1.1, 0.75));
+    this.alignGrid(this.gridView);
     this.updateShadow();
   }
 
@@ -487,7 +496,7 @@ export class Viewer {
     this.scene.background = on ? (this.mode === "render" ? darkBackdropTexture() : grayBackdropTexture()) : backdropTexture();
     // 暗い画面の目盛りは、うすい灰色（CAD の作業面のように）
     this.scene.remove(this.grid);
-    this.grid = on ? new THREE.GridHelper(60, 60, 0x4a4b50, 0x313236) : new THREE.GridHelper(40, 40, 0xc9c1b4, 0xe0dad0);
+    this.grid = on ? cadGrid() : new THREE.GridHelper(40, 40, 0xc9c1b4, 0xe0dad0);
     this.grid.rotation.x = Math.PI / 2;
     this.grid.visible = on;
     this.scene.add(this.grid);
@@ -502,6 +511,34 @@ export class Viewer {
     const dir = { top: new THREE.Vector3(0, -0.001, 1), side: new THREE.Vector3(1, 0, 0.05), front: new THREE.Vector3(0, -1, 0.05), angle: new THREE.Vector3(0.6, -0.8, 0.6) }[view].normalize();
     this.camera.position.copy(target).addScaledVector(dir, r);
     this.controls.update();
+    this.alignGrid(view);
+    this.dirty = true;
+  }
+
+  /**
+   * 方眼を、見ている向きの後ろに立てる（CAD の作業画面のように）。
+   * 斜め・上：床（指輪の下）。正面：指輪の奥に縦の面。横：指輪の奥に縦の面
+   */
+  private gridView: "top" | "side" | "front" | "angle" = "angle";
+  private alignGrid(view: "top" | "side" | "front" | "angle") {
+    this.gridView = view;
+    const box = new THREE.Box3().setFromObject(this.content);
+    if (box.isEmpty()) return;
+    const c = box.getCenter(new THREE.Vector3());
+    const g = this.grid;
+    g.rotation.set(0, 0, 0);
+    if (view === "front") {
+      // 正面（-y から見る）：奥（+y）に、x-z の面
+      g.position.set(c.x, box.max.y + 2, c.z);
+    } else if (view === "side") {
+      // 横（+x から見る）：奥（-x）に、y-z の面
+      g.rotation.z = Math.PI / 2;
+      g.position.set(box.min.x - 2, c.y, c.z);
+    } else {
+      g.rotation.x = Math.PI / 2;
+      g.position.set(c.x, c.y, box.min.z - 0.01);
+    }
+    this.shadow.plane.visible = view === "angle" || view === "top" ? this.shadow.plane.visible : false;
     this.dirty = true;
   }
 
@@ -754,6 +791,23 @@ export function studioScene(): THREE.Scene {
 }
 
 /** 黒い撮影台：真ん中がわずかに明るい、あたたかい黒 */
+/**
+ * CAD の作業画面のような方眼：1 mm の細い線、5 mm ごとに濃い線、まん中の 2 本の軸は赤と緑（横と奥行き）。
+ * 灰色の背景の上で、目盛りだと分かるように
+ */
+function cadGrid(): THREE.Object3D {
+  const g = new THREE.Group();
+  const minor = new THREE.GridHelper(60, 60, 0x9a9ca1, 0x9a9ca1);
+  const major = new THREE.GridHelper(60, 12, 0x77797e, 0x77797e);
+  for (const m of [minor.material, major.material] as THREE.LineBasicMaterial[]) { m.transparent = true; m.depthWrite = false; }
+  (minor.material as THREE.LineBasicMaterial).opacity = 0.55;
+  (major.material as THREE.LineBasicMaterial).opacity = 0.9;
+  const axis = (a: THREE.Vector3, b: THREE.Vector3, color: number) =>
+    new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.85 }));
+  g.add(minor, major, axis(new THREE.Vector3(-30, 0.001, 0), new THREE.Vector3(30, 0.001, 0), 0xb33a3a), axis(new THREE.Vector3(0, 0.001, -30), new THREE.Vector3(0, 0.001, 30), 0x3a8a3a));
+  return g;
+}
+
 function grayBackdropTexture(): THREE.Texture {
   const c = document.createElement("canvas");
   c.width = c.height = 512;

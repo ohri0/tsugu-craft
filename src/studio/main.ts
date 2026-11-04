@@ -998,7 +998,7 @@ function compareHtml(): string {
   if (kind !== "solitaire") return "";
   const has = activeRules(store.ledger()).some((r) => r.source.kind === "craftsman" && r.param);
   if (!has) return "";
-  if (!compare) return `<button type="button" class="ghost-d compare-btn">職人の決まりを外して比べる</button><button type="button" class="ghost-d sweep-btn">職人の決まりを、よくある 270 の設計に当てる</button>`;
+  if (!compare) return `<button type="button" class="ghost-d compare-btn">職人の決まりを外して比べる</button>`;
   const pub = session?.built ? numsOf(session.built) : null;
   const c = compare.nums;
   const row = (k: string, a: string, b: string) => `<tr${a !== b ? ` class="diff"` : ""}><th>${k}</th><td>${esc(b)}</td><td>${esc(a)}</td></tr>`;
@@ -1103,6 +1103,19 @@ function openSweep() {
 }
 /** 留め方の型：4 本爪・6 本爪・V 字の爪（尖った角のある石だけ）・覆輪 */
 type Pattern = "4" | "6" | "v" | "bezel";
+/**
+ * 爪の本数が、石の形に対して不自然に見えるとき、その一言（なければ空）。作れるかどうかとは別の、見た目の注意。
+ * 作者の声：四角い石に 6 本爪などは、問題はないが不自然（2026-11-04）
+ */
+function prongCountNote(b: Built): string {
+  const st = b.ring.setting;
+  if (st.style !== "prong") return "";
+  const n = st.prongs.length;
+  const c = st.corners.length;
+  if (c >= 3 && n !== c && n !== c * 2) return `角が ${c} つの石に、爪 ${n} 本`;
+  if (c === 0 && n === 5) return "丸い形の石に、爪 5 本";
+  return "";
+}
 const PATTERNS: [Pattern, string][] = [["4", "4 本爪"], ["6", "6 本爪"], ["v", "V 字の爪"], ["bezel", "覆輪"]];
 function patternOf(b: Built): Pattern | "" {
   const st = b.ring.setting;
@@ -1185,8 +1198,12 @@ function renderCheck() {
             .join("")}</ul>`
         : ""
     }
+    ${(() => {
+      const note = prongCountNote(b);
+      return note ? `<p class="look-note"><b>見た目の注意</b>${esc(note)}<small>作れますが、形に対して不自然に見えることがあります（確かめの決まりではありません）</small></p>` : "";
+    })()}
     <details class="manual" ${manualOpen ?? !probs.length ? "open" : ""}><summary>手で変える</summary>
-      ${pick("留め方", patternOf(b), PATTERNS.filter(([v]) => v !== "v" || b.ring.setting.corners.length > 0))}
+      ${pick("留め方", patternOf(b), PATTERNS.filter(([v]) => v !== "v"))}
       ${s.style === "prong" ? pick("爪の本数", s.prongCount ?? 0, [[0, "自動"], [3, "3"], [4, "4"], [5, "5"], [6, "6"]]) : ""}
       ${pick("高さ", s.height, [["low", "低め"], ["standard", "標準"], ["high", "高め"]])}
       ${pick("向き", s.orientation, [["along", "縦"], ["across", "横"]])}
@@ -1315,7 +1332,8 @@ function applyFix(id: string, sess: RingSession = session!) {
       session!.setSetting({ style: "bezel", reason: "直し方から" });
       break;
     case "vAtCorner":
-      session!.setSetting({ style: "prong", v_corners: true, reason: "直し方から" });
+      // V 字の爪は画面では使わないので、角の数だけ爪を置き、角に寄せる（爪の置き方の自動）
+      session!.setSetting({ style: "prong", v_corners: false, prong_count: 0, reason: "直し方から" });
       break;
     case "thickerBand":
       session!.setShank({ thickness_mm: GUIDES.band.minThicknessMm, reason: "直し方から" });
