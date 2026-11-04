@@ -5,26 +5,35 @@
 import {
   DEGREE,
   evalCurve,
-  fitCurve,
-  fitError,
+  fitPolyline,
+  fitSegment,
+  joinCurves,
+  lineLength,
+  mirrorCurve,
   greville,
   insertKnot,
   isSymmetric,
   nearestOnCurve,
   resample,
   sampleCurve,
+  splitAtCorners,
   symmetrize,
   type P2,
 } from "../geometry/bspline";
 import { curveFromHalf, curveKnots, normalizeCurve, presetCurve, type SectionCurve, type SectionPoint, type ShankSection } from "../geometry/shank";
 import { GUIDES } from "../rules/guides";
+import { SPIKE_TEXT, sectionSpots } from "../rules/checks";
 
 /** 描く所の広さ（mm）：幅 ±X、厚み yMin〜yMax。点はこの中でだけ動く */
 const VIEW = { x: 3.6, yMin: -0.6, yMax: 3.2 };
 /** 形を作るための決まり：厚みは 0.3 mm、幅は 0.6 mm より小さくしない。点は 5 つより少なくしない */
 const LIMIT = { minT: 0.3, minW: 0.6, minPoints: 5 };
-/** 自由に描いた線に合わせるときの、点の数の範囲と、許す離れ（mm） */
-const FIT = { minPoints: 6, maxPoints: 11, tolMm: 0.06 };
+/**
+ * 自由に描いた線に合わせるときの決まり（形を作るための決まり。職人の目安の数ではない）：
+ * 描いた線から tolMm より離れない。角と角の間の点は maxPerPart まで。線を stepMm ごとに取り直す。
+ * cornerScaleMm の間で向きが cornerTurnDeg 度より変われば角（尖り・段）として残す。端が floorMm より浮いていれば下ろす
+ */
+const FIT = { tolMm: 0.03, maxPerPart: 14, stepMm: 0.015, cornerScaleMm: 0.08, cornerTurnDeg: 30, floorMm: 0.02 };
 
 /** mm で持つ断面の線（右の端の内側 → 左の端の内側。最初と最後の点は y ＝ 0） */
 export interface EditCurve {
@@ -159,10 +168,58 @@ export function makeSymmetric(ec: EditCurve): EditCurve {
   return okSize(r) ? r : ec;
 }
 
+/** 線を、長さに沿って半分の所で、x ＝ 0 を横切る所で 2 つに分ける（いちばん真ん中に近い横切り）。横切らなければ null */
+function splitAtCenter(s: readonly P2[]): { right: P2[]; left: P2[] } | null {
+  const L = [0];
+  for (let i = 1; i < s.length; i++) L.push(L[i - 1] + Math.hypot(s[i].x - s[i - 1].x, s[i].y - s[i - 1].y));
+  const half = L[L.length - 1] / 2;
+  let best: { i: number; f: number; d: number } | null = null;
+  for (let i = 1; i < s.length; i++) {
+    const a = s[i - 1];
+    const b = s[i];
+    if ((a.x > 0) === (b.x > 0) && a.x !== 0) continue;
+    const f = Math.abs(b.x - a.x) < 1e-12 ? 0 : a.x / (a.x - b.x);
+    const d = Math.abs(L[i - 1] + (L[i] - L[i - 1]) * f - half);
+    if (!best || d < best.d) best = { i, f, d };
+  }
+  if (!best) return null;
+  const a = s[best.i - 1];
+  const b = s[best.i];
+  const c = { x: 0, y: a.y + (b.y - a.y) * best.f };
+  return { right: [...s.slice(0, best.i), c], left: [c, ...s.slice(best.i)] };
+}
+
+/** 端が浮いていれば、内側の線（y ＝ 0）までまっすぐ下ろす。下ろした所は角にする（線の長さの割合を返す） */
+function dropToFloor(s: P2[], atStart: boolean, atEnd: boolean): { line: P2[]; corners: number[] } {
+  const line = s.map((p) => ({ ...p }));
+  const cornerAt: P2[] = [];
+  if (atStart) {
+    if (line[0].y > FIT.floorMm) {
+      cornerAt.push(line[0]);
+      line.unshift({ x: line[0].x, y: 0 });
+    } else line[0] = { x: line[0].x, y: 0 };
+  }
+  if (atEnd) {
+    const e = line[line.length - 1];
+    if (e.y > FIT.floorMm) {
+      cornerAt.push(e);
+      line.push({ x: e.x, y: 0 });
+    } else line[line.length - 1] = { x: e.x, y: 0 };
+  }
+  const L = [0];
+  for (let i = 1; i < line.length; i++) L.push(L[i - 1] + Math.hypot(line[i].x - line[i - 1].x, line[i].y - line[i - 1].y));
+  const total = L[L.length - 1] || 1;
+  return { line, corners: cornerAt.map((c) => L[line.indexOf(c)] / total) };
+}
+
+const fitOpts = (forceCorners: number[] = []) => ({ tol: FIT.tolMm, maxPerPart: FIT.maxPerPart, step: FIT.stepMm, cornerScale: FIT.cornerScaleMm, cornerTurnDeg: FIT.cornerTurnDeg, forceCorners });
+
 /**
- * 指で描いた線（mm）を、なめらかな線にする。点の数は、線との離れが FIT.tolMm に収まるいちばん少ない数（FIT の範囲）。
+ * 指で描いた線（mm）を、なめらかな線にする。描いた線から FIT.tolMm より離れないように、点の数は区間ごとに必要なだけ使う。
+ * - 急に折れた所（角）は、角のまま残す（描いた尖りや段は消さない）。
  * - 右から描いても左から描いても同じ（右の端から始まる向きにそろえる）。
- * - 左右対称で、片側だけ描いたときは、真ん中で折り返して両側にする。
+ * - 左右対称で、片側だけ描いたときは、真ん中で折り返して両側にする。両側を描いたときは、左右を平均する。
+ * - 左右対称でないときは、描いたとおり（左右がちがってよい）。
  * - 端が内側の線から浮いていれば、そこからまっすぐ下ろす（指の側は平ら）。
  * 短すぎる線は使わない（null）
  */
@@ -174,37 +231,68 @@ export function fitStroke(stroke: readonly P2[], o: { sym: boolean }): EditCurve
   const xMax = Math.max(...xs);
   const span = xMax - xMin;
   if (span < LIMIT.minW / 2 && Math.max(...s.map((p) => p.y)) < LIMIT.minT) return null;
+  let r: EditCurve;
   if (o.sym) {
     // 片側だけ描いたか（反対側へ、描いた幅の 15 % より出ていない）
     const right = xMin > -0.15 * Math.max(Math.abs(xMax), 1e-6);
     const left = xMax < 0.15 * Math.max(Math.abs(xMin), 1e-6);
+    let half: P2[];
     if (right || left) {
-      let half = s.map((p) => ({ x: Math.abs(p.x), y: p.y }));
+      half = s.map((p) => ({ x: Math.abs(p.x), y: p.y }));
       // 端（x の大きい方）から真ん中へ向かう順に
       if (half[0].x < half[half.length - 1].x) half = half.reverse();
-      const tip = half[half.length - 1];
-      half[half.length - 1] = { x: 0, y: tip.y };
-      s = [...half, ...half.slice(0, -1).reverse().map((p) => ({ x: -p.x, y: p.y }))];
+      half[half.length - 1] = { x: 0, y: half[half.length - 1].y };
+    } else {
+      // 両側を描いた：真ん中を幅の真ん中にそろえ、右半分と（折り返した）左半分を平均する
+      const cx = (xMin + xMax) / 2;
+      let full = s.map((p) => ({ x: p.x - cx, y: p.y }));
+      if (full[0].x < full[full.length - 1].x) full = full.reverse();
+      const sp = splitAtCenter(full);
+      if (!sp) return null;
+      const n = 240;
+      const rr = resample(sp.right, n);
+      const ll = resample([...sp.left].reverse().map((p) => ({ x: -p.x, y: p.y })), n);
+      half = rr.map((p, i) => ({ x: (p.x + ll[i].x) / 2, y: (p.y + ll[i].y) / 2 }));
+      half[n - 1] = { x: 0, y: half[n - 1].y };
     }
+    r = fitSymmetricHalf(half);
+  } else {
+    if (s[0].x < s[s.length - 1].x) s = s.reverse();
+    const d = dropToFloor(s, true, true);
+    r = fitPolyline(d.line, fitOpts(d.corners));
   }
-  if (s[0].x < s[s.length - 1].x) s = s.reverse();
-  // 端が浮いていれば、内側の線までまっすぐ下ろす
-  if (s[0].y > 0.02) s.unshift({ x: s[0].x, y: 0 });
-  else s[0] = { x: s[0].x, y: 0 };
-  const e = s[s.length - 1];
-  if (e.y > 0.02) s.push({ x: e.x, y: 0 });
-  else s[s.length - 1] = { x: e.x, y: 0 };
-  const data = resample(s, 120);
-  let best: EditCurve | null = null;
-  for (let n = FIT.minPoints; n <= FIT.maxPoints; n++) {
-    if (o.sym && n % 2 === 0) continue; // 左右対称は真ん中に点を置く（奇数）
-    let r = fitCurve(data, n);
-    if (o.sym) r = symmetrize(r.pts, r.knots);
-    r.pts = r.pts.map((p, i) => ({ x: clampX(p.x), y: i === 0 || i === r.pts.length - 1 ? 0 : clampY(p.y) }));
-    best = r;
-    if (fitError(data, r.pts, r.knots) <= FIT.tolMm) break;
+  r.pts = r.pts.map((p, i) => ({ x: clampX(p.x), y: i === 0 || i === r.pts.length - 1 ? 0 : clampY(p.y) }));
+  return okSize(r) ? { pts: r.pts, knots: r.knots } : null;
+}
+
+/** 片側（端 → 真ん中 x ＝ 0）の線から、左右対称の線を作る。真ん中が尖っていれば尖ったまま、なめらかならなめらかに */
+function fitSymmetricHalf(half: P2[]): EditCurve {
+  const d = dropToFloor(half, true, false);
+  const { segs } = splitAtCorners(d.line, fitOpts(d.corners));
+  const last = segs[segs.length - 1];
+  // 真ん中で尖っているか：真ん中の手前の向きと、折り返した向きの変わり
+  const k = Math.max(1, Math.round(FIT.cornerScaleMm / FIT.stepMm));
+  const a = last[Math.max(0, last.length - 1 - k)];
+  const c = last[last.length - 1];
+  // 手前の向き v と、折り返した先の向き (v.x, −v.y) のなす角 ＝ 2 × |v と −x の向きの角|
+  const turn = (2 * Math.abs(Math.atan2(c.y - a.y, a.x - c.x)) * 180) / Math.PI;
+  const sharp = turn > FIT.cornerTurnDeg;
+  const parts = segs.map((g) => fitSegment(g, fitOpts()));
+  const lengths = segs.map(lineLength);
+  let joined: EditCurve;
+  if (sharp) {
+    const h = joinCurves(parts, lengths);
+    joined = joinCurves([h, mirrorCurve(h)], [1, 1]);
+  } else {
+    // 真ん中の区間は、折り返した線とつないで 1 つの区間として合わせる（左右対称の点と節になる）
+    const mid = [...last, ...[...last].reverse().slice(1).map((p) => ({ x: -p.x, y: p.y }))];
+    const midFit = fitSegment(mid, { ...fitOpts(), maxPerPart: FIT.maxPerPart * 2 });
+    const side = parts.slice(0, -1);
+    const sideL = lengths.slice(0, -1);
+    joined = joinCurves([...side, midFit, ...side.map(mirrorCurve).reverse()], [...sideL, 2 * lengths[lengths.length - 1], ...[...sideL].reverse()]);
   }
-  return best && okSize(best) ? best : null;
+  const r = symmetrize(joined.pts, joined.knots);
+  return { pts: r.pts, knots: r.knots };
 }
 
 /** 断面の外の形（mm）：外側の線 ＋ 内側の平らな線で閉じた多角形（y は上が正） */
@@ -235,6 +323,8 @@ interface Memo {
   snap: boolean;
   preset: Exclude<ShankSection, "free">;
   shape: SectionShape;
+  /** さっき描いた線（mm）。できた線と見比べられるよう、うすく残す。次に触ると消える */
+  lastStroke: P2[] | null;
 }
 let memo: Memo | null = null;
 
@@ -325,6 +415,7 @@ export function sectionEditorHtml(): string {
       <g class="se-ghosts"></g>
       <g class="se-handles"></g>
       <polyline class="se-stroke"/>
+      <g class="se-spots"></g>
     </svg>
     <div class="se-read"><span class="se-w"></span><span class="se-t"></span><span class="se-n"></span><small class="se-hint"></small></div>
   </div>`;
@@ -341,13 +432,14 @@ export function bindSectionEditor(box: HTMLElement, start: SectionShape, onLive:
   const svg = root.querySelector("svg")!;
 
   const startEc = startCurveOfShape(start);
-  if (!memo) memo = { cur: startEc, past: [], future: [], mode: "move", sym: true, snap: false, preset: "kouman", shape: start };
+  if (!memo) memo = { cur: startEc, past: [], future: [], mode: "move", sym: true, snap: false, preset: "kouman", shape: start, lastStroke: null };
   else if (!sameShape(memo.shape, start)) {
     // 画面の外で形が変わった（決まった断面を選んだ・Claude が直した など）。前の形は「元に戻す」で戻れる
     memo.past.push(memo.cur);
     memo.future = [];
     memo.cur = startEc;
     memo.shape = start;
+    memo.lastStroke = null;
   }
   if (start.section !== "free") memo.preset = start.section;
   const M = memo;
@@ -362,10 +454,12 @@ export function bindSectionEditor(box: HTMLElement, start: SectionShape, onLive:
   fl.setAttribute("x2", f3(view.x));
   // 点の大きさ（mm）：見る広さに合わせ、画面の上でいつも同じくらいの大きさに。指で触る画面は少し大きく
   const coarse = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
-  const R = { hit: f3(view.x * 0.11), dot: f3(view.x * (coarse ? 0.036 : 0.03)), ghost: f3(view.x * 0.024) };
+  const R = { hit: f3(view.x * 0.11), dot: f3(view.x * (coarse ? 0.036 : 0.03)), ghost: f3(view.x * 0.024), spot: f3(view.x * 0.028) };
   const g = GUIDES.band;
   const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
 
+  let drag: { i: number; id: number; before: EditCurve } | null = null;
+  let stroke: { id: number; pts: P2[] } | null = null;
   const commit = (next: EditCurve, preset?: Exclude<ShankSection, "free">) => {
     M.past.push(M.cur);
     if (M.past.length > 60) M.past.shift();
@@ -425,6 +519,21 @@ export function bindSectionEditor(box: HTMLElement, start: SectionShape, onLive:
     wEl.title = wBad ? `${g.minWidthMm} mm より細い（目安・最後は職人が決める）` : "";
     tEl.title = tBad ? `${g.minThicknessMm} mm より薄い（目安・最後は職人が決める）` : "";
     root.classList.toggle("bad", wBad || tBad);
+    // 局所的に薄い所（とがり・ヒレ）：その所だけを赤く（腕ぜんぶは赤くしない）
+    const spots = sectionSpots(line);
+    q(".se-spots").innerHTML = spots
+      .map(
+        (sp) =>
+          `<polyline class="se-spot-run" points="${sp.run.map((p) => `${f3(p.x)},${f3(sy(p.y))}`).join(" ")}"/><circle class="se-spot" cx="${f3(sp.at.x)}" cy="${f3(sy(sp.at.y))}" r="${R.spot}"/>`,
+      )
+      .join("");
+    root.classList.toggle("spiky", spots.length > 0);
+    // さっき描いた線（うすい青）と、できた線を見比べる
+    if (!stroke) {
+      const st = q(".se-stroke");
+      st.setAttribute("points", M.lastStroke ? M.lastStroke.map((p) => `${f3(p.x)},${f3(sy(p.y))}`).join(" ") : "");
+      st.classList.toggle("after", !!M.lastStroke);
+    }
     root.dataset.mode = M.mode;
     root.classList.toggle("snap", M.snap);
     root.querySelectorAll<HTMLButtonElement>(".se-mode").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === M.mode)));
@@ -433,7 +542,12 @@ export function bindSectionEditor(box: HTMLElement, start: SectionShape, onLive:
     q<HTMLButtonElement>(".se-undo").disabled = !M.past.length;
     q<HTMLButtonElement>(".se-redo").disabled = !M.future.length;
     const hint = MODES.find(([k]) => k === M.mode)![2];
-    q<HTMLElement>(".se-hint").textContent = `${hint}。${wBad || tBad ? `赤い数字は目安（幅 ${g.minWidthMm} mm・厚み ${g.minThicknessMm} mm）より小さい。最後は職人が決める` : "下の線が指の側（いつも平ら）"}`;
+    const sp = g.spike;
+    const notes = [
+      spots.length ? `赤い所は${SPIKE_TEXT}（仮の目安：厚み ${sp.minLocalMm} mm・先の角度 ${sp.minTipAngleDeg}°。最後は職人が決める）` : "",
+      wBad || tBad ? `赤い数字は目安（幅 ${g.minWidthMm} mm・厚み ${g.minThicknessMm} mm）より小さい。最後は職人が決める` : "",
+    ].filter(Boolean);
+    q<HTMLElement>(".se-hint").textContent = `${hint}。${notes.length ? notes.join("。") : "下の線が指の側（いつも平ら）"}`;
   };
   draw();
 
@@ -441,6 +555,7 @@ export function bindSectionEditor(box: HTMLElement, start: SectionShape, onLive:
   root.querySelectorAll<HTMLButtonElement>(".se-mode").forEach((b) =>
     b.addEventListener("click", () => {
       M.mode = b.dataset.mode as Mode;
+      M.lastStroke = null;
       draw();
     }),
   );
@@ -498,8 +613,6 @@ export function bindSectionEditor(box: HTMLElement, start: SectionShape, onLive:
     });
     return best;
   };
-  let drag: { i: number; id: number; before: EditCurve } | null = null;
-  let stroke: { id: number; pts: P2[] } | null = null;
   let queued = false;
   const live = () => {
     if (queued) return;
@@ -512,6 +625,10 @@ export function bindSectionEditor(box: HTMLElement, start: SectionShape, onLive:
   svg.addEventListener("pointerdown", (e) => {
     if (e.button > 0) return;
     const p = toMm(e);
+    if (M.lastStroke) {
+      M.lastStroke = null;
+      draw();
+    }
     if (M.mode === "move") {
       const i = handleAt(e);
       if (i < 0) return;
@@ -564,6 +681,7 @@ export function bindSectionEditor(box: HTMLElement, start: SectionShape, onLive:
       stroke = null;
       q(".se-stroke").setAttribute("points", "");
       const next = fitStroke(pts, { sym: M.sym });
+      M.lastStroke = next ? pts : null;
       if (next) commit(next);
       else q<HTMLElement>(".se-hint").textContent = "線が短すぎました。断面の外側を、端から端までなぞってください";
     }

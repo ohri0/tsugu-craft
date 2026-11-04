@@ -82,6 +82,7 @@ const CHECK_NAME: Record<string, string> = {
   "bezel-wall": "覆輪の壁の厚み",
   "band-thin": "腕の厚み",
   "band-narrow": "腕の幅",
+  "band-spike": "腕の断面のとがり・薄いヒレ",
 };
 
 /** 直し方 → Claude が使える道具と入力の例 */
@@ -155,6 +156,11 @@ export class RingSession implements ToolHost<RingState> {
     }
     this.onChange(this.built, why);
     return this.built;
+  }
+
+  /** 今の帳面で使う目安（職人が上書きした値をふくむ） */
+  guides() {
+    return effectiveGuides(this.ledger(), this.sizeMm());
   }
 
   /** 細かい形への作り直しを待っているか */

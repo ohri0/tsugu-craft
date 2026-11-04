@@ -68,6 +68,10 @@ export interface ShankResult {
   volumeMm3: number;
   /** 重さの見積もり（g）＝ 体積 × 地金の密度（目安） */
   weightG: number;
+  /** 外側の断面の線（mm）：x は幅の向き（真ん中 0）、y は内側（指の側）からの高さ。右の端の内側 → 左の端の内側 */
+  outlineMm: [number, number][];
+  /** 指の横（φ ＝ −90°、−y の側）での腕の幅（mm）。肩がなければ widthMm と同じ。3D に印を置くときに使う */
+  sideWidthMm: number;
 }
 
 /** 指のまわりの分け方と、内側の平らな所の分け方（形を作るための決まり） */
@@ -222,6 +226,8 @@ export function buildShank(p: ShankParams): ShankResult {
     metal,
     volumeMm3,
     weightG: weightG(volumeMm3, metal),
+    outlineMm: outer.map(([xi, eta]) => [(xi * w) / 2, eta * t] as [number, number]),
+    sideWidthMm: widthAt(-Math.PI / 2),
   };
 }
 

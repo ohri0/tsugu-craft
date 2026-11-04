@@ -188,8 +188,9 @@ line.ax-z { stroke: #4ea1ff; } text.ax-z { fill: #4ea1ff; }
 .worklog li::before { content: "›"; font-family: var(--mono); color: var(--fg-3); }
 .worklog li.note { color: var(--fg-2); }
 .worklog li.note::before { content: "–"; }
-.worklog li.tool { font-size: 12px; }
-.worklog li.tool::before { color: var(--accent-2); }
+.worklog li.wl-tool { font-size: 12px; }
+.worklog li { min-width: 0; overflow-wrap: break-word; }
+.worklog li.wl-tool::before { color: var(--accent-2); }
 .worklog li.ok::before { content: "✓"; color: var(--ok); }
 .worklog li.ng::before { content: "!"; color: var(--ng); }
 
@@ -682,13 +683,16 @@ dialog.sheet input:focus { border-color: var(--accent); }
 .sec-edit .se-labels text, .sec-edit .se-finger-label { font: 0.2px var(--mono); fill: var(--fg-3); }
 .sec-edit .se-finger { stroke: var(--fg-2, #a0a0a5); stroke-width: 0.03; stroke-dasharray: 0.12 0.08; }
 .sec-edit .se-shape { fill: rgba(222, 190, 120, 0.26); stroke: #e3c27a; stroke-width: 0.04; stroke-linejoin: round; }
-.sec-edit.bad .se-shape { fill: rgba(255, 69, 58, 0.2); stroke: var(--ng); }
+.sec-edit .se-spot-run { fill: none; stroke: var(--ng); stroke-width: 0.07; stroke-linecap: round; stroke-linejoin: round; opacity: 0.9; pointer-events: none; }
+.sec-edit .se-spot { fill: var(--ng); stroke: #fff; stroke-width: 0.02; pointer-events: none; }
+.sec-edit.spiky .se-hint { color: #ff8a82; }
 /* 制御点のつながり（Rhino のように細い点線） */
 .sec-edit .se-poly { fill: none; stroke: rgba(160, 200, 255, 0.75); stroke-width: 0.014; stroke-dasharray: 0.07 0.05; }
 .sec-edit .se-dims line { stroke: rgba(255, 255, 255, 0.45); stroke-width: 0.012; }
 .sec-edit .se-dims text { font: 0.19px var(--mono); fill: rgba(255, 255, 255, 0.75); }
 .sec-edit .se-dims text.bad { fill: var(--ng); }
-.sec-edit .se-stroke { fill: none; stroke: var(--accent); stroke-width: 0.05; stroke-linecap: round; stroke-linejoin: round; opacity: 0.85; }
+.sec-edit .se-stroke { fill: none; stroke: var(--accent); stroke-width: 0.05; stroke-linecap: round; stroke-linejoin: round; opacity: 0.85; pointer-events: none; }
+.sec-edit .se-stroke.after { stroke-width: 0.12; opacity: 0.32; }
 .sec-edit .se-h .hit { fill: transparent; }
 .sec-edit .se-h .dot { fill: #f2f2f4; stroke: var(--accent); stroke-width: 0.04; }
 .sec-edit .se-h.end .dot { fill: #c8c8cc; }

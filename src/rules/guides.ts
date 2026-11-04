@@ -102,6 +102,14 @@ export const GUIDES = {
   band: {
     minThicknessMm: 1.2,
     minWidthMm: 1.7,
+    /**
+     * 仮の目安（出典なし。作者の言葉「とがった先や薄いヒレだけが危ない。腕ぜんぶを薄いとは言わない」2026-11-04 から作った。作者が見て直す）。
+     * 断面の局所の薄さ：直径 minLocalMm の円が入れない所（局所の厚み）と、とがった先の金属の側の角度。
+     * - minLocalMm：局所の厚みの下限。覆輪の壁の最低（0.45 mm、docs/RESEARCH-setting.md の T22）を借りた。
+     *   外側の線のうち、形の中に入るこの円のどれにも、半径（0.225 mm）より深く届かない所を知らせる（ふつうの 90° の角は届く）。
+     * - minTipAngleDeg：とがった先の角度の下限（度）。これより鋭い先は、欠けたり曲がったりしやすい。
+     */
+    spike: { minLocalMm: 0.45, minTipAngleDeg: 60 },
   },
   shank: {
     widthMm: 2.2,
