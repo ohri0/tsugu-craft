@@ -5,6 +5,7 @@
 import { GUIDES, innerDiameterMm, type MetalId } from "../rules/guides";
 import { closedPart, ringsToTube, type V3 } from "./mesh";
 import { meshVolume } from "./stone";
+import { adaptiveSample, sampleCurve, uniformKnots, validKnots } from "./bspline";
 
 /** 腕の断面：甲丸・平打ち・半甲丸・角、と手で描いた形 */
 export type ShankSection = "kouman" | "hirauchi" | "hangouman" | "kaku" | "free";
@@ -30,9 +31,11 @@ export interface ShankParams {
   section?: ShankSection;
   /**
    * 手で描いた断面（section が free のとき）：片側の形を決める点。真ん中のいちばん上（x ＝ 0）から、端の内側（y ＝ 0）へ順に。
-   * 左右は同じ形（真ん中で折り返す）。点の間はなめらかな線でつなぐ
+   * 左右は同じ形（真ん中で折り返す）。点はなめらかな線（B スプライン）の制御点で、線は点の内側を通る
    */
   sectionPoints?: readonly SectionPoint[];
+  /** 手で描いた断面の線（左右の制御点と節。section が free のとき。sectionPoints より先に使う） */
+  sectionCurve?: SectionCurve;
   /**
    * 石座を受ける肩。腕のいちばん上のまわりだけ幅を広げ、石座の足が腕の幅に収まるようにする。
    * なければ、どこも同じ幅（いちばん上で広げない）
@@ -67,137 +70,115 @@ export interface ShankResult {
   weightG: number;
 }
 
-/** 指のまわりの分け方と、断面の丸みの分け方（形を作るための決まり） */
+/** 指のまわりの分け方と、内側の平らな所の分け方（形を作るための決まり） */
 const AROUND = 128;
-const DOME = 16;
-const FLAT = 4;
+const FLAT = 6;
 /**
  * 断面の形の決まり（形を作るための決まり。職人の目安の数ではない。**仮**：作者が見て、実物の線材に合わせて直す。
  * .claude/skills/jeweler-guides/SKILL.md の「腕とサイズ」にも書いた）。
- * 平打ち・角は「角の丸い四角」（超楕円 |x|ⁿ ＋ |y|ⁿ ＝ 1 の上半分）で、n が大きいほど角が立つ。
- * 半甲丸は、端に縦の壁（いちばん厚い所の wall の高さ）があり、その上にゆるい丸み。
- * steps：断面の外側の線の点の数。spline：手で描いた点の間の点の数
+ * どの断面も、なめらかな線（3 次の B スプライン）の制御点（線を引っぱる点）で決める。片側だけを書き、真ん中で折り返す。
+ * 点は、真ん中のいちばん上（x ＝ 0）から、端の内側（y ＝ 0）へ順に。線は点を通らず、点の内側をなめらかに通る。
+ * - 甲丸：半楕円（だ円の半分）に合わせた点（半楕円とのずれは幅の 0.1 % 以下）。
+ * - 半甲丸：端は縦に立ち、上はゆるい丸み。
+ * - 平打ち：上は平ら、角はなめらかに丸く、横は縦。
+ * - 角：四角。角だけ小さく丸い。
+ * turnDeg・stepLen：3D に使う点の細かさ（向きが turnDeg 度変わるか、stepLen 進むごとに点を置く。幅・厚みを 1 とした長さ）
  */
-const SECTION_SHAPE = { hirauchiN: 4, kakuN: 9, hangoumanWall: 0.5, steps: 32, spline: 8 };
+export const SECTION_SHAPE = {
+  presets: {
+    kouman: [[0, 1.109], [0.784, 0.784], [1, 0.262], [1, 0]],
+    hangouman: [[0, 1], [0.5, 1], [0.95, 0.8], [1, 0.5], [1, 0]],
+    hirauchi: [[0, 1], [0.4, 1], [0.72, 1], [1, 0.8], [1, 0.4], [1, 0]],
+    kaku: [[0, 1], [0.5, 1], [0.86, 1], [1, 1], [1, 0.86], [1, 0.4], [1, 0]],
+  } as Record<Exclude<ShankSection, "free">, [number, number][]>,
+  turnDeg: 3,
+  stepLen: 0.25,
+};
 
 /**
- * 断面の外側の線（幅の位置 ξ：−1〜1、高さ η：0〜1）。ξ ＝ +1 の端から −1 の端の手前まで（−1 の端は内側の平らな線の始まり）。
- * どの断面も、真ん中（ξ ＝ 0）の高さがいちばん厚く 1、幅の端が ±1 になるようにそろえる
+ * 手で描いた断面：なめらかな線の制御点（右の端の内側 → 上 → 左の端の内側。最初と最後の点は内側の線 y ＝ 0 の上）と節。
+ * x は幅の位置（線の左右の端が −1 と 1）、y は高さ（いちばん高い所が 1）にそろえておく（normalizeCurve）。
+ * 節がなければ等しい間隔
  */
-export function sectionOutline(section: ShankSection = "kouman", points?: readonly SectionPoint[]): [number, number][] {
-  if (section === "kouman") {
-    // これまでの甲丸のまま（半楕円）
-    return Array.from({ length: DOME }, (_, i) => {
-      const a = (Math.PI * i) / DOME;
-      return [Math.cos(a), Math.sin(a)] as [number, number];
-    });
-  }
-  if (section === "free") return freeOutline(points?.length ? points : sectionControlPoints("kouman"));
-  const N = SECTION_SHAPE.steps;
-  const out: [number, number][] = [];
-  if (section === "hangouman") {
-    const e = SECTION_SHAPE.hangoumanWall;
-    out.push([1, 0]);
-    for (let i = 0; i < N; i++) {
-      const a = (Math.PI * i) / N;
-      out.push([Math.cos(a), e + (1 - e) * Math.sin(a)]);
-    }
-    out.push([-1, e]);
-    return out;
-  }
-  const n = section === "kaku" ? SECTION_SHAPE.kakuN : SECTION_SHAPE.hirauchiN;
-  for (let i = 0; i < N; i++) {
-    const a = (Math.PI * i) / N;
-    const c = Math.cos(a);
-    out.push([Math.sign(c) * Math.abs(c) ** (2 / n), Math.sin(a) ** (2 / n)]);
-  }
-  return out;
+export interface SectionCurve {
+  points: SectionPoint[];
+  knots?: number[];
 }
 
-/** 手で描く前の、決まった断面の形の点（片側。真ん中のいちばん上 → 端の内側）。手で描く画面の始まりの形 */
-export function sectionControlPoints(section: ShankSection): SectionPoint[] {
-  if (section === "free") return sectionControlPoints("kouman");
-  const angles = [90, 62, 36, 14, 0].map((d) => (d * Math.PI) / 180);
-  if (section === "kouman") return angles.map((a) => ({ x: Math.cos(a), y: Math.sin(a) }));
-  if (section === "hangouman") {
-    const e = SECTION_SHAPE.hangoumanWall;
-    return [...[90, 55, 25, 0].map((d) => (d * Math.PI) / 180).map((a) => ({ x: Math.cos(a), y: e + (1 - e) * Math.sin(a) })), { x: 1, y: 0 }];
-  }
-  const n = section === "kaku" ? SECTION_SHAPE.kakuN : SECTION_SHAPE.hirauchiN;
-  // 角の丸い四角：上の面に 2 点、角の近くに 1 点、横の面に 1 点（指でつまみやすいよう、点が重ならない所に置く）
-  const top = (x: number) => ({ x, y: (1 - x ** n) ** (1 / n) });
-  const side = (y: number) => ({ x: (1 - y ** n) ** (1 / n), y });
-  return [{ x: 0, y: 1 }, top(0.55), top(0.88), side(0.45), { x: 1, y: 0 }];
+/** 片側の点（真ん中 → 端）を折り返して、左右の点の列（右の端 → 左の端）にする */
+export function curveFromHalf(half: readonly SectionPoint[]): SectionCurve {
+  const h = cleanPoints(half);
+  // 3 次の線には左右で 4 点以上いる（片側 2 点なら、間に 1 点足す）
+  if (h.length < 3) h.splice(1, 0, { x: h[1].x / 2, y: h[0].y });
+  const points = [...[...h].reverse().map((p) => ({ ...p })), ...h.slice(1).map((p) => ({ x: -p.x, y: p.y }))];
+  return normalizeCurve({ points, knots: uniformKnots(points.length) });
 }
 
-/**
- * 手で描いた点を、なめらかな線でつなぐ（片側を真ん中で折り返して、左右同じ形に）。
- * 点の間は、点を必ず通る曲線（向心のキャットマル・ロム）。最後に、幅の端が 1、真ん中の高さが 1 になるようそろえる
- */
-export function freeOutline(points: readonly SectionPoint[]): [number, number][] {
-  const half = cleanPoints(points);
-  // ξ ＝ +1 の端 → 真ん中 → −1 の端
-  const ctrl: SectionPoint[] = [...[...half].reverse(), ...half.slice(1).map((p) => ({ x: -p.x, y: p.y }))];
-  const pts: [number, number][] = [];
-  const P = (i: number) => ctrl[Math.max(0, Math.min(ctrl.length - 1, i))];
-  for (let i = 0; i < ctrl.length - 1; i++) {
-    const p0 = P(i - 1);
-    const p1 = P(i);
-    const p2 = P(i + 1);
-    const p3 = P(i + 2);
-    for (let k = 0; k < SECTION_SHAPE.spline; k++) pts.push(catmull(p0, p1, p2, p3, k / SECTION_SHAPE.spline));
-  }
-  // 最後の点（−1 の端）は内側の平らな線の始まりと同じ所なので入れない。ただし端が浮いている（y > 0）なら入れる
-  const last = ctrl[ctrl.length - 1];
-  if (last.y > 1e-6) pts.push([last.x, last.y]);
-  let xMax = 0;
+/** 決まった断面の線（左右の制御点と節） */
+export function presetCurve(section: ShankSection): SectionCurve {
+  return curveFromHalf(sectionControlPoints(section));
+}
+
+/** 節を取り出す（なかったり、合わなかったりすれば、等しい間隔） */
+export function curveKnots(c: SectionCurve): number[] {
+  return validKnots(c.points.length, c.knots) ? [...c.knots!] : uniformKnots(c.points.length);
+}
+
+/** 線の大きさ（細かく取った線の左右の端と、いちばん高い所） */
+export function curveExtent(c: SectionCurve): { xMin: number; xMax: number; yMax: number } {
+  let xMin = Infinity;
+  let xMax = -Infinity;
   let yMax = 0;
-  for (const [x, y] of pts) {
-    xMax = Math.max(xMax, Math.abs(x));
-    yMax = Math.max(yMax, y);
+  for (const { p } of sampleCurve(c.points, curveKnots(c), 24)) {
+    xMin = Math.min(xMin, p.x);
+    xMax = Math.max(xMax, p.x);
+    yMax = Math.max(yMax, p.y);
   }
-  // 真ん中の高さを 1 に（真ん中がいちばん厚い。石座は腕のいちばん上の真ん中にのる）
-  const yMid = Math.max(1e-3, half[0].y);
-  return pts.map(([x, y]) => [x / Math.max(1e-6, xMax), Math.min(1, Math.max(0, y) / yMid)] as [number, number]);
+  return { xMin, xMax, yMax };
+}
+
+/** 線の左右の端が −1 と 1、いちばん高い所が 1 になるよう、点を動かしてそろえる（形は同じ。線は点と同じように伸び縮みする） */
+export function normalizeCurve(c: SectionCurve): SectionCurve {
+  const knots = curveKnots(c);
+  const { xMin, xMax, yMax } = curveExtent({ points: c.points, knots });
+  const cx = (xMin + xMax) / 2;
+  const hw = Math.max(1e-6, (xMax - xMin) / 2);
+  const t = Math.max(1e-6, yMax);
+  const points = c.points.map((p, i) => ({ x: (p.x - cx) / hw, y: i === 0 || i === c.points.length - 1 ? 0 : Math.max(0, p.y) / t }));
+  return { points, knots };
 }
 
 /**
- * 手で描いた点を、使える形に整える：x と y を 0〜1 に、最初は真ん中（x ＝ 0）、最後は端の内側（y ＝ 0）、x は順に大きく、
- * どの点も真ん中より高くしない（真ん中がいちばん厚い。石座がのる所）
+ * 断面の外側の線（幅の位置 ξ：−1〜1、高さ η：0〜1）。右の端の内側から、左の端の内側まで（両端をふくむ）。
+ * なめらかな線を、曲がる所ほど細かく取る。どの断面も、幅の端が ±1、いちばん高い所が 1
+ */
+export function sectionOutline(section: ShankSection = "kouman", points?: readonly SectionPoint[], curve?: SectionCurve): [number, number][] {
+  const c = section === "free" ? (curve?.points.length ? normalizeCurve(curve) : curveFromHalf(points?.length ? points : sectionControlPoints("kouman"))) : presetCurve(section);
+  return adaptiveSample(c.points, curveKnots(c), SECTION_SHAPE.turnDeg, SECTION_SHAPE.stepLen).map((p) => [p.x, Math.max(0, p.y)] as [number, number]);
+}
+
+/** 決まった断面の片側の制御点（真ん中のいちばん上 → 端の内側） */
+export function sectionControlPoints(section: ShankSection): SectionPoint[] {
+  const key = section === "free" ? "kouman" : section;
+  return SECTION_SHAPE.presets[key].map(([x, y]) => ({ x, y }));
+}
+
+/** 片側の点（真ん中 → 端）を、なめらかな線にする（左右同じ形。幅の端が ±1、いちばん高い所が 1） */
+export function freeOutline(points: readonly SectionPoint[]): [number, number][] {
+  return sectionOutline("free", points);
+}
+
+/**
+ * 片側の点を、使える形に整える：x は 0 以上、y は 0〜（いちばん高い点の 1.5 倍まで）、最初は真ん中（x ＝ 0）、最後は端の内側（y ＝ 0）
  */
 export function cleanPoints(points: readonly SectionPoint[]): SectionPoint[] {
-  const clamp = (v: number) => Math.min(1, Math.max(0, Number.isFinite(v) ? v : 0));
-  const p = points.map((q) => ({ x: clamp(q.x), y: clamp(q.y) }));
-  if (p.length < 2) return sectionControlPoints("kouman");
+  const fin = (v: number) => (Number.isFinite(v) ? v : 0);
+  const p = points.map((q) => ({ x: Math.max(0, fin(q.x)), y: Math.max(0, fin(q.y)) }));
+  if (p.length < 2) return SECTION_SHAPE.presets.kouman.map(([x, y]) => ({ x, y }));
   p[0] = { x: 0, y: Math.max(0.05, p[0].y) };
   const n = p.length - 1;
   p[n] = { x: Math.max(p[n].x, 0.05), y: 0 };
-  for (let i = 1; i <= n; i++) {
-    p[i].x = Math.max(p[i].x, p[i - 1].x);
-    p[i].y = Math.min(p[i].y, p[0].y);
-  }
   return p;
-}
-
-function catmull(p0: SectionPoint, p1: SectionPoint, p2: SectionPoint, p3: SectionPoint, t: number): [number, number] {
-  // 向心のキャットマル・ロム（点の間隔の平方根で重みを付ける。曲線が点の外へ大きくふくらまない）
-  const d = (a: SectionPoint, b: SectionPoint) => Math.max(1e-4, Math.sqrt(Math.hypot(b.x - a.x, b.y - a.y)));
-  const t0 = 0;
-  const t1 = t0 + d(p0, p1);
-  const t2 = t1 + d(p1, p2);
-  const t3 = t2 + d(p2, p3);
-  const u = t1 + (t2 - t1) * t;
-  const lerp = (a: SectionPoint, b: SectionPoint, ta: number, tb: number): SectionPoint => {
-    const k = tb - ta < 1e-9 ? 0 : (u - ta) / (tb - ta);
-    return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k };
-  };
-  const a1 = lerp(p0, p1, t0, t1);
-  const a2 = lerp(p1, p2, t1, t2);
-  const a3 = lerp(p2, p3, t2, t3);
-  const b1 = lerp(a1, a2, t0, t2);
-  const b2 = lerp(a2, a3, t1, t3);
-  const c = lerp(b1, b2, t1, t2);
-  return [c.x, c.y];
 }
 
 export function buildShank(p: ShankParams): ShankResult {
@@ -210,8 +191,12 @@ export function buildShank(p: ShankParams): ShankResult {
   const r = dIn / 2;
   // 断面（ξ：幅の中の位置 −1〜1、ρ：指の軸からの距離）。内側の平らな所を −1 → +1、外側を +1 → −1
   const section2: [number, number][] = [];
-  for (let i = 0; i < FLAT; i++) section2.push([-1 + (2 * i) / FLAT, r]);
-  for (const [xi, eta] of sectionOutline(section, p.sectionPoints)) section2.push([xi, r + t * eta]);
+  // 外側の線は右の端の内側（y ＝ 0）から左の端の内側まで。内側の平らな所は、左の端 → 右の端（右の端は外側の線の始まり）
+  const outer = sectionOutline(section, p.sectionPoints, p.sectionCurve);
+  const xR = outer[0][0];
+  const xL = outer[outer.length - 1][0];
+  for (let i = 0; i < FLAT; i++) section2.push([xL + ((xR - xL) * i) / FLAT, r]);
+  for (const [xi, eta] of outer.slice(0, -1)) section2.push([xi, r + t * eta]);
   // 指のまわりの角度 φ での幅（肩のある所だけ広い）。φ = 0 がいちばん上（+z）
   const widthAt = shoulderWidth(w, r + t, p.head);
   // 断面の点ごとに、指のまわりを 1 周する輪

@@ -2,7 +2,7 @@
 // 人のボタンと同じ関数で実行する。確かめは、いつも今の帳面（職人の決まり）で行う。画面には依存しない（look の画像だけ外から受け取る）。
 import { buildRing, type RingDesign } from "../geometry/ring";
 import { tAtOutlineIndex, type SolidQuality } from "../geometry/setting";
-import type { SectionPoint, ShankSection } from "../geometry/shank";
+import type { SectionCurve, SectionPoint, ShankSection } from "../geometry/shank";
 import type { StoneParams } from "../geometry/stone";
 import { FIXES, checkRing, holdRatio, type FixId, type Problem } from "../rules/checks";
 import { GUIDES, requiredHold, stoneSizeMm, type HeightOption, type MetalId, type StonePosition } from "../rules/guides";
@@ -41,6 +41,8 @@ export interface RingState {
   shankSection?: ShankSection;
   /** 手で描いた腕の断面の点（shankSection が free のとき） */
   sectionPoints?: SectionPoint[];
+  /** 手で描いた腕の断面の線（なめらかな線の制御点と節。shankSection が free のとき。sectionPoints より先に使う。作品といっしょに残る） */
+  sectionCurve?: SectionCurve;
   /** 尖った角を V 字の爪で包むか（なければ包まない：丸い爪を角に立てる普通の爪留め。作者の判断） */
   vCorners?: boolean;
   /** 石の一番下と指のすき間（mm）を直接決める（高さの選択より優先。職人の決まりに合わせて直すとき） */
@@ -206,6 +208,7 @@ export class RingSession implements ToolHost<RingState> {
         thicknessMm: s.shankThicknessMm,
         section: s.shankSection,
         sectionPoints: s.shankSection === "free" ? s.sectionPoints : undefined,
+        sectionCurve: s.shankSection === "free" ? s.sectionCurve : undefined,
       },
       orientation: s.orientation,
     });
@@ -270,11 +273,20 @@ export class RingSession implements ToolHost<RingState> {
     if (input.metal) s.metal = input.metal;
     if (input.section) {
       s.shankSection = input.section;
-      if (input.section !== "free") s.sectionPoints = undefined;
+      if (input.section !== "free") {
+        s.sectionPoints = undefined;
+        s.sectionCurve = undefined;
+      }
     }
     if (input.section_points) {
       s.shankSection = "free";
       s.sectionPoints = input.section_points.map((p) => ({ x: p.x, y: p.y }));
+      s.sectionCurve = undefined;
+    }
+    if (input.section_curve) {
+      s.shankSection = "free";
+      s.sectionCurve = { points: input.section_curve.points.map((p) => ({ x: p.x, y: p.y })), knots: input.section_curve.knots ? [...input.section_curve.knots] : undefined };
+      s.sectionPoints = undefined;
     }
     const b = this.build(input.reason);
     const sh = b.ring.shank;
