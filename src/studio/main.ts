@@ -554,6 +554,8 @@ async function intro() {
 let presentOn = false;
 let presentGroup = "stone";
 let presentPrevDisp: DisplayMode = "render";
+/** 図面を開いたまま見せるを押したか（閉じたら図面に戻す） */
+let presentPrevSheet = false;
 function presentGroups(): PresentGroup[] {
   if (!session?.built) return [];
   const s = session.state;
@@ -624,6 +626,9 @@ function setPresent(on: boolean) {
   $(".present").hidden = !on;
   if (on) {
     presentPrevDisp = viewer.displayMode;
+    // 図面は 3D の上にかぶるので、見せるの間は隠す
+    presentPrevSheet = sheetOn;
+    hideSheet();
     viewer.setDisplayMode("render");
     viewer.setPresenting(true);
     viewer.setAutoRotate(true);
@@ -632,6 +637,10 @@ function setPresent(on: boolean) {
     viewer.setPresenting(false);
     viewer.setAutoRotate(false);
     setDisp(presentPrevDisp);
+    if (presentPrevSheet) {
+      showSheet();
+      document.querySelectorAll<HTMLButtonElement>(".disp button").forEach((x) => x.setAttribute("aria-pressed", String(x.dataset.disp === "draw")));
+    }
   }
   // 指輪を置く所の大きさが変わるので、少し待ってから寄せ直す
   setTimeout(() => viewer.fit(), 120);

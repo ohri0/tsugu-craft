@@ -220,6 +220,8 @@ export class Viewer {
   }
   /** 見せる：黒い背景だけにし、床の目盛りと影を消す */
   private presenting = false;
+  /** 方眼のボタンの状態（見せるの間は消すが、覚えておく） */
+  private gridOn = false;
   setPresenting(on: boolean) {
     this.presenting = on;
     if (on) {
@@ -230,6 +232,8 @@ export class Viewer {
     } else {
       this.applyBackdrop();
       if (!this.darkOn) this.scene.background = backdropTexture();
+      // 見せるの前の方眼の状態に戻す（消したままだと、ボタンは押された見た目なのに方眼と目盛りの数字がなかった）
+      this.grid.visible = this.gridOn;
       this.updateShadow();
     }
     this.rulerKey = "-";
@@ -348,7 +352,9 @@ export class Viewer {
 
   /** 1 mm の目盛りを出す・隠す */
   setGrid(show: boolean) {
-    this.grid.visible = show;
+    this.gridOn = show;
+    this.grid.visible = show && !this.presenting;
+    this.rulerKey = "-";
     this.dirty = true;
   }
 
