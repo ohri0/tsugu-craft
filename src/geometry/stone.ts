@@ -51,7 +51,7 @@ const CROWN_MID = { at: 0.45, scale: 0.8 };
 /** 上面（テーブル）は縁の scale 倍 */
 const TABLE_SCALE = 0.55;
 /** 下側の途中の段：下側の高さの at の所で、縁の scale 倍 */
-const PAVILION_MID = { at: 0.6, scale: 0.45 };
+export const PAVILION_MID = { at: 0.6, scale: 0.45 };
 
 /** 石の面の段の高さ（z） */
 export function stoneKnots(h: StoneHeights) {

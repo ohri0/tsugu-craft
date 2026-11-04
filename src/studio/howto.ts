@@ -6,6 +6,7 @@
 import type { RingDesign } from "../geometry/ring";
 import { SHANK_SECTION_LABEL } from "../geometry/shank";
 import { perimeter } from "../geometry/polygon";
+import { GUIDES } from "../rules/guides";
 import type { AlloyId, Detail } from "./process";
 import { castSteps, finishStep, forgeSteps, settingStep } from "./steps";
 
@@ -111,7 +112,12 @@ export function howToMake(o: HowToInput, method: Method): Step[] {
   if (method === "cast") {
     return [
       ...castSteps({
-        modelSpecs: [...head, { label: "腕", value: `${SHANK_SECTION_LABEL[sh.section]} ・ 幅 ${mm(sh.widthMm)} × 厚み ${mm(sh.thicknessMm)}` }, ...settingSpecs],
+        modelSpecs: [
+          ...head,
+          { label: "腕", value: `${SHANK_SECTION_LABEL[sh.section]} ・ 幅 ${mm(sh.widthMm)} × 厚み ${mm(sh.thicknessMm)}` },
+          ...(r.notchDepthMm > 0 ? [{ label: "ザグり", value: `腕の上 深さ ${mm(r.notchDepthMm, 2)}（3D データに入っている）` }] : []),
+          ...settingSpecs,
+        ],
         sprueAt: "腕の下（石座の反対側）",
         metalLabel: o.metalLabel,
         weightG: r.metalWeightG,
@@ -139,7 +145,17 @@ export function howToMake(o: HowToInput, method: Method): Step[] {
     s.style === "bezel"
       ? { id: "bezel_make", title: "覆輪を作る", text: "帯を石の縁に沿わせて輪にし、ロウ付けする。", specs: settingSpecs, watch: "石を当てて、すき間がないか確かめる。" }
       : { id: "head", title: "石座を組む", text: "支えの輪に爪の線を立て、ロウ付けする。", specs: settingSpecs, watch: m.prongWire?.vCount ? "V 字の爪は、石の尖った角に合わせて置く。" : "爪は石の周りに均等に。" },
-    { id: "attach", title: "石座を腕に付ける", text: "腕のいちばん上に石座をのせ、ロウ付けする。", specs: [{ label: "指から石座の上まで", value: mm(m.heightAboveFinger, 2) }, { label: "石と指のすき間", value: mm(m.culetGap, 2) }] },
+    {
+      id: "attach",
+      title: "石座を腕に付ける",
+      // 石の先が腕に入りこむときは、形の方でもうザグってある（geometry/notch.ts）。その深さを、ヤスリで腕の上に座を作る量として伝える
+      text: r.notchDepthMm > 0 ? `石の先が当たる所は、腕の上をヤスリで深さ ${mm(r.notchDepthMm, 2)} ザグる（石の先が入る座を作る）。腕のいちばん上に石座をのせ、ロウ付けする。` : "腕のいちばん上に石座をのせ、ロウ付けする。",
+      specs: [
+        { label: "指から石座の上まで", value: mm(m.heightAboveFinger, 2) },
+        { label: "石と指のすき間", value: mm(m.culetGap, 2) },
+        ...(r.notchDepthMm > 0 ? [{ label: "ザグり", value: `深さ ${mm(r.notchDepthMm, 2)}（石とのすき間 ${mm(GUIDES.bezel.clearanceMm, 2)} を含む）` }] : []),
+      ],
+    },
     seat,
     finish,
   ];
