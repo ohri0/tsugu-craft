@@ -168,10 +168,10 @@ export function stoneSpaces(stones: readonly (HeadShape & { atMm: number })[]): 
 const LAYOUT_SAMPLES = 40;
 
 /** 腕にのせる前の石座（形は作らない軽い石座。高さと爪の太さを知るため）と、その石の座標 */
-function headAt(stone: StoneParams, head: HeadSetting, shank: ShankParams, orientation: Orientation) {
+function headAt(stone: StoneParams, head: HeadSetting, shank: ShankParams, orientation: Orientation, turnRad?: number) {
   const plain = buildShank(shank);
   const setting = buildSetting({ ...head, stone, shankThicknessMm: plain.thicknessMm, solid: false });
-  const local: RingTransform = { rotationZ: orientation === "across" ? Math.PI / 2 : 0, translateZ: plain.innerRadiusMm - setting.heights.fingerZ };
+  const local: RingTransform = { rotationZ: turnRad ?? (orientation === "across" ? Math.PI / 2 : 0), translateZ: plain.innerRadiusMm - setting.heights.fingerZ };
   return { params: stone, setting, local, outerR: plain.outerRadiusMm };
 }
 
@@ -197,14 +197,103 @@ function spacingFor(A: ReturnType<typeof headAt>, B: ReturnType<typeof headAt>, 
   return hi;
 }
 
+/** 爪 1 本の中心の線（指輪の座標）と、爪の半径 */
+export interface ProngLine {
+  pts: V3[];
+  r: number;
+}
+
 /**
- * 三石：真ん中の石（いちばん上）の両脇に、同じ石を 1 つずつ。石座どうしの間が、既定の間（GUIDES.multi.layoutGapMm）＋ extra になる所。
+ * 石座の爪の中心の線（指輪の座標）。爪は、縁の上の点から外へ「すき間 ＋ 爪の半径」の所を、
+ * 石座と同じ縮み（settingScaleAt）で上下へたどった線（爪の下の端から先まで）。V 字の爪は使わないので、足 1 本の爪だけ
+ */
+export function prongLines(st: HeadShape, n = 12): ProngLine[] {
+  if (st.setting.style !== "prong") return [];
+  const ccw = toCounterClockwise(st.params.outlineMm);
+  const c = girdleCenter(st.params.outlineMm);
+  const h = stoneHeights(st.params);
+  const k0 = settingScaleAt(h, 0) || 1;
+  const sh = st.setting.heights;
+  return st.setting.prongs.map((pr) => {
+    const q = ccw[pr.index];
+    const r = pr.diameterMm / 2;
+    // 縁の高さの爪の中心 ＝ 縮めた縁の点 ＋ 外向き × ずれ。そのずれと向きを、縁の高さの点から取り出す
+    const base = { x: c.x + (q.x - c.x) * k0, y: c.y + (q.y - c.y) * k0 };
+    const dx = pr.point.x - base.x;
+    const dy = pr.point.y - base.y;
+    const zs = steps(sh.baseZ + r, pr.tipZ, n);
+    const pts = zs.map((z) => {
+      const k = settingScaleAt(h, z);
+      return placePoint(st.transform, c.x + (q.x - c.x) * k + dx, c.y + (q.y - c.y) * k + dy, z);
+    });
+    return { pts, r };
+  });
+}
+
+/** 2 つの石座の爪どうしの、いちばん近い所の間（mm。爪の太さを引いた値。当たれば負） */
+export function prongGapMm(a: readonly ProngLine[], b: readonly ProngLine[]): number {
+  let best = Infinity;
+  for (const pa of a)
+    for (const pb of b)
+      for (const p of pa.pts) for (const q of pb.pts) best = Math.min(best, Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2]) - pa.r - pb.r);
+  return best;
+}
+
+/** 爪が、となりの石（すき間をふくめて）に入りこむか */
+function prongInStone(lines: readonly ProngLine[], other: HeadShape, samples = LAYOUT_SAMPLES): boolean {
+  const base = resample(toCounterClockwise(other.params.outlineMm), samples);
+  const normals = outwardNormals(base);
+  const c = girdleCenter(other.params.outlineMm);
+  const h = stoneHeights(other.params);
+  const k = stoneKnots(h);
+  return lines.some((l) => {
+    const st = stackOf(base, normals, c, [h.culetZ, k.pavilionMid, k.girdleBottom, 0, k.girdleTop, k.crownMid, h.tableZ], (z) => stoneScaleAt(h, z), l.r + GUIDES.bezel.clearanceMm);
+    return l.pts.some((p) => insideStack(st, toStone(other.transform, p)));
+  });
+}
+
+/** 三石のとなりどうし（真ん中と脇）の間：石どうし・爪どうし（mm）と、爪がとなりの石に入りこむか */
+export interface TrioClearance {
+  stoneGapMm: number;
+  prongGapMm: number;
+  prongInStone: boolean;
+}
+
+export function trioClearance(a: HeadShape, b: HeadShape, samples = 72): TrioClearance {
+  const eA = envelopeOf(a, samples);
+  const eB = envelopeOf(b, samples);
+  const st = closest(eA.stone, eB.stone, eA.stoneStack, eB.stoneStack, eA.transform, eB.transform);
+  const la = prongLines(a);
+  const lb = prongLines(b);
+  return { stoneGapMm: st.gap, prongGapMm: prongGapMm(la, lb), prongInStone: prongInStone(la, b) || prongInStone(lb, a) };
+}
+
+/**
+ * 三石：真ん中の石（いちばん上）の両脇に、同じ石を 1 つずつ。
+ * 両脇の石座は真ん中の石座に寄せて、地金どうしはつなげる（ロウ付けで一つにする。ring.ts の joinHeads）。
+ * 寄せる限り：石どうしの間が GUIDES.multi.trio.stoneGapMm ＋ extra、爪どうしの間が GUIDES.multi.trio.prongGapMm、
+ * 爪がとなりの石に入りこまない（すき間をふくめて）。どれも、離すほど広がるので、二分法で探す。
+ * sideTurnRad：＋の側の脇の石を上から見て回す角度（−の側は向きを返す。ペアの先を外へ向けるとき。なければ向きのとおり）。
  * 返すのは両脇の石の場所（mm、腕の外側に沿って。[−の側, ＋の側]）
  */
-export function layoutTrio(center: StoneParams, side: StoneParams, head: HeadSetting, shank: ShankParams, extraMm = 0, orientation: Orientation = "along", sideHead: HeadSetting = head): [number, number] {
-  const gap = GUIDES.multi.layoutGapMm + extraMm;
-  const d = spacingFor(headAt(center, head, shank, orientation), headAt(side, sideHead, shank, orientation), gap);
-  return [-d, d];
+export function layoutTrio(center: StoneParams, side: StoneParams, head: HeadSetting, shank: ShankParams, extraMm = 0, orientation: Orientation = "along", sideHead: HeadSetting = head, sideTurnRad?: number): [number, number] {
+  const g = GUIDES.multi.trio;
+  const A = headAt(center, head, shank, orientation);
+  const B = headAt(side, sideHead, shank, orientation, sideTurnRad);
+  const a: HeadShape = { params: A.params, setting: A.setting, transform: A.local };
+  const ok = (at: number) => {
+    const b: HeadShape = { params: B.params, setting: B.setting, transform: { ...B.local, tiltRad: at / B.outerR } };
+    const c = trioClearance(a, b, LAYOUT_SAMPLES);
+    return !c.prongInStone && c.stoneGapMm >= g.stoneGapMm + extraMm && c.prongGapMm >= g.prongGapMm;
+  };
+  let lo = 0;
+  let hi = 4 * (A.params.longMm + B.params.longMm);
+  for (let i = 0; i < 22; i++) {
+    const m = (lo + hi) / 2;
+    if (ok(m)) hi = m;
+    else lo = m;
+  }
+  return [-hi, hi];
 }
 
 /** 横一列：同じ石を n 個、真ん中をいちばん上にして、石座どうしの間が既定の間 ＋ extra になるように並べる（場所の mm、−の側から） */

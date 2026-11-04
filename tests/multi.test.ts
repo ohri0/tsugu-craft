@@ -2,11 +2,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { openEdges } from "../src/cad/solid";
 import { buildRing, placePoint, type RingParams } from "../src/geometry/ring";
-import { roundStone, layoutRow, layoutTrio, scaleStone } from "../src/geometry/multi";
+import { roundStone, layoutRow, layoutTrio, scaleStone, trioClearance } from "../src/geometry/multi";
+import { joinMesh } from "../src/geometry/bridge";
 import { checkRing } from "../src/rules/checks";
 import { GUIDES } from "../src/rules/guides";
 import { seedLedger } from "../src/rules/ledger";
-import { RingSession } from "../src/studio/session";
+import { RingSession, slotStone } from "../src/studio/session";
 import { parseToolCall } from "../src/claude/tools";
 import { howToMake } from "../src/studio/howto";
 
@@ -28,7 +29,7 @@ describe("三石", () => {
     expect(ring.stones).toHaveLength(3);
     expect(ring.stones[0].atMm).toBe(0);
     expect(ring.stones[1].atMm).toBeCloseTo(-ring.stones[2].atMm, 6);
-    expect(Math.abs(ring.stones[1].atMm)).toBeGreaterThan(4);
+    expect(Math.abs(ring.stones[1].atMm)).toBeGreaterThan(3);
   });
   it("腕は閉じた形（STL にそのまま出せる）", () => {
     expect(openEdges(ring.shank.positions)).toBe(0);
@@ -89,6 +90,110 @@ describe("三石", () => {
   it("並べ方のとおりなら、石の間の確かめは出ない", () => {
     const probs = checkRing(ring);
     expect(probs.filter((p) => p.check === "stone-space" || p.check === "metal-space")).toEqual([]);
+  });
+});
+
+// 三石（2026-11-04 作者の頼み）：脇の石座を真ん中より低く寄せ、石座どうしを短い線でつなぐ
+function joinedTrio(side: ReturnType<typeof roundStone>, turn?: number, sideProngs?: number): RingParams {
+  const sideHead = { style: "prong" as const, height: GUIDES.multi.trio.sideHeight, prongCount: sideProngs };
+  const lay = layoutTrio(center, side, { style: "prong" }, shank, 0, "along", sideHead, turn);
+  return {
+    stone: center,
+    setting: { style: "prong" },
+    shank,
+    joinHeads: true,
+    others: lay.map((atMm) => ({ stone: side, setting: sideHead, atMm, turnRad: turn === undefined ? undefined : Math.sign(atMm) * turn })),
+  };
+}
+
+describe("三石：寄せて、つなぐ（丸い石の両脇に丸い石）", () => {
+  const side = roundStone(center.longMm * GUIDES.multi.sideRatio);
+  const ring = buildRing(joinedTrio(side));
+  const girdle = (i: number) => placePoint(ring.stones[i].transform, 0, 0, 0);
+  it("両脇の石は真ん中の石のそばにあり、腕に沿って少しだけ傾く（30° より小さい）", () => {
+    for (const st of ring.stones.slice(1)) {
+      expect(Math.abs(st.phi)).toBeLessThan((30 * Math.PI) / 180);
+      expect(Math.abs(st.phi)).toBeGreaterThan((10 * Math.PI) / 180);
+    }
+  });
+  it("両脇の石の縁は、真ん中の石の縁より低い（3 つの縁が ゆるい弧）", () => {
+    const zc = girdle(0)[2];
+    for (const i of [1, 2]) {
+      const g = girdle(i);
+      expect(g[2]).toBeLessThan(zc - 1);
+      // 指の軸からの距離も、真ん中より小さい（脇の石座が低い）
+      expect(Math.hypot(g[1], g[2])).toBeLessThan(Math.hypot(girdle(0)[1], zc));
+    }
+  });
+  it("石どうし・爪どうしが当たらず、爪がとなりの石に入りこまない", () => {
+    for (const i of [1, 2]) {
+      const c = trioClearance(ring.stones[0], ring.stones[i]);
+      expect(c.stoneGapMm).toBeGreaterThan(GUIDES.multi.trio.stoneGapMm - 0.02);
+      expect(c.prongGapMm).toBeGreaterThan(GUIDES.multi.trio.prongGapMm - 0.02);
+      expect(c.prongInStone).toBe(false);
+    }
+  });
+  it("真ん中と両脇の石座は、短い線でつながる（線の両端が、それぞれの石座の輪の中）", () => {
+    expect(ring.joins.map((j) => [j.a, j.b])).toEqual([
+      [0, 1],
+      [0, 2],
+    ]);
+    const railPts = (i: number) => {
+      const st = ring.stones[i];
+      return [st.setting.upperRail!, st.setting.lowerRail!].flatMap((r) => r.pts.map(([x, y, z]) => placePoint(st.transform, x, y, z)));
+    };
+    const near = (p: number[], pts: number[][]) => Math.min(...pts.map((q) => Math.hypot(p[0] - q[0], p[1] - q[1], p[2] - q[2])));
+    for (const j of ring.joins) {
+      expect(near(j.from, railPts(j.a))).toBeLessThan(1e-6);
+      expect(near(j.to, railPts(j.b))).toBeLessThan(1e-6);
+      expect(j.radiusMm).toBeGreaterThan(0.1);
+      // 線は閉じた形（STL にそのまま出せる）
+      expect(openEdges(joinMesh(j).positions)).toBe(0);
+    }
+  });
+  it("つなぐ線の形は、脇の石の石座の三角形の後ろに入り、範囲は続いたまま", () => {
+    let t = 0;
+    for (const st of ring.stones) {
+      expect(st.ranges.setting.start).toBe(t);
+      t += st.ranges.setting.count;
+    }
+    expect(t).toBe(ring.ringPositions.setting.length / 9);
+    expect(ring.stones[1].ranges.setting.count).toBeGreaterThan(ring.stones[1].setting.positions.length / 9);
+    expect(ring.ringPositions.settingNormals!.length).toBe(ring.ringPositions.setting.length);
+  });
+  it("腕は閉じた形で、石ごとにロウ付けの座がある", () => {
+    expect(openEdges(ring.shank.positions)).toBe(0);
+    const r = buildRing({ ...joinedTrio(side), solder: true });
+    for (const st of r.stones) expect(st.solder?.contacts ?? 0).toBeGreaterThan(0);
+  });
+  it("このまま作れます（確かめがひとつも出ない）", () => {
+    expect(checkRing(ring)).toEqual([]);
+  });
+  it("つないだ石座どうしは地金の間を数えないが、つながないと間の確かめは前のとおり働く", () => {
+    const loose = buildRing({ ...joinedTrio(side), joinHeads: false });
+    expect(loose.joins).toEqual([]);
+    expect(checkRing(ring).some((p) => p.check === "metal-space")).toBe(false);
+  });
+});
+
+describe("三石：両脇にペア（先を外へ）", () => {
+  const pear = slotStone(center, { shape: "pear", longMm: Math.round(center.longMm * GUIDES.multi.sideRatio * 1.5 * 10) / 10 });
+  const ring = buildRing(joinedTrio(pear, Math.PI / 2, GUIDES.multi.trio.pearProngCount));
+  it("ペアの先（形の +x）は、真ん中の石から遠い側を向く", () => {
+    for (const st of ring.stones.slice(1)) {
+      const tip = placePoint(st.transform, pear.longMm / 2, 0, 0);
+      const back = placePoint(st.transform, -pear.longMm / 2, 0, 0);
+      expect(Math.abs(tip[1])).toBeGreaterThan(Math.abs(back[1]));
+    }
+  });
+  it("当たらず、つながり、確かめも出ない", () => {
+    for (const i of [1, 2]) {
+      const c = trioClearance(ring.stones[0], ring.stones[i]);
+      expect(c.stoneGapMm).toBeGreaterThan(GUIDES.multi.trio.stoneGapMm - 0.02);
+      expect(c.prongInStone).toBe(false);
+    }
+    expect(ring.joins).toHaveLength(2);
+    expect(checkRing(ring)).toEqual([]);
   });
 });
 
@@ -178,6 +283,19 @@ describe("設計の場（RingSession）で石を並べる", () => {
     expect(r.stones[1].long_mm).toBeCloseTo(6 * GUIDES.multi.sideRatio, 1);
     expect(s.built!.ring.stones).toHaveLength(3);
     expect(s.built!.problems.filter((p) => p.target.kind === "space")).toEqual([]);
+    // 既定：両脇は丸い石、低めの石座、つないで 1 つ。確かめはひとつも出ない
+    expect(s.state.stones!.map((x) => x.shape)).toEqual(["round", "round"]);
+    expect(s.built!.ring.stones[1].setting.heights.culetGapMm).toBeLessThan(s.built!.ring.stones[0].setting.heights.culetGapMm);
+    expect(s.built!.ring.joins).toHaveLength(2);
+    expect(s.built!.problems).toEqual([]);
+  });
+  it("三石の脇の石をペアにすると、先が外を向き、確かめが出ない", () => {
+    const s = make();
+    s.arrange("trio", { sideShape: "pear" });
+    const b = s.build();
+    expect(b.ring.stones[2].transform.rotationZ).toBeCloseTo(Math.PI / 2, 6);
+    expect(b.ring.stones[1].transform.rotationZ).toBeCloseTo(-Math.PI / 2, 6);
+    expect(b.problems).toEqual([]);
   });
   it("横一列 5 つ、一粒へ戻す", () => {
     const s = make();

@@ -90,6 +90,12 @@ export function slotStone(main: StoneParams, slot: Pick<StoneSlot, "shape" | "lo
   return { outlineMm: presetOutline(preset), longMm: preset.longMm, widthMm: preset.widthMm, depthMm: preset.depthMm };
 }
 
+/** 三石の脇の石を、先が外へ向くように回す角度（ペア。ほかの形は向きのとおり） */
+export function trioTurn(slot: Pick<StoneSlot, "shape" | "atMm">): number | undefined {
+  // ペアの先は、形の +x の側（presets.ts）。＋の側の石は先を +y へ、−の側の石は −y へ
+  return slot.shape === "pear" ? (slot.atMm >= 0 ? Math.PI / 2 : -Math.PI / 2) : undefined;
+}
+
 /** 並べる石の形の名前（画面） */
 export const SLOT_SHAPE_LABEL: Record<SlotShape, string> = { photo: "今の石と同じ形", round: "ラウンド", oval: "オーバル", princess: "スクエア", emerald: "エメラルド", pear: "ペア", marquise: "マーキス" };
 export const LAYOUT_LABEL: Record<StoneLayout | "free", string> = { solo: "一粒", trio: "三石", row: "横一列", free: "自由な並び" };
@@ -241,9 +247,11 @@ export class RingSession implements ToolHost<RingState> {
     const outline = this.stone.outlineMm;
     const ledger = this.ledger();
     const guides = effectiveGuides(ledger, this.sizeMm());
+    // 三石の両脇の石座は、真ん中より低め（脇の石の縁が下に来て、3 つの縁が ゆるい弧を描く）。石の一番下の高さを直接決めたときも、脇は低めのまま
+    const trio = s.layout === "trio";
     const head = {
-      height: s.height,
-      culetGapMm: s.culetGapMm,
+      height: trio ? GUIDES.multi.trio.sideHeight : s.height,
+      culetGapMm: trio ? undefined : s.culetGapMm,
       minProngMm: prongMinOverride(guides),
       solid: this.solid,
       solidQuality: quality,
@@ -258,11 +266,13 @@ export class RingSession implements ToolHost<RingState> {
       stone: slotStone(this.stone, slot),
       orientation: s.orientation,
       atMm: slot.atMm,
+      turnRad: trio ? trioTurn(slot) : undefined,
       setting: { ...head, minProngMm: prongMinOverride(slotGuides[i]), style: slot.style ?? s.style, prongCount: slot.prongCount, prongDiameterMm: slot.prongMm },
     }));
     const ring = buildRing({
       atMm: s.mainAtMm,
       others,
+      joinHeads: trio,
       stone: this.stone,
       setting: {
         style: s.style,
@@ -397,13 +407,20 @@ export class RingSession implements ToolHost<RingState> {
       s.spreadMm = undefined;
     } else if (layout === "trio") {
       const prev = s.stones?.[0];
-      const sideMm = opts.sideMm ?? prev?.longMm ?? Math.round(this.stone.longMm * GUIDES.multi.sideRatio * 10) / 10;
-      const shape = opts.sideShape ?? prev?.shape ?? "photo";
+      // 両脇の石は、なければ丸い石（三石のよくある形。作者の頼み）
+      const shape = opts.sideShape ?? prev?.shape ?? "round";
+      // 脇の石の大きさの既定：真ん中の石の長辺の sideRatio（ペアのような細長い形は、その幅になり、長さは形の比のぶん長くなる）。形を変えたときは大きさも決め直す
+      const pre = PRESETS.find((x) => x.id === shape);
+      const aspect = shape !== "photo" && pre ? pre.longMm / pre.widthMm : 1;
+      const keep = prev && prev.shape === shape ? prev.longMm : undefined;
+      const sideMm = opts.sideMm ?? keep ?? Math.round(this.stone.longMm * GUIDES.multi.sideRatio * aspect * 10) / 10;
       const style = opts.sideStyle ?? prev?.style;
       const side = slotStone(this.stone, { shape, longMm: sideMm });
-      const [l, r] = layoutTrio(this.stone, side, head, shank, extra, s.orientation, { ...head, style: style ?? s.style, prongCount: undefined, prongDiameterMm: undefined, minProngMm: this.minProngFor(side) });
+      const sideHead = { ...head, height: GUIDES.multi.trio.sideHeight, culetGapMm: undefined, style: style ?? s.style, prongCount: shape === "pear" ? GUIDES.multi.trio.pearProngCount : undefined, prongDiameterMm: undefined, minProngMm: this.minProngFor(side) };
+      const [l, r] = layoutTrio(this.stone, side, head, shank, extra, s.orientation, sideHead, trioTurn({ shape, atMm: 1 }));
       s.mainAtMm = undefined;
-      s.stones = [l, r].map((atMm) => ({ atMm, shape, longMm: sideMm, style }));
+      const prongCount = shape === "pear" ? GUIDES.multi.trio.pearProngCount : undefined;
+      s.stones = [l, r].map((atMm) => ({ atMm, shape, longMm: sideMm, style, prongCount }));
     } else {
       const [lo, def, hi] = GUIDES.multi.rowCount;
       const n = Math.max(lo, Math.min(hi, Math.round(opts.count ?? (s.stones && s.layout === "row" ? s.stones.length + 1 : def))));
