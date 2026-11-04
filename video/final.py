@@ -1,5 +1,5 @@
 # 最終案を、はじめから終わりまで組む（画面 → 音楽 → 効果音 → 声 → 混ぜる）。
-# 使い方：python -I final.py [--no-video] [--jobs 12]
+# 使い方：python -I final.py [--plan 2] [--no-video] [--jobs 12]（--plan 2 で最終案 2：final_build2.py・bgm4.py）
 #  1. final_build.py：台本（final.json。拍で書いた場面・言葉・音楽・声）
 #  2. reel.py：本物の画面のこまに、カメラ・つなぎ・大きな言葉 → work/vc/final_video.mp4（＋効果音の合図）
 #  3. bgm3.py：音楽（自作）　4. sfx.py：効果音（自作）
@@ -11,9 +11,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 WORK = os.environ.get("TSUGU_VIDEO_WORK", os.path.join(HERE, "work"))
 VC = os.path.join(WORK, "vc")
 PY = sys.executable
-NAME = os.environ.get("NAME", "継ぐ_デモ_最終案1")
 args = sys.argv[1:]
 jobs = args[args.index("--jobs") + 1] if "--jobs" in args else "12"
+PLAN = args[args.index("--plan") + 1] if "--plan" in args else "1"
+NAME = os.environ.get("NAME", f"継ぐ_デモ_最終案{PLAN}")
+BUILD = "final_build.py" if PLAN == "1" else f"final_build{PLAN}.py"
+JSON = "final.json" if PLAN == "1" else f"final{PLAN}.json"
+BGM = "bgm3.py" if PLAN == "1" else "bgm4.py"
+TAG = "final" if PLAN == "1" else f"final{PLAN}"
 
 
 def run(cmd, **kw):
@@ -26,16 +31,16 @@ def dur(f):
 
 
 os.makedirs(VC, exist_ok=True)
-run([PY, "-I", os.path.join(HERE, "final_build.py")])
-tl = json.load(open(os.path.join(HERE, "final.json")))
+run([PY, "-I", os.path.join(HERE, BUILD)])
+tl = json.load(open(os.path.join(HERE, JSON)))
 total = tl["len"] * 60 / tl.get("bpm", 120)
-video = os.path.join(VC, "final_video.mp4")
-cues = os.path.join(VC, "final_video_cues.json")
+video = os.path.join(VC, f"{TAG}_video.mp4")
+cues = os.path.join(VC, f"{TAG}_video_cues.json")
 if "--no-video" not in args or not os.path.exists(video):
-    run([PY, "-I", os.path.join(HERE, "reel.py"), os.path.join(HERE, "final.json"), video, jobs])
-bgm = os.path.join(VC, "final_bgm.wav")
-run([PY, "-I", os.path.join(HERE, "bgm3.py"), os.path.join(HERE, "final.json"), bgm])
-fx = os.path.join(VC, "final_sfx.wav")
+    run([PY, "-I", os.path.join(HERE, "reel.py"), os.path.join(HERE, JSON), video, jobs])
+bgm = os.path.join(VC, f"{TAG}_bgm.wav")
+run([PY, "-I", os.path.join(HERE, BGM), os.path.join(HERE, JSON), bgm])
+fx = os.path.join(VC, f"{TAG}_sfx.wav")
 run([PY, "-I", os.path.join(HERE, "sfx.py"), cues, fx, str(total)])
 
 # ---- 声を並べる（場面の頭の拍 ＋ 0.15 秒。前の声が長ければ、終わって 0.3 秒あけてから）
@@ -91,7 +96,24 @@ if lines:
     run(["ffmpeg", "-v", "error", "-y", *ins, "-filter_complex", ";".join(flt), "-map", "[a]", mixB])
     mixB2 = os.path.join(VC, "_mixB2.wav")
     loud(mixB, mixB2)
-    outB = os.path.join(VC, f"{NAME}_{'声' if mine == len(lines) else '仮声'}.mp4")
+    outB = os.path.join(VC, f"{NAME}_{'声' if mine == len(lines) else '仮声'}.mp4")  # noqa
     run(["ffmpeg", "-v", "error", "-y", "-i", video, "-i", mixB2, "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", "aac", "-b:a", "256k", "-shortest", outB])
     print("できた：", outB)
 print("できた：", outA, round(total, 1), "秒")
+
+
+def phone(src):
+    """スマホで見る・送る用（1280 px・30 MB 以下）"""
+    dst = src[:-4] + "_スマホ.mp4"
+    for crf in (28, 30, 32, 34):
+        run(["ffmpeg", "-v", "error", "-y", "-i", src, "-vf", "scale=1280:-2", "-c:v", "libx264", "-preset", "slow", "-crf", str(crf), "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", dst])
+        mb = os.path.getsize(dst) / 1e6
+        print("スマホ用", os.path.basename(dst), f"crf {crf}", round(mb, 1), "MB")
+        if mb < 30:
+            break
+
+
+if PLAN != "1":
+    phone(outA)
+    if lines:
+        phone(outB)

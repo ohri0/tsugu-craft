@@ -21,6 +21,13 @@ FULL_S = W / SW  # 画面全体がちょうど入る倍率
 
 TL = None
 BEAT = 0.5
+# いま描いている板の大きさ（ふつうは 1920×1080。右の窓に画面を出すときは、その窓の大きさ）
+OUT = [W, H]
+
+
+def cover_s():
+    """いまの板を、撮った画面（3200×1800）でちょうど埋める倍率"""
+    return max(OUT[0] / SW, OUT[1] / SH)
 
 
 def sec(b):
@@ -157,10 +164,10 @@ def view_of(ch, v):
 
 def rect_view(ch, v, pad):
     if v == "full":
-        return (SW / 2, SH / 2, FULL_S)
+        return (SW / 2, SH / 2, cover_s())
     if isinstance(v, str) and v.startswith("win"):
         k = float(v.split(":")[1]) if ":" in v else 0.86
-        return (SW / 2, SH / 2, FULL_S * k)
+        return (SW / 2, SH / 2, cover_s() * k)
     if isinstance(v, str):
         b = meta(ch)["boxes"][v]
         x, y, w, h = b["x"], b["y"], b["w"], b["h"]
@@ -169,19 +176,20 @@ def rect_view(ch, v, pad):
     x, y, w, h = x * 2, y * 2, w * 2, h * 2
     cx, cy = x + w / 2, y + h / 2
     w2, h2 = w * (1 + pad), h * (1 + pad)
-    s = min(W / w2, H / h2)
+    s = min(OUT[0] / w2, OUT[1] / h2)
     return (cx, cy, s)
 
 
 def clamp_view(cx, cy, s):
     """寄っているときは、画像の外（黒）が映らないように中心を寄せる"""
-    if s >= FULL_S * 0.999:
-        hw, hh = W / (2 * s), H / (2 * s)
+    fs = cover_s()
+    if s >= fs * 0.999:
+        hw, hh = OUT[0] / (2 * s), OUT[1] / (2 * s)
         cx = min(max(cx, hw), SW - hw)
         cy = min(max(cy, hh), SH - hh)
     else:
         # 引いているとき（浮いた画面）は、まん中へ
-        k = clamp01((FULL_S - s) / (FULL_S * 0.08))
+        k = clamp01((fs - s) / (fs * 0.08))
         cx = cx + (SW / 2 - cx) * k
         cy = cy + (SH / 2 - cy) * k
     return cx, cy
@@ -254,27 +262,28 @@ def project(cam, pts):
         Y, Z = Y * math.cos(ax) - Z * math.sin(ax), Y * math.sin(ax) + Z * math.cos(ax)
         X, Z = X * math.cos(ay) + Z * math.sin(ay), -X * math.sin(ay) + Z * math.cos(ay)
         k = f / (f + Z)
-        out.append((W / 2 + X * k, H / 2 + Y * k))
+        out.append((OUT[0] / 2 + X * k, OUT[1] / 2 + Y * k))
     return out
 
 
 def render_view(ch, idx, cam, border=True):
     cx, cy, s, rx, ry, roll = cam
-    scale = 2 if s < FULL_S * 0.92 else 1
+    W_, H_ = OUT
+    scale = 2 if s < 0.55 else 1
     im = load_frame(ch, idx, scale)
     sw, sh = im.size
     k = sw / SW  # 読んだ画像の px ／ 3200 の px
     tilted = abs(rx) > 0.05 or abs(ry) > 0.05 or abs(roll) > 0.05
     if not tilted:
-        hw, hh = W / (2 * s), H / (2 * s)
+        hw, hh = W_ / (2 * s), H_ / (2 * s)
         x0, y0, x1, y1 = cx - hw, cy - hh, cx + hw, cy + hh
         if x0 >= -0.5 and y0 >= -0.5 and x1 <= SW + 0.5 and y1 <= SH + 0.5:
             box = (max(0, x0 * k), max(0, y0 * k), min(sw, x1 * k), min(sh, y1 * k))
-            return im.resize((W, H), Image.BICUBIC, box=box, reducing_gap=2.5)
+            return im.resize((W_, H_), Image.BICUBIC, box=box, reducing_gap=2.5)
         # 浮いた画面：黒の上に置く
-        out = Image.new("RGB", (W, H), (0, 0, 0))
+        out = Image.new("RGB", (W_, H_), (0, 0, 0))
         dw, dh = int(round(SW * s)), int(round(SH * s))
-        ox, oy = int(round(W / 2 - cx * s)), int(round(H / 2 - cy * s))
+        ox, oy = int(round(W_ / 2 - cx * s)), int(round(H_ / 2 - cy * s))
         small = im.resize((dw, dh), Image.BICUBIC, reducing_gap=2.5)
         out.paste(small, (ox, oy))
         if border:
@@ -284,7 +293,7 @@ def render_view(ch, idx, cam, border=True):
     corners = [(0, 0), (SW, 0), (SW, SH), (0, SH)]
     quad = project(cam, corners)
     coeffs = homography([(x * k, y * k) for x, y in corners], quad)
-    out = im.transform((W, H), Image.PERSPECTIVE, coeffs, Image.BICUBIC, fillcolor=(0, 0, 0))
+    out = im.transform((W_, H_), Image.PERSPECTIVE, coeffs, Image.BICUBIC, fillcolor=(0, 0, 0))
     if border:
         d = ImageDraw.Draw(out)
         d.line(quad + [quad[0]], fill=(58, 58, 62), width=1)
@@ -311,7 +320,60 @@ def render_story(clip, tl):
             a = np.asarray(render_view(ch, idx, c), dtype=np.float32)
             acc = a if acc is None else acc + a
         img = Image.fromarray((acc / n).astype(np.uint8))
+    if clip.get("focus"):
+        img = focus_light(img, clip, tl, cam)
     return img
+
+
+def focus_at(clip, tl):
+    """目を向ける所：[[拍, 枠 or None, 強さ], ...] を、拍でなめらかにつなぐ"""
+    ks = clip["focus"]
+    ch = clip["ch"]
+
+    def box(v):
+        if v is None:
+            return None
+        if isinstance(v, str):
+            b = meta(ch)["boxes"][v]
+            return [b["x"], b["y"], b["w"], b["h"]]
+        return list(v)
+
+    prev = None
+    for k in ks:
+        if tl < k[0]:
+            if prev is None:
+                return box(k[1]), 0.0
+            u = ease_io((tl - prev[0]) / max(1e-6, k[0] - prev[0]))
+            b0, b1 = box(prev[1]), box(k[1])
+            a0, a1 = (prev[2] if b0 else 0.0), (k[2] if b1 else 0.0)
+            if b0 and b1:
+                return [b0[i] + (b1[i] - b0[i]) * u for i in range(4)], a0 + (a1 - a0) * u
+            return (b0 or b1), a0 + (a1 - a0) * u
+        prev = k
+    return box(prev[1]), (prev[2] if prev[1] else 0.0)
+
+
+def focus_light(img, clip, tl, cam):
+    b, a = focus_at(clip, tl)
+    if not b or a <= 0.01:
+        return img
+    cx, cy, s = cam[0], cam[1], cam[2]
+    ow, oh = img.size
+    x0 = (b[0] * 2 - cx) * s + ow / 2
+    y0 = (b[1] * 2 - cy) * s + oh / 2
+    x1 = x0 + b[2] * 2 * s
+    y1 = y0 + b[3] * 2 * s
+    m = Image.new("L", (ow // 4, oh // 4), 0)
+    ImageDraw.Draw(m).rounded_rectangle([x0 / 4, y0 / 4, x1 / 4, y1 / 4], radius=4, fill=255)
+    m = m.filter(ImageFilter.GaussianBlur(5)).resize((ow, oh), Image.BILINEAR)
+    k = np.asarray(m, dtype=np.float32)[:, :, None] / 255.0
+    arr = np.asarray(img, dtype=np.float32)
+    arr = arr * (1 - a * 0.62 * (1 - k))
+    out = Image.fromarray(arr.astype(np.uint8))
+    d = ImageDraw.Draw(out)
+    col = hexrgb(clip.get("focusColor", "#e8c27a"))
+    d.rounded_rectangle([x0, y0, x1, y1], radius=10, outline=tuple(int(c * min(1, a * 1.4)) for c in col), width=3)
+    return out
 
 
 # ---------------------------------------------------------------- 静止画（公開の画像など）
@@ -337,11 +399,12 @@ def render_img(clip, tl):
                 return [r0[i] + (r1[i] - r0[i]) * u for i in range(4)]
 
     x, y, w, h = rect_at(tl)
+    W, H = OUT
     fit = clip.get("fit", "cover")
     bx = (x * iw, y * ih, (x + w) * iw, (y + h) * ih)
     bw, bh = bx[2] - bx[0], bx[3] - bx[1]
     if fit == "cover":
-        # 枠の比を 16:9 にそろえる（はみ出す方を削る）
+        # 枠の比を板にそろえる（はみ出す方を削る）
         a = W / H
         if bw / bh > a:
             c = (bx[0] + bx[2]) / 2; bw = bh * a; bx = (c - bw / 2, bx[1], c + bw / 2, bx[3])
@@ -352,23 +415,26 @@ def render_img(clip, tl):
     ax, ay, aw, ah = clip.get("area", [0, 0, W, H])
     s = min(aw / bw, ah / bh)
     dw, dh = int(bw * s), int(bh * s)
-    out = Image.new("RGB", (W, H), (0, 0, 0))
+    out = Image.new("RGB", (W, H), hexrgb(clip.get("bg", "#000000")))
     out.paste(im.resize((dw, dh), Image.BICUBIC, box=bx, reducing_gap=2.5), (int(ax + (aw - dw) / 2), int(ay + (ah - dh) / 2)))
     return out
 
 
 # ---------------------------------------------------------------- 左右に並べる
 def render_split(clip, tl):
-    out = Image.new("RGB", (W, H), (0, 0, 0))
+    ow, oh = OUT
+    out = Image.new("RGB", (ow, oh), (0, 0, 0))
     gap = 12
-    half = (W - gap) // 2
+    half = (ow - gap) // 2
     for side, sub in enumerate(clip["sides"]):
         sub = dict(sub)
         sub.setdefault("len", clip["len"])
-        im = render_story(sub, tl)
-        # 右と左で、指輪の所を真ん中に：出力の真ん中の half 幅を切る
-        x0 = (W - half) // 2
-        out.paste(im.crop((x0, 0, x0 + half, H)), (side * (half + gap), 0))
+        OUT[:] = [half, oh]
+        try:
+            im = render_story(sub, tl)
+        finally:
+            OUT[:] = [ow, oh]
+        out.paste(im, (side * (half + gap), 0))
     return out
 
 
@@ -390,17 +456,199 @@ def footage_dir(name):
 def render_foot(clip, tl):
     d = footage_dir(clip["foot"])
     if d is None:
-        return render_clip(clip["fallback"] | {"len": clip["len"]}, tl)
+        fb = clip["fallback"] | {"len": clip["len"]}
+        return render_inner(fb, tl) if tuple(OUT) != (W, H) else render_clip(fb, tl)
     fs = sorted(os.listdir(d))
     mid = max(0, (len(fs) - int(sec(clip["len"]) * FPS)) // 2)
     i = min(len(fs) - 1, mid + int(sec(tl) * FPS))
-    return Image.open(os.path.join(d, fs[i])).convert("RGB")
+    im = Image.open(os.path.join(d, fs[i])).convert("RGB")
+    ow, oh = OUT
+    if im.size != (ow, oh):
+        s_ = max(ow / im.width, oh / im.height)
+        bw, bh = ow / s_, oh / s_
+        x0, y0 = (im.width - bw) / 2, (im.height - bh) / 2
+        im = im.resize((ow, oh), Image.BICUBIC, box=(x0, y0, x0 + bw, y0 + bh))
+    return im
+
+
+# ---------------------------------------------------------------- 右の窓（左に見出し、右に本物の画面）
+@lru_cache(maxsize=16)
+def round_mask(w, h, r):
+    m = Image.new("L", (w * 2, h * 2), 0)
+    ImageDraw.Draw(m).rounded_rectangle([0, 0, w * 2 - 1, h * 2 - 1], radius=r * 2, fill=255)
+    return m.resize((w, h), Image.LANCZOS)
+
+
+@lru_cache(maxsize=16)
+def big_number(txt, color, alpha):
+    """うしろに薄く置く、大きな番号（線だけ）"""
+    f = font("g1", 460)
+    pad = 20
+    w = int(f.getlength(txt)) + pad * 2
+    im = Image.new("RGBA", (w, 520), (0, 0, 0, 0))
+    ImageDraw.Draw(im).text((pad, 470), txt, font=f, anchor="ls", fill=(0, 0, 0, 0), stroke_width=2, stroke_fill=hexrgb(color) + (int(255 * alpha),))
+    return im
+
+
+def render_win(clip, tl):
+    x, y, w, h = clip["win"]
+    bg = clip.get("bg", "#0c0c0e")
+    base = Image.new("RGB", (W, H), hexrgb(bg))
+    if clip.get("num") and clip.get("bignum"):
+        light = sum(hexrgb(bg)) > 380
+        bn = big_number(clip["num"], "#000000" if light else "#ffffff", 0.10 if light else 0.09)
+        base.paste(bn, (W - bn.width + 10, H - bn.height + 40), bn)
+    OUT[:] = [w, h]
+    try:
+        inner = render_inner(clip, tl)
+    finally:
+        OUT[:] = [W, H]
+    r = clip.get("radius", 16)
+    base.paste(inner, (x, y), round_mask(w, h, r))
+    if clip.get("border", True):
+        d = ImageDraw.Draw(base)
+        d.rounded_rectangle([x - 1, y - 1, x + w, y + h], radius=r + 1, outline=hexrgb(clip.get("borderColor", "#3a3a3e")), width=1)
+    return base
+
+
+def render_inner(clip, tl):
+    k = clip.get("kind")
+    if k == "img":
+        return render_img(clip, tl)
+    if k == "loop":
+        return render_loop(clip, tl)
+    if k == "rows":
+        return render_rows(clip, tl)
+    if k == "foot":
+        return render_foot(clip, tl)
+    if k == "split":
+        return render_split(clip, tl)
+    if k == "black":
+        return Image.new("RGB", tuple(OUT), hexrgb(clip.get("bg", "#000000")))
+    return render_story(clip, tl)
+
+
+# ---------------------------------------------------------------- 行ったり来たり（デザイン → CAD → 職人 → 作れない → 戻る）の図
+def render_loop(clip, tl):
+    """拍 tl の図。前半：作れないと戻る（回数が増える）。phase2 から：継ぐが絵の段階で確かめ、まっすぐ通る"""
+    ow, oh = OUT
+    S = 2
+    im = Image.new("RGB", (ow * S, oh * S), hexrgb(clip.get("bg", "#0c0c0e")))
+    d = ImageDraw.Draw(im)
+    t = sec(tl)
+    p2 = sec(clip.get("phase2", 12))
+    nodes = [("デザイン", "絵"), ("CAD", "設計"), ("職人", "製作")]
+    cy = oh * 0.56
+    xs = [ow * 0.17, ow * 0.5, ow * 0.83]
+    bw, bh = ow * 0.22, oh * 0.17
+    red, gold, green, gray, white = hexrgb("#ff5a4e"), hexrgb("#e8c27a"), hexrgb("#3ddc84"), hexrgb("#6e6e73"), hexrgb("#f5f5f7")
+    fade2 = ease_io((t - p2) / 0.6)
+
+    def text(x, y, s_, sz, col, fk="g6", anchor="mm"):
+        d.text((x * S, y * S), s_, font=font(fk, int(sz * S)), fill=col, anchor=anchor, features=["palt"])
+
+    # 矢印（前へ）
+    for i in range(2):
+        x0, x1 = xs[i] + bw / 2 + 14, xs[i + 1] - bw / 2 - 14
+        d.line([(x0 * S, cy * S), (x1 * S, cy * S)], fill=gray, width=3 * S)
+        d.polygon([(x1 * S, cy * S), ((x1 - 16) * S, (cy - 9) * S), ((x1 - 16) * S, (cy + 9) * S)], fill=gray)
+    # 戻る弧（赤・点線）：前半だけ
+    loop_a = (1 - fade2) * ease_out(t / 0.6)
+    if loop_a > 0.01:
+        col = tuple(int(c * loop_a + 12 * (1 - loop_a)) for c in red)
+        pts = []
+        for k in range(61):
+            u = k / 60
+            ang = math.pi * u
+            px = xs[2] + (xs[0] - xs[2]) * u
+            py = cy - bh / 2 - 18 - math.sin(ang) * oh * 0.26
+            pts.append((px, py))
+        for k in range(0, 60, 2):
+            d.line([(pts[k][0] * S, pts[k][1] * S), (pts[k + 1][0] * S, pts[k + 1][1] * S)], fill=col, width=4 * S)
+        ex, ey = pts[-1]
+        d.polygon([(ex * S, (ey + 4) * S), ((ex - 9) * S, (ey - 14) * S), ((ex + 11) * S, (ey - 10) * S)], fill=col)
+        n_now = sum(1 for st, du in [(0.3, 1.9), (2.2, 1.35), (3.6, 1.0), (4.65, 0.8)] if t >= st + du * 0.5 and t < p2)
+        text((xs[0] + xs[2]) / 2, cy - bh / 2 - oh * 0.26 - 52, "作れない、と戻る" + (f"　{n_now} 回目" if n_now else ""), 32, col, "g7")
+    # 箱
+    for i, (nm, sub) in enumerate(nodes):
+        x0, y0 = (xs[i] - bw / 2) * S, (cy - bh / 2) * S
+        d.rounded_rectangle([x0, y0, x0 + bw * S, y0 + bh * S], radius=18 * S, fill=hexrgb("#1c1c1f"), outline=hexrgb("#3a3a3e"), width=2 * S)
+        text(xs[i], cy - 12, nm, 40, white, "g6")
+        text(xs[i], cy + 34, sub, 24, hexrgb("#a1a1a6"), "g4")
+    # 回る印（指輪の小さな丸）
+    loops = [(0.3, 1.9), (2.2, 1.35), (3.6, 1.0), (4.65, 0.8)]
+    n_done = 0
+    tok = None
+    for st, du in loops:
+        if t < p2 and st <= t < st + du:
+            u = (t - st) / du
+            if u < 0.5:  # 前へ：デザイン → 職人
+                v = ease_io(u / 0.5)
+                tok = (xs[0] + (xs[2] - xs[0]) * v, cy + bh / 2 + 34, gold)
+            else:  # 戻る：弧の上を
+                v = ease_io((u - 0.5) / 0.5)
+                ang = math.pi * v
+                tok = (xs[2] + (xs[0] - xs[2]) * v, cy - bh / 2 - 18 - math.sin(ang) * oh * 0.26, red)
+                if v < 0.35:
+                    text(xs[2], cy + bh / 2 + 60, "× 作れない", 30, red, "g7")
+        if t >= st + du * 0.5:
+            n_done += 1
+    if tok:
+        x_, y_, c_ = tok
+        d.ellipse([(x_ - 13) * S, (y_ - 13) * S, (x_ + 13) * S, (y_ + 13) * S], outline=c_, width=5 * S)
+    # 後半：継ぐが、デザインの所で確かめる → まっすぐ通る
+    if fade2 > 0.01:
+        a = fade2
+        gx0, gy0 = (xs[0] - bw / 2 - 10) * S, (cy - bh / 2 - 10) * S
+        d.rounded_rectangle([gx0, gy0, gx0 + (bw + 20) * S, gy0 + (bh + 20) * S], radius=22 * S, outline=tuple(int(c * a) for c in gold), width=4 * S)
+        text(xs[0], cy - bh / 2 - 46, "継ぐで、ここで確かめる", 30, tuple(int(c * a) for c in gold), "g6")
+        u = ease_io((t - p2 - 0.5) / 1.6)
+        if u > 0:
+            x_ = xs[0] + (xs[2] - xs[0]) * u
+            y_ = cy + bh / 2 + 34
+            d.ellipse([(x_ - 13) * S, (y_ - 13) * S, (x_ + 13) * S, (y_ + 13) * S], outline=gold, width=5 * S)
+        if u >= 1:
+            gx, gy = xs[2] - 52, cy + bh / 2 + 70
+            d.ellipse([(gx - 13) * S, (gy - 13) * S, (gx + 13) * S, (gy + 13) * S], outline=green, width=4 * S)
+            d.line([((gx - 6) * S, gy * S), ((gx - 1) * S, (gy + 6) * S), ((gx + 7) * S, (gy - 6) * S)], fill=green, width=4 * S)
+            text(xs[2] + 12, cy + bh / 2 + 70, "作れる", 32, green, "g7")
+    return im.resize((ow, oh), Image.LANCZOS)
+
+
+# ---------------------------------------------------------------- 横長の絵巻を、何段かに折って並べる（1 段ずつ出る）
+def render_rows(clip, tl):
+    ow, oh = OUT
+    im = load_img(clip["img"])
+    iw, ih = im.size
+    n = clip.get("n", 3)
+    gap = clip.get("gap", 18)
+    seg = iw / n
+    s_ = min(ow / seg, (oh - gap * (n + 1)) / (ih * n))
+    rw, rh = int(seg * s_), int(ih * s_)
+    out = Image.new("RGB", (ow, oh), hexrgb(clip.get("bg", "#000000")))
+    y0 = (oh - (rh * n + gap * (n - 1))) / 2
+    for k in range(n):
+        at = sec(clip.get("each", 1.0) * k)
+        u = ease_out((sec(tl) - at) / 0.5)
+        if u <= 0:
+            continue
+        row = im.crop((int(seg * k), 0, int(seg * (k + 1)), ih)).resize((rw, rh), Image.LANCZOS)
+        x = int((ow - rw) / 2 + (1 - u) * 80)
+        if u < 1:
+            row = Image.blend(Image.new("RGB", row.size, hexrgb(clip.get("bg", "#000000"))), row, u)
+        out.paste(row, (x, int(y0 + k * (rh + gap))))
+    return out
 
 
 def render_clip(clip, tl):
+    if clip.get("win"):
+        return render_win(clip, tl)
     k = clip.get("kind")
+    if k == "loop" or k == "rows":
+        OUT[:] = [W, H]
+        return render_inner(clip, tl)
     if k == "black":
-        return Image.new("RGB", (W, H), tuple(clip.get("color", (0, 0, 0))))
+        return Image.new("RGB", (W, H), hexrgb(clip["color"]) if isinstance(clip.get("color"), str) else tuple(clip.get("color", (0, 0, 0))))
     if k == "img":
         return render_img(clip, tl)
     if k == "split":
@@ -719,6 +967,61 @@ def draw_card(img, card, t):
         base = img2.convert("RGBA")
         place(base, nm[0], ccx + 20 - nm[1], y0 + 28 - nm[0].height / 2, 1, a, 0)
         place(base, ti[0], ccx + 20 + nw + 12 - ti[1], y0 + 28 - ti[0].height / 2, 1, a * 0.92, 0)
+    elif mode == "step":
+        # 左の見出し（いつも同じ所）：小さな番号と名前 → 1 行目を打つ → 2 行目（色）を打つ → 細い線 → 説明
+        x, y = card.get("pos", (110, 330))
+        sz = card.get("size", 72)
+        cps = card.get("cps", 15)
+        t = sec(tb0)
+        accent, col, dcol = card.get("accent", "#e8c27a"), card.get("color", "#f5f5f7"), card.get("dcolor", "#a1a1a6")
+        fk = card.get("font", "g7")
+        maxw = card.get("maxw", 600)
+        for txt_ in (card.get("l1"), card.get("l2")):
+            if txt_:
+                wv = font(fk, sz).getlength(txt_, features=["palt"])
+                if wv > maxw:
+                    sz = int(sz * maxw / wv)
+        if card.get("label"):
+            lab = token_img(card["label"], "g6", 24, accent, 0.08)
+            place(base, lab[0], x - lab[1], y - lab[0].height / 2, 1, A * ease_out(t / 0.25), 0)
+        yy = y + 40
+        t1 = t - card.get("delay", 0.12)
+        done = True
+        for txt, c in ((card.get("l1"), col), (card.get("l2"), accent)):
+            if not txt:
+                continue
+            f = font(fk, sz)
+            ti = token_img(txt, fk, sz, c)
+            n_all = len(txt)
+            n = n_all if card.get("instant") else int(max(0, t1) * cps)
+            if n <= 0:
+                done = False
+                break
+            n = min(n, n_all)
+            wpx = f.getlength(txt[:n], features=["palt"])
+            crop = ti[0].crop((0, 0, int(ti[1] + wpx + 2), ti[0].height))
+            place(base, crop, x - ti[1], yy - ti[1] * 0.4, 1, A, 0)
+            if n < n_all:
+                done = False
+                if int(t * 6) % 2 == 0 or True:
+                    dd = ImageDraw.Draw(base)
+                    cx0 = x + wpx + 6
+                    dd.rectangle([cx0, yy + sz * 0.12, cx0 + sz * 0.42, yy + sz * 1.02], fill=hexrgb(accent) + (int(220 * A),))
+                break
+            t1 -= n_all / cps + 0.1
+            yy += sz * 1.24
+        if done:
+            tr_ = max(0.0, t1 + 0.1)
+            u = ease_out(tr_ / 0.35)
+            dd = ImageDraw.Draw(base)
+            ry = yy + 18
+            dd.line([(x, ry), (x + 440 * u, ry)], fill=hexrgb(accent) + (int(230 * A),), width=3)
+            for li, dl in enumerate(card.get("desc", [])):
+                ua = ease_out((tr_ - 0.12 - li * 0.08) / 0.4)
+                if ua <= 0:
+                    continue
+                di = token_img(dl, card.get("dfont", "g5"), card.get("dsize", 30), dcol)
+                place(base, di[0], x - di[1], ry + 30 + li * card.get("dsize", 30) * 1.6 - di[1] * 0.4 + (1 - ua) * 10, 1, A * ua, 0)
     elif mode == "src":
         ti = token_img(card["text"], "g3", card.get("size", 22), card.get("color", "#8e8e93"))
         x, y = card.get("pos", (120, H - 70))
@@ -759,6 +1062,49 @@ def fx_at(img, t):
     return img
 
 
+def chrome(img, b):
+    c = TL.get("chrome")
+    if not c or not (c["from"] <= b < c["to"]):
+        return img
+    a = min(ease_out((b - c["from"]) / 1.0), ease_io((c["to"] - b) / 1.0))
+    light = any(r[0] <= b < r[1] for r in c.get("light", []))
+    fg = (40, 40, 44) if light else (245, 245, 247)
+    dim = (120, 120, 124) if light else (110, 110, 116)
+    base = img.convert("RGBA")
+    d = ImageDraw.Draw(base)
+    y = H - 34
+    x0, x1 = 110, W - 110
+    d.line([(x0, y), (x1, y)], fill=dim + (int(70 * a),), width=2)
+    u = clamp01((b - c["from"]) / (c["to"] - c["from"]))
+    d.line([(x0, y), (x0 + (x1 - x0) * u, y)], fill=hexrgb(c.get("accent", "#e8c27a")) + (int(235 * a),), width=2)
+    cur = None
+    for st in c.get("steps", []):
+        if st[0] <= b:
+            cur = st
+    if cur:
+        ti = token_img(f"{cur[1]}  ／  {cur[2]}", "g5", 19, "#%02x%02x%02x" % fg, 0.06)
+        place(base, ti[0], x0 - ti[1], y - 26 - ti[0].height / 2, 1, a * 0.85, 0)
+    if c.get("note"):
+        ti = token_img(c["note"], "g4", 19, "#%02x%02x%02x" % dim)
+        place(base, ti[0], x1 - (ti[0].width - 2 * ti[1]) - ti[1], y - 26 - ti[0].height / 2, 1, a * 0.9, 0)
+    return base.convert("RGB")
+
+
+_GRAIN = []
+
+
+def grain(img, n):
+    amp = TL.get("grain", 0)
+    if amp <= 0:
+        return img
+    if not _GRAIN:
+        rng = np.random.default_rng(5)
+        for _ in range(6):
+            _GRAIN.append((rng.standard_normal((H, W, 1)) * amp).astype(np.float32))
+    a = np.asarray(img, dtype=np.float32) + _GRAIN[n % len(_GRAIN)]
+    return Image.fromarray(np.clip(a, 0, 255).astype(np.uint8))
+
+
 def frame(n):
     t = n / FPS
     img = main_at(t)
@@ -766,7 +1112,9 @@ def frame(n):
     for card in TL["text"]:
         if card["at"] <= b <= card["at"] + card["len"]:
             img = draw_card(img, card, t)
+    img = chrome(img, b)
     img = fx_at(img, t)
+    img = grain(img, n)
     return img
 
 

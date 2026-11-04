@@ -2,6 +2,7 @@
 # 使い方：python -I sfx.py <sfx.json> <出力.wav> <長さ秒>
 # sfx.json：[{k: 種類, at: 秒}] または {"sfx": [...]}（reel.py の _cues.json）
 # 種類：whoosh（つなぎの風）・hit（ドン）・key（キー）・click（カチッ）・tick（言葉が出る小さな音）・shimmer（キラッ：Claude）・ding（作れます）
+#       tink（鏨を小さく打つ金属の音：言葉が出る所）・kan（金床を打つ音：大事な所）
 import json, sys, wave
 import numpy as np
 
@@ -100,13 +101,29 @@ def ding():
     return (x + y) * 0.16
 
 
+def tink():
+    t = np.arange(int(0.3 * SR)) / SR
+    j = rng.uniform(0.97, 1.03)
+    x = sum(a * np.sin(2 * np.pi * f * j * t) * np.exp(-t / d) for f, a, d in [(2310, 1.0, 0.07), (4120, 0.55, 0.045), (6030, 0.35, 0.03)])
+    click_ = band(rng.standard_normal(len(t)), 2000, 12000) * env(t, 0.0003, 0.003) * 0.6
+    return (x * 0.45 + click_) * 0.5
+
+
+def kan():
+    t = np.arange(int(2.2 * SR)) / SR
+    x = sum(a * np.sin(2 * np.pi * f * t) * np.exp(-t / d) for f, a, d in [(612, 1.0, 0.9), (1187, 0.7, 0.6), (1830, 0.5, 0.45), (2690, 0.35, 0.3)])
+    body = np.sin(2 * np.pi * np.cumsum(70 * (1 + 0.9 * np.exp(-t * 16))) / SR) * env(t, 0.002, 0.35) * 1.3
+    return np.tanh(1.1 * (x * 0.45 + body)) * 0.8
+
+
 W, H_, C, T_, D_ = whoosh(), hit(), click(), tick(), ding()
+K_ = kan()
 S_ = shimmer()
 last = {}
 for e in ev:
     k, at = e["k"], e["at"]
     # 同じ音が近すぎるときは間引く（つぶれて聞こえるので）
-    if k in last and at - last[k] < {"key": 0.045, "click": 0.08, "tick": 0.12, "whoosh": 0.25, "hit": 0.2, "shimmer": 0.6, "ding": 0.6}.get(k, 0.05):
+    if k in last and at - last[k] < {"key": 0.045, "click": 0.08, "tick": 0.12, "tink": 0.1, "kan": 0.3, "whoosh": 0.25, "hit": 0.2, "shimmer": 0.6, "ding": 0.6}.get(k, 0.05):
         continue
     last[k] = at
     if k == "whoosh": add(W, at - 0.12, 0, 0.55)
@@ -116,6 +133,8 @@ for e in ev:
     elif k == "tick": add(T_, at, rng.uniform(-0.2, 0.2), 0.5)
     elif k == "shimmer": add(S_, at, 0, 0.8)
     elif k == "ding": add(D_, at, 0, 0.8)
+    elif k == "tink": add(tink(), at, rng.uniform(-0.25, 0.25), 0.55)
+    elif k == "kan": add(K_, at, 0, 0.75)
 peak = max(np.abs(L).max(), np.abs(R).max(), 1e-6)
 st = (np.stack([L, R], 1) / peak * 0.85 * 32767).astype(np.int16)
 with wave.open(sys.argv[2], "wb") as w:
