@@ -47,6 +47,8 @@ import { dimsSvg, gizmoSvg, type Dim, type Rect } from "./dims";
 import { bindSlider, sliderHtml, type SliderSpec } from "./slider";
 import { bindSectionEditor, sectionEditorHtml, startShape } from "./section-edit";
 import { SHANK_SECTIONS, SHANK_SECTION_LABEL, type ShankSection } from "../geometry/shank";
+import { rebuildShank } from "../geometry/ring";
+import { checkShank } from "../rules/checks";
 import { presentHtml, STONE_SIZES, type PresentGroup } from "./present";
 import { MAX_SECONDS, playVoice, putVoice, startRecording, voiceIds } from "./voice-notes";
 
@@ -814,7 +816,7 @@ function logLineTo(li: HTMLLIElement, e: LogEntry) {
   } else {
     const input = e.input as Record<string, unknown>;
     const res = e.result as Record<string, unknown> | undefined;
-    li.className = `tool ${e.tool}`;
+    li.className = `wl-tool ${e.tool}`;
     let text = "";
     if (e.tool === "check") {
       const probs = (res?.problems as unknown[] | undefined)?.length ?? 0;
@@ -925,6 +927,7 @@ const SHORT: Record<string, string> = {
   "bezel-wall": "覆輪の壁が薄い",
   "band-thin": "腕が薄い",
   "band-narrow": "腕の幅が細い",
+  "band-spike": "腕の断面が尖りすぎ",
 };
 function grouped(b: Built) {
   const groups = new Map<string, { p: (typeof b.problems)[number]; n: number }>();
@@ -1330,7 +1333,12 @@ function renderCheck() {
     (sec) => {
       holdPanel = true;
       Object.assign(session!.state, { shankSection: "free", sectionCurve: sec.curve, sectionPoints: undefined, shankWidthMm: sec.widthMm, shankThicknessMm: sec.thicknessMm });
-      session!.build("断面を描いている");
+      // 動かしている間は、3D の腕だけを差し替える（石座は作り直さない：一体の石座は重く、指の動きに遅れるため）。
+      // 腕の確かめ（局所的に薄い所の赤い印）も、その場で。指を離したら、全部を作り直して確かめ直す
+      const cur = session!.built!;
+      const shank = rebuildShank(cur.ring, { ...cur.ring.params.shank, section: "free", sectionCurve: sec.curve, sectionPoints: undefined, widthMm: sec.widthMm, thicknessMm: sec.thicknessMm });
+      const probs = [...cur.problems.filter((p) => !p.check.startsWith("band-")), ...checkShank(shank, { guides: session!.guides() })];
+      viewer.updateShank(shank, probs);
     },
     (sec) => {
       holdPanel = false;
@@ -1382,6 +1390,12 @@ function applyFix(id: string, sess: RingSession = session!) {
       break;
     case "widerBand":
       session!.setShank({ width_mm: GUIDES.band.minWidthMm, reason: "直し方から" });
+      break;
+    case "bluntTip":
+      // とがりは形の好みに深くかかわるので、自動では直さない。断面を描く画面を開いて、赤い所を見せる
+      manualOpen = true;
+      session!.build("直し方から");
+      requestAnimationFrame(() => document.querySelector(".studio-refine .sec-edit")?.scrollIntoView({ behavior: "smooth", block: "center" }));
       break;
     default:
       session!.build("直し方から");
@@ -2128,7 +2142,7 @@ async function makeBand() {
   setBandMetal(d.metal);
   bandControls($(".band-ctrl"));
   showBand();
-  $(".worklog").innerHTML = `<li class="tool set_shank">${esc(`${SECTION_LABEL[d.kind]}・上 ${d.top.width}×${d.top.thickness}・下 ${d.bottom.width}×${d.bottom.thickness} mm・${d.gou} 号・${METAL_LABEL[d.metal]}`)}</li><li class="note">${esc(d.reason)}</li>`;
+  $(".worklog").innerHTML = `<li class="wl-tool set_shank">${esc(`${SECTION_LABEL[d.kind]}・上 ${d.top.width}×${d.top.thickness}・下 ${d.bottom.width}×${d.bottom.thickness} mm・${d.gou} 号・${METAL_LABEL[d.metal]}`)}</li><li class="note">${esc(d.reason)}</li>`;
   showCannot(d.cannotDo);
   st.innerHTML = `${r.remaining !== undefined ? `今日あと ${r.remaining} 回 ・ ` : ""}<button type="button" class="link go-refine">確かめる →</button>`;
   st.querySelector(".go-refine")!.addEventListener("click", () => setMode("refine"));

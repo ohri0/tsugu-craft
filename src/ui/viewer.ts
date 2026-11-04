@@ -7,6 +7,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { FullScreenQuad } from "three/examples/jsm/postprocessing/Pass.js";
 import { toCreasedNormals } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { RingDesign } from "../geometry/ring";
+import type { ShankResult } from "../geometry/shank";
 import type { StoneMesh } from "../geometry/stone";
 import type { MetalId } from "../rules/guides";
 import type { Problem } from "../rules/checks";
@@ -52,6 +53,8 @@ export class Viewer {
   keepCamera = false;
   /** 今の指輪で、作れない所に使っている赤い材質（点滅させる。なければ null） */
   private warnMat: THREE.MeshPhysicalMaterial | null = null;
+  /** 今の指輪の腕と、腕の局所的に薄い所の印（断面を動かしている間に、腕だけを差し替えるため） */
+  private live: { shank: THREE.Mesh; marks: THREE.Mesh[]; lift: number; warn: THREE.MeshPhysicalMaterial } | null = null;
   /** 描き直しが要るか（動いていない間は描かない。スマホの電池のため） */
   private dirty = true;
 
@@ -205,7 +208,11 @@ export class Viewer {
         o.visible = true;
         continue;
       }
-      if (!ud.edges) {
+      const stone = isStone(ud.render);
+      const wireSmooth = this.mode === "wire" && !!o.geometry.userData.smooth && !stone;
+      // 線が見える時だけ作る（シェードの地金は線を出さないので作らない。腕を描き直すたびに作ると重い）
+      const needEdges = (this.mode === "shaded" && stone) || (this.mode === "wire" && !wireSmooth);
+      if (!ud.edges && needEdges) {
         // 面の折れ目の線（シェードでは濃く、ワイヤーフレームでは明るく）
         const e = new THREE.LineSegments(new THREE.EdgesGeometry(o.geometry, o.geometry.userData.smooth ? 60 : 14), new THREE.LineBasicMaterial({ color: 0xd8d8dc, transparent: true, opacity: 0.9 }));
         e.position.copy(o.position);
@@ -214,32 +221,36 @@ export class Viewer {
         ud.edges = e;
         o.parent!.add(e);
       }
-      const edges = ud.edges as THREE.LineSegments;
-      const lm = edges.material as THREE.LineBasicMaterial;
+      const edges = ud.edges as THREE.LineSegments | undefined;
+      const lm = edges?.material as THREE.LineBasicMaterial | undefined;
       if (this.mode === "render") {
         o.material = ud.render;
         o.visible = true;
-        edges.visible = false;
+        if (edges) edges.visible = false;
       } else if (this.mode === "shaded") {
         o.material = Array.isArray(ud.render) ? (ud.render as THREE.Material[]).map(shadedOf) : shadedOf(ud.render);
         o.visible = true;
         // 地金の面の折れ目の線は出さない（腕に細かい線がたくさん出て「何の線？」となるため。作者の声）。石の面の線だけ出す
-        edges.visible = isStone(ud.render);
-        lm.color.setHex(0x141416);
-        lm.opacity = 0.55;
+        if (edges && lm) {
+          edges.visible = stone;
+          lm.color.setHex(0x141416);
+          lm.opacity = 0.55;
+        }
       } else {
         // ワイヤー：なめらかな形（一体の石座・腕）は折れ目がほとんどなく線が出ないので、網目そのものを細い線で見せる
-        if (o.geometry.userData.smooth && !isStone(ud.render)) {
+        if (wireSmooth) {
           if (!ud.wire) ud.wire = new THREE.MeshBasicMaterial({ color: this.darkOn ? 0x2a2b2e : 0xd8d8dc, wireframe: true, transparent: true, opacity: 0.22 });
           o.material = ud.wire;
           o.visible = true;
-          edges.visible = false;
+          if (edges) edges.visible = false;
           continue;
         }
         o.visible = false;
-        edges.visible = true;
-        lm.color.setHex(isStone(ud.render) ? (this.darkOn ? 0x1d5fb0 : 0x8fc3ff) : this.darkOn ? 0x2a2b2e : 0xd8d8dc);
-        lm.opacity = 0.9;
+        if (edges && lm) {
+          edges.visible = true;
+          lm.color.setHex(stone ? (this.darkOn ? 0x1d5fb0 : 0x8fc3ff) : this.darkOn ? 0x2a2b2e : 0xd8d8dc);
+          lm.opacity = 0.9;
+        }
       }
     }
     this.dirty = true;
@@ -340,6 +351,7 @@ export class Viewer {
 
   private clear() {
     this.warnMat = null;
+    this.live = null;
     for (const o of [...this.content.children]) {
       this.content.remove(o);
       o.traverse((m) => {
@@ -386,7 +398,7 @@ export class Viewer {
     // 覆輪の壁が薄いときは石座ぜんぶ、腕が細い・薄いときは腕を赤く
     const badBezel = problems.some((p) => p.target.kind === "bezel");
     const badShank = problems.some((p) => p.target.kind === "shank");
-    this.warnMat = badProngs.size > 0 || badBezel || badShank || problems.some((p) => p.target.kind === "corner" || p.target.kind === "gap") ? warn : null;
+    this.warnMat = badProngs.size > 0 || badBezel || badShank || problems.some((p) => p.target.kind === "corner" || p.target.kind === "gap" || p.target.kind === "shank-spot") ? warn : null;
     const settingGeo = ring.ringPositions.settingNormals ? smoothGeometry(ring.ringPositions.setting, ring.ringPositions.settingNormals) : metalGeometry(ring.ringPositions.setting);
     const total = ring.ringPositions.setting.length / 9;
     const ranges = badBezel
@@ -418,10 +430,39 @@ export class Viewer {
       mark.position.set(q.x * c - q.y * s, q.x * s + q.y * c, ring.transform.translateZ + lift + 0.2);
       this.content.add(mark);
     }
+    const marks = spotMarks(ring.shank, problems, lift, warn);
+    marks.forEach((m) => this.content.add(m));
+    this.live = { shank, marks, lift, warn };
     this.applyMode();
     if (!this.keepCamera) this.frame("ring", new THREE.Vector3(0.9, -1.1, 0.75));
     this.alignGrid(this.gridView);
     this.updateShadow();
+  }
+
+  /**
+   * 腕だけを差し替える（断面の点を動かしている間。石と石座はそのまま、影も描き直さない）。
+   * 指を離したら、いつもの setRing で全部を作り直す
+   */
+  updateShank(shank: ShankResult, problems: Problem[]) {
+    const L = this.live;
+    if (!L) return;
+    const old = L.shank.geometry;
+    L.shank.geometry = metalGeometry(shank.positions);
+    old.dispose();
+    const ud = L.shank.userData;
+    if (ud.edges) {
+      const e = ud.edges as THREE.LineSegments;
+      e.parent?.remove(e);
+      e.geometry.dispose();
+      ud.edges = undefined;
+    }
+    for (const m of L.marks) {
+      this.content.remove(m);
+      m.geometry.dispose();
+    }
+    L.marks = spotMarks(shank, problems, L.lift, L.warn);
+    L.marks.forEach((m) => this.content.add(m));
+    this.applyMode();
   }
 
   private addStone(positions: Float32Array, look: StoneLook, z: number, depthMm: number) {
@@ -896,6 +937,23 @@ function smoothGeometry(positions: Float32Array, normals: Float32Array): THREE.B
   g.setAttribute("normal", new THREE.BufferAttribute(normals, 3));
   g.userData.smooth = true;
   return g;
+}
+
+/**
+ * 腕の断面の、局所的に薄い所（とがり・ヒレ）の印：腕ぜんぶではなく、その所に小さな赤い玉。
+ * 印は指の横（カメラの側、φ ＝ −90°）の断面の上に置く（薄い所は腕を 1 周するので、見える側の 1 か所に）
+ */
+function spotMarks(sh: ShankResult, problems: Problem[], lift: number, warn: THREE.Material): THREE.Mesh[] {
+  const out: THREE.Mesh[] = [];
+  for (const p of problems) {
+    if (p.target.kind !== "shank-spot") continue;
+    const rho = sh.innerRadiusMm + p.target.y;
+    const x = (p.target.x * sh.sideWidthMm) / sh.widthMm;
+    const mark = new THREE.Mesh(new THREE.SphereGeometry(0.22, 20, 14), warn);
+    mark.position.set(x, -rho, lift);
+    out.push(mark);
+  }
+  return out;
 }
 
 function metalGeometry(positions: Float32Array): THREE.BufferGeometry {

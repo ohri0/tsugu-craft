@@ -333,3 +333,168 @@ export function fitError(data: readonly P2[], pts: readonly P2[], u: readonly nu
   for (const d of data) e = Math.max(e, nearestOnCurve(pts, u, d).d);
   return e;
 }
+
+// ---- 指で描いた線に、ぴったり合わせる（作者の求め：2026-11-04「描いた線と、できた線がちがいすぎる」） ----
+
+/**
+ * いくつかの線を、角でつないで 1 本の線にする。つなぎ目の節は 3 つ重ねる（線はつなぎ目の点を通り、そこで折れてよい）。
+ * 各線の最後の点と、次の線の最初の点は同じ所とする。lengths：各線が受け持つ長さ（節の位置の割り振りに使う）
+ */
+export function joinCurves(parts: readonly { pts: readonly P2[]; knots: readonly number[] }[], lengths: readonly number[]): { pts: P2[]; knots: number[] } {
+  const total = lengths.reduce((a, b) => a + b, 0) || 1;
+  const pts: P2[] = [];
+  const knots: number[] = [0, 0, 0, 0];
+  let start = 0;
+  parts.forEach((c, k) => {
+    const span = lengths[k] / total;
+    const end = k === parts.length - 1 ? 1 : start + span;
+    // 中の節（両端の 4 つずつを除く）を、この線の受け持ちの区間へ
+    for (let j = DEGREE + 1; j < c.knots.length - DEGREE - 1; j++) knots.push(start + c.knots[j] * (end - start));
+    if (k < parts.length - 1) knots.push(end, end, end);
+    (k === 0 ? c.pts : c.pts.slice(1)).forEach((p) => pts.push({ ...p }));
+    start = end;
+  });
+  knots.push(1, 1, 1, 1);
+  return { pts, knots };
+}
+
+/** 折れ線の、長さに沿った向きの変わり（度）。scale：前後どれだけ離れた点で向きを測るか（長さ） */
+function turnAt(line: readonly P2[], i: number, k: number): number {
+  const a = line[Math.max(0, i - k)];
+  const b = line[i];
+  const c = line[Math.min(line.length - 1, i + k)];
+  const v1 = { x: b.x - a.x, y: b.y - a.y };
+  const v2 = { x: c.x - b.x, y: c.y - b.y };
+  const l1 = Math.hypot(v1.x, v1.y);
+  const l2 = Math.hypot(v2.x, v2.y);
+  if (l1 < 1e-12 || l2 < 1e-12) return 0;
+  const cos = Math.min(1, Math.max(-1, (v1.x * v2.x + v1.y * v2.y) / (l1 * l2)));
+  return (Math.acos(cos) * 180) / Math.PI;
+}
+
+/**
+ * 折れ線（長さに沿って等しい間隔に取り直したもの）の中で、急に折れる所（角）の番号。
+ * 短い間（scale）とその倍の間の両方で向きが minTurnDeg より大きく変わり、まわりでいちばん大きく変わる所を角とする。両端の近くは数えない
+ */
+export function findCorners(line: readonly P2[], step: number, o: { scale: number; minTurnDeg: number }): number[] {
+  const k = Math.max(1, Math.round(o.scale / step));
+  // 本当の角は、短い間でも長い間でも同じだけ折れる。手のふるえは短い間でしか折れない（長い間では消える）ので、
+  // 短い間（k）と、その倍の間（2k）の小さい方で比べる
+  const turn = line.map((_, i) => (i < 2 * k || i > line.length - 1 - 2 * k ? 0 : Math.min(turnAt(line, i, k), turnAt(line, i, 2 * k))));
+  const out: number[] = [];
+  for (let i = k; i <= line.length - 1 - k; i++) {
+    if (turn[i] < o.minTurnDeg) continue;
+    let isMax = true;
+    for (let j = Math.max(0, i - 2 * k); j <= Math.min(line.length - 1, i + 2 * k); j++) {
+      if (turn[j] > turn[i] || (turn[j] === turn[i] && j < i)) {
+        isMax = false;
+        break;
+      }
+    }
+    if (isMax) out.push(i);
+  }
+  return out;
+}
+
+/** 折れ線を少しならす（両端は動かさない）。手のふるえ（細かい波）だけを消す */
+function smoothLine(line: readonly P2[], passes: number): P2[] {
+  let cur = line.map((p) => ({ ...p }));
+  for (let s = 0; s < passes; s++) {
+    cur = cur.map((p, i) => (i === 0 || i === cur.length - 1 ? p : { x: (cur[i - 1].x + 2 * p.x + cur[i + 1].x) / 4, y: (cur[i - 1].y + 2 * p.y + cur[i + 1].y) / 4 }));
+  }
+  return cur;
+}
+
+/** 点の列と、t を長さの割合で決めたときの線との、いちばん大きな離れ（速い見積もり。本当の離れはこれ以下） */
+function quickError(data: readonly P2[], pts: readonly P2[], u: readonly number[]): number {
+  const L = [0];
+  for (let i = 1; i < data.length; i++) L.push(L[i - 1] + Math.hypot(data[i].x - data[i - 1].x, data[i].y - data[i - 1].y));
+  const total = L[L.length - 1] || 1;
+  let e = 0;
+  data.forEach((d, i) => {
+    const p = evalCurve(pts, u, L[i] / total);
+    e = Math.max(e, Math.hypot(p.x - d.x, p.y - d.y));
+  });
+  return e;
+}
+
+export interface FitOptions {
+  /** 許す離れ（長さ） */
+  tol: number;
+  /** 1 つの区間（角と角の間）に使う点の数の上限 */
+  maxPerPart: number;
+  /** 取り直す間隔（長さ） */
+  step: number;
+  /** 角を探す：向きを測る長さと、角とみなす向きの変わり（度） */
+  cornerScale: number;
+  cornerTurnDeg: number;
+  /** 必ず角にする所（線の長さの割合 0〜1） */
+  forceCorners?: number[];
+}
+
+type Curve = { pts: P2[]; knots: number[] };
+
+/** 角と角の間の 1 つの区間に、離れが tol に収まるいちばん少ない点の数で合わせる（ふるえは少しならしてから） */
+export function fitSegment(raw: readonly P2[], o: Pick<FitOptions, "tol" | "maxPerPart">): Curve {
+  const seg = smoothLine(raw, 2);
+  let best: Curve | null = null;
+  for (let n = DEGREE + 1; n <= o.maxPerPart; n++) {
+    if (n > seg.length - 1) break;
+    const r = fitCurve(seg, n, 1e-7);
+    best = r;
+    if (quickError(raw, r.pts, r.knots) <= o.tol) break;
+  }
+  if (best) return best;
+  const a = raw[0];
+  const b = raw[raw.length - 1];
+  return { pts: [0, 1 / 3, 2 / 3, 1].map((f) => ({ x: a.x + (b.x - a.x) * f, y: a.y + (b.y - a.y) * f })), knots: uniformKnots(4) };
+}
+
+/**
+ * 指で描いた線（折れ線）を、角で区間に分ける。長さに沿って等しい間隔に取り直し、急に折れる所（角）を探す。
+ * 返すのは区間ごとの折れ線（となりの区間と、角の点を共有する）
+ */
+export function splitAtCorners(line: readonly P2[], o: Pick<FitOptions, "step" | "cornerScale" | "cornerTurnDeg" | "forceCorners">): { segs: P2[][]; corners: P2[] } {
+  const L = [0];
+  for (let i = 1; i < line.length; i++) L.push(L[i - 1] + Math.hypot(line[i].x - line[i - 1].x, line[i].y - line[i - 1].y));
+  const total = L[L.length - 1];
+  const count = Math.max(24, Math.min(1500, Math.round(total / o.step) + 1));
+  const dense = resample(line, count);
+  const h = total / (count - 1);
+  const cs = new Set(findCorners(dense, h, { scale: o.cornerScale, minTurnDeg: o.cornerTurnDeg }));
+  for (const f of o.forceCorners ?? []) {
+    const i = Math.round(f * (count - 1));
+    if (i > 0 && i < count - 1) cs.add(i);
+  }
+  // 近すぎる角はまとめる（区間には点が 4 つ以上いる）
+  const cuts = [0, ...[...cs].sort((a, b) => a - b).filter((i) => i >= 4 && i <= count - 5), count - 1].filter((v, i, a) => i === 0 || v - a[i - 1] >= 4);
+  if (cuts[cuts.length - 1] !== count - 1) cuts[cuts.length - 1] = count - 1;
+  const segs: P2[][] = [];
+  for (let c = 0; c + 1 < cuts.length; c++) segs.push(dense.slice(cuts[c], cuts[c + 1] + 1));
+  return { segs, corners: cuts.slice(1, -1).map((i) => ({ ...dense[i] })) };
+}
+
+/** 折れ線の長さ */
+export function lineLength(line: readonly P2[]): number {
+  let s = 0;
+  for (let i = 1; i < line.length; i++) s += Math.hypot(line[i].x - line[i - 1].x, line[i].y - line[i - 1].y);
+  return s;
+}
+
+/**
+ * 指で描いた線（折れ線）に、なめらかな線をぴったり合わせる。
+ * 角で区間に分け、区間ごとに、離れが tol に収まるいちばん少ない点の数で合わせ、角で 1 本につなぐ（角は折れたまま）
+ */
+export function fitPolyline(line: readonly P2[], o: FitOptions): Curve & { corners: P2[] } {
+  const { segs, corners } = splitAtCorners(line, o);
+  const r = joinCurves(
+    segs.map((s) => fitSegment(s, o)),
+    segs.map(lineLength),
+  );
+  return { ...r, corners };
+}
+
+/** 線を左右に折り返す（x ＝ 0 を軸に。向きも逆にする） */
+export function mirrorCurve(c: { pts: readonly P2[]; knots: readonly number[] }): Curve {
+  return { pts: [...c.pts].reverse().map((p) => ({ x: -p.x, y: p.y })), knots: [...c.knots].reverse().map((v) => 1 - v) };
+}

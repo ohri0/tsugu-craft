@@ -75,6 +75,15 @@ export function buildRing(p: RingParams): RingDesign {
 }
 
 /**
+ * 腕だけを作り直す（石と石座はそのまま）。断面の点を動かしている間に、3D の腕だけをすぐ変えるため。
+ * 肩（石座の足を受ける広い所）は、今の石座から buildRing と同じように決める
+ */
+export function rebuildShank(ring: RingDesign, shank: ShankParams): ShankResult {
+  const plain = buildShank(shank);
+  return ring.setting.normals ? plain : buildShank({ ...shank, head: shank.head ?? headFootprint(ring.ringPositions.setting, plain) });
+}
+
+/**
  * 肩の決まり（形を作るための決まり）。zoneMm：腕の外側のいちばん上からこの高さまでにある石座の点を「腕へ入る足」とみなす。
  * marginMm：足のまわりに残す腕の幅（片側）。taperMm：肩から元の幅へ戻る長さ。
  * maxWidthRatio：肩の幅は腕の幅のこの倍まで（広げすぎると、印台のように重く見える）
