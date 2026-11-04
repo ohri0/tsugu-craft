@@ -112,31 +112,59 @@ h2 { font-weight: 200; font-size: clamp(32px, 5.4vw, 72px); line-height: 1.2; le
 .make img { border-radius: 16px; box-shadow: 0 0 0 1px var(--line); }
 .make-draw { position: sticky; top: 80px; }
 
-/* 使う所 */
-.where { display: grid; grid-template-columns: repeat(3, 1fr); gap: clamp(28px, 4vw, 56px); margin-top: clamp(48px, 7vw, 80px); }
+/* ボタンで直す・Claude で直す */
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line); border-radius: 20px; overflow: hidden; margin-top: clamp(28px, 4vw, 48px); }
+.two > div { background: var(--bg-2); padding: clamp(22px, 2.6vw, 34px); }
+.two h3 { font-weight: 500; font-size: 18px; margin-bottom: 8px; }
+.two p { color: var(--fg-2); font-size: 15px; line-height: 1.8; }
+
+/* 帳面：だれの判断か */
+.who { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 28px; margin-top: 36px; font-size: 14px; }
+.who li { display: inline-flex; align-items: center; gap: 8px; }
+.who span { color: var(--fg-3); }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--fg-3); display: inline-block; }
+.dot.gold { background: var(--gold); }
+.dot.warn { background: #ffd60a; }
+.phones { display: grid; grid-template-columns: repeat(2, minmax(0, 420px)); justify-content: center; align-items: start; gap: clamp(16px, 3vw, 40px); margin-top: clamp(40px, 6vw, 72px); }
+.phones img, .waza-shots img, .rb img { border-radius: 18px; box-shadow: 0 0 0 1px var(--line); }
+.phones figcaption, .waza-shots figcaption { text-align: center; }
+
+/* 技 */
+.waza-shots { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 640px); justify-content: center; gap: clamp(16px, 3vw, 40px); align-items: center; margin-top: clamp(48px, 7vw, 80px); }
+
+/* 組み立て直す */
+.rb { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: clamp(28px, 4vw, 56px); align-items: start; margin-top: clamp(48px, 7vw, 80px); }
+.rb-score .stat-t { margin: 14px 0 0; }
+.stat-n.sm { font-size: clamp(48px, 7vw, 88px); }
+.lamps { list-style: none; margin: 24px 0 0; padding: 0; display: grid; gap: 6px; counter-reset: none; }
+.lamps li { display: grid; grid-template-columns: 2.6em 1fr auto; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 10px; background: var(--bg-2); border: 1px solid var(--line); font-size: 14px; }
+.lamps b { font-family: var(--mono); font-weight: 500; font-size: 12px; color: var(--fg-3); }
+.lamps small { font-size: 12px; color: var(--fg-3); }
+.lamps li.ok { border-color: rgba(48, 209, 88, 0.45); }
+.lamps li.ok small { color: #30d158; }
+.lamps li.part { border-color: rgba(255, 214, 10, 0.35); }
+.lamps li.part small { color: #ffd60a; }
+.lamps li.miss { opacity: 0.55; }
+.link.center { display: flex; justify-content: center; margin-top: 40px; }
+
+/* 学校と工房 */
+.where { display: grid; grid-template-columns: repeat(2, 1fr); gap: clamp(28px, 4vw, 56px); margin-top: clamp(48px, 7vw, 80px); max-width: 960px; margin-left: auto; margin-right: auto; }
 .where h3 { font-weight: 300; font-size: clamp(24px, 2.4vw, 30px); margin-bottom: 14px; }
 .where p { color: var(--fg-2); font-size: 16px; line-height: 1.85; }
 
-/* その先に */
-.scroll { margin: clamp(48px, 7vw, 88px) calc(-1 * var(--gut)) 0; overflow: hidden; mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); -webkit-mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); }
-.scroll-in { display: flex; width: max-content; animation: drift 160s linear infinite; }
-.scroll-in img { height: clamp(140px, 20vw, 240px); width: auto; max-width: none; }
-@keyframes drift { to { transform: translateX(-50%); } }
-.her { display: grid; grid-template-columns: 1.4fr 0.8fr 1.2fr; gap: clamp(12px, 2vw, 24px); align-items: end; margin-top: clamp(24px, 4vw, 44px); }
-.her img { border-radius: 12px; width: 100%; }
-.nanako { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: clamp(32px, 5vw, 72px); align-items: center; margin-top: clamp(96px, 12vw, 160px); }
-.nanako .head { text-align: left; margin: 0; }
-.nanako h3 { font-weight: 200; font-size: clamp(26px, 3.4vw, 44px); line-height: 1.3; }
-.nanako .body, .nanako .fine { text-align: left; }
-.nanako img { border-radius: 16px; box-shadow: 0 0 0 1px var(--line); }
+/* 伝統の数字と品物 */
 .stat { text-align: center; margin-top: clamp(96px, 12vw, 160px); }
 .stat .k { margin-bottom: 8px; }
 .stat-n { font-weight: 200; font-size: clamp(64px, 12vw, 160px); line-height: 1; background: linear-gradient(180deg, #fff 30%, #6e6e73); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .stat-t { color: var(--fg-2); font-size: clamp(16px, 1.6vw, 20px); margin: 24px auto 0; max-width: 30em; }
-.src { color: var(--fg-3); font-size: 12px; margin-top: 12px; }
-.naiku { max-width: 420px; margin: clamp(64px, 9vw, 110px) auto 0; }
-.naiku figcaption { text-align: center; }
-.naiku img { border-radius: 12px; filter: grayscale(1) contrast(1.05); opacity: 0.85; }
+.src { color: var(--fg-3); font-size: 12px; margin-top: 12px; line-height: 1.7; }
+.trad { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: clamp(32px, 5vw, 72px); align-items: center; margin-top: clamp(96px, 12vw, 160px); }
+.trad .head { text-align: left; margin: 0; }
+.trad h3 { font-weight: 200; font-size: clamp(26px, 3.4vw, 44px); line-height: 1.3; }
+.trad .body { text-align: left; }
+.her { display: grid; grid-template-columns: 0.75fr 1.25fr; gap: clamp(12px, 2vw, 24px); align-items: end; }
+.her img { border-radius: 12px; width: 100%; }
+
 
 /* Claude の使い方 */
 .uses { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border-radius: 20px; overflow: hidden; margin-top: clamp(48px, 7vw, 80px); }
@@ -164,15 +192,12 @@ h2 { font-weight: 200; font-size: clamp(32px, 5.4vw, 72px); line-height: 1.2; le
 .rv.in { opacity: 1; transform: none; }
 @media (prefers-reduced-motion: reduce) {
   .rv, .rv.zoom { opacity: 1; transform: none; transition: none; }
-  .scroll { overflow-x: auto; }
-  .scroll-in { animation: none; }
-  .scroll-in .dup { display: none; }
   html { scroll-behavior: auto; }
 }
 
 /* ---- 狭い画面（スマホ） ---- */
 @media (max-width: 900px) {
-  .split-sec, .nanako { grid-template-columns: 1fr; }
+  .split-sec, .trad, .rb { grid-template-columns: 1fr; }
   .uses { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 600px) {
@@ -189,8 +214,12 @@ h2 { font-weight: 200; font-size: clamp(32px, 5.4vw, 72px); line-height: 1.2; le
   .make-steps { max-width: 360px; margin: 0 auto; max-height: 560px; overflow: hidden; -webkit-mask-image: linear-gradient(#000 75%, transparent); mask-image: linear-gradient(#000 75%, transparent); }
   .make-draw { position: static; }
   .where { grid-template-columns: 1fr; }
-  .her { grid-template-columns: 1fr 1fr; }
-  .her figure:first-child { grid-column: 1 / -1; }
+  .her { grid-template-columns: 1fr; max-width: 420px; margin: 0 auto; }
+  .her figure:first-child { max-width: 260px; margin: 0 auto; }
+  .two { grid-template-columns: 1fr; }
+  .phones { grid-template-columns: 1fr; max-width: 420px; margin-left: auto; margin-right: auto; }
+  .waza-shots { grid-template-columns: 1fr; max-width: 420px; margin-left: auto; margin-right: auto; }
+  .lamps li { font-size: 13px; }
   .uses { grid-template-columns: 1fr; }
   .cta .btn { flex: 1 1 140px; justify-content: center; }
 }
