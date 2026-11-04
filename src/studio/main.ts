@@ -4,6 +4,7 @@
 // 渡す。  職人への指示書・原寸の型紙・3D データ。
 // 帳面   職人が声で決まりを足すと、その場で確かめが変わる。
 import { MAIN, addWorkshop, setActive } from "../rules/workshops";
+import { printHtml } from "../ui/print";
 import { side, summarize, sweepDesigns, sweepOne, type SweepDesign, type SweepResult } from "./sweep";
 import { SAMPLE_DESIGNS, SAMPLE_MAKER, SAMPLE_NOTE, isSample, outlineThumb, sampleState, sampleStone, tuneSample, fixProngSize } from "./samples";
 import { MAKING_STEPS, isCheckRule, makingRulesFor, stepsOfRule } from "../rules/making";
@@ -405,16 +406,17 @@ function presentGroups(): PresentGroup[] {
     { key: "section", label: "腕の断面", options: SHANK_SECTIONS.map((x) => ({ v: x, label: SHANK_SECTION_LABEL[x] })), on: session.built.ring.shank.section },
     { key: "setting", label: "留め方", options: [{ v: "4", label: "4 本爪" }, { v: "6", label: "6 本爪" }, { v: "bezel", label: "覆輪" }], on: st.style === "bezel" ? "bezel" : String(st.prongs.length) },
     { key: "metal", label: "地金", options: (["pt900", "k18yg", "k18pg", "k18wg"] as Metal[]).map((m) => ({ v: m, label: METAL_LABEL[m] })), on: s.metal },
-    {
+    ...(MULTI_STONE_UI ? [{
       key: "layout",
       label: "石の並び",
       options: [
         { v: "solo", label: "一粒" },
         { v: "trio", label: "三石" },
-        { v: "row", label: `横一列 ${GUIDES.multi.rowCount[1]}` },
+        // 横一列は並び方がまだ不自然なので、設計の欄と同じく出さない（2026-11-05 作者：見せるから選ぶと形がくずれた）
+        ...(ROW_AND_FREE_UI ? [{ v: "row", label: `横一列 ${GUIDES.multi.rowCount[1]}` }] : []),
       ],
       on: s.layout === "trio" || s.layout === "row" ? s.layout : s.stones?.length ? "" : "solo",
-    },
+    }] : []),
   ];
 }
 function renderPresent() {
@@ -704,7 +706,8 @@ function setMode(m: Mode) {
   $(".works-panel").hidden = m !== "works";
   if (m === "works") renderWorks();
   $(".pro").setAttribute("data-mode", m);
-  viewer.setAutoRotate(m === "make");
+  // 生むの画面でも、自動では回さない（2026-11-05 作者：勝手に回るのはいや。回すのは人がドラッグしたときだけ）
+  viewer.setAutoRotate(false);
   viewer.setLift(0);
   requestAnimationFrame(fitInsets);
   // 調整する場面は、シェードで始める（人が表示を選んだ後は、その表示のまま）
@@ -1407,7 +1410,8 @@ function renderCheck() {
  * 石を並べる欄を画面に出すか。2026-11-04：三石だけ、並び方を直したので出す（一粒と三石だけ）。
  * 横一列と、石を 1 つずつ置く（自由な並び）は、まだ並び方が不自然なので出さない（作者と決めた）。形の処理とテストは残す
  */
-const MULTI_STONE_UI = true;
+// 2026-11-05：石座の既定を「腕の間に挟む」にしてから、三石も脇の石が真ん中の石にめりこむ・浮く。直るまで、石を並べる欄は出さない
+const MULTI_STONE_UI = false;
 /** 横一列・石を置く（自由な並び）を画面に出すか */
 const ROW_AND_FREE_UI = false;
 // ---- 石を並べる：三石・横一列・石を置く（腕の上を押して足す・なぞって動かす・押して選ぶ） ----
@@ -1802,13 +1806,8 @@ function sheet(): string | undefined {
   const m = stone.measured;
   return patternSvg({ ...m, depthMm: stone.depthMm, shapeName: stone.shapeName, label: stone.label, date: new Date().toLocaleDateString("ja-JP") });
 }
-function openPrint(html: string) {
-  const w = window.open("", "_blank");
-  if (!w) return;
-  w.document.write(html);
-  w.document.close();
-  setTimeout(() => w.print(), 600);
-}
+/** 印刷（新しい窓を開かない。ポップアップを止めるブラウザでも印刷できる） */
+const openPrint = printHtml;
 function renderBuild() {
   if (kind === "band") return renderBandBuild();
   if (!session?.built || !stone) return;

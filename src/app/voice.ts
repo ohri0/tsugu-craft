@@ -49,12 +49,16 @@ export function bindVoice(btn: HTMLButtonElement, field: HTMLTextAreaElement | H
     btn.setAttribute("aria-pressed", "true");
     btn.innerHTML = `<span class="dot"></span>聞いています`;
     rec.onresult = (e) => {
+      // 毎回、はじめの結果から組み立て直す。Safari は resultIndex が 0 のまま、前に決まった言葉も毎回返すので、
+      // 足していくと同じ言葉が二重・三重に入った（2026-11-05 作者：技の頁の「話す」がうまくいかない）
+      let done = "";
       let interim = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) {
+      for (let i = 0; i < e.results.length; i++) {
         const r = e.results[i];
-        if (r.isFinal) finals += r[0].transcript;
+        if (r.isFinal) done += r[0].transcript;
         else interim += r[0].transcript;
       }
+      finals = done;
       field.value = before + finals + interim;
     };
     rec.onerror = (e) => opts.onError?.(e.error === "not-allowed" ? "マイクが使えません。書いて送ってください。" : "聞き取れませんでした。もう一度話すか、書いて送ってください。");

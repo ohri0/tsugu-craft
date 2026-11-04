@@ -40,7 +40,7 @@ describe("見本の作品", () => {
     const r = recheck(prong);
     const small = SAMPLE_DESIGNS.findIndex((d) => d.label === "小粒");
     expect(r[small]).toContain("prong-thin");
-    expect(r.filter((x, i) => i !== small).every((x) => x.length === 0)).toBe(true);
+    expect(r.filter((_x, i) => i !== small).every((x) => x.length === 0)).toBe(true);
     expect(sampleStone("round", 3.5).stone.longMm).toBeCloseTo(3.5);
   });
   it("見本は見本と分かる", () => {

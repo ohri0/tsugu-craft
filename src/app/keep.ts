@@ -3,6 +3,7 @@
 // そのあとに、ほかにできること：帳面を印刷・手本を撮る・思いついたことを話して残す・届いている質問（あるときだけ）。
 // 届いた質問に答えると、Claude が決まりの案にまとめ、職人が「これでいい」を押すと帳面に入る。
 import { runClaude } from "../claude/loop";
+import { printHtml } from "../ui/print";
 import { keepPrompt } from "../claude/prompt";
 import { TOOLS, type ProposeRuleInput, type ProposeRuleResult, type ToolHost } from "../claude/tools";
 import { summarizeMetrics } from "../craft/motion";
@@ -328,10 +329,7 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
   root.querySelectorAll<HTMLButtonElement>("[data-open]").forEach((b) => b.addEventListener("click", () => openPanel(b.dataset.open!)));
   root.querySelectorAll<HTMLButtonElement>(".panel .close").forEach((b) => b.addEventListener("click", () => (b.closest<HTMLElement>(".panel")!.hidden = true)));
   $(".print").addEventListener("click", () => {
-    const w = window.open("", "_blank");
-    if (!w) return;
-    w.document.write(book());
-    w.document.close();
+    printHtml(book());
   });
 
   // 工房の名前を変える（ここ 1 か所。帳面・学ぶ・技・スタジオのどこでもこの名前になる）
