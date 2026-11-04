@@ -540,5 +540,20 @@
       "prong",
       "finish"
     ]
+  },
+  {
+    "id": "no-ultrasonic-filled-stones",
+    "title": "しみこませた石は、超音波で洗わない",
+    "text": "エメラルドなど、ひびに油・樹脂・ワックスをしみこませた石は、超音波洗浄機で洗わない",
+    "reason": "超音波で、ひびを埋めた油や樹脂の処理がこわれることがある",
+    "source": {
+      "kind": "public",
+      "title": "GIA「宝石と超音波洗浄機」",
+      "url": "https://4cs.gia.edu/en-us/blog/gems-ultrasonic-cleaners/"
+    },
+    "date": "2026-11-04",
+    "steps": [
+      "finish"
+    ]
   }
 ]

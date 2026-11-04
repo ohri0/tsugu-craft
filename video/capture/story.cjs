@@ -23,7 +23,7 @@ const CURSOR_CSS = `#__cur{position:fixed;left:-60px;top:-60px;width:26px;height
 const ARROW = `<svg width="26" height="30" viewBox="0 0 26 30"><path d="M5 3v20.5l5.2-4.9 3.6 8.2 3.6-1.6-3.6-8.1h7.1z" fill="#fff" stroke="#111" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
 
 // 章ごとの画面の大きさ（なければ 1600×900）。帳面・学ぶ・技は、スマホの幅（480）で撮る（字が大きく読める。作者も iPhone で使う）
-const SIZE = { ledger3m: [480, 900], waza3m: [480, 900], learn3m: [480, 900] };
+const SIZE = { ledger3m: [480, 900], waza3m: [480, 900], learn3m: [480, 900], learn4m: [480, 900] };
 async function chapter(name, fn) {
   const D = `${OUT}/${name}/`;
   fs.rmSync(D, { recursive: true, force: true });
@@ -1170,6 +1170,142 @@ const CH = {
       await a.box('why2', '.thread .a-why', 10); a.mark('why2');
       await a.hold(40);
     }
+  },
+  // ================================================================ 最終案 4（2026-11-04 夜）
+  // つかみ：公開情報だけの指輪（太く高い）→ 職人の決まりの指輪へ、同じ構図のまま切り替わる（斜め・レンダー）
+  hook4: async (a) => {
+    const { p } = a;
+    await studio(a); await refine(a); await renderDisp(a);
+    await p.evaluate(() => window.__viewer.setView('angle')); await a.settle(400);
+    await p.click('.compare-btn'); await a.settle(2500);
+    a.mark('pub'); await a.box('ring', '.vp', 0);
+    console.log('hook4 公開情報だけ', await specsText(p));
+    await a.hold(45, { hide: true });
+    await p.click('.compare-back'); await a.settle(2500);
+    a.mark('craft');
+    console.log('hook4 職人の決まり', await specsText(p));
+    await a.hold(45, { hide: true });
+    await a.hold(60, { turn: 0.004, hide: true });
+  },
+  // いろいろな指輪（見せる・黒の上）：三石（脇ラウンド・脇ペア）・覆輪・角・地金。どれも同じ向きから回り始める
+  multi4: async (a) => {
+    const { p } = a;
+    await studio(a);
+    const trio = async (side) => {
+      await refine(a);
+      if (!(await p.locator('details.stones-sec[open]').count())) { await p.click('details.stones-sec > summary'); await a.settle(400); }
+      await p.click('.stones-sec .pick button[data-sk="並べ方"][data-v="trio"]'); await a.settle(2500);
+      await p.click(`.stones-sec .pick button[data-sk="脇の石"][data-v="${side}"]`); await a.settle(2500);
+    };
+    const manual = async (k, v) => { await refine(a); await openManual(a); await p.click(`.pick button[data-k="${k}"][data-v="${v}"]`).catch(() => console.log('multi4 なし', k, v)); await a.settle(1800); };
+    const preset = async (id) => {
+      if (await p.locator('.present:not([hidden])').count()) { await p.click('.pr-close'); await a.settle(600); }
+      await p.click('.tabs [data-mode="make"]'); await a.settle(300);
+      await p.click(`.presets button[data-preset="${id}"]`); await a.settle(600);
+      await a.until(() => !!(window.__studio.session && window.__studio.session.built), null, { label: id });
+      await a.settle(2000);
+    };
+    const show = async (name) => {
+      await p.click('.act-present'); await a.settle(1500);
+      await p.evaluate(() => window.__viewer.setView('angle')); await a.settle(400);
+      a.mark(name);
+      console.log('multi4', name, await p.evaluate(() => document.querySelector('.pr-panel')?.innerText.replace(/\s+/g, ' ').slice(-160)));
+      await a.hold(40, { hide: true });
+      await p.click('.pr-close'); await a.settle(800);
+    };
+    await preset('round'); await trio('round'); await manual('地金', 'pt900'); await show('trioRound');
+    await preset('oval'); await trio('pear'); await manual('地金', 'k18yg'); await show('trioPear');
+    await preset('emerald'); await manual('留め方', 'bezel'); await manual('腕の断面', 'hirauchi'); await manual('地金', 'pt900'); await show('bezel');
+    await preset('marquise'); await manual('腕の断面', 'kaku'); await manual('地金', 'k18yg'); await show('kaku');
+    await preset('pear'); await manual('腕の断面', 'hangouman'); await manual('地金', 'k18pg'); await show('pearPink');
+    await preset('round'); await manual('爪の本数', '6'); await manual('地金', 'k18wg'); await show('round6');
+  },
+  // 終わりの指輪（見せる・黒の上）：三角の石・K18。ゆっくり回るのを長く（柱の一文の下に）
+  hero4: async (a) => {
+    const { p } = a;
+    await studio(a);
+    await p.click('.act-present'); await a.settle(1500);
+    await p.evaluate(() => window.__viewer.setView('angle')); await a.settle(400);
+    a.mark('start'); await a.box('ring', '.vp', 0);
+    await a.hold(280, { hide: true });
+  },
+  // 細すぎると、赤く光る（爪だけ。腕はそのまま）→ 押すと、理由と直し方
+  red4: async (a) => {
+    const { p } = a;
+    await studio(a); await refine(a); await openManual(a); await renderDisp(a);
+    await p.evaluate(() => window.__viewer.setView('angle')); await a.settle(400);
+    await p.locator('.slider[data-s="r-prong"]').scrollIntoViewIfNeeded(); await a.settle(300);
+    await a.box('ring', '.vp', 0); await a.box('slider', '.slider[data-s="r-prong"]', 14); a.mark('start');
+    await a.hold(16, { turn: 0.002 });
+    for (let k = 0; k < 8; k++) {
+      const ok = await a.press('.slider[data-s="r-prong"] .sl-step[data-d="-1"]', { n: k ? 4 : 14, after: 3, turn: 0.002 });
+      if (!ok) break;
+      const pr = await probsOf(p);
+      if (pr.includes('prong-thin') && k >= 2) break;
+    }
+    a.mark('red'); await a.box('chip', '.verdict-chip', 8);
+    console.log('red4 の問題', (await probsOf(p)).join(','));
+    await a.hold(40, { turn: 0.002 });
+    await a.press('.verdict-chip', { n: 16, after: 2 });
+    await a.box('pop', '.fix-pop', 10); a.mark('pop');
+    console.log('red4 の札', await p.evaluate(() => document.querySelector('.fix-pop')?.innerText.replace(/\s+/g, ' ')));
+    await a.hold(50);
+  },
+  // 学ぶ（スマホの幅）：エメラルドは超音波で洗っていい？（帳面の資料の決まりから）
+  learn4m: async (a) => {
+    const { p } = a;
+    await p.goto(`${BASE}/app.html?nointro#learn`, { waitUntil: 'load' });
+    await a.settle(1500);
+    await a.box('page', '.view.ask', 0); a.mark('start');
+    await a.hold(16);
+    await a.box('composer', '.composer', 10);
+    await a.type('.composer textarea', 'エメラルドの指輪、超音波洗浄機で洗っていい？', { each: 2 });
+    a.mark('typed');
+    await a.hold(6);
+    await a.press('.composer .send', { after: 6 });
+    a.mark('wait');
+    await a.until(() => !!document.querySelector('.thread .a-short'), null, { label: '学ぶの答え', timeout: 180000 });
+    await a.settle(300);
+    await a.box('answer', '.thread', 10); await a.box('short', '.thread .a-short', 10); a.mark('answer');
+    console.log('learn4m の答え', await p.evaluate(() => document.querySelector('.thread')?.innerText.replace(/\s+/g, ' ')));
+    await a.hold(40);
+    if (await p.locator('.thread .why-btn').count()) {
+      await a.press('.thread .why-btn', { after: 4 });
+      a.mark('why');
+      await a.scroll('.thread .a-why', { block: 'center', n: 20 });
+      await a.box('why2', '.thread .a-why', 10); a.mark('why2');
+      await a.hold(40);
+    }
+  },
+  // 同じ決まりで（設計の画面）：一粒・三石（脇ラウンド）・三石（脇ペア）・覆輪・断面がちがっても「作れます」
+  same4: async (a) => {
+    const { p } = a;
+    await studio(a); await refine(a); await openManual(a); await renderDisp(a);
+    const preset = async (id) => {
+      await p.click('.tabs [data-mode="make"]'); await a.settle(300);
+      await p.click(`.presets button[data-preset="${id}"]`); await a.settle(600);
+      await a.until(() => !!(window.__studio.session && window.__studio.session.built), null, { label: id });
+      await a.settle(1500);
+      await refine(a); await openManual(a); await renderDisp(a);
+    };
+    const trio = async (side) => {
+      if (!(await p.locator('details.stones-sec[open]').count())) { await p.click('details.stones-sec > summary'); await a.settle(400); }
+      await p.click('.stones-sec .pick button[data-sk="並べ方"][data-v="trio"]'); await a.settle(2500);
+      await p.click(`.stones-sec .pick button[data-sk="脇の石"][data-v="${side}"]`); await a.settle(2500);
+    };
+    const pick = async (k, v) => { await p.click(`.pick button[data-k="${k}"][data-v="${v}"]`).catch(() => console.log('same4 なし', k, v)); await a.settle(1500); };
+    const shoot = async (name) => {
+      await p.evaluate(() => window.__viewer.setView('angle')); await a.settle(400);
+      await p.evaluate(() => { const r = document.querySelector('.studio-refine'); if (r) r.scrollTop = 0; }); await a.settle(300);
+      a.mark(name); await a.box(`chip_${name}`, '.verdict-chip', 8);
+      console.log('same4', name, (await probsOf(p)).join(',') || '作れます', await specsText(p));
+      await a.hold(45, { turn: 0.004, hide: true });
+    };
+    await preset('round'); await pick('腕の断面', 'kouman'); await shoot('round');
+    await trio('round'); await shoot('trioRound');
+    await preset('oval'); await trio('pear'); await pick('腕の断面', 'hirauchi'); await shoot('trioPear');
+    await preset('emerald'); await pick('留め方', 'bezel'); await pick('腕の断面', 'hangouman'); await shoot('bezel');
+    await preset('marquise'); await pick('腕の断面', 'kaku'); await shoot('marquise');
   },
   // Claude が聞きに来る：帳面 → Claude から質問 → 答える → 打つ → 案 → 帳面に入れる
   ask: async (a) => {

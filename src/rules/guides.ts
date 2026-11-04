@@ -113,7 +113,7 @@ export const GUIDES = {
     /** 内側の線 ＝ 石の縁 ＋ この値（mm）。腕のザグり（石の下側と腕の間）にも同じすき間を借りる（geometry/notch.ts） */
     clearanceMm: 0.04,
     wallMm: 0.5,
-    /** 壁の厚みの最低：0.45 mm 以上（docs/RESEARCH-setting.md の T22）。5 mm より小さい石は 0.5 mm で足りる（T15） */
+    /** 壁の厚みの最低：0.45 mm 以上（docs/RESEARCH-setting.md の T22。2026-11-04 に原文 p.5 で確かめた）。5 mm より小さい石は 0.5 mm で足りる（T15） */
     wallMinMm: 0.45,
     /** 上の端が上側にかかる割合と上限（mm） */
     crownCoverRatio: 0.3,

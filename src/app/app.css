@@ -278,6 +278,7 @@ main { max-width: 760px; margin: 0 auto; padding: 20px 16px calc(40px + env(safe
 .cid:hover { border-color: var(--accent); background: var(--accent-weak); }
 .conf { margin-left: auto; color: var(--fg-3); font-variant-numeric: tabular-nums; }
 .tag.warn { background: var(--caution-weak); border-color: transparent; color: var(--caution); }
+.tag.ok { background: var(--ok-weak); border-color: transparent; color: var(--ok); }
 .sunsure { margin: 4px 0 0; font-size: 11px; color: var(--fg-3); }
 .gnote { margin: 6px 0 0; padding: 6px 9px; border-radius: 5px; background: var(--field); border: 1px solid var(--line); font-size: 12px; color: var(--fg-2); }
 .gnote b { color: var(--fg); font-family: var(--mono); font-size: 11px; }

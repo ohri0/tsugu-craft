@@ -18,7 +18,7 @@ const all = [...steps("prong", "hand"), ...steps("prong", "cast"), ...steps("bez
 
 describe("作り方の札：1 行の頭", () => {
   it("「見出し：文」は、見出しを頭にする（間をあける頭）", () => {
-    expect(splitLead("SV925：約 593 ℃、そのあと水で冷やす。")).toEqual({ lead: "SV925", text: "約 593 ℃、そのあと水で冷やす。", head: true });
+    expect(splitLead("SV925：約 593 ℃。")).toEqual({ lead: "SV925", text: "約 593 ℃。", head: true });
   });
   it("見出しがなければ、はじめの「は」「、」の前を頭にする（間をあけない頭）", () => {
     expect(splitLead("地金は固まるとき縮む。")).toEqual({ lead: "地金", text: "は固まるとき縮む。", head: false });

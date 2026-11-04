@@ -4,7 +4,9 @@
 #  1. final_build.py：台本（final.json。拍で書いた場面・言葉・音楽・声）
 #  2. reel.py：本物の画面のこまに、カメラ・つなぎ・大きな言葉 → work/vc/final_video.mp4（＋効果音の合図）
 #  3. bgm3.py：音楽（自作）　4. sfx.py：効果音（自作）
-#  5. 声：作者の録音 work/voice/n<場面>.wav があればそれ、なければ機械の声 work/voice/k_n<場面>.wav（tts_kokoro.py）
+#  5. 声：作者の録音 work/voice/n<番号>.wav があればそれ、なければ機械の声 work/voice/k<案>_n<番号>.wav（tts_kokoro.py）
+#     最終案 4 から：作者の録音は台本（final_build4.py）が整えて（無音を切る・大きさをそろえる → work/voice/_own/）、その長さで場面をのばす・つめる。
+#     絵の台本が前と変わったら、--no-video でも画面を作り直す（作者の声で場面の長さが変わるため）
 #  6. 混ぜる → work/vc/継ぐ_デモ_最終案1.mp4（音楽と効果音だけ）と、声入り（_仮声 か _声）
 import json, os, subprocess, sys
 
@@ -45,8 +47,16 @@ tl = json.load(open(os.path.join(HERE, JSON)))
 total = tl["len"] * 60 / tl.get("bpm", 120)
 video = os.path.join(VC, f"{TAG}_video.mp4")
 cues = os.path.join(VC, f"{TAG}_video_cues.json")
-if "--no-video" not in args or not os.path.exists(video):
+# 画面の台本（絵・字・長さ）の指紋。前に作った画面と同じなら、--no-video で作り直さない
+import hashlib  # noqa: E402
+sig = hashlib.sha1(json.dumps([tl["clips"], tl["text"], tl["len"]], sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+sigf = video + ".sig"
+same = os.path.exists(video) and os.path.exists(sigf) and open(sigf).read() == sig
+if "--no-video" not in args or not same:
+    if "--no-video" in args:
+        print("画面の台本が前と変わったので、画面も作り直します（作者の声に合わせて、場面の長さが変わったなど）")
     run([PY, "-I", os.path.join(HERE, "reel.py"), os.path.join(HERE, JSON), video, jobs])
+    open(sigf, "w").write(sig)
 bgm = os.path.join(VC, f"{TAG}_bgm.wav")
 run([PY, "-I", os.path.join(HERE, BGM), os.path.join(HERE, JSON), bgm])
 fx = os.path.join(VC, f"{TAG}_sfx.wav")
@@ -59,15 +69,16 @@ lines, mine = [], 0
 prev_end = 0.0
 vs = sorted(tl["voice"], key=lambda x: x["at"])
 head = lambda v: v["at"] * 60 / tl.get("bpm", 120) + 0.15  # noqa: E731
+OWN_T = float(tl.get("own_tempo", 1.0) or 1.0)  # 作者が良いと言ったときだけ 1 より大きい（OWN_TEMPO）
 for i, v in enumerate(vs):
-    own = os.path.join(VO, f"n{v['n']}.wav")
+    own = os.path.join(WORK, v["own"]) if v.get("own") else os.path.join(VO, f"n{v['n']}.wav")  # 台本が整えた録音（無音を切った・大きさをそろえた）
     tts = os.path.join(VO, f"{VPRE}n{v['n']}.wav")
     f = own if os.path.exists(own) else tts if os.path.exists(tts) else None
     if not f:
         continue
     mine += f == own
     at = max(head(v), prev_end + 0.3)
-    d, tempo = dur(f), 1.0
+    d, tempo = dur(f), (OWN_T if f == own else 1.0)
     if f != own and PLAN != "1" and i + 1 < len(vs):
         room = head(vs[i + 1]) - 0.3 - at
         if 0 < room < d:

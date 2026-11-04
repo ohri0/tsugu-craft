@@ -38,7 +38,7 @@
 | T19 | 職人の掲示板「楕円の覆輪の長さ」ほか | https://orchid.ganoksin.com/t/calculating-bezel-length-for-oval-cabs/43249 ／ https://orchid.ganoksin.com/t/bench-tips-stock-length-for-band-rings-and-bezels/10278 ／ https://orchid.ganoksin.com/t/ring-stock-measurement/46843 | 帯の長さ ＝（内側の直径 ＋ 帯の厚み）× π（厚みの真ん中の線で測るから）。楕円は長さと幅を足して 2 で割ってから同じ式（近い値）。切る前に合わせてみて、少し短めに（S28 と同じ式） | 職人の声 |
 | T20 | 職人の掲示板「マーキースのカボションの留め」「マーキースの覆輪」 | https://orchid.ganoksin.com/t/setting-marquis-cabochons/35498 ／ https://orchid.ganoksin.com/t/full-bezel-setting-of-a-marquise-shape-stone/58062 | 角のある石（プリンセス・洋なし・マーキース）は、辺を先に倒し、角はごく軽く打つ（角が欠けないように）。角に切れ目を入れる必要はなかった。縁がいちばん幅広い所をまず見て、座は壁の上の端から同じ深さでぐるりと彫る | 職人の声 |
 | T21 | 米国特許 US10602814B1「宝石の留め」（`docs/RESEARCH-rules.md` と同じ） | https://patents.google.com/patent/US10602814 | 覆輪の壁はふつう 0.50〜0.80 mm（もっと厚くする職人もいる）。石の縁が壁に入る深さ 0.10〜0.20 mm | 特許文書 |
-| T22 | 地金の会社 D の CAD/CAM の生産の決まり（第三者の写し。`docs/RESEARCH-rules.md` の「Stuller」） | https://cdn.hackaday.io/files/1657037089437152/CADCAMProductionStandards.pdf | メレの爪 0.45 mm 以上。石の一番下から指側の面まで 0.5 mm。覆輪の壁 0.45 mm 以上。石座の輪どうし・座どうしの間 0.4 mm 以上。爪の先の丸みの根元を上面の高さに。**未確認**：「座は爪の 25% より深く切らない」という要約が 1 件だけ出た（T1・T5 の 30〜50% と食いちがう） | メーカー指針 |
+| T22 | 地金の会社 D の CAD/CAM の生産の決まり（第三者の写し。`docs/RESEARCH-rules.md` の「Stuller」） | https://cdn.hackaday.io/files/1657037089437152/CADCAMProductionStandards.pdf | メレの爪 0.45 mm 以上。石の一番下から指側の面まで 0.5 mm。覆輪の壁 0.45 mm 以上。石座の輪どうし・座どうしの間 0.4 mm 以上。爪の先の丸みの根元を上面の高さに。「座は爪の 25% より深く切らない」（p.3。T1・T5 の 30〜50% と食いちがう）。2026-11-04 に PDF を頁の画像で読み、覆輪 0.45 mm（p.5）とあわせて原文で確かめた | メーカー指針 |
 | T23 | 技の解説記事「CAD で爪の石座を作る」（宝飾の CAD の講師）と、業界団体の同じ記事 | https://ganoksin.com/article/cad-modeling-prong-settings ／ https://www.mjsa.org/publications/online-library/modeling-prong-settings | 鋳造・石留め・仕上げを知って作ることが大事。**未確認**：「縁から一番下までを 3 つに分けて、上の石座の輪の位置と爪・輪の太さを決める」「上の輪と下側（パビリオン）のすき間はダイヤで 0.2〜0.3 mm、色石で 0.3〜0.5 mm」という要約が 1 件だけ出た。2 回目の検索では確かめられず | 技の解説記事（数字は未確認） |
 | T24 | 職人の掲示板「つめ形の爪の CAD の決まり」 | https://orchid.ganoksin.com/t/recommendation-cad-manufacturing-guidelines-for-claw-prongs/57880 | つめ形（クロー）の先の高さは、人によって上面の 0.75 mm 上から 3〜5 mm 上までとばらばら。仕上がりの先は上面より下に、という声も | 職人の声（弱い） |
 | T25 | 工具と部品の販売店 E の、既製の石座の寸法 | https://www.ottofrei.com/products/round-4-prong-die-struck-settings-style-975 ／ https://www.ottofrei.com/products/round-center-head-4-prong-cast-crt4-25ct-5ct ／ https://www.ottofrei.com/products/round-peg-4-prong-die-struck-setting-3-11mm-gold-platinum | 4 本爪、1 ct（6.5 mm）：高さ 8.6 mm・上 6.6 mm・下 2.7 mm（打ち抜き）／高さ 9.6 mm・上 7.1 mm・下 2.5 mm（鋳造）。0.12 ct（3.0 mm）：高さ 4.75 mm・上 3.9 mm・下 2.2 mm。**未確認**：「上」「下」がどこを測った幅か | 販売店（製品の値） |
@@ -98,7 +98,7 @@
 | 座で削る量 | 爪の太さの 40〜50% | T1、T7（横の爪） |
 | 同上 | 30〜50% | T5 |
 | 同上 | 爪の太さの 50% 以上は残す | T11 |
-| 同上（食いちがい） | 25% より深くしない | T22（**未確認**、要約 1 件のみ） |
+| 同上（食いちがい） | 25% より深くしない | T22（p.3、2026-11-04 に原文で確かめた） |
 | 石と爪の位置 | 石の縁からまっすぐ下ろした線が、座の所で爪の**半分**にかかる。残り半分が石の外の立った壁になる | T10 |
 | 座の高さの印 | コンパスで爪の内側に線を引く。まず 1/3 ほど、それから半分近くまで | T10、S23 |
 | バーの角度 | 90 度。よいカットのダイヤの上側・縁・下側の角度に合う。縁の厚い石は刃先を平らにしたバー、または深さ止め | T6、T35、T36 |

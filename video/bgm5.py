@@ -537,17 +537,19 @@ for bar in range(nbars):
 
     # ---------------- パッド（奥に、広く）
     if name not in ("hook",):
-        padlv = {"intro": 0.55, "title": 0.7, "intro2": 0.55, "verse": 0.5, "tension": 0.55, "build": 0.6, "drop": 0.62, "groove": 0.5, "verse2": 0.45,
+        padlv = {"intro": 0.55, "montage": 0.6, "title": 0.7, "intro2": 0.55, "verse": 0.5, "tension": 0.55, "build": 0.6, "drop": 0.62, "groove": 0.5, "verse2": 0.45,
                  "light": 0.5, "bridge": 0.7, "breakdown": 0.55, "build2": 0.55, "reveal": 0.55, "final": 0.65, "outro": 0.6}.get(name, 0.5)
         put("pad", padnotes(upper, BAR + 0.6, padlv), t0, 1.0, rev=0.35)
         if name in ("drop", "final", "bridge"):
             put("pad", padnotes([u + 12 for u in upper[1:]], BAR + 0.6, padlv * 0.35, voices=3), t0, 1.0, rev=0.5)
 
     # ---------------- 低音（サブ）：根音を小節の頭から
-    if name in ("intro", "title", "intro2"):
+    if name in ("intro", "title", "intro2", "montage"):
         put("bass", sub(root, BAR * 0.98, 0.55), t0)
     elif name == "hook":
-        pass
+        if SC.get("hook_drone"):  # 最終案 4：打つ字の下に、低い音だけ（静けさの中で、キーの音が聞こえるように）
+            put("bass", sub(root, BAR * 0.99, 0.3), t0)
+            put("pad", padnotes([u for u in upper[1:]], BAR + 0.6, 0.28, voices=3), t0, 1.0, rev=0.4)
     elif name == "build" and b >= s["at"] + s["len"] - 8:
         pass  # ドロップの前の 2 小節は、低音を抜く（戻ってきたときに大きく感じる）
     elif name == "reveal" and b < SC.get("reveal_hit", 1e9):
@@ -780,7 +782,7 @@ for s_ in secs:
             bus["pad"][a:b, c] = stft_tv(bus["pad"][a:b, c].astype(np.float64), lambda tt, f: lp(f, f0 * (f1 / f0) ** min(1.0, max(0.0, tt / d)) , 1.2))
 mix = drums * 1.0 + bus["bass"] * 0.16 + bus["pad"] * 0.62 + bus["lead"] * 0.95 + bus["fx"] * 0.6 + wet * 1.1 + dl * 0.75
 # 段ごとの大きさ（静かな所は静かに、ドロップは大きく：つまらない平らな曲にしない）
-LVL = {"hook": 0.9, "intro": 0.7, "title": 0.8, "intro2": 0.66, "verse": 0.72, "tension": 0.62, "build": 0.8, "drop": 1.0, "groove": 0.88,
+LVL = {"hook": 0.9, "intro": 0.7, "montage": 0.85, "title": 0.8, "intro2": 0.66, "verse": 0.72, "tension": 0.62, "build": 0.8, "drop": 1.0, "groove": 0.88,
        "verse2": 0.74, "light": 0.7, "bridge": 0.78, "breakdown": 0.6, "build2": 0.76, "reveal": 0.86, "final": 1.0, "outro": 0.9}
 lvc = np.ones(N, np.float32) * 0.8
 for s_ in secs:
