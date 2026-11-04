@@ -37,7 +37,9 @@ export function loadLedger(): Ledger {
         const have = new Set(l.rules.map((r) => r.id));
         // リポジトリで外した決まり（retired）は、このブラウザに残っていても出さない
         const retired = new Set((repoLedger as { retired?: string[] }).retired ?? []);
-        return named({ ...l, owner: repo.owner ?? l.owner, rules: [...l.rules.filter((r) => !retired.has(r.id)), ...repo.rules.filter((r) => !have.has(r.id))] });
+        // 職人がこのブラウザで消した決まり（removed）も、リポジトリの帳面から足し直さない
+        const removed = new Set(l.removed ?? []);
+        return named({ ...l, owner: repo.owner ?? l.owner, rules: [...l.rules.filter((r) => !retired.has(r.id)), ...repo.rules.filter((r) => !have.has(r.id) && !removed.has(r.id))] });
       }
     }
   } catch {

@@ -130,6 +130,8 @@ export interface Ledger<P extends string = ParamId> {
   rules: Rule<P>[];
   /** 誰の帳面か（工房ごとの帳面の名前。なければ、決まりをいちばん多く残した職人の名前） */
   owner?: string;
+  /** 職人が消した決まりの id（リポジトリの帳面から読み直しても、足し直さない） */
+  removed?: string[];
 }
 
 const SKYJEMS = { kind: "public", title: "Prong wire（Skyjems）", url: "https://skyjems.ca/pages/encyclopedia-prong-wire" } as const;
@@ -256,6 +258,15 @@ export function addRule<P extends string = ParamId>(ledger: Ledger<P>, rule: Omi
   const replaces = rule.replaces ?? current?.id;
   const added: Rule<P> = { ...rule, id, ...(checks ? { checks } : {}), ...(replaces ? { replaces } : {}) };
   return { ...ledger, rules: [...ledger.rules, added] };
+}
+
+/**
+ * 決まりを消す（まちがえて入れた決まり・いらない資料の決まり）。消した id は removed に残し、読み直しても戻らない。
+ * その決まりが前の決まりを置き換えていたなら、前の決まりがまた効く（置き換える前に戻る）。
+ */
+export function removeRule<P extends string = ParamId>(ledger: Ledger<P>, id: string): Ledger<P> {
+  if (!ledger.rules.some((r) => r.id === id)) return ledger;
+  return { ...ledger, rules: ledger.rules.filter((r) => r.id !== id), removed: [...new Set([...(ledger.removed ?? []), id])] };
 }
 
 /** 決まりを外す（最後に足した決まりだけ。置き換えた決まりは元に戻る） */

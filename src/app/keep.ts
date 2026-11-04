@@ -9,9 +9,9 @@ import { TOOLS, type ProposeRuleInput, type ProposeRuleResult, type ToolHost } f
 import { summarizeMetrics } from "../craft/motion";
 import { bookHtml } from "../rules/book";
 import { ringGaps } from "../rules/gaps";
-import { activeRules, addRule, sourceLabel, type Rule } from "../rules/ledger";
+import { activeRules, addRule, removeRule, sourceLabel, type Rule } from "../rules/ledger";
 import { MAIN } from "../rules/workshops";
-import { groupQuestions, markAnswered, type QuestionGroup } from "../rules/teacher-queue";
+import { groupQuestions, markAnswered, removeQuestions, type QuestionGroup } from "../rules/teacher-queue";
 import { mountMotion, savedRecords } from "../ui/motion-ui";
 import { mountInterview, type Interview } from "./interview";
 import { bookLabel, masterName } from "./master";
@@ -87,6 +87,27 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
     root.querySelectorAll<HTMLButtonElement>(".inbox [data-answer]").forEach((b) =>
       b.addEventListener("click", () => openAnswer(b.closest("li")!, groups[Number(b.dataset.answer)])),
     );
+    // まちがって届いた質問（声の聞きまちがいなど）を消す。似た質問をまとめた分も一緒に消える
+    root.querySelectorAll<HTMLButtonElement>(".inbox [data-del-q]").forEach((b) =>
+      b.addEventListener("click", () => {
+        const g = groups[Number(b.dataset.delQ)];
+        if (!g || !confirm(`この質問を消しますか？\n「${g.question}」${g.count > 1 ? `\n（似た質問 ${g.count} 件をまとめて消します）` : ""}`)) return;
+        store.setQueue(removeQuestions(store.queue(), g.ids));
+        refresh();
+      }),
+    );
+  }
+
+  /** 決まりを消す（まちがえて入れた決まり・いらない資料の決まり）。前の決まりを置き換えていたら、前の決まりに戻る */
+  function bindRuleDelete() {
+    root.querySelectorAll<HTMLButtonElement>("[data-del-rule]").forEach((b) =>
+      b.addEventListener("click", () => {
+        const r = store.ledger().rules.find((x) => x.id === b.dataset.delRule);
+        if (!r || !confirm(`この決まりを帳面から消しますか？\n「${r.title}」\n設計の確かめと、学ぶ人への答えに使われなくなります。`)) return;
+        store.setLedger(removeRule(store.ledger(), r.id));
+        refresh();
+      }),
+    );
   }
 
   // ---- 職人の決まり（札） ----
@@ -96,7 +117,7 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
       <p class="rc-title">${esc(r.title)}</p>
       <p class="rc-text">${esc(r.text)}</p>
       ${r.quote ? `<blockquote>「${esc(r.quote)}」</blockquote>` : ""}
-      <p class="rc-meta"><span>${who ? `職人：${esc(who)}` : ""} ・ ${esc(r.date)}</span><span class="rc-video" data-rule="${esc(r.id)}"></span></p>
+      <p class="rc-meta"><span>${who ? `職人：${esc(who)}` : ""} ・ ${esc(r.date)}</span><span class="rc-acts"><span class="rc-video" data-rule="${esc(r.id)}"></span><button type="button" class="linklike rc-del" data-del-rule="${esc(r.id)}">消す</button></span></p>
     </li>`;
   }
 
@@ -116,9 +137,10 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
     const item = (r: Rule) => `<li class="rule-card">
       <p class="rc-title">${esc(r.title)}${r.unverified ? ` <span class="tag warn">未確認</span>` : ""}${r.source.kind === "provisional" ? ` <span class="tag">仮</span>` : ""}</p>
       <p class="rc-text">${esc(r.text)}</p>
-      <p class="rc-meta"><span>${src(r)} ・ ${esc(r.date)}</span></p>
+      <p class="rc-meta"><span>${src(r)} ・ ${esc(r.date)}</span><button type="button" class="linklike rc-del" data-del-rule="${esc(r.id)}">消す</button></p>
     </li>`;
     $(".rule-cards.pub").innerHTML = others.map(item).join("");
+    bindRuleDelete();
   }
 
   /** 職人が動画で見せた答えがあれば、札に再生のボタンを出す */
@@ -178,6 +200,7 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
       <div class="q-line"><p class="q-text">${esc(g.question)}</p><span class="q-count">${g.count > 1 ? `${g.count} 人から` : "1 人から"}</span></div>
       <p class="q-why">${esc(g.whyUnanswered)}</p>
       <div class="answer-slot"><button type="button" class="primary voice-cta" data-answer="${i}">${MIC}${canListen() ? "声で答える" : "答える"}</button></div>
+      <button type="button" class="linklike q-del" data-del-q="${i}">この質問を消す</button>
     </li>`;
   }
 
