@@ -4,6 +4,7 @@ import { resample, toCounterClockwise, type Point } from "../geometry/polygon";
 import type { RingDesign } from "../geometry/ring";
 import type { ShankResult } from "../geometry/shank";
 import { findThinSpots, type ThinSpot } from "../geometry/section-thin";
+import { stoneSpaces } from "../geometry/multi";
 import { tipMeasures, type SettingResult } from "../geometry/setting";
 import { GUIDE_NOTE, GUIDES, type Guides, type StonePosition } from "./guides";
 import { prongMinOverride } from "./ledger";
@@ -38,13 +39,27 @@ export const FIXES = {
   thickerBand: { label: "腕を厚くする", effectOnLook: "指に当たる所が少し厚く、少し重くなる" },
   widerBand: { label: "腕の幅を広げる", effectOnLook: "腕が少し太く見える" },
   bluntTip: { label: "先を丸く・厚くする", effectOnLook: "とがった線が少しやわらかく見える" },
+  spreadStones: { label: "石の間を広げる", effectOnLook: "石と石の間に地金が少し見え、並びが少し長くなる" },
+  smallerStones: { label: "横の石を小さくする", effectOnLook: "真ん中の石が引き立ち、横の石は控えめになる" },
 } as const satisfies Record<string, Omit<FixOption, "id">>;
 
 function fix(...ids: FixId[]): FixOption[] {
   return ids.map((id) => ({ id, ...FIXES[id] }));
 }
 
-export type CheckId = "finger-gap" | "prong-thin" | "tip-height" | "hold" | "prong-gap" | "corner" | "bezel-wall" | "band-thin" | "band-narrow" | "band-spike";
+export type CheckId =
+  | "finger-gap"
+  | "prong-thin"
+  | "tip-height"
+  | "hold"
+  | "prong-gap"
+  | "corner"
+  | "bezel-wall"
+  | "band-thin"
+  | "band-narrow"
+  | "band-spike"
+  | "stone-space"
+  | "metal-space";
 
 /** 問題の場所（画面で赤くする所） */
 export type CheckTarget =
@@ -57,7 +72,9 @@ export type CheckTarget =
   | { kind: "bezel" }
   | { kind: "prong"; index: number }
   | { kind: "corner"; index: number; point: Point }
-  | { kind: "gap"; fromT: number; toT: number; point?: Point };
+  | { kind: "gap"; fromT: number; toT: number; point?: Point }
+  /** となりの石・石座の間が狭い所（point は指輪の座標 mm。stones は 2 つの石の番号） */
+  | { kind: "space"; point: [number, number, number]; stones: [number, number] };
 
 export interface Problem {
   /** 確かめの種類と場所（例：prong-thin:2） */
@@ -74,6 +91,11 @@ export interface Problem {
   reason: string;
   options: FixOption[];
   target: CheckTarget;
+  /**
+   * 石を並べた指輪で、どの石の問題か（RingDesign.stones の番号。なければ 0 ＝ 真ん中の石）。
+   * target の爪・角・縁の位置は、この石の座標
+   */
+  stone?: number;
 }
 
 export interface CheckOptions {
@@ -141,11 +163,67 @@ export function cornerDistances(s: SettingResult): number[] {
 export function checkRing(ring: RingDesign, opts: CheckOptions = {}): Problem[] {
   const out = [...checkSetting(ring.setting, ring.culetGapMm, opts), ...checkShank(ring.shank, opts)];
   // 爪の間が空きすぎの所に、赤い印を出すための縁の点（石の座標）
-  for (const p of out) {
-    if (p.target.kind !== "gap") continue;
-    const { fromT, toT } = p.target;
-    const mid = (fromT + ((toT - fromT + 1) % 1) / 2) % 1;
-    p.target.point = outlinePointAtT(ring.params.stone.outlineMm, mid);
+  const gapPoints = (list: Problem[], outline: readonly Point[]) => {
+    for (const p of list) {
+      if (p.target.kind !== "gap") continue;
+      const { fromT, toT } = p.target;
+      const mid = (fromT + ((toT - fromT + 1) % 1) / 2) % 1;
+      p.target.point = outlinePointAtT(outline, mid);
+    }
+  };
+  gapPoints(out, ring.params.stone.outlineMm);
+  const stones = ring.stones ?? [];
+  if (stones.length < 2) return out;
+  // 石を並べた指輪：ほかの石も、一粒と同じ確かめを石ごとに（名前に石の番号をつける）
+  out.forEach((p) => {
+    if (p.check.startsWith("band")) return;
+    p.stone = 0;
+    p.where = `石 1・${p.where}`;
+  });
+  stones.slice(1).forEach((st, k) => {
+    const i = k + 1;
+    const list = checkSetting(st.setting, st.culetGapMm, opts);
+    gapPoints(list, st.params.outlineMm);
+    for (const p of list) out.push({ ...p, id: `s${i}:${p.id}`, where: `石 ${i + 1}・${p.where}`, stone: i });
+  });
+  out.push(...checkSpacing(ring, opts));
+  return out;
+}
+
+/** となりの石・石座の間（石を並べた指輪だけ）。数字は GUIDES.multi（仮の目安） */
+export function checkSpacing(ring: RingDesign, opts: CheckOptions = {}): Problem[] {
+  const g: Guides = opts.guides ?? GUIDES;
+  const out: Problem[] = [];
+  for (const sp of stoneSpaces(ring.stones)) {
+    const name = `石 ${sp.a + 1} と 石 ${sp.b + 1} の間`;
+    if (sp.stoneGapMm < g.multi.stoneGapMinMm - 1e-9) {
+      out.push({
+        id: `stone-space:${sp.a}-${sp.b}`,
+        check: "stone-space",
+        where: `${name}（石の縁どうし）`,
+        current: sp.stoneGapMm <= 0 ? "石どうしが当たる" : mm(sp.stoneGapMm),
+        required: `${mm(g.multi.stoneGapMinMm)} 以上（仮の目安）`,
+        currentValue: sp.stoneGapMm,
+        requiredValue: g.multi.stoneGapMinMm,
+        reason: "石どうしが当たると、縁が欠けやすい",
+        options: fix("spreadStones", "smallerStones"),
+        target: { kind: "space", point: sp.stoneMid, stones: [sp.a, sp.b] },
+      });
+    } else if (sp.metalGapMm > 0 && sp.metalGapMm < g.multi.metalGapMinMm - 1e-9) {
+      // 石座どうしが重なる（つながる）ときは、ロウ付けで一つにするので数えない。少しだけ離れているときが困る
+      out.push({
+        id: `metal-space:${sp.a}-${sp.b}`,
+        check: "metal-space",
+        where: `${name}（石座どうし）`,
+        current: mm(sp.metalGapMm),
+        required: `${mm(g.multi.metalGapMinMm)} 以上、または つなげる（仮の目安）`,
+        currentValue: sp.metalGapMm,
+        requiredValue: g.multi.metalGapMinMm,
+        reason: "石座の間のすき間が狭いと、磨きの道具が入らず汚れもたまり、鋳造では型のうすい壁が欠けやすい",
+        options: fix("spreadStones", "smallerStones"),
+        target: { kind: "space", point: sp.metalMid, stones: [sp.a, sp.b] },
+      });
+    }
   }
   return out;
 }

@@ -83,10 +83,36 @@ export interface ShankResult {
   notchBallDiameterMm: number;
   /** ザグりの球（真ん中の x・y、くぼみの底の z、半径）。削っていなければ null */
   notchBall: { cx: number; cy: number; bottomZ: number; radiusMm: number } | null;
+  /**
+   * 石ごとのザグりの球（石を並べた指輪では石の数だけ。石が 1 つなら notchBall と同じ 1 つ）。
+   * 真ん中の x・y・底の z は、その石の座標（腕を x 軸のまわりに −phi 回して、石を真上に置いた座標）
+   */
+  notchBalls: { cx: number; cy: number; bottomZ: number; radiusMm: number; phi: number }[];
   /** 使った肩（なければ null） */
   head: ShankHead | null;
   /** 石座の下の輪を受ける座（溝）のいちばん深い所（mm。その所の腕の上の面から）。座を作らなければ 0 */
   railSeatDepthMm: number;
+}
+
+/**
+ * 腕の上の、石 1 つ分の座：石の場所（腕のいちばん上からの角度 phi、ラジアン。x 軸のまわり、＋ は +y の側）と、
+ * その石の座標（腕を −phi 回して石を真上に置いた座標）での、ザグりの面と石座の下の輪
+ */
+export interface ShankSeat {
+  phi: number;
+  cut?: SeatCut | null;
+  rail?: Rail | null;
+}
+
+/** 座ごとの削り方（buildShank の中だけで使う） */
+interface SeatWork {
+  phi: number;
+  c: number;
+  s: number;
+  ball: BallCut | null;
+  seatZ: ((x: number, y: number) => number) | null;
+  regions: Region[];
+  railBoxes: Region[];
 }
 
 /** 指のまわりの分け方と、内側の平らな所の分け方（形を作るための決まり） */
@@ -205,7 +231,7 @@ export function cleanPoints(points: readonly SectionPoint[]): SectionPoint[] {
  * 削る所のまわりだけ、腕の点を細かく足してから（断面の線の点と、指のまわりの点を足す。三角形のつながりは格子のまま）、点を下げる。
  * どの点も格子の中にあるので、閉じた形のまま。notchStepMm：削る所の三角形の辺の長さ（なければ BALL_CUT.stepMm）
  */
-export function buildShank(p: ShankParams, cut?: SeatCut, opts: { notchStepMm?: number; rail?: Rail | null } = {}): ShankResult {
+export function buildShank(p: ShankParams, cut?: SeatCut, opts: { notchStepMm?: number; rail?: Rail | null; seats?: readonly ShankSeat[] } = {}): ShankResult {
   const section = p.section ?? "kouman";
   const w = p.widthMm ?? GUIDES.shank.widthMm;
   // 角の断面は、厚みを決めていなければ幅と同じ（四角）
@@ -217,19 +243,23 @@ export function buildShank(p: ShankParams, cut?: SeatCut, opts: { notchStepMm?: 
   const outer = sectionOutline(section, p.sectionPoints, p.sectionCurve);
   // 指のまわりの角度 φ での幅（肩のある所だけ広い）。φ = 0 がいちばん上（+z）
   const widthAt = shoulderWidth(w, r + t, p.head);
-  const topZ = bandTop(outer, r, t, widthAt);
-  const ball = cut ? ballCut(cut, topZ, r + t) : null;
-  // 石座の下の輪が腕に入りこむ所（接点）に、輪の形の座（溝）を作る
+  // 石ごとの座（石が 1 つなら、いちばん上の 1 つ）。石の場所（φ）ごとに、その石の座標（石が真上に来るよう回した座標）で削る
+  const seatList: readonly ShankSeat[] = opts.seats ?? (cut || opts.rail ? [{ phi: 0, cut, rail: opts.rail ?? null }] : []);
   const step = opts.notchStepMm ?? BALL_CUT.stepMm;
-  const regions: Region[] = [];
-  if (ball) regions.push({ xMin: ball.cx - ball.reachMm, xMax: ball.cx + ball.reachMm, yMin: ball.cy - ball.reachMm, yMax: ball.cy + ball.reachMm, zMin: ball.bottomZ - BALL_CUT.easeMm });
-  const rail = opts.rail ?? null;
-  const seatZ = rail ? railSeatZ(rail) : null;
-  if (rail) regions.push(...railRegions(rail, topZ));
-  const railBoxes = regions.slice(ball ? 1 : 0);
+  const work: SeatWork[] = seatList.map((sd) => {
+    const topZ = bandTop(outer, r, t, widthAt, sd.phi);
+    const ball = sd.cut ? ballCut(sd.cut, topZ, r + t) : null;
+    // 石座の下の輪が腕に入りこむ所（接点）に、輪の形の座（溝）を作る
+    const regions: Region[] = [];
+    if (ball) regions.push({ xMin: ball.cx - ball.reachMm, xMax: ball.cx + ball.reachMm, yMin: ball.cy - ball.reachMm, yMax: ball.cy + ball.reachMm, zMin: ball.bottomZ - BALL_CUT.easeMm });
+    const rail = sd.rail ?? null;
+    if (rail) regions.push(...railRegions(rail, topZ));
+    return { phi: sd.phi, c: Math.cos(sd.phi), s: Math.sin(sd.phi), ball, seatZ: rail ? railSeatZ(rail) : null, regions, railBoxes: regions.slice(ball ? 1 : 0) };
+  });
+  const active = work.filter((wk) => wk.regions.length);
   let outerRows = outer;
   let phis = Array.from({ length: AROUND }, (_, k) => (k / AROUND) * Math.PI * 2);
-  if (regions.length) ({ outerRows, phis } = refineAround(outer, phis, r, t, widthAt, regions, ball, step));
+  if (active.length) ({ outerRows, phis } = refineAround(outer, phis, r, t, widthAt, active, step));
   // 断面（ξ：幅の中の位置 −1〜1、ρ：指の軸からの距離）。内側の平らな所を −1 → +1、外側を +1 → −1
   const section2: [number, number][] = [];
   const xR = outer[0][0];
@@ -240,18 +270,29 @@ export function buildShank(p: ShankParams, cut?: SeatCut, opts: { notchStepMm?: 
   const rings: V3[][] = section2.map(([xi, rho], i) =>
     phis.map((phi) => {
       const x = (xi * widthAt(phi)) / 2;
-      const y = rho * Math.sin(phi);
+      let y = rho * Math.sin(phi);
       let z = rho * Math.cos(phi);
       // 外側の点だけ削る。指の側（内径の円）より下へは下げない
-      if (i >= FLAT && regions.length) {
-        let zc = ball ? ball.carve(x, y, z) : z;
-        if (seatZ && railBoxes.some((b) => x >= b.xMin && x <= b.xMax && y >= b.yMin && y <= b.yMax)) zc = Math.min(zc, seatZ(x, y));
-        if (zc < z) z = Math.max(zc, Math.sqrt(Math.max(0, r * r - y * y)));
-      }
+      if (i >= FLAT)
+        for (const wk of active) {
+          // その石の座標へ（x 軸のまわりに −φ 回す）。石の真上の側（cos > 0）だけ
+          const yl = y * wk.c - z * wk.s;
+          let zl = y * wk.s + z * wk.c;
+          if (zl <= 0) continue;
+          let zc = wk.ball ? wk.ball.carve(x, yl, zl) : zl;
+          if (wk.seatZ && wk.railBoxes.some((b) => x >= b.xMin && x <= b.xMax && yl >= b.yMin && yl <= b.yMax)) zc = Math.min(zc, wk.seatZ(x, yl));
+          if (zc < zl) {
+            zl = Math.max(zc, Math.sqrt(Math.max(0, r * r - yl * yl)));
+            y = yl * wk.c + zl * wk.s;
+            z = -yl * wk.s + zl * wk.c;
+          }
+        }
       return [x, y, z] as V3;
     }),
   );
-  const notchDepthMm = ball ? Math.max(0, r + t - ball.bottomZ) : 0;
+  const balls = work.flatMap((wk) => (wk.ball ? [{ cx: wk.ball.cx, cy: wk.ball.cy, bottomZ: wk.ball.bottomZ, radiusMm: wk.ball.radiusMm, phi: wk.phi }] : []));
+  const ball = balls[0] ?? null;
+  const notchDepthMm = balls.reduce((m, b) => Math.max(m, r + t - b.bottomZ), 0);
   const tris: number[] = [];
   ringsToTube(rings, tris);
   const positions = closedPart(tris);
@@ -273,8 +314,9 @@ export function buildShank(p: ShankParams, cut?: SeatCut, opts: { notchStepMm?: 
     notchDepthMm,
     notchBallDiameterMm: ball ? 2 * ball.radiusMm : 0,
     notchBall: ball ? { cx: ball.cx, cy: ball.cy, bottomZ: ball.bottomZ, radiusMm: ball.radiusMm } : null,
+    notchBalls: balls,
     head: p.head && p.head.widthMm > w ? p.head : null,
-    railSeatDepthMm: railBoxes.reduce((m, b) => Math.max(m, b.depth ?? 0), 0),
+    railSeatDepthMm: work.reduce((m, wk) => wk.railBoxes.reduce((mm, b) => Math.max(mm, b.depth ?? 0), m), 0),
   };
 }
 
@@ -282,7 +324,7 @@ export function buildShank(p: ShankParams, cut?: SeatCut, opts: { notchStepMm?: 
  * 削る前の腕の上の面の高さ z(x, y)（腕がない所は −Infinity）。外側の線（ξ, η）と、指のまわりの幅から求める。
  * 上から見た (x, y) の真下の点を、φ ＝ asin(y ÷ ρ)、ξ ＝ 2x ÷ 幅(φ)、ρ ＝ 内側の半径 ＋ 厚み × η(ξ) を数回くり返して探す
  */
-function bandTop(outer: [number, number][], r: number, t: number, widthAt: (phi: number) => number): (x: number, y: number) => number {
+function bandTop(outer: [number, number][], r: number, t: number, widthAt: (phi: number) => number, phi0 = 0): (x: number, y: number) => number {
   const etaAt = (xi: number) => {
     let eta = -Infinity;
     for (let j = 0; j + 1 < outer.length; j++) {
@@ -297,7 +339,7 @@ function bandTop(outer: [number, number][], r: number, t: number, widthAt: (phi:
     let rho = r + t;
     for (let it = 0; it < 4; it++) {
       if (Math.abs(y) >= rho) return -Infinity;
-      const eta = etaAt((2 * x) / widthAt(Math.asin(y / rho)));
+      const eta = etaAt((2 * x) / widthAt(Math.asin(y / rho) + phi0));
       if (eta === -Infinity) return -Infinity;
       rho = r + t * eta;
     }
@@ -361,51 +403,62 @@ function refineAround(
   r: number,
   t: number,
   widthAt: (phi: number) => number,
-  regions: Region[],
-  ball: BallCut | null,
+  seats: readonly SeatWork[],
   step: number,
 ): { outerRows: [number, number][]; phis: number[] } {
   const top = r + t;
   const margin = 2 * step;
-  const phiC = ball ? Math.asin(Math.max(-1, Math.min(1, ball.cy / top))) : 0;
-  const half = widthAt(phiC) / 2;
-  const xiC = ball ? ball.cx / half : NaN;
-  // 石の先の真下を通る区間（いちばん上にあるもの）
-  let jC = -1;
-  if (ball)
+  // 球のビットの真ん中の、指のまわりの角度（指輪の座標）と、断面の上の位置
+  const centers = seats.flatMap((sd) => {
+    const ball = sd.ball;
+    if (!ball) return [];
+    const phiL = Math.asin(Math.max(-1, Math.min(1, ball.cy / top)));
+    const half = widthAt(phiL + sd.phi) / 2;
+    const xiC = ball.cx / half;
+    // 石の先の真下を通る区間（いちばん上にあるもの）
+    let jC = -1;
     for (let j = 0; j + 1 < outer.length; j++) {
       const [x0, e0] = outer[j];
       const [x1, e1] = outer[j + 1];
       if ((xiC - x0) * (xiC - x1) > 0 || x0 === x1) continue;
       if (jC < 0 || Math.max(e0, e1) > Math.max(outer[jC][1], outer[jC + 1][1])) jC = j;
     }
+    // φ は 0〜2π で数えるので、そろえる
+    let pc = phiL + sd.phi;
+    pc = ((pc % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+    return [{ xiC, jC, pc }];
+  });
+  const half0 = Math.max(...seats.map((sd) => widthAt(sd.phi) / 2));
   const outerRows: [number, number][] = [];
   for (let j = 0; j + 1 < outer.length; j++) {
     const [x0, e0] = outer[j];
     const [x1, e1] = outer[j + 1];
     outerRows.push(outer[j]);
     const zTop = r + t * Math.max(e0, e1);
-    const near = regions.some((g) => Math.max(x0, x1) * half >= g.xMin - margin && Math.min(x0, x1) * half <= g.xMax + margin && zTop >= g.zMin - 0.05 * t);
+    const near = seats.some((sd) => sd.regions.some((g) => Math.max(x0, x1) * half0 >= g.xMin - margin && Math.min(x0, x1) * half0 <= g.xMax + margin && zTop >= g.zMin - 0.05 * t));
     if (!near) continue;
-    const length = Math.hypot((x1 - x0) * half, (e1 - e0) * t);
-    const cuts = j === jC ? [(xiC - x0) / (x1 - x0)] : [];
+    const length = Math.hypot((x1 - x0) * half0, (e1 - e0) * t);
+    const cuts = centers.filter((c) => c.jC === j).map((c) => (c.xiC - x0) / (x1 - x0));
     for (const s of splitParams(length, cuts, step)) outerRows.push([x0 + (x1 - x0) * s, e0 + (e1 - e0) * s]);
   }
   outerRows.push(outer[outer.length - 1]);
-  // 指のまわり：上から見て、削る所の y の幅にかかる、上の側の区間
+  // 指のまわり：上から見て（その石の座標で）、削る所の y の幅にかかる、石の側の区間
   const phis: number[] = [];
   const n = phis0.length;
-  // φC は −π/2〜π/2。区間は 0〜2π で数えるので、そろえる
-  const pc = phiC < 0 ? phiC + Math.PI * 2 : phiC;
   for (let k = 0; k < n; k++) {
     const a = phis0[k];
     const b = k + 1 < n ? phis0[k + 1] : Math.PI * 2;
     phis.push(a);
-    const ya = top * Math.sin(a);
-    const yb = top * Math.sin(b);
-    if (Math.cos(a) <= 0 || Math.cos(b) <= 0) continue;
-    if (!regions.some((g) => Math.max(ya, yb) >= g.yMin - margin && Math.min(ya, yb) <= g.yMax + margin)) continue;
-    const cuts = ball && pc > a && pc < b ? [(pc - a) / (b - a)] : [];
+    const hit = seats.some((sd) => {
+      const al = a - sd.phi;
+      const bl = b - sd.phi;
+      if (Math.cos(al) <= 0 || Math.cos(bl) <= 0) return false;
+      const ya = top * Math.sin(al);
+      const yb = top * Math.sin(bl);
+      return sd.regions.some((g) => Math.max(ya, yb) >= g.yMin - margin && Math.min(ya, yb) <= g.yMax + margin);
+    });
+    if (!hit) continue;
+    const cuts = centers.filter((c) => c.pc > a && c.pc < b).map((c) => (c.pc - a) / (b - a));
     for (const s of splitParams((b - a) * top, cuts, step)) phis.push(a + (b - a) * s);
   }
   return { outerRows, phis };

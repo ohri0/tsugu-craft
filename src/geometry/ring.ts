@@ -3,11 +3,11 @@
 // 石と石座は石の座標（stone.ts）で作り、z 軸まわりに回して（向き）、z 方向に持ち上げて置く。
 // 持ち上げる量は「石の一番下が指から、石座の決めたすき間だけ離れる」ように決める。
 import { GUIDES, type MetalId } from "../rules/guides";
-import { buildSetting, type SettingParams, type SettingResult } from "./setting";
-import { buildShank, weightG, type ShankHead, type ShankParams, type ShankResult } from "./shank";
+import { buildSetting, type SettingParams, type SettingResult, type TriangleRange } from "./setting";
+import { buildShank, weightG, type ShankHead, type ShankParams, type ShankResult, type ShankSeat } from "./shank";
 import { buildStone, meshVolume, type StoneMesh, type StoneParams } from "./stone";
 import { BALL_CUT, stoneSeatCut, type SeatCut } from "./notch";
-import { buildSolder, railInRing } from "./joint";
+import { buildSolder, railInRing, type Rail } from "./joint";
 import { concat } from "./mesh";
 
 /** 向き：along（縦）＝ 石の長辺が指に沿う。across（横）＝ 長辺が指を横切る */
@@ -25,12 +25,49 @@ export interface RingParams {
    * （ロウの丸みは細かい形を作るので少し時間がかかる。動かしている間の粗い形と、管の形では作らない）
    */
   solder?: boolean;
+  /** 真ん中の石（stone）を置く所：腕のいちばん上から、腕の外側に沿って測った長さ（mm、＋ は +y の側）。なければ 0（いちばん上） */
+  atMm?: number;
+  /** ほかに並べる石（石を並べる指輪。なければ一粒） */
+  others?: readonly StonePlace[];
 }
 
-/** 石の座標 → 指輪の座標：z 軸まわりに rotationZ（ラジアン）回してから、z に translateZ 足す */
+/** 並べる石 1 つ：石・石座・向きと、腕の上の場所 */
+export interface StonePlace {
+  stone: StoneParams;
+  setting: Omit<SettingParams, "stone" | "shankThicknessMm">;
+  orientation?: Orientation;
+  /** 腕のいちばん上から、腕の外側に沿って測った長さ（mm、＋ は +y の側） */
+  atMm: number;
+}
+
+/**
+ * 石の座標 → 指輪の座標：z 軸まわりに rotationZ（ラジアン）回してから、z に translateZ 足し（ここまでが「その石の座標」：石が腕の真上）、
+ * さらに x 軸（指の軸）のまわりに tiltRad 回す（腕に沿って石を置く所へ。なければ 0 ＝ いちばん上）
+ */
 export interface RingTransform {
   rotationZ: number;
   translateZ: number;
+  tiltRad?: number;
+}
+
+/** 腕の上に置いた石 1 つ（石を並べた指輪では石の数だけ。0 番が真ん中の石 ＝ RingDesign の stone・setting） */
+export interface PlacedStone {
+  params: StoneParams;
+  orientation: Orientation;
+  stone: StoneMesh;
+  setting: SettingResult;
+  transform: RingTransform;
+  /** 腕の上の場所（mm、腕の外側に沿って）と、その角度（ラジアン） */
+  atMm: number;
+  phi: number;
+  /** ザグりの面（その石の座標：tilt を戻した座標） */
+  seatCut: SeatCut;
+  /** 石座の下の輪（その石の座標。爪留めでなければ null） */
+  rail: Rail | null;
+  culetGapMm: number;
+  /** ringPositions.stone・ringPositions.setting の中で、この石の三角形の範囲（石座はロウの丸みもふくむ） */
+  ranges: { stone: TriangleRange; setting: TriangleRange };
+  solder: { contacts: number; filletMm: number } | null;
 }
 
 export interface RingDesign {
@@ -62,9 +99,12 @@ export interface RingDesign {
   /** 地金の重さの見積もり（g）＝（腕 ＋ 石座）の体積 × 密度。部品の重なりも数えるので少し多め。目安 */
   metalWeightG: number;
   metal: MetalId;
+  /** 腕の上の石ぜんぶ（0 番が真ん中の石。一粒なら 1 つ） */
+  stones: PlacedStone[];
 }
 
 export function buildRing(p: RingParams): RingDesign {
+  if ((p.others?.length ?? 0) > 0 || (p.atMm ?? 0) !== 0) return buildMulti(p);
   const orientation = p.orientation ?? "along";
   const plain = buildShank(p.shank);
   const setting = buildSetting({ ...p.setting, stone: p.stone, shankThicknessMm: plain.thicknessMm });
@@ -88,6 +128,7 @@ export function buildRing(p: RingParams): RingDesign {
   const settingNormals = setting.normals ? rotateNormals(setting.normals, transform.rotationZ) : undefined;
   const culetGapMm = stone.heights.culetZ + transform.translateZ - shank.innerRadiusMm;
   const metal = shank.metal;
+  const solderInfo = solder && solder.contacts ? { contacts: solder.contacts, filletMm: solder.filletMm, triangles: { start: ringSetting.length / 9, count: solder.positions.length / 9 } } : null;
   return {
     params: p,
     orientation,
@@ -102,14 +143,132 @@ export function buildRing(p: RingParams): RingDesign {
       shank: shank.positions,
       settingNormals: settingNormals && solder?.positions.length ? concat([settingNormals, solder.normals]) : settingNormals,
     },
-    solder: solder && solder.contacts ? { contacts: solder.contacts, filletMm: solder.filletMm, triangles: { start: ringSetting.length / 9, count: solder.positions.length / 9 } } : null,
+    solder: solderInfo,
     culetGapMm,
     notchDepthMm: shank.notchDepthMm,
     seatCut,
     // ロウの丸みの形は、腕と輪の中に隠れる所もふくむので、重さには数えない（ロウはごく少し）
     metalWeightG: weightG(shank.volumeMm3 + meshVolume(setting.positions), metal),
     metal,
+    stones: [
+      {
+        params: p.stone,
+        orientation,
+        stone,
+        setting,
+        transform,
+        atMm: 0,
+        phi: 0,
+        seatCut,
+        rail,
+        culetGapMm,
+        ranges: { stone: { start: 0, count: ringStone.length / 9 }, setting: { start: 0, count: settingAll.length / 9 } },
+        solder: solderInfo ? { contacts: solderInfo.contacts, filletMm: solderInfo.filletMm } : null,
+      },
+    ],
   };
+}
+
+/**
+ * 石を並べた指輪：石ごとに、一粒と同じ石座（buildSetting）を作り、その石の座標（石が腕の真上）で高さを決め、
+ * 腕に沿った場所へ、指の軸のまわりに回して置く（石座は腕の丸みに沿って、腕に直角に立つ）。
+ * 腕は石ごとに、その石の真下をザグり、下の輪の座を作る（buildShank の seats）。ロウの丸みも石ごと。
+ * 一粒の指輪の肩（石座の足を受ける広い所）は、石を並べるときは作らない（腕はどこも同じ幅）
+ */
+function buildMulti(p: RingParams): RingDesign {
+  const plain = buildShank(p.shank);
+  const outerR = plain.outerRadiusMm;
+  const wantSolder = p.solder ?? (p.setting.solid === true && p.setting.solidQuality !== "preview");
+  const places: StonePlace[] = [{ stone: p.stone, setting: p.setting, orientation: p.orientation, atMm: p.atMm ?? 0 }, ...(p.others ?? [])];
+  const parts = places.map((pl) => {
+    const orientation = pl.orientation ?? "along";
+    const setting = buildSetting({ ...pl.setting, stone: pl.stone, shankThicknessMm: plain.thicknessMm });
+    const stone = buildStone(pl.stone);
+    const phi = pl.atMm / outerR;
+    const local: RingTransform = { rotationZ: orientation === "across" ? Math.PI / 2 : 0, translateZ: plain.innerRadiusMm - setting.heights.fingerZ };
+    const transform: RingTransform = { ...local, tiltRad: phi };
+    const seatCut = stoneSeatCut(pl.stone, stone.heights, local, GUIDES.bezel.clearanceMm);
+    const rail = railInRing(setting, local);
+    return { pl, orientation, setting, stone, phi, local, transform, seatCut, rail };
+  });
+  const seats: ShankSeat[] = parts.map((q) => ({ phi: q.phi, cut: q.seatCut, rail: q.rail }));
+  const shank = buildShank({ ...p.shank, head: undefined }, undefined, { seats });
+  const stoneArrs: Float32Array[] = [];
+  const settingArrs: Float32Array[] = [];
+  const normalArrs: Float32Array[] = [];
+  let stoneTri = 0;
+  let settingTri = 0;
+  let volume = shank.volumeMm3;
+  const placed: PlacedStone[] = parts.map((q) => {
+    const sp = applyTransform(q.stone.positions, q.transform);
+    let st = applyTransform(q.setting.positions, q.transform);
+    let nr = rotateNormals(q.setting.normals ?? faceNormals(q.setting.positions), q.local.rotationZ, q.phi);
+    let solder: PlacedStone["solder"] = null;
+    if (q.rail && wantSolder) {
+      // ロウの丸みは、その石の座標で作ってから、石の場所へ回す（腕は指の軸のまわりに回しても同じ形。ザグりの球だけ、その石のものにする）
+      const b = shank.notchBalls.find((x) => Math.abs(x.phi - q.phi) < 1e-9);
+      const view: ShankResult = { ...shank, notchBall: b ? { cx: b.cx, cy: b.cy, bottomZ: b.bottomZ, radiusMm: b.radiusMm } : null };
+      const sd = buildSolder(q.rail, view, q.seatCut);
+      if (sd.positions.length) {
+        st = concat([st, applyTransform(sd.positions, { rotationZ: 0, translateZ: 0, tiltRad: q.phi })]);
+        nr = concat([nr, rotateNormals(sd.normals, 0, q.phi)]);
+      }
+      if (sd.contacts) solder = { contacts: sd.contacts, filletMm: sd.filletMm };
+    }
+    stoneArrs.push(sp);
+    settingArrs.push(st);
+    normalArrs.push(nr);
+    const ranges = { stone: { start: stoneTri, count: sp.length / 9 }, setting: { start: settingTri, count: st.length / 9 } };
+    stoneTri += ranges.stone.count;
+    settingTri += ranges.setting.count;
+    volume += meshVolume(q.setting.positions);
+    return {
+      params: q.pl.stone,
+      orientation: q.orientation,
+      stone: q.stone,
+      setting: q.setting,
+      transform: q.transform,
+      atMm: q.pl.atMm,
+      phi: q.phi,
+      seatCut: q.seatCut,
+      rail: q.rail,
+      culetGapMm: q.stone.heights.culetZ + q.local.translateZ - shank.innerRadiusMm,
+      ranges,
+      solder,
+    };
+  });
+  const main = placed[0];
+  const metal = shank.metal;
+  return {
+    params: p,
+    orientation: main.orientation,
+    stone: main.stone,
+    setting: main.setting,
+    shank,
+    transform: main.transform,
+    ringPositions: { stone: concat(stoneArrs), setting: concat(settingArrs), shank: shank.positions, settingNormals: concat(normalArrs) },
+    solder: main.solder ? { ...main.solder, triangles: { start: main.setting.positions.length / 9, count: main.ranges.setting.count - main.setting.positions.length / 9 } } : null,
+    culetGapMm: main.culetGapMm,
+    notchDepthMm: shank.notchDepthMm,
+    seatCut: main.seatCut,
+    metalWeightG: weightG(volume, metal),
+    metal,
+    stones: placed,
+  };
+}
+
+/** 石の座標の点 (x, y, z) を、その石の場所へ置いたときの指輪の座標 */
+export function placePoint(t: RingTransform, x: number, y: number, z: number): [number, number, number] {
+  const c = Math.cos(t.rotationZ);
+  const s = Math.sin(t.rotationZ);
+  const px = x * c - y * s;
+  const py = x * s + y * c;
+  const pz = z + t.translateZ;
+  const a = t.tiltRad ?? 0;
+  if (a === 0) return [px, py, pz];
+  const ca = Math.cos(a);
+  const sa = Math.sin(a);
+  return [px, py * ca + pz * sa, -py * sa + pz * ca];
 }
 
 /**
@@ -117,6 +276,10 @@ export function buildRing(p: RingParams): RingDesign {
  * 肩（石座の足を受ける広い所）は、今の石座から buildRing と同じように決める。ザグりも同じ球のビットで削り、石座の座も作る（動かしている間は、削る所の格子を粗くして速くする。ロウの丸みは指を離したときに作る）
  */
 export function rebuildShank(ring: RingDesign, shank: ShankParams): ShankResult {
+  if (ring.stones.length > 1 || ring.stones[0]?.phi) {
+    const seats = ring.stones.map((st, i) => ({ phi: st.phi, cut: i === 0 ? ring.seatCut : st.seatCut, rail: st.rail }));
+    return buildShank({ ...shank, head: undefined }, undefined, { notchStepMm: BALL_CUT.dragStepMm, seats });
+  }
   const opts = { notchStepMm: BALL_CUT.dragStepMm, rail: railInRing(ring.setting, ring.transform) };
   if (ring.setting.normals) return buildShank(shank, ring.seatCut, opts);
   const plain = buildShank(shank);
@@ -148,13 +311,18 @@ function headFootprint(ringSetting: Float32Array, shank: ShankResult): ShankHead
 export function applyTransform(positions: Float32Array, t: RingTransform): Float32Array {
   const c = Math.cos(t.rotationZ);
   const s = Math.sin(t.rotationZ);
+  const a = t.tiltRad ?? 0;
+  const ca = Math.cos(a);
+  const sa = Math.sin(a);
   const out = new Float32Array(positions.length);
   for (let i = 0; i < positions.length; i += 3) {
     const x = positions[i];
     const y = positions[i + 1];
+    const py = x * s + y * c;
+    const pz = positions[i + 2] + t.translateZ;
     out[i] = x * c - y * s;
-    out[i + 1] = x * s + y * c;
-    out[i + 2] = positions[i + 2] + t.translateZ;
+    out[i + 1] = a === 0 ? py : py * ca + pz * sa;
+    out[i + 2] = a === 0 ? pz : -py * sa + pz * ca;
   }
   return out;
 }
@@ -164,16 +332,40 @@ export function metalName(metal: MetalId): string {
   return GUIDES.metals[metal].name;
 }
 
-/** 向き（法線）を z 軸まわりに回す（位置の移動はしない） */
-function rotateNormals(n: Float32Array, rad: number): Float32Array {
-  if (rad === 0) return n;
+/** 向き（法線）を z 軸まわりに rad 回し、そのあと x 軸のまわりに tilt 回す（位置の移動はしない） */
+function rotateNormals(n: Float32Array, rad: number, tilt = 0): Float32Array {
+  if (rad === 0 && tilt === 0) return n;
   const c = Math.cos(rad);
   const s = Math.sin(rad);
+  const ca = Math.cos(tilt);
+  const sa = Math.sin(tilt);
   const out = new Float32Array(n.length);
   for (let i = 0; i < n.length; i += 3) {
+    const y = n[i] * s + n[i + 1] * c;
+    const z = n[i + 2];
     out[i] = n[i] * c - n[i + 1] * s;
-    out[i + 1] = n[i] * s + n[i + 1] * c;
-    out[i + 2] = n[i + 2];
+    out[i + 1] = y * ca + z * sa;
+    out[i + 2] = -y * sa + z * ca;
+  }
+  return out;
+}
+
+/** 三角形ごとの面の向き（頂点の向きのない形を、向きのある形と一緒に並べるとき） */
+function faceNormals(p: Float32Array): Float32Array {
+  const out = new Float32Array(p.length);
+  for (let t = 0; t < p.length; t += 9) {
+    const ux = p[t + 3] - p[t], uy = p[t + 4] - p[t + 1], uz = p[t + 5] - p[t + 2];
+    const vx = p[t + 6] - p[t], vy = p[t + 7] - p[t + 1], vz = p[t + 8] - p[t + 2];
+    let nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    const l = Math.hypot(nx, ny, nz) || 1;
+    nx /= l;
+    ny /= l;
+    nz /= l;
+    for (let k = 0; k < 3; k++) {
+      out[t + k * 3] = nx;
+      out[t + k * 3 + 1] = ny;
+      out[t + k * 3 + 2] = nz;
+    }
   }
   return out;
 }

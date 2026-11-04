@@ -437,7 +437,7 @@ function sampleAt(f: Frame, t: number): Sample {
 }
 
 /** 石座の形の縮み。石の一番下の近くでは、点まで縮めず FOOT_SCALE で止める */
-function settingScaleAt(h: StoneHeights, z: number): number {
+export function settingScaleAt(h: StoneHeights, z: number): number {
   return Math.max(stoneScaleAt(h, z), FOOT_SCALE);
 }
 
