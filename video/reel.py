@@ -674,6 +674,8 @@ def grade(img, clip, tl):
     out = Image.fromarray(np.clip(a, 0, 255).astype(np.uint8))
     if g.get("blur"):
         out = out.filter(ImageFilter.GaussianBlur(g["blur"]))
+    if g.get("scrim"):  # 画面の側を暗くする（言葉の札が消えても、つなぎの間も、下の画面の字が出てこない）
+        out = scrim(out, g["scrim"], g.get("scrimAmt", 1.0))
     return out
 
 
@@ -1124,7 +1126,7 @@ def work(args):
     with open(path) as f:
         TL = json.load(f)
     BEAT = 60 / TL.get("bpm", 120)
-    p = subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-", "-c:v", "libx264", "-preset", "medium", "-crf", "16", "-pix_fmt", "yuv420p", "-g", "60", out], stdin=subprocess.PIPE)
+    p = subprocess.Popen(["ffmpeg", "-v", "error", "-y", "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", f"{W}x{H}", "-r", str(FPS), "-i", "-", "-c:v", "libx264", "-preset", "medium", "-crf", os.environ.get("CRF", "17"), "-pix_fmt", "yuv420p", "-g", "60", out], stdin=subprocess.PIPE)
     for n in range(n0, n1):
         p.stdin.write(frame(n).tobytes())
     p.stdin.close()

@@ -1,6 +1,30 @@
 # 動画を組む仕組み
 
-## 最終案（2026-11-04〜。いまの作り方）
+## 最終案 2（2026-11-04 夕方〜。いまの作り方）
+
+最終案 1 の仕組みのまま、見せ方と音を作り直したもの。設計は `PLAN-final2.md`、声の台本は `../docs/NARRATION-ad.md`。
+
+- 台本：`final_build2.py`。`VARIANT=A`（ふつう）で `final2.json`、`VARIANT=B`（終わりの手前に未来の一行）で `final2B.json` を作る。
+- 組む：`reel.py`。左に見出し（いつも同じ所で、1 行目を打つ）、右の窓に本物の画面、見せたい所に細い金の枠（ほかは少し暗く）。
+  - 下に進み具合の線と、いまの段の名前を出す。
+  - 「困りごと」の図（デザイン → CAD → 職人 → 作れない、と戻る）は reel.py が描く。
+  - 絵巻は 3 段に折る。伝統の所は生成りの色に明朝。
+  - ごく薄い粒（フィルムの感じ）を足す。
+- 音楽：`bgm4.py`（鏨の音で刻む・金床のダン・ピアノ・都節の琴と太鼓）。効果音は `sfx.py` の tink・kan。
+- 撮る：`capture/story.cjs` の fix2・stones・make2・section2・ask2・learn2・waza2・rebuild2（ほかは最終案 1 と同じ章）。アプリが変わったら、`npx vite build --outDir video/work/dist-cap --emptyOutDir` で組み直してから撮る。撮るたびに、新しい空の localStorage で始まる。
+- 仮の声：`SSL_CERT_FILE=$(video/work/.venv/bin/python -m certifi) video/work/.venv/bin/python -I video/tts_kokoro.py video/final2B.json k2_ video/work/voice jm_kumo`（B 案は A 案の行を全部含む）。
+- 組む：`video/work/.venv/bin/python -I video/final.py --plan 2 --variant A`（B 案は `--variant B`）。次のファイルができる。
+  - `video/work/vc/継ぐ_デモ_最終案2_A.mp4`（音楽と効果音だけ）
+  - `_A_仮声.mp4`（仮の声入り）
+  - それぞれの `_スマホ.mp4`（1280 px・30 MB 以下）
+  - 1 本 約 8 分。音だけ混ぜ直すときは `--no-video`。
+  - 画質は `CRF`（ふつう 17）で変えられる。いまは 1 本 約 110 MB。
+- 作者の声：`video/work/voice/n<番号>.wav`。作者の指輪：`video/work/footage/ring1.mov`・`ring2.mov`。
+- 声の並べ方：場面の頭の拍から 0.15 秒あとに置く。前の声が長いときは、終わって 0.3 秒あけてから置く。
+  - 仮の声（機械の声）だけは、次の声の頭に間に合わないとき、1.25 倍までの速さで読ませる。
+  - 作者の録音は速さを変えない。
+
+## 最終案 1（2026-11-04 昼）
 
 デモ動画（2 分 56 秒）。映るのは、継ぐの本物の画面を本当に操作したもの（本物のボタン・本物の Claude）。それを 2 倍の細かさで 1 こまずつ撮り、あとから、見せたい所へなめらかに動くカメラ・拍に乗るつなぎ・大きな言葉・自作の音楽を付ける。場面の設計は `PLAN-final.md`、声の台本は `../docs/NARRATION-ad.md`。
 
@@ -24,7 +48,7 @@
 2. 撮るための継ぐ：`npx vite build --outDir video/work/dist-cap --emptyOutDir` → `node video/capture/serve.cjs`（5201 番）。
 3. 撮る：`node video/capture/story.cjs`（章の名前を並べると、その章だけ）。1 章 1〜4 分。GPU で 3D を描く（`--use-angle=metal`）。
 4. 仮の声：`SSL_CERT_FILE=$(video/work/.venv/bin/python -m certifi) video/work/.venv/bin/python -I video/tts_kokoro.py video/final.json k_ video/work/voice jm_kumo`
-5. 組む：`video/work/.venv/bin/python -I video/final.py` → `video/work/vc/継ぐ_デモ_最終案1.mp4`（音楽と効果音だけ）と `継ぐ_デモ_最終案1_仮声.mp4`（仮の声入り）。全部で 6〜7 分。画面を作り直さず音だけ混ぜ直すときは `--no-video`。
+5. 組む：`video/work/.venv/bin/python -I video/final.py`（最終案 1）→ `video/work/vc/継ぐ_デモ_最終案1.mp4`（音楽と効果音だけ）と `継ぐ_デモ_最終案1_仮声.mp4`（仮の声入り）。全部で 6〜7 分。画面を作り直さず音だけ混ぜ直すときは `--no-video`。
    試しに一部だけ組む：`ONLY="拍のはじめ,拍のおわり" video/work/.venv/bin/python -I video/reel.py video/final.json 出力.mp4`
 
 作者の声：`video/work/voice/n<場面の番号>.wav`（例：`n3.wav`。台本は `docs/NARRATION-ad.md`）。置くと機械の声と入れ替わる。全部そろうと `_声.mp4` になる。

@@ -586,23 +586,26 @@ const CH = {
       await a.hold(40);
     }
   },
-  // 最終案 2：ほかの技。技の一覧（6 つの技の帳面）→ 鏨彫り・毛彫り → Claude の質問
+  // 最終案 2：ほかの技。技の一覧（6 つの技の帳面）→ 木目金の帳面 → Claude の質問（組み立て直すと同じ技）
   waza2: async (a) => {
     const { p } = a;
     await p.goto(`${BASE}/app.html?nointro#waza`, { waitUntil: 'load' });
     await a.settle(1500);
-    await a.box('list', '.view.waza', 0); a.mark('list');
+    await a.box('list', '#screen-waza .view.waza', 0); a.mark('list');
     await a.hold(16);
-    await a.scroll('.pub-sec-h', { block: 'start', n: 24, offset: 20 });
-    await a.box('others', '.pub-sec-h + .big-techs', 10); a.mark('others');
-    await a.hold(20);
-    await a.press('.big-tech[href="#waza/kebori"]', { n: 14, after: 2 });
-    await a.until(() => { const q = document.querySelector('.iv-q'); return q && !q.classList.contains('pending'); }, null, { label: '毛彫りの問い', timeout: 120000 });
+    await a.scroll('.big-tech[href="#waza/mokume"]', { block: 'center', n: 26 });
+    await a.box('others', '.pub-sec-h + .big-techs', 10); await a.box('mokume', '.big-tech[href="#waza/mokume"]', 8); a.mark('others');
+    await a.hold(18);
+    await a.press('.big-tech[href="#waza/mokume"]', { n: 14, after: 2 });
+    await a.until(() => { const s = document.querySelector('#screen-waza'); const q = s && s.querySelector('.iv-q'); return q && !q.classList.contains('pending') && /Claude が聞いています/.test(s.innerText); }, null, { label: '木目金の問い', timeout: 120000 });
     await a.settle(300);
     await p.evaluate(() => window.scrollTo(0, 0)); await a.settle(200);
-    await a.box('kebori', '.view', 0); await a.box('ask', '.iv-root, .iv', 10); a.mark('ask');
-    console.log('waza2 の問い', await p.evaluate(() => document.querySelector('.iv-q')?.innerText));
-    await a.hold(50);
+    await a.box('page', '#screen-waza .tech-page', 0); await a.box('ask', '#screen-waza .iv-root', 10); a.mark('ask');
+    console.log('waza2 の問い', await p.evaluate(() => document.querySelector('#screen-waza .iv-q')?.innerText));
+    await a.hold(40);
+    await a.scroll('#screen-waza .tech-rules', { block: 'start', n: 24, offset: 60 });
+    await a.box('rules', '#screen-waza .tech-rules', 10); a.mark('rules');
+    await a.hold(30);
   },
   // 最終案 2：組み立て直す。手がかり（9 つ）を開いて見る → 組み立てる（Claude）→ 手順を 1 つずつ → 答え合わせ（9/11）
   rebuild2: async (a) => {

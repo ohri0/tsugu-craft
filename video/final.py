@@ -1,5 +1,5 @@
 # 最終案を、はじめから終わりまで組む（画面 → 音楽 → 効果音 → 声 → 混ぜる）。
-# 使い方：python -I final.py [--plan 2] [--no-video] [--jobs 12]（--plan 2 で最終案 2：final_build2.py・bgm4.py）
+# 使い方：python -I final.py [--plan 2] [--variant A|B] [--no-video] [--jobs 12]（--plan 2 で最終案 2：final_build2.py・bgm4.py。--variant は終わり方の 2 案）
 #  1. final_build.py：台本（final.json。拍で書いた場面・言葉・音楽・声）
 #  2. reel.py：本物の画面のこまに、カメラ・つなぎ・大きな言葉 → work/vc/final_video.mp4（＋効果音の合図）
 #  3. bgm3.py：音楽（自作）　4. sfx.py：効果音（自作）
@@ -14,11 +14,14 @@ PY = sys.executable
 args = sys.argv[1:]
 jobs = args[args.index("--jobs") + 1] if "--jobs" in args else "12"
 PLAN = args[args.index("--plan") + 1] if "--plan" in args else "1"
-NAME = os.environ.get("NAME", f"継ぐ_デモ_最終案{PLAN}")
+VARIANT = args[args.index("--variant") + 1] if "--variant" in args else ""
+if VARIANT:
+    os.environ["VARIANT"] = VARIANT
+NAME = os.environ.get("NAME", f"継ぐ_デモ_最終案{PLAN}" + (f"_{VARIANT}" if VARIANT else ""))
 BUILD = "final_build.py" if PLAN == "1" else f"final_build{PLAN}.py"
-JSON = "final.json" if PLAN == "1" else f"final{PLAN}.json"
+JSON = "final.json" if PLAN == "1" else (f"final{PLAN}.json" if VARIANT in ("", "A") else f"final{PLAN}{VARIANT}.json")
 BGM = "bgm3.py" if PLAN == "1" else "bgm4.py"
-TAG = "final" if PLAN == "1" else f"final{PLAN}"
+TAG = ("final" if PLAN == "1" else f"final{PLAN}") + VARIANT
 
 
 def run(cmd, **kw):
@@ -44,19 +47,28 @@ fx = os.path.join(VC, f"{TAG}_sfx.wav")
 run([PY, "-I", os.path.join(HERE, "sfx.py"), cues, fx, str(total)])
 
 # ---- 声を並べる（場面の頭の拍 ＋ 0.15 秒。前の声が長ければ、終わって 0.3 秒あけてから）
+# 機械の声（仮声）だけは、次の声の頭に間に合わないとき、1.25 倍までの速さで読ませて場面に合わせる。作者の録音は速さを変えない
 VO = os.path.join(WORK, "voice")
 lines, mine = [], 0
 prev_end = 0.0
-for v in sorted(tl["voice"], key=lambda x: x["at"]):
+vs = sorted(tl["voice"], key=lambda x: x["at"])
+head = lambda v: v["at"] * 60 / tl.get("bpm", 120) + 0.15  # noqa: E731
+for i, v in enumerate(vs):
     own = os.path.join(VO, f"n{v['n']}.wav")
-    tts = os.path.join(VO, f"k_n{v['n']}.wav")
+    tts = os.path.join(VO, f"{'k_' if PLAN == '1' else 'k2_'}n{v['n']}.wav")
     f = own if os.path.exists(own) else tts if os.path.exists(tts) else None
     if not f:
         continue
     mine += f == own
-    at = max(v["at"] * 60 / tl.get("bpm", 120) + 0.15, prev_end + 0.3)
-    prev_end = at + dur(f)
-    lines.append((f, at))
+    at = max(head(v), prev_end + 0.3)
+    d, tempo = dur(f), 1.0
+    if f != own and PLAN != "1" and i + 1 < len(vs):
+        room = head(vs[i + 1]) - 0.3 - at
+        if 0 < room < d:
+            tempo = min(1.25, d / room)
+    prev_end = at + d / tempo
+    lines.append((f, at, tempo))
+    print(f"声 n{v['n']}", f"{at:.2f} 秒から", f"{d / tempo:.2f} 秒", f"（{tempo:.2f} 倍）" if tempo > 1.001 else "", f"遅れ {at - head(v):.2f}" if at - head(v) > 0.05 else "")
     if prev_end > total:
         print("声が長すぎて、終わりを越えます：", v["n"])
 print("声", len(lines), "（作者の録音", mine, "）")
@@ -83,10 +95,11 @@ run(["ffmpeg", "-v", "error", "-y", "-i", video, "-i", mixA2, "-map", "0:v", "-m
 # ---- 声入り（声が出ている間、音楽を下げる）
 if lines:
     ins, flt = ["-i", bgm, "-i", fx], []
-    for k, (f, at) in enumerate(lines):
+    for k, (f, at, tempo) in enumerate(lines):
         ins += ["-i", f]
         ms = int(at * 1000)
-        flt.append(f"[{k + 2}:a]aresample=48000,aformat=channel_layouts=stereo,adelay={ms}|{ms}[v{k}]")
+        fast = f"atempo={tempo:.3f}," if tempo > 1.001 else ""
+        flt.append(f"[{k + 2}:a]aresample=48000,aformat=channel_layouts=stereo,{fast}adelay={ms}|{ms}[v{k}]")
     flt.append("".join(f"[v{k}]" for k in range(len(lines))) + f"amix=inputs={len(lines)}:normalize=0,apad,atrim=0:{total},volume=1.0,asplit=2[vo][vk]")
     flt.append(f"[0:a]atrim=0:{total},volume=0.75[m]")
     flt.append("[m][vk]sidechaincompress=threshold=0.025:ratio=7:attack=25:release=420:makeup=1[md]")
