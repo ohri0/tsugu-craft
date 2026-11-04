@@ -18,7 +18,7 @@
 ## 作業中（2026-11-04 午後の時点）
 
 1. 腕の断面の編集をライノのように（B スプライン・点を足す消す・左右対称・自由に描く・元に戻す）。別の作業用のコピー（`.claude/worktrees/`）で進めていた。終わっていなければ、作り直す。
-2. 最終の動画：`video/PLAN-final.md` の計画。本物の画面を 2 倍で撮り（`video/capture/story.cjs`）、`video/final.py`（`reel.py`・`bgm3.py`）で組む。作り方は `video/README.md`。出来は `video/work/vc/継ぐ_デモ_最終案*.mp4`。
+2. 最終の動画：`video/PLAN-final.md` の計画。本物の画面を 2 倍で撮り（`video/capture/story.cjs`）、`video/final.py`（`reel.py`・`bgm3.py`）で組む。作り方は `video/README.md`。今の版は最終案 2（A：2:52／B：2:58、`final.py --plan 2 --variant A|B`）。台本 `video/PLAN-final.md`、声の台本 `docs/NARRATION-ad.md`（n1〜n25。n25 は B だけ）。出来は `video/work/vc/継ぐ_デモ_最終案2_*.mp4`。
 3. 作者の素材待ち：声（`docs/NARRATION-ad.md` の台本）、本物の指輪を作る手元と完成品。
 4. 提出の概要（`docs/SUMMARY.md`）と README を最後に見直す。提出は 11/8 20:00。
 
