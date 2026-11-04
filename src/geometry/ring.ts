@@ -6,6 +6,7 @@ import { GUIDES, type MetalId } from "../rules/guides";
 import { buildSetting, type SettingParams, type SettingResult } from "./setting";
 import { buildShank, weightG, type ShankHead, type ShankParams, type ShankResult } from "./shank";
 import { buildStone, meshVolume, type StoneMesh, type StoneParams } from "./stone";
+import { stoneSeatCut, type SeatCut } from "./notch";
 
 /** 向き：along（縦）＝ 石の長辺が指に沿う。across（横）＝ 長辺が指を横切る */
 export type Orientation = "along" | "across";
@@ -39,6 +40,13 @@ export interface RingDesign {
   ringPositions: { stone: Float32Array; setting: Float32Array; shank: Float32Array; settingNormals?: Float32Array };
   /** 石の一番下と指のすき間（mm）。置いたあとの形から測り直した値 */
   culetGapMm: number;
+  /**
+   * ザグり：石の下側が腕の上に入りこむ所を、腕の上から自動で削った深さ（mm）。削らなければ 0。
+   * 深さ ＝ 石の先が腕に入りこむ深さ ＋ すき間（GUIDES.bezel.clearanceMm、石の縁と同じすき間）
+   */
+  notchDepthMm: number;
+  /** ザグりに使う石の下の面（腕を作り直すときにも使う） */
+  seatCut: SeatCut;
   /** 地金の重さの見積もり（g）＝（腕 ＋ 石座）の体積 × 密度。部品の重なりも数えるので少し多め。目安 */
   metalWeightG: number;
   metal: MetalId;
@@ -57,7 +65,9 @@ export function buildRing(p: RingParams): RingDesign {
   const ringSetting = applyTransform(setting.positions, transform);
   // 石座の足が腕の中へ入る所の広さから、腕のいちばん上の肩を決めて、腕を作り直す
   // 一体の石座は足もとが腕の幅の中に入るので、腕の上をふくらませない（丸い線のまま石座につなぐ）
-  const shank = setting.normals ? plain : buildShank({ ...p.shank, head: p.shank.head ?? headFootprint(ringSetting, plain) });
+  // 石の下側が腕に入りこむ所は、腕の上をザグる（石の縁と同じすき間を残す）
+  const seatCut = stoneSeatCut(p.stone, stone.heights, transform, GUIDES.bezel.clearanceMm);
+  const shank = buildShank(setting.normals ? p.shank : { ...p.shank, head: p.shank.head ?? headFootprint(ringSetting, plain) }, seatCut);
   const culetGapMm = stone.heights.culetZ + transform.translateZ - shank.innerRadiusMm;
   const metal = shank.metal;
   return {
@@ -69,6 +79,8 @@ export function buildRing(p: RingParams): RingDesign {
     transform,
     ringPositions: { stone: ringStone, setting: ringSetting, shank: shank.positions, settingNormals: setting.normals ? rotateNormals(setting.normals, transform.rotationZ) : undefined },
     culetGapMm,
+    notchDepthMm: shank.notchDepthMm,
+    seatCut,
     metalWeightG: weightG(shank.volumeMm3 + meshVolume(setting.positions), metal),
     metal,
   };
@@ -76,11 +88,12 @@ export function buildRing(p: RingParams): RingDesign {
 
 /**
  * 腕だけを作り直す（石と石座はそのまま）。断面の点を動かしている間に、3D の腕だけをすぐ変えるため。
- * 肩（石座の足を受ける広い所）は、今の石座から buildRing と同じように決める
+ * 肩（石座の足を受ける広い所）は、今の石座から buildRing と同じように決める。ザグりも同じ石の下の面で削る（軽い：上の点だけ調べる）
  */
 export function rebuildShank(ring: RingDesign, shank: ShankParams): ShankResult {
+  if (ring.setting.normals) return buildShank(shank, ring.seatCut);
   const plain = buildShank(shank);
-  return ring.setting.normals ? plain : buildShank({ ...shank, head: shank.head ?? headFootprint(ring.ringPositions.setting, plain) });
+  return buildShank({ ...shank, head: shank.head ?? headFootprint(ring.ringPositions.setting, plain) }, ring.seatCut);
 }
 
 /**

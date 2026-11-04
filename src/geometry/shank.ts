@@ -5,6 +5,7 @@
 import { GUIDES, innerDiameterMm, type MetalId } from "../rules/guides";
 import { closedPart, ringsToTube, type V3 } from "./mesh";
 import { meshVolume } from "./stone";
+import type { SeatCut } from "./notch";
 import { adaptiveSample, sampleCurve, uniformKnots, validKnots } from "./bspline";
 
 /** 腕の断面：甲丸・平打ち・半甲丸・角、と手で描いた形 */
@@ -72,6 +73,11 @@ export interface ShankResult {
   outlineMm: [number, number][];
   /** 指の横（φ ＝ −90°、−y の側）での腕の幅（mm）。肩がなければ widthMm と同じ。3D に印を置くときに使う */
   sideWidthMm: number;
+  /**
+   * ザグり（石の先が入る所を、腕の上から削った深さ。mm、外側のいちばん上から測る）。削っていなければ 0。
+   * 厚み・幅・断面の線（thicknessMm・widthMm・outlineMm）は削る前の腕の値のまま（ザグりはわざと削った所なので、腕の確かめには入れない）
+   */
+  notchDepthMm: number;
 }
 
 /** 指のまわりの分け方と、内側の平らな所の分け方（形を作るための決まり） */
@@ -185,7 +191,11 @@ export function cleanPoints(points: readonly SectionPoint[]): SectionPoint[] {
   return p;
 }
 
-export function buildShank(p: ShankParams): ShankResult {
+/**
+ * 腕を作る。cut があれば、石の下の面がかかる所を、腕の上からザグる（notch.ts）。
+ * ザグりは点を下へ動かすだけなので、三角形のつながりは変わらない（閉じた形のまま）
+ */
+export function buildShank(p: ShankParams, cut?: SeatCut): ShankResult {
   const section = p.section ?? "kouman";
   const w = p.widthMm ?? GUIDES.shank.widthMm;
   // 角の断面は、厚みを決めていなければ幅と同じ（四角）
@@ -210,6 +220,7 @@ export function buildShank(p: ShankParams): ShankResult {
       return [(xi * widthAt(phi)) / 2, rho * Math.sin(phi), rho * Math.cos(phi)] as V3;
     }),
   );
+  const notchDepthMm = cut ? carveSeat(rings, FLAT, r, r + t, cut) : 0;
   const tris: number[] = [];
   ringsToTube(rings, tris);
   const positions = closedPart(tris);
@@ -228,7 +239,48 @@ export function buildShank(p: ShankParams): ShankResult {
     weightG: weightG(volumeMm3, metal),
     outlineMm: outer.map(([xi, eta]) => [(xi * w) / 2, eta * t] as [number, number]),
     sideWidthMm: widthAt(-Math.PI / 2),
+    notchDepthMm,
   };
+}
+
+/**
+ * 腕の外側の点（断面の番号 firstOuter から）のうち、石の下の面 − すき間より上にある点を、まっすぐ下げる（ザグり）。
+ * 床は、点から隣の点までの距離（上から見て）＋ すき間 の円の中のいちばん低い所で取る。
+ * 三角形の中の点は、どの角からも、その角の隣の点までの距離より近いので、三角形の面も石に入らない。
+ * 指の側（内径）より下へは下げない。削った深さ（外側のいちばん上 outerTop から、いちばん下げた点まで）を返す
+ */
+function carveSeat(rings: V3[][], firstOuter: number, innerR: number, outerTop: number, cut: SeatCut): number {
+  const m = rings.length;
+  const n = rings[0].length;
+  const pad = cut.clearanceMm + 1;
+  const { xMin, xMax, yMin, yMax } = cut.box;
+  // 先に、動かす前の上から見た位置で、隣までの距離を測る（点は z だけ動かすので、x と y は変わらない）
+  const moves: [number, number, number][] = [];
+  for (let i = firstOuter; i < m; i++) {
+    for (let k = 0; k < n; k++) {
+      const [x, y, z] = rings[i][k];
+      if (z <= cut.culetZ - cut.clearanceMm || x < xMin - pad || x > xMax + pad || y < yMin - pad || y > yMax + pad) continue;
+      let reach = 0;
+      for (const di of [-1, 0, 1]) {
+        for (const dk of [-1, 0, 1]) {
+          const q = rings[(i + di + m) % m][(k + dk + n) % n];
+          reach = Math.max(reach, Math.hypot(q[0] - x, q[1] - y));
+        }
+      }
+      const floor = cut.floorZ(x, y, reach + cut.clearanceMm);
+      if (z > floor) moves.push([i, k, floor]);
+    }
+  }
+  let lowest = Infinity;
+  for (const [i, k, floor] of moves) {
+    const v = rings[i][k];
+    // 指の側（内径の円）より下へは下げない
+    const zMin = Math.sqrt(Math.max(0, innerR * innerR - v[1] * v[1]));
+    const z = Math.max(floor, zMin);
+    rings[i][k] = [v[0], v[1], z];
+    lowest = Math.min(lowest, z);
+  }
+  return moves.length ? Math.max(0, outerTop - lowest) : 0;
 }
 
 /**

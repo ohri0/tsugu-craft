@@ -58,3 +58,16 @@ describe("工程の id と題は、作り方の決まりの工程の一覧と同
         }
   });
 });
+
+describe("作り方：ザグり", () => {
+  it("石の先が腕に入りこむときは、「石座を腕に付ける」にザグりの深さが出る。入りこまなければ出ない", () => {
+    const deep = buildRing({ stone, setting: { style: "prong", culetGapMm: 0.3 }, shank: { gou: 11 } });
+    expect(deep.notchDepthMm).toBeGreaterThan(0);
+    const attach = howToMake({ ...input("prong"), ring: deep }, "hand").find((s) => s.title === "石座を腕に付ける")!;
+    expect(attach.text).toContain("ザグる");
+    expect(attach.text).toContain(`${deep.notchDepthMm.toFixed(2)} mm`);
+    const i = input("prong");
+    expect(i.ring.notchDepthMm).toBe(0);
+    expect(howToMake(i, "hand").find((s) => s.title === "石座を腕に付ける")!.text).not.toContain("ザグ");
+  });
+});
