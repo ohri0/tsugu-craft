@@ -868,6 +868,7 @@ function fitInsets() {
 }
 new ResizeObserver(() => fitInsets()).observe($(".vp"));
 function setMode(m: Mode) {
+  if (m !== "refine") ruleVoice?.stop();
   const w = MODES.find((x) => x.id === m)!;
   $(".vp-mode").textContent = w.word;
   $(".word-sub").textContent = w.sub;
@@ -1430,6 +1431,7 @@ function gouSlider(gou: number): SliderSpec {
   return { cls: "r-gou", label: "号", min: 5, max: 25, step: 1, value: gou, unit: "号" };
 }
 function renderCheck() {
+  ruleVoice?.stop();
   if (kind === "band") return renderBandCheck();
   if (!session?.built) return;
   const b = session.built;
@@ -2168,6 +2170,8 @@ async function playRuleVoice(r: Rule) {
 let lastRule: { by: string; quote: string; spoken: boolean; before: number; after: number; checks: string[] } | null = null;
 let fixLog: { text: string; cls: string }[] = [];
 let ruleDraft = "";
+/** 決まりの欄の「話す」（欄を描き直す前に止める。止めないと、ボタンは戻るのにマイクだけ聞き続けた） */
+let ruleVoice: { stop(): void } | null = null;
 function rulesSectionHtml(): string {
   const name = masterName(store.ledger());
   const all = activeRules(store.ledger()).filter((r) => r.source.kind === "craftsman");
@@ -2221,8 +2225,14 @@ function makingRulesHtml(stepId: string | undefined): string {
 function bindRules(box: HTMLElement) {
   const field = box.querySelector<HTMLTextAreaElement>(".ar-text");
   if (!field) return;
-  field.addEventListener("input", () => (ruleDraft = field.value));
+  field.addEventListener("input", () => {
+    ruleDraft = field.value;
+    // 欄を描き直したあとに届いた言葉（止める間際に決まった言葉）も、今の欄に入れる
+    const now = document.querySelector<HTMLTextAreaElement>(".ar-text");
+    if (now && now !== field) now.value = field.value;
+  });
   const voice = bindVoice(box.querySelector<HTMLButtonElement>(".ar-mic")!, field);
+  ruleVoice = voice;
   box.querySelector(".ar-go")!.addEventListener("click", () => {
     voice.stop();
     ruleDraft = field.value;

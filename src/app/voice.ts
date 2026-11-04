@@ -60,6 +60,8 @@ export function bindVoice(btn: HTMLButtonElement, field: HTMLTextAreaElement | H
       }
       finals = done;
       field.value = before + finals + interim;
+      // 手で書いたときと同じに知らせる（話した言葉も、描き直しのために覚えられるように）
+      field.dispatchEvent(new Event("input", { bubbles: true }));
     };
     rec.onerror = (e) => opts.onError?.(e.error === "not-allowed" ? "マイクが使えません。書いて送ってください。" : "聞き取れませんでした。もう一度話すか、書いて送ってください。");
     rec.onend = () => {
