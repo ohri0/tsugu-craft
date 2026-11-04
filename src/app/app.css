@@ -397,7 +397,7 @@ input[type="range"]::-moz-range-thumb { width: 13px; height: 13px; border-radius
 .published-note { margin: 0 0 12px; padding: 8px 12px; border-left: 2px solid var(--accent); background: rgba(10, 132, 255, 0.07); border-radius: 0 6px 6px 0; font-size: 12px; line-height: 1.7; color: var(--fg-2); }
 .no-example .row { justify-content: center; gap: 8px; }
 
-/* ---- 技（ほかの技にも）・聞き取り・魚々子 ---- */
+/* ---- 技（ほかの技にも）・聞き取り ---- */
 .linklike { padding: 0; border: 0; background: none; color: var(--accent-2); font-size: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .waza .tech { padding: 0; gap: 0; }
 .tech-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 10px 12px; color: var(--fg); text-decoration: none; }
@@ -422,55 +422,17 @@ input[type="range"]::-moz-range-thumb { width: 13px; height: 13px; border-radius
 .iv-rule { margin: 0; display: flex; gap: 8px; align-items: baseline; font-size: 13px; }
 .iv-text { margin: 0; font-size: 13px; }
 .val { font: 600 12px var(--mono); font-variant-numeric: tabular-nums; color: var(--fg); background: var(--field); border: 1px solid var(--line); border-radius: 3px; padding: 0 6px; }
-.gap-list, .nk-gaps, .nk-rules, .nk-findings { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.gap-list, .nk-gaps { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
 .gap-item { width: 100%; display: grid; gap: 1px; text-align: left; padding: 8px 12px; border-radius: var(--r); border: 1px dashed var(--line-2); background: transparent; }
 .gap-item:hover { background: var(--hover); }
 .gap-item b { font-size: 12px; font-weight: 600; }
 .gap-item small { font-size: 11px; color: var(--fg-3); line-height: 1.55; }
-.nk-rule { padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); }
-.nk-rule.craftsman { border-color: var(--line-2); }
-.nk-rule-head { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
-.nk-rule-head b { font-size: 13px; font-weight: 600; }
-.nk-rule p { margin: 2px 0 0; font-size: 12px; color: var(--fg-2); }
-.nk-rule a, .nk-f a, .src { color: var(--fg-2); text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 2px; }
 .src { margin-left: 4px; font-size: 11px; color: var(--fg-3); }
-.nk-rule blockquote small { display: block; margin-top: 2px; font-size: 11px; color: var(--fg-3); }
-.nk-gap-h { margin-top: 16px !important; }
-.nanako .panel-head h3 { margin: 0; }
-.nk-preview { display: grid; gap: 10px; }
-.nk-layout { display: flex; padding: 2px; gap: 2px; background: var(--field); border: 1px solid var(--line); border-radius: 7px; }
-.nk-layout button { flex: 1; min-height: 28px; border: 0; border-radius: 5px; background: transparent; color: var(--fg-2); font-size: 12px; }
-.nk-layout button[aria-checked="true"] { background: var(--panel-2); color: var(--fg); box-shadow: 0 0 0 1px var(--line-2); }
-.nk-svg { width: 100%; height: auto; max-height: 340px; display: block; }
-.nk-side { width: 100%; height: auto; max-height: 90px; display: block; }
-.nk-ctrl label { grid-template-columns: 96px 1fr 72px; }
-.nk-ctrl input[type="range"] { height: 32px; touch-action: none; }
-.nk-ctrl input[type="range"]::-webkit-slider-thumb { width: 20px; height: 20px; margin-top: -8.5px; }
-.nk-ctrl input[type="range"]::-moz-range-thumb { width: 20px; height: 20px; }
-.nk-findings { margin-top: 10px; }
-.nk-f { display: flex; gap: 10px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); }
-.nk-f .dot { flex: none; width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: var(--ok); }
-.nk-f.ng { border-color: rgba(255, 69, 58, 0.45); background: var(--ng-weak); }
-.nk-f.ng .dot { background: var(--ng); }
-.nk-f.none { border-style: dashed; border-color: var(--line-2); background: transparent; }
-.nk-f.none .dot { background: transparent; border: 1px solid var(--fg-3); }
-.nk-f b { font-size: 13px; font-weight: 600; margin-right: 8px; }
-.nk-f .now { font: 11px var(--mono); color: var(--fg-3); }
-.nk-f p { margin: 2px 0 0; font-size: 12px; }
-.nk-f .why { color: var(--ng-2); font-weight: 500; }
-.nk-f .tag { margin-left: 6px; }
 @media (max-width: 480px) {
   .iv-name { margin-left: 0; }
-  .nk-ctrl label { grid-template-columns: 84px 1fr 70px; }
 }
 .nk-gaps.inner { margin-top: 8px; }
 .nk-gaps details.free { margin-top: 2px; }
-.nk-verdict { margin: 0; padding: 8px 10px; border-radius: var(--r); font-size: 12px; font-weight: 500; }
-.nk-verdict.ng { color: var(--ng-2); background: var(--ng-weak); }
-.nk-verdict.ok { color: var(--fg-2); background: var(--field); }
-.nk-side-wrap { display: grid; gap: 2px; justify-items: center; }
-.nk-side { max-width: 420px; }
-.nk-side-cap { margin: 0; text-align: center; }
 .waza .techs { margin-top: 12px; }
 
 /* ---- 4 つのタブにしてから（帳面・学ぶ・技）：札は大きく、説明は 1 行 ---- */
@@ -545,3 +507,50 @@ a.back { display: inline-flex; align-items: center; border: 1px solid transparen
 .pub-sec-h { margin: 22px 0 4px; font-size: 14px; }
 /* 技：ほかの技の帳面 */
 .tech-rules { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+/* ---- 技の頁：どの技も同じ形（見出し → ① 作り方 → ② 職人の決まり → ③ Claude から質問）。帳面と同じ札の見た目 ---- */
+.tp .back { margin-bottom: 8px; }
+.tp-head { display: flex; align-items: flex-start; gap: 14px; padding: 4px 0 14px; }
+.tp-head .bt-mark { margin-top: 2px; }
+.tp-hb { min-width: 0; }
+.tp-head h2 { margin: 0 0 4px; font-size: 22px; font-weight: 600; line-height: 1.35; }
+.tp-head .lead { margin: 0; color: var(--fg-2); font-size: 13px; line-height: 1.7; }
+.tp-try { display: flex; width: 100%; min-height: 44px; margin: 0 0 14px; font-size: 15px; }
+.tp-toc { display: flex; gap: 6px; margin: 0 0 4px; overflow-x: auto; }
+.tp-toc a { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 32px; padding: 0 8px; border: 1px solid var(--line-2); border-radius: 16px; color: var(--fg-2); font-size: 12px; text-decoration: none; white-space: nowrap; }
+.tp-toc a:hover { color: var(--fg); background: var(--hover); }
+.tp-toc a span, .tp-n { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: var(--panel-2); border: 1px solid var(--line-2); font: 600 10px/1 var(--mono); color: var(--fg-2); }
+.tp-block { margin-top: 26px; scroll-margin-top: calc(var(--bar-h) + 10px); }
+.tp-block > h3 { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; margin: 0 0 10px; padding-bottom: 8px; border-bottom: 1px solid var(--line); font-size: 16px; font-weight: 600; }
+.tp-block > h3 .tp-n { width: 22px; height: 22px; font-size: 11px; background: var(--accent-weak); border-color: rgba(10, 132, 255, 0.45); color: var(--accent-2); }
+.tp-block > h3 small { font: 400 11px var(--mono); color: var(--fg-3); margin-left: auto; }
+.tp-block > .small { margin: 0 0 10px; }
+.tp-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.tp-step { display: flex; gap: 12px; padding: 14px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+.tp-sn { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--field); border: 1px solid var(--line-2); font: 600 12px/1 var(--mono); color: var(--fg); }
+.tp-sb { flex: 1; min-width: 0; }
+.tp-st { margin: 2px 0 4px; font-size: 15px; font-weight: 600; line-height: 1.45; }
+.tp-sx { margin: 0; font-size: 14px; line-height: 1.8; color: var(--fg); }
+.tp-tools, .tp-fail { margin: 8px 0 0; font-size: 12px; line-height: 1.7; color: var(--fg-2); }
+.tp-tools b, .tp-fail b { display: inline-block; margin-right: 8px; padding: 0 6px; border-radius: 3px; font-size: 11px; font-weight: 600; }
+.tp-tools b { background: var(--field); border: 1px solid var(--line-2); color: var(--fg-2); }
+.tp-fail { padding: 6px 8px; border-left: 2px solid var(--caution); background: var(--caution-weak); border-radius: 0 5px 5px 0; color: var(--fg); }
+.tp-fail b { background: transparent; color: var(--caution); padding: 0; }
+.tp-src { margin: 8px 0 0; font-size: 11px; line-height: 1.7; color: var(--fg-3); }
+.tp-src a { color: var(--fg-3); text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 2px; }
+.tp-uv { white-space: nowrap; margin-left: 4px; padding: 0 4px; border-radius: 3px; background: var(--caution-weak); color: var(--caution); font-size: 10px; }
+.tp-sub { margin: 16px 0 0; font-size: 12px; font-weight: 600; color: var(--fg-2); }
+.tp-more { margin-top: 12px; }
+.tp-more summary, .tp-gaps summary { cursor: pointer; min-height: 36px; display: flex; align-items: center; padding: 0 12px; border: 1px solid var(--line-2); border-radius: var(--radius); font-size: 13px; font-weight: 600; color: var(--fg-2); }
+.tp-more[open] summary, .tp-gaps[open] summary { margin-bottom: 8px; }
+.tp .rule-cards.pub .rc-meta a { color: var(--fg-3); }
+.tp .iv-card { margin-top: 0; }
+.tp-gaps { margin-top: 12px; }
+.tp .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 0; }
+.tp .actions .go { flex: 1 1 100%; min-height: 44px; font-size: 15px; }
+.tp-check li .stitle { font-size: 14px; font-weight: 600; }
+@media (max-width: 480px) {
+  .tp-head .bt-mark { width: 40px; height: 40px; font-size: 18px; }
+  .tp-head h2 { font-size: 20px; }
+  .tp-step { padding: 12px; gap: 10px; }
+  .tp-toc a { font-size: 11px; padding: 0 6px; }
+}

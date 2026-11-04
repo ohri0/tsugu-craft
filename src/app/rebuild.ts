@@ -106,8 +106,9 @@ export function mountRebuild(root: HTMLElement, opts: { onBack?: () => void } = 
     const sum = h && g ? tally(h, g, t.answer) : null;
     // 手がかりの選び方と、渡す手がかりの一覧（組み立てる前は上に、組み立てたあとは結果の下に）
     const cluePart = `
-      <div class="block">
-      <h3>${h ? "渡した手がかり" : "Claude に渡す手がかり"}</h3>
+      <section class="tp-block">
+      <h3><span class="tp-n">1</span>${h ? "渡した手がかり" : "手がかり"} <small>${clues.length} 個</small></h3>
+      <p class="small muted">${h ? "Claude はこれだけを読んで組み立てました。" : "Claude に渡すのは手がかりだけです。技の名前と本当の作り方は渡しません。"}</p>
       <div class="cond" role="radiogroup" aria-label="渡す手がかり">${t.conditions
         .map((x) => `<button type="button" role="radio" aria-checked="${x.id === c.id}" data-c="${x.id}"><b>${esc(x.label)}</b><small>${esc(x.note)}</small></button>`)
         .join("")}</div>
@@ -116,23 +117,37 @@ export function mountRebuild(root: HTMLElement, opts: { onBack?: () => void } = 
         <summary>手がかり <b>${clues.length}</b><span class="clue-peek">${clues.slice(0, 3).map((x) => `${esc(x.id)} ${esc(x.title)}`).join(" ・ ")}${clues.length > 3 ? ` ほか ${clues.length - 3}` : ""}</span></summary>
         <ol class="clue-list">${clues.map((x) => `<li id="clue-${esc(x.id)}"><b>${esc(x.id)}</b> <span>${esc(x.title)}</span><p>${esc(x.text)}</p></li>`).join("")}</ol>
       </details>
-      </div>`;
+      </section>`;
+    // Claude が組み立てる（ボタンは 1 つ。組み立てたあとは答え合わせ）
+    const actPart = `
+      <section class="tp-block">
+      <h3><span class="tp-n">2</span>Claude が組み立てる</h3>
+      <div class="actions">
+        <button type="button" class="primary go">${h ? "もう一度組み立てる" : `Claude が組み立てる（手がかり ${clues.length}）`}</button>
+        ${h && !g ? `<button type="button" class="primary gold check">答え合わせ（答えを開く）</button>` : ""}
+        ${h && !run!.published ? `<button type="button" class="ghost export">記録を書き出す</button>` : ""}
+      </div>
+      <p class="small status">${h ? "" : "組み立てには合言葉が要ります（1〜2 分）。"}</p>
+      </section>`;
     root.innerHTML = `
-    <section class="view rebuild">
+    <section class="view rebuild tp">
       ${opts.onBack || TECHNIQUES.length > 1 ? `<button type="button" class="back">← ${TECHNIQUES.length > 1 ? "一覧へ" : "技を選ぶ"}</button>` : ""}
-      <header class="view-head">
-        <h2>${esc(t.name)}<small>（${esc(t.reading)}）</small>を組み立て直す</h2>
-        <p class="lead">残った手がかりだけから Claude が作り方を組み立て、本当の作り方と比べます。</p>
+      <header class="tp-head">
+        <span class="bt-mark" aria-hidden="true">？</span>
+        <div class="tp-hb">
+          <h2>組み立て直す（${esc(t.name)}）</h2>
+          <p class="lead">作り方の残っていない技を、残った手がかりだけから Claude が組み立て、本当の作り方と比べます。</p>
+        </div>
       </header>
 
-      ${h ? "" : cluePart}
+      ${cluePart}${actPart}
 
       ${
         h
-          ? `<div class="block">
-        <h3>${g ? "答え合わせの結果" : "組み立てた作り方"} <small>${esc(run!.date)}${run!.published ? " ・ 公開の記録" : ""}</small></h3>
+          ? `<section class="tp-block">
+        <h3><span class="tp-n">3</span>${g ? "答え合わせの結果" : "組み立てた作り方"} <small>${esc(run!.date)}${run!.published ? " ・ 公開の記録" : ""}</small></h3>
         ${sum ? `<div class="score"><b>${sum.covered}<small>/${sum.answerSteps}</small></b><p>${esc(scoreLine(sum))}</p></div>` : ""}
-        <ol class="steps-h">${h.steps
+        <ol class="steps-h tp-check">${h.steps
           .map((s, i) => {
             const gs = g?.steps.find((x) => x.n === i + 1);
             const v = gs ? VERDICT[gs.verdict] : null;
@@ -160,20 +175,12 @@ export function mountRebuild(root: HTMLElement, opts: { onBack?: () => void } = 
                ${g.summary ? `<p class="hsum">${esc(g.summary)}</p>` : ""}`
             : ""
         }
-      </div>`
+      </section>`
           : ""
       }
 
       ${h && t.id === "mokume" ? `<div class="block sim-slot"></div>` : ""}
 
-      <div class="actions">
-        <button type="button" class="primary go">${h ? "もう一度組み立てる" : `この ${clues.length} 個で組み立てる`}</button>
-        ${h && !g ? `<button type="button" class="primary gold check">答え合わせ（答えを開く）</button>` : ""}
-        ${h && !run!.published ? `<button type="button" class="ghost export">記録を書き出す</button>` : ""}
-      </div>
-      <p class="small status">${h ? "" : "組み立てには合言葉が要ります（1〜2 分）。"}</p>
-
-      ${h ? cluePart : ""}
 
       ${CAVEAT}
     </section>`;

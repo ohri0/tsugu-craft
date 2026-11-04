@@ -5,7 +5,6 @@ import repo from "../ledger/jewelry.json";
 import { checkShank } from "../src/rules/checks";
 import { answerToDraft, applyDraft, ringGaps, techGaps } from "../src/rules/gaps";
 import { activeRules, addRule, effectiveGuides, publicRingRules, seedLedger, sourceLabel, type Ledger, type Rule } from "../src/rules/ledger";
-import { seedNanakoLedger } from "../src/rules/nanako";
 import { findRules } from "../src/rules/search";
 import { seedTechLedger, TECH_IDS, TECHS } from "../src/rules/techniques";
 import { bookLabel, masterName } from "../src/app/master";
@@ -22,7 +21,6 @@ describe("はじめから入れた決まりの出どころ", () => {
   const seeds: [string, Rule<string>[]][] = [
     ["リポジトリの帳面", ring.rules as Rule<string>[]],
     ["公開情報だけの帳面", seedLedger().rules as Rule<string>[]],
-    ["魚々子", seedNanakoLedger().rules as Rule<string>[]],
     ...TECH_IDS.map((id) => [TECHS[id].name, seedTechLedger(id).rules] as [string, Rule<string>[]]),
   ];
   for (const [name, rules] of seeds) {
@@ -38,9 +36,9 @@ describe("はじめから入れた決まりの出どころ", () => {
     });
   }
 
-  // 魚々子の帳面には、取材記事の言葉そのまま（出どころの URL つき）が 1 つある。今回足した帳面には言葉を入れていない
+  // 資料の決まりには、言葉（quote）を入れていない
   it("今回足した資料の決まりに、言葉（quote）を入れていない", () => {
-    for (const [name, rules] of seeds.filter(([n]) => n !== "魚々子")) for (const r of rules) if (r.source.kind !== "craftsman") expect(r.quote, `${name} ${r.id}`).toBeUndefined();
+    for (const [name, rules] of seeds) for (const r of rules) if (r.source.kind !== "craftsman") expect(r.quote, `${name} ${r.id}`).toBeUndefined();
   });
 
   it("指輪の帳面は、資料の決まりを 25 以上もち、リポジトリの帳面にもすべて入っている", () => {

@@ -1,6 +1,6 @@
 // 継ぐ：下のタブは 4 つ。設計（studio.html）・帳面・学ぶ・技。
-// 画面の切り替えは URL の # で（#ledger / #learn / #waza）。「/」の後ろは画面の中の場所（#learn/hands・#waza/nanako・#waza/rebuild）。
-// 前の名前（#see・#ask・#keep・#rebuild・#waza/ring）で来ても、新しい場所へ送る。スマホは下のタブ、PC は上のタブ。
+// 画面の切り替えは URL の # で（#ledger / #learn / #waza）。「/」の後ろは画面の中の場所（#learn/hands・#waza/ring・#waza/mokume・#waza/rebuild）。
+// 前の名前（#see・#ask・#keep・#rebuild・#waza/nanako）で来ても、新しい場所へ送る。スマホは下のタブ、PC は上のタブ。
 import "./app.css";
 import { mountAsk } from "./ask";
 import { mountSee } from "./see";
@@ -39,7 +39,7 @@ app.innerHTML = `
       <li><b>設計</b><span>指輪を形にして、職人の決まりで「作れるか」を確かめます。</span></li>
       <li><b>帳面</b><span>職人の決まりが並びます。まだ決まっていない所は、Claude が 1 つずつ聞きます。</span></li>
       <li><b>学ぶ</b><span>次の人が、職人の決まりに「なぜ？」と聞けます。手の動きを手本と比べることもできます。</span></li>
-      <li><b>技</b><span>指輪の石留めのほかに、彫金の魚々子（ななこ）と、途切れた技を組み立て直す試み。</span></li>
+      <li><b>技</b><span>指輪の石留めと、覆輪留め・木目金など六つの技。どれも「作り方・職人の決まり・Claude から質問」の同じ形です。</span></li>
     </ol>
     <div class="sheet-actions"><button value="ok" class="primary">始める</button></div>
   </form>
