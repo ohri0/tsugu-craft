@@ -3,7 +3,7 @@
 // 数字は、形から計算したもの（腕の材料の長さ、爪の線材の太さと長さ、座を彫る位置 など）。
 // 手順は宝飾の一般的な作り方の例で、作者（宝飾の彫金職人）が確かめて直す。温度や縮みの量のように、
 // 形から出せず出典もない数字は書かない（鋳造所・職人の値を使う、と書く）。
-import type { RingDesign } from "../geometry/ring";
+import type { PlacedStone, RingDesign } from "../geometry/ring";
 import { SHANK_SECTION_LABEL } from "../geometry/shank";
 import { perimeter } from "../geometry/polygon";
 import { GUIDES } from "../rules/guides";
@@ -78,6 +78,59 @@ export function measures(o: HowToInput) {
 }
 
 export function howToMake(o: HowToInput, method: Method): Step[] {
+  if ((o.ring.stones?.length ?? 1) > 1) return multiSteps(o, method);
+  return soloSteps(o, method);
+}
+
+/** 石の場所の言葉（腕のいちばん上から、腕に沿って） */
+export function placeText(st: Pick<PlacedStone, "atMm">): string {
+  if (Math.abs(st.atMm) < 0.005) return "腕のいちばん上";
+  return `腕のいちばん上から、腕に沿って ${st.atMm > 0 ? "右" : "左"}へ ${mm(Math.abs(st.atMm), 2)}`;
+}
+
+/**
+ * 石を並べた指輪：石ごとに、一粒と同じ石座の作り方をくり返す（石座を組む・腕に付ける・石を留める）。
+ * 腕と仕上げは 1 回。石の番号は 3D・確かめと同じ（石 1 ＝ 真ん中の石）
+ */
+function multiSteps(o: HowToInput, method: Method): Step[] {
+  const r = o.ring;
+  const one = (st: PlacedStone): Step[] =>
+    soloSteps({ ...o, ring: { ...r, setting: st.setting, culetGapMm: st.culetGapMm, solder: st.solder ? { ...st.solder, triangles: { start: 0, count: 0 } } : null, notchDepthMm: 0 }, outlineMm: st.params.outlineMm, longMm: st.params.longMm, widthMm: st.params.widthMm, depthMm: st.params.depthMm }, method);
+  const per = r.stones.map((st, i) => ({ st, i, steps: one(st) }));
+  const base = per[0].steps;
+  const name = (i: number, t: string) => `${t}（石 ${i + 1}）`;
+  const tag = (i: number, st: PlacedStone, x: Step): Step => ({ ...x, title: name(i, x.title), specs: [{ label: "場所", value: placeText(st) }, ...x.specs] });
+  const layout: Step = {
+    id: "layout",
+    title: "石の並びを腕に写す",
+    text: `腕の外側に、石の真ん中の位置を ${r.stones.length} か所、ケガキで印をつける（腕のいちばん上から、腕に沿って測る）。`,
+    specs: r.stones.map((st, i) => ({ label: `石 ${i + 1}`, value: `${st.params.longMm.toFixed(2)} mm ・ ${placeText(st)}` })),
+    watch: "石座は腕に直角に立てる（腕の丸みに沿って、石の向きが少しずつ外へ開く）。",
+  };
+  const zaguri = r.notchDepthMm > 0 ? [{ label: "ザグり", value: `石ごとに、石の先の真下 ・ いちばん深い所 ${mm(r.notchDepthMm, 2)}（3D データに入っている）` }] : [];
+  if (method === "cast") {
+    // 原型（3D データ）に石座がぜんぶ入っているので、型と鋳造は 1 回。石留めだけ石ごとに
+    // 石留めは、最後の「仕上げ」の前（castSteps のあと）
+    const seatIdx = base.length - 2;
+    const head = base.slice(0, seatIdx);
+    const tail = base.slice(seatIdx + 1);
+    const model = head.map((x, k) => (k === 0 ? { ...x, specs: [...x.specs, ...layout.specs, ...zaguri] } : x));
+    const seats = per.map(({ st, i, steps }) => tag(i, st, steps[seatIdx]));
+    return [...model, ...seats, ...tail];
+  }
+  // 手作り：材料と腕は 1 回、石座を組む・付ける・留めるは石ごと
+  const idx = (id: string) => base.findIndex((x) => x.id === id);
+  const iHead = idx("head") >= 0 ? idx("head") : idx("bezel_make");
+  const iAttach = idx("attach");
+  const before = base.slice(0, iHead);
+  const finish = base[base.length - 1];
+  const heads = per.map(({ st, i, steps }) => tag(i, st, steps[iHead]));
+  const attaches = per.map(({ st, i, steps }) => tag(i, st, steps[iAttach]));
+  const seats = per.map(({ st, i, steps }) => tag(i, st, steps[iAttach + 1]));
+  return [...before, ...heads, layout, ...attaches, ...seats, finish];
+}
+
+function soloSteps(o: HowToInput, method: Method): Step[] {
   const r = o.ring;
   const m = measures(o);
   const sh = r.shank;

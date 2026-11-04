@@ -28,8 +28,8 @@ import { bindVoice } from "../app/voice";
 import { bookLabel, masterName, sourceName } from "../app/master";
 import { toStl } from "../cad/solid";
 import { buildStone } from "../geometry/stone";
-import { METAL_LABEL, RingSession, type Built } from "./session";
-import { howToMake, type Method } from "./howto";
+import { LAYOUT_LABEL, METAL_LABEL, RingSession, SLOT_SHAPE_LABEL, type Built, type SlotShape } from "./session";
+import { howToMake, placeText, type Method } from "./howto";
 import { sheetHtml } from "./sheet";
 import { whyHtml } from "./why";
 import { SORT_TIPS, parseTips, tipsFor, tipsPrompt, type Tip } from "./tips";
@@ -47,8 +47,8 @@ import { dimsSvg, gizmoSvg, type Dim, type Rect } from "./dims";
 import { bindSlider, sliderHtml, type SliderSpec } from "./slider";
 import { bindSectionEditor, sectionEditorHtml, startShape } from "./section-edit";
 import { SHANK_SECTIONS, SHANK_SECTION_LABEL, type ShankSection } from "../geometry/shank";
-import { rebuildShank } from "../geometry/ring";
-import { checkShank } from "../rules/checks";
+import { placePoint, rebuildShank } from "../geometry/ring";
+import { checkShank, type Problem } from "../rules/checks";
 import { presentHtml, STONE_SIZES, type PresentGroup } from "./present";
 import { MAX_SECONDS, playVoice, putVoice, startRecording, voiceIds } from "./voice-notes";
 
@@ -109,6 +109,7 @@ app.innerHTML = `
     <div class="gl"></div>
     <div class="present" hidden><button type="button" class="pr-close" aria-label="見せるを閉じる">×</button><div class="pr-panel"></div></div>
     <svg class="dims" aria-hidden="true"></svg>
+    <div class="stone-tags" aria-hidden="true"></div>
     <svg class="gizmo" viewBox="0 0 60 60" aria-hidden="true"></svg>
     <div class="vp-tl"><b class="vp-view">斜め</b><div class="disp" role="group" aria-label="表示">${(["wire", "shaded", "render", "draw"] as const).map((d) => `<button type="button" data-disp="${d}" aria-pressed="${d === "render"}">${{ wire: "ワイヤー", shaded: "シェード", render: "レンダー", draw: "図面" }[d]}</button>`).join("")}</div></div>
     <button type="button" class="verdict-chip" hidden></button>
@@ -401,6 +402,16 @@ function presentGroups(): PresentGroup[] {
     { key: "section", label: "腕の断面", options: SHANK_SECTIONS.map((x) => ({ v: x, label: SHANK_SECTION_LABEL[x] })), on: session.built.ring.shank.section },
     { key: "setting", label: "留め方", options: [{ v: "4", label: "4 本爪" }, { v: "6", label: "6 本爪" }, { v: "bezel", label: "覆輪" }], on: st.style === "bezel" ? "bezel" : String(st.prongs.length) },
     { key: "metal", label: "地金", options: (["pt900", "k18yg", "k18pg", "k18wg"] as Metal[]).map((m) => ({ v: m, label: METAL_LABEL[m] })), on: s.metal },
+    {
+      key: "layout",
+      label: "石の並び",
+      options: [
+        { v: "solo", label: "一粒" },
+        { v: "trio", label: "三石" },
+        { v: "row", label: `横一列 ${GUIDES.multi.rowCount[1]}` },
+      ],
+      on: s.layout === "trio" || s.layout === "row" ? s.layout : s.stones?.length ? "" : "solo",
+    },
   ];
 }
 function renderPresent() {
@@ -412,7 +423,7 @@ function renderPresent() {
   const rule = craftRuleFor("prong-thin");
   const html = presentHtml(
     {
-      stone: `${stone.shapeName} ${session.stone.longMm.toFixed(2)} × ${session.stone.widthMm.toFixed(2)} mm`,
+      stone: `${stone.shapeName} ${session.stone.longMm.toFixed(2)} × ${session.stone.widthMm.toFixed(2)} mm${r.stones.length > 1 ? ` ほか ${r.stones.length - 1} 石` : ""}`,
       prong: st.style === "bezel" ? `覆輪 ・ 壁 ${st.bezel?.wallMm.toFixed(2)} mm` : `ø ${st.prongs[0]?.diameterMm.toFixed(2)} mm × ${st.prongs.length}`,
       shank: `${SHANK_SECTION_LABEL[r.shank.section]} ${r.shank.widthMm.toFixed(1)} × ${r.shank.thicknessMm.toFixed(1)} mm`,
       metal: `${METAL_LABEL[session.state.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g`,
@@ -440,6 +451,7 @@ function presentPick(g: string, v: string) {
   else if (g === "section") session.setShank({ section: v as ShankSection, reason: "見せる" });
   else if (g === "setting") session.setSetting(v === "bezel" ? { style: "bezel", reason: "見せる" } : { style: "prong", prong_count: Number(v), reason: "見せる" });
   else if (g === "metal") session.setShank({ metal: v as Metal, reason: "見せる" });
+  else if (g === "layout") session.setStones({ layout: v as "solo", count: v === "row" ? GUIDES.multi.rowCount[1] : undefined, reason: "見せる" });
   renderPresent();
 }
 function setPresent(on: boolean) {
@@ -636,6 +648,7 @@ function onBuilt(b: Built, _why: string) {
   const st = r.setting;
   const rows: [string, string][] = [
     ["石", `${stone.shapeName} ・ ${stone.measured.longMm.toFixed(2)} × ${stone.measured.widthMm.toFixed(2)} × ${stone.depthMm.toFixed(2)} mm`],
+    ...(r.stones.length > 1 ? ([["石の並び", `${layoutName()} ・ ${r.stones.length} 石（${r.stones.map((x) => x.params.longMm.toFixed(1)).join(" ・ ")} mm）`]] as [string, string][]) : []),
     ["留め方", st.style === "bezel" ? `覆輪 ・ 壁 ${st.bezel?.wallMm.toFixed(2)} mm` : `爪 ${st.prongs.length}${st.prongs.some((p) => p.isV) ? `（V 字 ${st.prongs.filter((p) => p.isV).length}）` : ""} ・ ø ${st.prongs[0]?.diameterMm.toFixed(2)} mm`],
     ["号 ・ 腕", `${s.gou} 号 ・ ${SHANK_SECTION_LABEL[r.shank.section]} ${r.shank.widthMm.toFixed(1)} × ${r.shank.thicknessMm.toFixed(1)} mm`],
     ["石と指のすき間", `${r.culetGapMm.toFixed(2)} mm`],
@@ -647,7 +660,8 @@ function onBuilt(b: Built, _why: string) {
   chip.hidden = false;
   chip.className = `verdict-chip ${n ? "ng" : "ok"}`;
   chip.textContent = n ? `作れない所 ${grouped(b).length}` : "作れます";
-  $(".word-name").textContent = `${stone.shapeName}の一粒石の指輪`;
+  $(".word-name").textContent = r.stones.length > 1 ? `${stone.shapeName}の${layoutName()}の指輪` : `${stone.shapeName}の一粒石の指輪`;
+  drawStoneTags();
   if (presentOn) renderPresent();
   renderFixPop();
   if (holdPanel) return;
@@ -943,6 +957,8 @@ const SHORT: Record<string, string> = {
   "band-thin": "腕が薄い",
   "band-narrow": "腕の幅が細い",
   "band-spike": "腕の断面が尖りすぎ",
+  "stone-space": "となりの石と近すぎる",
+  "metal-space": "石座の間のすき間が狭い",
 };
 function grouped(b: Built) {
   const groups = new Map<string, { p: (typeof b.problems)[number]; n: number }>();
@@ -1208,6 +1224,9 @@ function resizeStone(longMm: number, final: boolean) {
   $<HTMLInputElement>(".in-depth").value = stone.depthMm.toFixed(2);
   $(".stone-sub").textContent = `${stone.shapeName}・${stone.measured.longMm.toFixed(2)} × ${stone.measured.widthMm.toFixed(2)} mm`;
   session.state.prongMm = undefined;
+  // 三石・横一列は、石の大きさに合わせて並べ直す（止めたときだけ。動かしている間は場所をそのまま）
+  const lay = session.state.layout;
+  if (final && (lay === "trio" || lay === "row")) session.arrange(lay);
   if (final) tuneProngs();
   // 細かい形への作り直し（少し後）でも寄せ直さないよう、しばらくカメラを止めておく
   clearTimeout(keepCamTimer);
@@ -1235,6 +1254,7 @@ function renderCheck() {
     <section class="big-verdict ${probs.length ? "ng" : "ok"}"><b>${probs.length ? "このままでは作れません" : "このまま作れます"}</b><small>${probs.length ? `直す所 ${probs.length}` : `爪・留まり・すき間・角、すべて目安の内側`}</small></section>
     ${workshopBarHtml()}
     ${compareHtml()}
+    ${stonesSectionHtml(b)}
     ${
       probs.length
         ? `<ul class="probs">${probs
@@ -1280,6 +1300,7 @@ function renderCheck() {
     <button type="button" class="next-btn to-build">作り方を見る →</button>`;
   bindRules(box);
   bindWorkshops(box);
+  bindStones(box, b);
   const manual = box.querySelector<HTMLDetailsElement>(".manual")!;
   manual.addEventListener("toggle", () => (manualOpen = manual.open));
   box.querySelector(".compare-btn")?.addEventListener("click", () => setCompare(true));
@@ -1297,7 +1318,7 @@ function renderCheck() {
   box.querySelectorAll<HTMLButtonElement>(".fix-go").forEach((btn) =>
     btn.addEventListener("click", () => {
       const { p } = probs[Number(btn.dataset.p)];
-      if (p.options[0]) applyFix(p.options[0].id);
+      if (p.options[0]) applyFix(p.options[0].id, session!, p);
     }),
   );
   box.querySelectorAll<HTMLButtonElement>(".pick button").forEach((btn) =>
@@ -1365,11 +1386,234 @@ function renderCheck() {
   );
   box.querySelector(".to-build")!.addEventListener("click", () => setMode("hand"));
 }
-function applyFix(id: string, sess: RingSession = session!) {
+// ---- 石を並べる：三石・横一列・石を置く（腕の上を押して足す・なぞって動かす・押して選ぶ） ----
+/** 石を置く場面か（3D を押すと石を足す・選ぶ・動かす） */
+let placeOn = false;
+/** 選んでいる石（RingDesign.stones の番号。−1 ＝ なし） */
+let selStone = -1;
+/** 「石を並べる」を人が開いた・閉じたか（一度触ったら、描き直してもそのまま） */
+let stonesOpen: boolean | null = null;
+/** 並べ方の名前（作品の名前・図面の題に使う） */
+function layoutName(sess: RingSession = session!): string {
+  const l = sess.state.layout;
+  return l && l !== "solo" ? LAYOUT_LABEL[l] : sess.state.stones?.length ? LAYOUT_LABEL.free : LAYOUT_LABEL.solo;
+}
+const SLOT_SHAPES = Object.keys(SLOT_SHAPE_LABEL) as SlotShape[];
+function slotSizeSlider(mm: number): SliderSpec {
+  return { cls: "r-slot", label: "大きさ", min: 1.5, max: 12, step: 0.1, value: Number(mm.toFixed(1)), unit: "mm" };
+}
+/** 横一列の石の大きさ（どの石も今の石と同じ。今の石の大きさを変えて並べ直す） */
+function rowSizeSlider(): SliderSpec {
+  return { cls: "r-rowsize", label: "石の大きさ", min: 1.5, max: 10, step: 0.1, value: Number((session?.stone.longMm ?? 3).toFixed(1)), unit: "mm" };
+}
+function stonesSectionHtml(b: Built): string {
+  const s = session!.state;
+  const r = b.ring;
+  const lay = s.layout ?? (s.stones?.length ? "free" : "solo");
+  const bad = new Set(b.problems.flatMap((p) => (p.target.kind === "space" ? p.target.stones : [])));
+  const sel = selStone > 0 && selStone < r.stones.length ? r.stones[selStone] : null;
+  const slot = sel ? s.stones?.[selStone - 1] : undefined;
+  const pick = <T extends string | number>(name: string, cur: T, list: [T, string][]) =>
+    `<div class="pick"><span>${name}</span><div>${list.map(([v, l]) => `<button type="button" data-sk="${name}" data-v="${v}" aria-pressed="${v === cur}">${l}</button>`).join("")}</div></div>`;
+  const [lo, , hi] = GUIDES.multi.rowCount;
+  return `<details class="stones-sec" ${stonesOpen ?? (r.stones.length > 1 || placeOn) ? "open" : ""}><summary>石を並べる${r.stones.length > 1 ? `<small>${esc(layoutName())} ・ ${r.stones.length} 石</small>` : ""}</summary>
+    ${pick("並べ方", lay === "free" ? "" : lay, [["solo", "一粒"], ["trio", "三石"], ["row", "横一列"]])}
+    ${lay === "row" ? pick("石の数", r.stones.length, Array.from({ length: hi - lo + 1 }, (_, i) => [lo + i, String(lo + i)] as [number, string]).filter(([n]) => n <= 7)) : ""}
+    ${lay === "row" ? `<div class="sliders">${sliderHtml(rowSizeSlider())}</div>` : ""}
+    <div class="place-row"><button type="button" class="place-btn" aria-pressed="${placeOn}">${placeOn ? "石を置くのをやめる" : "石を置く"}</button><small>${placeOn ? "腕の上を押すと石を足します。石を押すと選べて、石をなぞると腕に沿って動きます" : "3D の腕の上を押して、石を 1 つずつ置けます"}</small></div>
+    <ol class="stone-list">${r.stones
+      .map(
+        (x, i) =>
+          `<li><button type="button" class="stone-row${i === selStone ? " on" : ""}${bad.has(i) ? " bad" : ""}" data-i="${i}"><b>${i + 1}</b><span>${i === 0 ? "真ん中の石" : esc(SLOT_SHAPE_LABEL[s.stones?.[i - 1]?.shape ?? "photo"])} ${x.params.longMm.toFixed(1)} mm</span><small>${esc(placeText(x))}</small></button></li>`,
+      )
+      .join("")}</ol>
+    ${
+      sel && slot
+        ? `<div class="stone-edit"><b>石 ${selStone + 1}</b>
+        ${pick("形", slot.shape, SLOT_SHAPES.map((k) => [k, SLOT_SHAPE_LABEL[k]] as [SlotShape, string]))}
+        <div class="sliders">${sliderHtml(slotSizeSlider(slot.longMm))}</div>
+        ${pick("留め方", sel.setting.style === "bezel" ? "bezel" : String(slot.prongCount ?? 0), [["0", "自動"], ["4", "4 本爪"], ["6", "6 本爪"], ["bezel", "覆輪"]])}
+        <button type="button" class="stone-del">この石を外す</button></div>`
+        : ""
+    }
+    <p class="stones-note">間の目安：石どうし ${GUIDES.multi.stoneGapMinMm} mm 以上、離れた石座どうし ${GUIDES.multi.metalGapMinMm} mm 以上（仮の目安・最後は職人が決める）</p>
+  </details>`;
+}
+function bindStones(box: HTMLElement, b: Built) {
+  const sec = box.querySelector<HTMLDetailsElement>(".stones-sec");
+  if (!sec) return;
+  sec.addEventListener("toggle", () => (stonesOpen = sec.open));
+  sec.querySelectorAll<HTMLButtonElement>(".pick button[data-sk]").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      const k = btn.dataset.sk!;
+      const v = btn.dataset.v!;
+      if (k === "並べ方") {
+        selStone = -1;
+        session!.setStones({ layout: v as "solo", count: v === "row" ? GUIDES.multi.rowCount[1] : undefined, reason: "手で" });
+      } else if (k === "石の数") session!.setStones({ layout: "row", count: Number(v), reason: "手で" });
+      else if (k === "形") {
+        session!.editStone(selStone, { shape: v as SlotShape });
+        session!.build("手で");
+      } else if (k === "留め方") {
+        session!.editStone(selStone, v === "bezel" ? { style: "bezel" } : { style: "prong", prongCount: Number(v) || undefined });
+        session!.build("手で");
+      }
+    }),
+  );
+  sec.querySelector(".place-btn")!.addEventListener("click", () => setPlace(!placeOn));
+  sec.querySelectorAll<HTMLButtonElement>(".stone-row").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      selStone = Number(btn.dataset.i);
+      renderCheck();
+      drawStoneTags();
+    }),
+  );
+  sec.querySelector(".stone-del")?.addEventListener("click", () => {
+    session!.removeStone(selStone);
+    selStone = -1;
+    session!.build("石を外した");
+  });
+  if (session!.state.layout === "row") bindSlider(sec, rowSizeSlider(), (v) => resizeStone(v, true));
+  const slot = session!.state.stones?.[selStone - 1];
+  if (slot)
+    bindSlider(sec, slotSizeSlider(slot.longMm), (v) => {
+      session!.editStone(selStone, { longMm: v });
+      session!.build("手で");
+    });
+  void b;
+}
+function setPlace(on: boolean) {
+  placeOn = on;
+  $(".pro").classList.toggle("placing", on);
+  if (on && !dispChosen) setDisp("shaded");
+  if (!$(".studio-refine").hidden) renderCheck();
+  drawStoneTags();
+}
+/** 3D の上に、石の番号の札（石を置く場面か、石を並べたとき） */
+function drawStoneTags() {
+  const box = $(".stone-tags");
+  const r = session?.built?.ring;
+  if (!r || kind !== "solitaire" || presentOn || (!placeOn && r.stones.length < 2) || $(".studio-refine").hidden) {
+    box.innerHTML = "";
+    return;
+  }
+  const lift = r.shank.outerRadiusMm;
+  const bad = new Set(session!.built!.problems.flatMap((p) => (p.target.kind === "space" ? p.target.stones : [])));
+  box.innerHTML = r.stones
+    .map((x, i) => {
+      const [px, py, pz] = placePoint(x.transform, 0, 0, x.stone.heights.tableZ + 0.9);
+      const q = viewer.project(px, py, pz + lift);
+      return q ? `<i class="${i === selStone ? "on" : ""}${bad.has(i) ? " bad" : ""}" style="left:${q.x.toFixed(1)}px;top:${q.y.toFixed(1)}px">${i + 1}</i>` : "";
+    })
+    .join("");
+}
+viewer.onFrame(() => drawStoneTags());
+/** 3D の点（指輪の座標）が、どの石の上か（石・石座に当たったとき）。なければ −1 */
+function stoneAt(p: [number, number, number], onStone: boolean): number {
+  const r = session?.built?.ring;
+  if (!r) return -1;
+  const rho = Math.hypot(p[1], p[2]);
+  const phi = Math.atan2(p[1], p[2]);
+  // 腕の外側より上にある点は石座（または石）。腕の面に当たったときは石ではない
+  if (!onStone && rho < r.shank.outerRadiusMm + 0.15) return -1;
+  let best = -1;
+  let bestD = Infinity;
+  r.stones.forEach((x, i) => {
+    const d = Math.abs(phi - x.phi) * rho;
+    const reach = Math.max(x.params.longMm, x.params.widthMm) / 2 + 1.2;
+    if (d < reach && d < bestD) [best, bestD] = [i, d];
+  });
+  return best;
+}
+{
+  const gl = $(".gl");
+  let down: { x: number; y: number; i: number; moved: boolean } | null = null;
+  let raf = 0;
+  gl.addEventListener(
+    "pointerdown",
+    (e) => {
+      if (!placeOn || !session?.built || kind !== "solitaire") return;
+      const hit = viewer.pickRing(e.clientX, e.clientY);
+      const i = hit ? stoneAt(hit.p, hit.stone) : -1;
+      down = { x: e.clientX, y: e.clientY, i, moved: false };
+      // 石の上で押したら、回すのを止めて、石を腕に沿って動かす
+      if (i >= 0) viewer.setOrbit(false);
+    },
+    { capture: true },
+  );
+  addEventListener("pointermove", (e) => {
+    if (!down || down.i < 0 || !session) return;
+    if (!down.moved && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 6) return;
+    down.moved = true;
+    const p = viewer.pickPlaneX(e.clientX, e.clientY, 0);
+    if (!p) return;
+    const at = Math.atan2(p[1], p[2]) * session.built!.ring.shank.outerRadiusMm;
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => {
+      session!.moveStone(down?.i ?? selStone, Math.round(at * 100) / 100);
+      holdPanel = true;
+      viewer.keepCamera = true;
+      session!.build("");
+    });
+  });
+  addEventListener("pointerup", (e) => {
+    const d = down;
+    down = null;
+    viewer.setOrbit(true);
+    if (!d || !session?.built) return;
+    if (d.moved) {
+      holdPanel = false;
+      selStone = d.i;
+      cancelAnimationFrame(raf);
+      session.build("石を動かした");
+      viewer.keepCamera = false;
+      return;
+    }
+    if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > 6) return;
+    if (d.i >= 0) {
+      // 押した石を選ぶ（もう一度押すと選ぶのをやめる）
+      selStone = selStone === d.i ? -1 : d.i;
+      renderCheck();
+      drawStoneTags();
+      return;
+    }
+    const hit = viewer.pickRing(e.clientX, e.clientY);
+    if (!hit) return;
+    // 腕の上を押したら、そこに石を足す（腕の上の側だけ）
+    if (hit.p[2] <= 0) return toast("腕の上の側（石のある側）を押してください");
+    const at = Math.atan2(hit.p[1], hit.p[2]) * session.built.ring.shank.outerRadiusMm;
+    viewer.keepCamera = true;
+    selStone = session.addStone(Math.round(at * 100) / 100);
+    session.build("石を置いた");
+    viewer.keepCamera = false;
+  });
+}
+function applyFix(id: string, sess: RingSession = session!, prob?: Problem) {
   const session = sess;
   const s = session!.state;
   const std = session!.built!.ring.setting.standardProngMm;
+  // 石を並べた指輪で、真ん中の石でない石の問題は、その石だけを直す
+  const si = prob?.stone ?? 0;
+  const other = si > 0 ? session.built!.ring.stones[si] : null;
+  if (other && (id === "thicker" || id === "moreProngs" || id === "addProng" || id === "bezel" || id === "vAtCorner")) {
+    if (id === "thicker") {
+      const need = Math.max(prob!.check === "prong-thin" ? prob!.requiredValue : 0, other.setting.standardProngMm);
+      session.editStone(si, { prongMm: Math.ceil(Math.max(need, (other.setting.prongs[0]?.diameterMm ?? need) * 1.15) * 100) / 100 });
+    } else if (id === "bezel") session.editStone(si, { style: "bezel" });
+    else if (id === "vAtCorner") session.editStone(si, { style: "prong", prongCount: undefined });
+    else session.editStone(si, { prongCount: Math.min(8, other.setting.prongs.length + 1) });
+    session.build("直し方から");
+    return;
+  }
   switch (id) {
+    case "spreadStones":
+      session.spreadStones(prob?.target.kind === "space" ? prob.target.stones : undefined);
+      session.build("直し方から");
+      break;
+    case "smallerStones":
+      session.smallerStones();
+      session.build("直し方から");
+      break;
     case "raise": {
       // 決まりのすき間まで上げる（高めでも足りないときは、すき間を直接その値に）
       const fg = session!.built!.problems.find((p) => p.check === "finger-gap");
@@ -1882,6 +2126,8 @@ const CHECK_CONTROL: Record<string, string> = {
   "band-thin": ".sec-edit",
   "band-narrow": ".sec-edit",
   "bezel-wall": '.pick:has(button[data-k="留め方"])',
+  "stone-space": ".stones-sec",
+  "metal-space": ".stones-sec",
 };
 function markBadControls() {
   document.querySelectorAll(".ctl-bad").forEach((e) => e.classList.remove("ctl-bad"));
@@ -1910,16 +2156,18 @@ function renderFixPop() {
   pop.querySelector(".fp-x")!.addEventListener("click", () => (pop.hidden = true));
   pop.querySelectorAll<HTMLButtonElement>(".fp-fix").forEach((b) =>
     b.addEventListener("click", () => {
-      const o = probs[Number(b.dataset.i)].p.options[0];
-      if (o) applyFix(o.id);
+      const pr = probs[Number(b.dataset.i)].p;
+      const o = pr.options[0];
+      if (o) applyFix(o.id, session!, pr);
       renderFixPop();
     }),
   );
   pop.querySelector(".fp-every")!.addEventListener("click", () => {
     for (let k = 0; k < 6 && session?.built?.problems.length; k++) {
-      const o = session.built.problems[0].options[0];
+      const pr = session.built.problems[0];
+      const o = pr.options[0];
       if (!o) break;
-      applyFix(o.id);
+      applyFix(o.id, session, pr);
     }
     renderFixPop();
   });
@@ -2190,7 +2438,7 @@ function solitaireDrawing(b: Built, problems: string[], sess: RingSession = sess
   const wide = Math.max(...xs) - Math.min(...xs);
   const deep = Math.max(...ys) - Math.min(...ys);
   const html = drawingPage({
-    title: `${info.shapeName}の一粒石の指輪`,
+    title: r.stones.length > 1 ? `${info.shapeName}の${layoutName(sess)}の指輪（石 ${r.stones.length}）` : `${info.shapeName}の一粒石の指輪`,
     date: today(),
     pxPerMm: px,
     problems,
@@ -2199,6 +2447,10 @@ function solitaireDrawing(b: Built, problems: string[], sess: RingSession = sess
       { label: "地金・重さ", value: `${METAL_LABEL[sess.state.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g` },
       { label: "石", value: `${info.longMm.toFixed(2)} × ${info.widthMm.toFixed(2)} × ${info.depthMm.toFixed(2)}` },
       { label: "留め方", value: r.setting.style === "bezel" ? `覆輪 ・ 壁 ${r.setting.bezel?.wallMm.toFixed(2)}` : `爪 ${r.setting.prongs.length} ・ ø${r.setting.prongs[0]?.diameterMm.toFixed(2)}` },
+      ...r.stones.slice(1).map((x, i) => ({
+        label: `石 ${i + 2}`,
+        value: `${x.params.longMm.toFixed(2)} × ${x.params.widthMm.toFixed(2)} ・ ${x.setting.style === "bezel" ? "覆輪" : `爪 ${x.setting.prongs.length} ・ ø${x.setting.prongs[0]?.diameterMm.toFixed(2)}`} ・ ${placeText(x)}`,
+      })),
       ...(r.notchDepthMm > 0 ? [{ label: "ザグり", value: `腕の上 深さ ${r.notchDepthMm.toFixed(2)}・丸いビット 直径 約 ${r.shank.notchBallDiameterMm.toFixed(1)}` }] : []),
       ...(r.solder ? [{ label: "石座の座", value: `腕の上に下の輪の溝 深さ ${r.shank.railSeatDepthMm.toFixed(2)}・ロウ付け ${r.solder.contacts} か所` }] : []),
     ],

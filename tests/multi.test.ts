@@ -1,5 +1,5 @@
 // 石を並べる指輪（三石・横一列）：形が正しく組めるか、腕が閉じた形のままか、間の確かめが働くか
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { openEdges } from "../src/cad/solid";
 import { buildRing, placePoint, type RingParams } from "../src/geometry/ring";
 import { roundStone, layoutRow, layoutTrio, scaleStone } from "../src/geometry/multi";
@@ -8,6 +8,10 @@ import { GUIDES } from "../src/rules/guides";
 import { seedLedger } from "../src/rules/ledger";
 import { RingSession } from "../src/studio/session";
 import { parseToolCall } from "../src/claude/tools";
+import { howToMake } from "../src/studio/howto";
+
+// 石座を石の数だけ作るので、ふつうのテストより時間がかかる
+vi.setConfig({ testTimeout: 30000 });
 
 const center = roundStone(6.5);
 const shank = { gou: 11 };
@@ -141,6 +145,27 @@ describe("石の間の確かめ", () => {
     const lay = layoutTrio(center, side, { style: "prong" }, shank, 0);
     const ring = buildRing({ stone: center, setting: { style: "prong" }, shank, others: lay.map((atMm) => ({ stone: side, setting: { style: "prong" as const }, atMm })) });
     expect(checkRing(ring).some((p) => p.check === "metal-space" || p.check === "stone-space")).toBe(false);
+  });
+});
+
+describe("作り方：石座の工程を石ごとにくり返す", () => {
+  const ring = buildRing(trio());
+  const input = { ring, outlineMm: center.outlineMm, longMm: center.longMm, widthMm: center.widthMm, depthMm: center.depthMm, metalLabel: "K18" };
+  it("手作り：石座を組む・腕に付ける・石を留めるが、石の数だけ。腕と仕上げは 1 回", () => {
+    const steps = howToMake(input, "hand");
+    const titles = steps.map((s) => s.title);
+    for (const n of [1, 2, 3]) {
+      expect(titles).toContain(`石座を組む（石 ${n}）`);
+      expect(titles).toContain(`石座を腕に付ける（石 ${n}）`);
+    }
+    expect(titles.filter((t) => t === "仕上げ")).toHaveLength(1);
+    expect(titles).toContain("石の並びを腕に写す");
+    expect(steps.find((s) => s.title === "石座を腕に付ける（石 2）")!.specs[0].value).toContain("腕に沿って");
+  });
+  it("鋳造：原型は 1 つ、石留めは石の数だけ", () => {
+    const titles = howToMake(input, "cast").map((s) => s.title);
+    expect(titles.filter((t) => t.startsWith("原型を作る"))).toHaveLength(1);
+    expect(titles.filter((t) => t.includes("（石 "))).toHaveLength(3);
   });
 });
 

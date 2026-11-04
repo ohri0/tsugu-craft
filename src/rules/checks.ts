@@ -103,6 +103,8 @@ export interface CheckOptions {
   position?: StonePosition;
   /** 確かめに使う目安（目安帳で職人が上書きした値）。なければ公開情報レベルの目安 */
   guides?: Guides;
+  /** 石を並べた指輪で、石ごとの目安（石の大きさで変わる職人の決まりのため。石の番号 → 目安）。なければ guides */
+  guidesFor?: (stone: number) => Guides;
 }
 
 const mm = (v: number) => `${v.toFixed(2)} mm`;
@@ -182,7 +184,7 @@ export function checkRing(ring: RingDesign, opts: CheckOptions = {}): Problem[] 
   });
   stones.slice(1).forEach((st, k) => {
     const i = k + 1;
-    const list = checkSetting(st.setting, st.culetGapMm, opts);
+    const list = checkSetting(st.setting, st.culetGapMm, { ...opts, guides: opts.guidesFor?.(i) ?? opts.guides });
     gapPoints(list, st.params.outlineMm);
     for (const p of list) out.push({ ...p, id: `s${i}:${p.id}`, where: `石 ${i + 1}・${p.where}`, stone: i });
   });

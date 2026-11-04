@@ -6,7 +6,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { FullScreenQuad } from "three/examples/jsm/postprocessing/Pass.js";
 import { toCreasedNormals } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import type { RingDesign } from "../geometry/ring";
+import { placePoint, type RingDesign } from "../geometry/ring";
 import type { ShankResult } from "../geometry/shank";
 import type { StoneMesh } from "../geometry/stone";
 import type { MetalId } from "../rules/guides";
@@ -106,6 +106,40 @@ export class Viewer {
       requestAnimationFrame(loop);
     };
     loop();
+  }
+
+  /** 画面の点（clientX・Y）から出る光線 */
+  private rayAt(cx: number, cy: number): THREE.Raycaster {
+    const r = this.renderer.domElement.getBoundingClientRect();
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1), this.camera);
+    return ray;
+  }
+  /**
+   * 画面の点の先にある指輪の面の点（指輪の座標 mm：床に置いた分を戻す）。何もなければ null。
+   * stone：当たったのが石か（石を置く所を選ぶとき、石と腕を見分ける）
+   */
+  pickRing(cx: number, cy: number): { p: [number, number, number]; stone: boolean } | null {
+    const hit = this.rayAt(cx, cy)
+      .intersectObject(this.content, true)
+      .find((h) => h.object instanceof THREE.Mesh && h.object.visible && !h.object.userData.marker);
+    if (!hit) return null;
+    const lift = this.live?.lift ?? 0;
+    return { p: [hit.point.x, hit.point.y, hit.point.z - lift], stone: isStone((hit.object as THREE.Mesh).userData.render ?? (hit.object as THREE.Mesh).material) };
+  }
+  /** 画面の点の先の光線が、指の軸に直角な面（x ＝ x0）を通る点（指輪の座標）。石を腕に沿って動かすとき */
+  pickPlaneX(cx: number, cy: number, x0 = 0): [number, number, number] | null {
+    const lift = this.live?.lift ?? 0;
+    const p = new THREE.Vector3();
+    return this.rayAt(cx, cy).ray.intersectPlane(new THREE.Plane(new THREE.Vector3(1, 0, 0), -x0), p) ? [p.x, p.y, p.z - lift] : null;
+  }
+  /** ドラッグで回すのを止める・戻す（石を動かしている間） */
+  setOrbit(on: boolean) {
+    this.controls.enabled = on;
+  }
+  /** 指輪を床に置いた高さ（指輪の座標 → 画面の 3D の座標：z に足す） */
+  get ringLift(): number {
+    return this.live?.lift ?? 0;
   }
 
   /** 赤い所（作れない所）を押したときに呼ぶ */
@@ -393,20 +427,24 @@ export class Viewer {
       side: THREE.DoubleSide,
     });
     const warn = new THREE.MeshPhysicalMaterial({ color: WARN, metalness: 0.35, roughness: 0.3, clearcoat: 0.6, side: THREE.DoubleSide });
-    // 問題のある爪の三角形だけ、赤い材質の組に分ける
-    const badProngs = new Set(problems.flatMap((p) => (p.target.kind === "prong" ? [p.target.index] : [])));
-    // 覆輪の壁が薄いときは石座ぜんぶ、腕が細い・薄いときは腕を赤く
-    const badBezel = problems.some((p) => p.target.kind === "bezel");
+    // 問題のある爪の三角形だけ、赤い材質の組に分ける（石を並べた指輪では、石ごとの三角形の範囲の中で）
+    const stones = ring.stones?.length ? ring.stones : [{ setting: ring.setting, transform: ring.transform, ranges: { setting: { start: 0, count: ring.ringPositions.setting.length / 9 } } }];
+    const stoneOf = (p: Problem) => Math.min(stones.length - 1, p.stone ?? 0);
+    const badProngs = new Set(problems.flatMap((p) => (p.target.kind === "prong" ? [`${stoneOf(p)}:${p.target.index}`] : [])));
+    // 覆輪の壁が薄いときはその石座ぜんぶ、腕が細い・薄いときは腕を赤く
+    const badBezel = new Set(problems.flatMap((p) => (p.target.kind === "bezel" ? [stoneOf(p)] : [])));
     const badShank = problems.some((p) => p.target.kind === "shank");
-    this.warnMat = badProngs.size > 0 || badBezel || badShank || problems.some((p) => p.target.kind === "corner" || p.target.kind === "gap" || p.target.kind === "shank-spot") ? warn : null;
+    this.warnMat =
+      badProngs.size > 0 || badBezel.size > 0 || badShank || problems.some((p) => p.target.kind === "corner" || p.target.kind === "gap" || p.target.kind === "shank-spot" || p.target.kind === "space") ? warn : null;
     const settingGeo = ring.ringPositions.settingNormals ? smoothGeometry(ring.ringPositions.setting, ring.ringPositions.settingNormals) : metalGeometry(ring.ringPositions.setting);
     const total = ring.ringPositions.setting.length / 9;
-    const ranges = badBezel
-      ? [{ start: 0, count: total, bad: true }]
-      : ring.setting.prongs
-          .map((pr, i) => ({ ...pr.triangles, bad: badProngs.has(i) }))
-          .filter((r) => r.bad)
-          .sort((a, b) => a.start - b.start);
+    const ranges = stones
+      .flatMap((st, si) =>
+        badBezel.has(si)
+          ? [{ ...st.ranges.setting, bad: true }]
+          : st.setting.prongs.map((pr, i) => ({ start: st.ranges.setting.start + pr.triangles.start, count: pr.triangles.count, bad: badProngs.has(`${si}:${i}`) })).filter((r) => r.bad),
+      )
+      .sort((a, b) => a.start - b.start);
     let cursor = 0;
     for (const r of ranges) {
       if (r.start > cursor) settingGeo.addGroup(cursor * 3, (r.start - cursor) * 3, 0);
@@ -419,15 +457,23 @@ export class Viewer {
     setting.position.z = lift;
     shank.position.z = lift;
     this.content.add(setting, shank);
-    // 守られていない角の赤い印（石の座標 → 指輪の座標）
-    const c = Math.cos(ring.transform.rotationZ);
-    const s = Math.sin(ring.transform.rotationZ);
+    // 守られていない角の赤い印（石の座標 → 指輪の座標。石を並べた指輪では、その石の場所へ）
     for (const p of problems) {
+      // となりの石・石座の間が狭い所（指輪の座標の点）
+      if (p.target.kind === "space") {
+        const [x, y, z] = p.target.point;
+        const mark = new THREE.Mesh(new THREE.SphereGeometry(0.3, 24, 16), warn);
+        mark.position.set(x, y, z + lift);
+        this.content.add(mark);
+        continue;
+      }
       // 守られていない角と、爪の間が空きすぎの所（縁の上の真ん中）
       if (p.target.kind !== "corner" && !(p.target.kind === "gap" && p.target.point)) continue;
       const q = p.target.point!;
+      const t = stones[stoneOf(p)].transform;
+      const [x, y, z] = placePoint(t, q.x, q.y, 0.2);
       const mark = new THREE.Mesh(new THREE.SphereGeometry(0.35, 24, 16), warn);
-      mark.position.set(q.x * c - q.y * s, q.x * s + q.y * c, ring.transform.translateZ + lift + 0.2);
+      mark.position.set(x, y, z + lift);
       this.content.add(mark);
     }
     const marks = spotMarks(ring.shank, problems, lift, warn);

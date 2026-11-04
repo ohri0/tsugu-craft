@@ -40,6 +40,8 @@ export interface StoneSlot {
   style?: "prong" | "bezel";
   /** 爪の本数（なければ石の形から自動） */
   prongCount?: number;
+  /** 爪の太さ（mm。なければ、その石の大きさの標準） */
+  prongMm?: number;
 }
 
 /** 設計（Claude の道具と、人のつまみが同じものを動かす） */
@@ -90,7 +92,7 @@ export function slotStone(main: StoneParams, slot: Pick<StoneSlot, "shape" | "lo
 
 /** 並べる石の形の名前（画面） */
 export const SLOT_SHAPE_LABEL: Record<SlotShape, string> = { photo: "今の石と同じ形", round: "ラウンド", oval: "オーバル", princess: "スクエア", emerald: "エメラルド", pear: "ペア", marquise: "マーキス" };
-export const LAYOUT_LABEL: Record<StoneLayout | "free", string> = { solo: "一粒", trio: "三石", row: "横一列", free: "自由に置く" };
+export const LAYOUT_LABEL: Record<StoneLayout | "free", string> = { solo: "一粒", trio: "三石", row: "横一列", free: "自由な並び" };
 
 /** つまみや Claude の set_setting が止まってから、細かい一体の形を作り直すまでの待ち（ms） */
 export const FINAL_DELAY_MS = 250;
@@ -247,11 +249,16 @@ export class RingSession implements ToolHost<RingState> {
       solidQuality: quality,
       vAtCorners: false,
     } as const;
-    const others: StonePlace[] = (s.stones ?? []).map((slot) => ({
+    // 石の大きさで変わる職人の決まり（爪の太さなど）は、石ごとに、その石の大きさの値を使う
+    const slotGuides = (s.stones ?? []).map((slot) => {
+      const st = slotStone(this.stone, slot);
+      return effectiveGuides(ledger, stoneSizeMm(st.longMm, st.widthMm));
+    });
+    const others: StonePlace[] = (s.stones ?? []).map((slot, i) => ({
       stone: slotStone(this.stone, slot),
       orientation: s.orientation,
       atMm: slot.atMm,
-      setting: { ...head, style: slot.style ?? s.style, prongCount: slot.prongCount },
+      setting: { ...head, minProngMm: prongMinOverride(slotGuides[i]), style: slot.style ?? s.style, prongCount: slot.prongCount, prongDiameterMm: slot.prongMm },
     }));
     const ring = buildRing({
       atMm: s.mainAtMm,
@@ -282,7 +289,7 @@ export class RingSession implements ToolHost<RingState> {
       },
       orientation: s.orientation,
     });
-    const problems = checkRing(ring, { position: s.position, guides }).map((p) => ({ ...p, rule: ruleForCheck(ledger, p.check) }));
+    const problems = checkRing(ring, { position: s.position, guides, guidesFor: (i) => (i === 0 ? guides : slotGuides[i - 1]) }).map((p) => ({ ...p, rule: ruleForCheck(ledger, p.check) }));
     return { ring, problems };
   }
 
@@ -381,7 +388,9 @@ export class RingSession implements ToolHost<RingState> {
     if (opts.spreadMm !== undefined) s.spreadMm = opts.spreadMm;
     const extra = s.spreadMm ?? 0;
     const shank = { gou: s.gou, widthMm: s.shankWidthMm, thicknessMm: s.shankThicknessMm, section: s.shankSection };
-    const head = { style: s.style, height: s.height, culetGapMm: s.culetGapMm, prongCount: s.prongCount, prongDiameterMm: s.prongMm, vAtCorners: false };
+    // 組むときと同じ石座で並べる（目安帳の爪の太さの決まりも同じ）
+    const minProngMm = prongMinOverride(this.guides());
+    const head = { style: s.style, height: s.height, culetGapMm: s.culetGapMm, prongCount: s.prongCount, prongDiameterMm: s.prongMm, vAtCorners: false, minProngMm };
     if (layout === "solo") {
       s.stones = undefined;
       s.mainAtMm = undefined;
@@ -392,7 +401,7 @@ export class RingSession implements ToolHost<RingState> {
       const shape = opts.sideShape ?? prev?.shape ?? "photo";
       const style = opts.sideStyle ?? prev?.style;
       const side = slotStone(this.stone, { shape, longMm: sideMm });
-      const [l, r] = layoutTrio(this.stone, side, head, shank, extra, s.orientation, { ...head, style: style ?? s.style, prongCount: undefined, prongDiameterMm: undefined });
+      const [l, r] = layoutTrio(this.stone, side, head, shank, extra, s.orientation, { ...head, style: style ?? s.style, prongCount: undefined, prongDiameterMm: undefined, minProngMm: this.minProngFor(side) });
       s.mainAtMm = undefined;
       s.stones = [l, r].map((atMm) => ({ atMm, shape, longMm: sideMm, style }));
     } else {
@@ -405,6 +414,11 @@ export class RingSession implements ToolHost<RingState> {
       const style = opts.sideStyle;
       s.stones = at.filter((_, i) => i !== mid).map((atMm) => ({ atMm, shape: "photo" as const, longMm: this.stone.longMm, style }));
     }
+  }
+
+  /** その石の大きさでの、目安帳の爪の最低の太さ（決まりがなければ undefined） */
+  private minProngFor(st: StoneParams): number | undefined {
+    return prongMinOverride(effectiveGuides(this.ledger(), stoneSizeMm(st.longMm, st.widthMm)));
   }
 
   setStones(input: SetStonesInput): SetStonesResult {

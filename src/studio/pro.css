@@ -789,3 +789,37 @@ dialog.sheet input:focus { border-color: var(--accent); }
 .shoot-help ol { margin: 6px 0 4px; padding-left: 18px; }
 .shoot-help li b { color: var(--fg-1); }
 .shoot-help small { color: var(--fg-3); }
+
+/* ---- 石を並べる（三石・横一列・石を置く） ---- */
+.stones-sec { border-bottom: 1px solid var(--line); }
+.stones-sec > summary { padding: 12px 14px; font-size: 11px; font-weight: 600; color: var(--fg-2); display: flex; gap: 8px; align-items: baseline; }
+.stones-sec > summary small { font-weight: 400; color: var(--fg-3); }
+.stones-sec > summary::after { content: "›"; margin-left: auto; transform: rotate(90deg); transition: transform 0.15s; color: var(--fg-3); }
+.stones-sec[open] > summary::after { transform: rotate(-90deg); }
+.stones-sec > :not(summary) { margin-left: 14px; margin-right: 14px; }
+.stones-sec[open] { padding-bottom: 10px; }
+.stones-sec.ctl-bad > summary { color: var(--ng); }
+.place-row { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+.place-row small { font-size: 11px; color: var(--fg-3); line-height: 1.4; }
+.place-btn { flex: none; height: 30px; padding: 0 12px; border-radius: 6px; border: 1px solid var(--line-2); background: var(--field); color: var(--fg); font-size: 12px; }
+.place-btn[aria-pressed="true"] { background: var(--accent); border-color: transparent; color: #fff; }
+.stone-list { list-style: none; margin: 6px 0; padding: 0; display: grid; gap: 4px; }
+.stone-row { width: 100%; display: grid; grid-template-columns: 22px 1fr; column-gap: 8px; align-items: center; text-align: left; padding: 6px 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--field); color: var(--fg-1); font-size: 12px; }
+.stone-row b { grid-row: span 2; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--panel-2); font-size: 11px; }
+.stone-row small { color: var(--fg-3); font-size: 10.5px; }
+.stone-row.on { border-color: var(--accent); }
+.stone-row.on b { background: var(--accent); color: #fff; }
+.stone-row.bad b { background: var(--ng); color: #fff; }
+.stone-edit { margin: 8px 0; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line-2); }
+.stone-edit > b { font-size: 12px; }
+.stone-del { margin-top: 6px; height: 28px; padding: 0 12px; border-radius: 6px; border: 1px solid var(--ng); background: transparent; color: var(--ng); font-size: 12px; }
+.stones-note { font-size: 10.5px; color: var(--fg-3); margin-top: 8px; line-height: 1.5; }
+.stone-tags { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.stone-tags i { position: absolute; transform: translate(-50%, -100%); min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; display: grid; place-items: center; font: 600 11px/1 system-ui, sans-serif; color: #fff; background: rgba(20, 20, 22, 0.78); border: 1px solid rgba(255, 255, 255, 0.35); }
+.stone-tags i.on { background: var(--accent); border-color: transparent; }
+.stone-tags i.bad { background: var(--ng); border-color: transparent; }
+.placing .gl { cursor: crosshair; }
+@media (max-width: 760px) {
+  .place-btn { height: 36px; }
+  .stone-row { padding: 8px 10px; }
+}
