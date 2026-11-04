@@ -157,6 +157,30 @@ export function carryDesign(prev: RingState, base: RingState, same: { shape?: bo
   return out;
 }
 
+/**
+ * 爪の太さを、留まりと太さの確かめが通るまで上げる（軽い作り方で数回だけ試す）。
+ * 帳面を切り替えたとき・最初の案を作るときと、帳面ごとの比べの表で、同じ太さになるように 1 か所に。
+ */
+export function tuneProngMm(s: RingSession): void {
+  const solid = s.solid;
+  s.solid = false;
+  for (let i = 0; i < 4; i++) {
+    const b = s.build("爪の太さを決める");
+    if (!b.problems.some((p) => p.check === "hold" || p.check === "prong-thin")) break;
+    const cur = b.ring.setting.prongs[0]?.diameterMm ?? b.ring.setting.standardProngMm;
+    s.state.prongMm = Math.ceil(cur * 1.08 * 100) / 100;
+  }
+  s.solid = solid;
+}
+
+/** その帳面に切り替えたら、今の設計はどうなるか（画面を変えずに、帳面の切り替えと同じ順で組む） */
+export function underLedger(stone: StoneParams, state: RingState, ledger: Ledger): Built {
+  const s = new RingSession(stone, () => ledger, () => undefined, () => "");
+  s.state = { ...structuredClone(state), prongMm: undefined };
+  tuneProngMm(s);
+  return s.build("帳面ごとに比べる");
+}
+
 /** 石の長辺の欄で入れられる範囲（mm。石の大きさのつまみと同じ） */
 export const STONE_LONG_RANGE = { min: 3, max: 14 } as const;
 

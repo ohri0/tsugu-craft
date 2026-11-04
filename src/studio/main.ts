@@ -5,7 +5,7 @@
 // 帳面   職人が声で決まりを足すと、その場で確かめが変わる。
 import { MAIN, addWorkshop, setActive } from "../rules/workshops";
 import { printHtml } from "../ui/print";
-import { side, summarize, sweepDesigns, sweepOne, type SweepDesign, type SweepResult } from "./sweep";
+import { summarize, sweepDesigns, sweepOne, type SweepDesign, type SweepResult } from "./sweep";
 import { SAMPLE_DESIGNS, SAMPLE_MAKER, SAMPLE_NOTE, isSample, outlineThumb, sampleState, sampleStone, tuneSample, fixProngSize } from "./samples";
 import { MAKING_STEPS, isCheckRule, makingRulesFor, stepsOfRule } from "../rules/making";
 import "./pro.css";
@@ -29,7 +29,7 @@ import { bindVoice } from "../app/voice";
 import { bookLabel, masterName, sourceName } from "../app/master";
 import { toStl } from "../cad/solid";
 import { buildStone } from "../geometry/stone";
-import { LAYOUT_LABEL, METAL_LABEL, RingSession, SLOT_SHAPE_LABEL, STONE_LONG_RANGE, carryDesign, fitStoneDepth, fitStoneLong, type Built, type SlotShape } from "./session";
+import { LAYOUT_LABEL, METAL_LABEL, RingSession, SLOT_SHAPE_LABEL, STONE_LONG_RANGE, carryDesign, fitStoneDepth, fitStoneLong, tuneProngMm, underLedger, type Built, type SlotShape } from "./session";
 import { howToMake, placeText, type Method } from "./howto";
 import { sheetHtml } from "./sheet";
 import { whyHtml } from "./why";
@@ -869,16 +869,8 @@ document.querySelector<HTMLInputElement>(".sketch-file")?.addEventListener("chan
 let tuning = false;
 function tuneProngs() {
   if (!session) return;
-  const solid = session.solid;
   tuning = true;
-  session.solid = false;
-  for (let i = 0; i < 4; i++) {
-    const b = session.build("爪の太さを決める");
-    if (!b.problems.some((p) => p.check === "hold" || p.check === "prong-thin")) break;
-    const cur = b.ring.setting.prongs[0]?.diameterMm ?? b.ring.setting.standardProngMm;
-    session.state.prongMm = Math.ceil(cur * 1.08 * 100) / 100;
-  }
-  session.solid = solid;
+  tuneProngMm(session);
   tuning = false;
 }
 
@@ -1301,12 +1293,14 @@ function switchLedger(id: string) {
 }
 function workshopTable(): string {
   if (!session?.built) return "";
-  const state = { ...session.snapshot(), prongMm: undefined };
+  const state = session.snapshot();
   const rows: [string, Ledger][] = [["公開情報だけ", seedLedger()], [bookLabel(store.mainLedger()), store.mainLedger()], ...store.workshops().list.map((w) => [w.name, w.ledger] as [string, Ledger])];
   return `<table><thead><tr><th>帳面</th><th>爪の太さ</th><th>作れない所</th></tr></thead><tbody>${rows
     .map(([name, led]) => {
-      const r = side(session!.stone, state, led, session!.solid);
-      return `<tr><th>${esc(name)}</th><td>${r.prongMm.toFixed(2)} mm × ${session!.built!.ring.setting.prongs.length}</td><td>${r.problems}</td></tr>`;
+      // 帳面を切り替えたときと同じ順で組む（前は別の太くし方で、表と切り替えた後の爪の太さがちがった）
+      const b = underLedger(session!.stone, state, led);
+      const st = b.ring.setting;
+      return `<tr><th>${esc(name)}</th><td>${st.style === "bezel" ? `覆輪 ・ 壁 ${st.bezel?.wallMm.toFixed(2)} mm` : `${st.prongs[0]?.diameterMm.toFixed(2)} mm × ${st.prongs.length}`}</td><td>${grouped(b).length}</td></tr>`;
     })
     .join("")}</tbody></table><p class="hint">同じ石・同じ形を、帳面だけ替えて組んだ結果です（爪はそれぞれの帳面の標準から）。</p>`;
 }
@@ -1972,6 +1966,8 @@ function applyFix(id: string, sess: RingSession = session!, prob?: Problem) {
     case "bluntTip":
       // とがりは形の好みに深くかかわるので、自動では直さない。断面を描く画面を開いて、赤い所を見せる
       manualOpen = true;
+      $(".fix-pop").hidden = true;
+      setMode("refine");
       session!.build("直し方から");
       requestAnimationFrame(() => document.querySelector(".studio-refine .sec-edit")?.scrollIntoView({ behavior: "smooth", block: "center" }));
       break;
@@ -2815,7 +2811,7 @@ function solitaireDrawing(b: Built, problems: string[], sess: RingSession = sess
           return [
             { a: [0, -ri, lift], b: [0, ri, lift], label: `内径 ø${(ri * 2).toFixed(1)}` },
             { a: [0, 0, 0], b: [0, 0, top], ext: [0, box.max[1] + 3, 0], label: `全高 ${top.toFixed(1)}` },
-            { a: [0, 0, fingerTop], b: [0, 0, top], ext: [0, box.min[1] - 3, 0], label: `指から ${(top - fingerTop).toFixed(1)}`, bad: bad.has("tip-height") },
+            { a: [0, 0, fingerTop], b: [0, 0, top], ext: [0, box.min[1] - 3, 0], label: `指から石の上まで ${(top - fingerTop).toFixed(1)}`, bad: bad.has("tip-height") },
             { a: [0, 0, 0], b: [0, 0, r.shank.thicknessMm], ext: [0, box.min[1] - 3, 0], label: `厚み ${r.shank.thicknessMm.toFixed(1)}` },
           ];
         if (v === "side")

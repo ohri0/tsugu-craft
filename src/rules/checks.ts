@@ -38,7 +38,7 @@ export const FIXES = {
   thickerWall: { label: "壁を厚くする", effectOnLook: "縁の金属の線が太く見える" },
   thickerBand: { label: "腕を厚くする", effectOnLook: "指に当たる所が少し厚く、少し重くなる" },
   widerBand: { label: "腕の幅を広げる", effectOnLook: "腕が少し太く見える" },
-  bluntTip: { label: "先を丸く・厚くする", effectOnLook: "とがった線が少しやわらかく見える" },
+  bluntTip: { label: "断面を直す（赤い所へ）", effectOnLook: "とがった線が少しやわらかく見える" },
   spreadStones: { label: "石の間を広げる", effectOnLook: "石と石の間に地金が少し見え、並びが少し長くなる" },
   smallerStones: { label: "横の石を小さくする", effectOnLook: "真ん中の石が引き立ち、横の石は控えめになる" },
   thickerCollar: { label: "下の輪の板を厚くする", effectOnLook: "石座の下の輪が少し太く見える" },
