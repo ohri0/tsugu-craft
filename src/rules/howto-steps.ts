@@ -8,7 +8,14 @@ export type HowtoId = "ring" | TechId;
 
 export interface HowtoSource {
   label: string;
-  url: string;
+  /** 公開の頁。職人の言葉（craftsman）には無い */
+  url?: string;
+  /** この頁（言葉）が何を言っているか */
+  confirms?: string;
+  /** 店・ブログ・会社・掲示板など、弱い出どころ（二つ目の出どころとしてだけ使う） */
+  weak?: boolean;
+  /** 職人が自分の言葉で確かめたこと */
+  craftsman?: boolean;
   /** 原文を開いて確かめていない */
   unverified?: boolean;
 }
@@ -22,8 +29,10 @@ export interface HowtoStep {
   /** 失敗しやすい所と、さけ方 */
   fail?: string;
   sources: HowtoSource[];
-  /** この工程の中身が、原文で確かめられていない */
+  /** この工程の中身が、原文で確かめられていない（数字が弱い出どころだけにある時も） */
   unverified?: boolean;
+  /** 職人がこの工程を読んで確かめた（だれが・いつ） */
+  checkedBy?: string;
 }
 
 export interface Howto {
@@ -43,6 +52,6 @@ export function howtoFor(id: HowtoId): Howto {
 /** Claude に渡す作り方の文（学ぶ・聞き取りで、この作り方にもとづいて話すため） */
 export function howtoText(id: HowtoId): string {
   return HOWTO[id].steps
-    .map((s, i) => `${i + 1}. ${s.title}：${s.text}${s.fail ? `（失敗しやすい所：${s.fail}）` : ""}（出どころ：${s.sources.map((x) => x.label + (x.unverified ? "・未確認" : "")).join("／")}）`)
+    .map((s, i) => `${i + 1}. ${s.title}：${s.text}${s.fail ? `（失敗しやすい所：${s.fail}）` : ""}（出どころ：${s.sources.map((x) => x.label + (x.unverified ? "・未確認" : "")).join("／")}）${s.checkedBy ? `（${s.checkedBy} が確かめた）` : ""}`)
     .join("\n");
 }

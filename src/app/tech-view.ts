@@ -64,11 +64,11 @@ function stepItem(s: HowtoStep, i: number): string {
   return `<li class="tp-step">
     <span class="tp-sn" aria-hidden="true">${i + 1}</span>
     <div class="tp-sb">
-      <p class="tp-st">${esc(s.title)}${s.unverified ? ` <span class="tag warn">未確認</span>` : ""}</p>
+      <p class="tp-st">${esc(s.title)}${s.unverified ? ` <span class="tag warn">未確認</span>` : ""}${s.checkedBy ? ` <span class="tag ok" title="${esc(s.checkedBy)}">職人が確かめた</span>` : ""}</p>
       <p class="tp-sx">${esc(s.text)}</p>
       ${s.tools ? `<p class="tp-tools"><b>道具</b>${esc(s.tools)}</p>` : ""}
       ${s.fail ? `<p class="tp-fail"><b>失敗しやすい所</b>${esc(s.fail)}</p>` : ""}
-      <p class="tp-src">出どころ：${s.sources.map((x) => `${link(x.url, x.label)}${x.unverified ? `<span class="tp-uv">未確認</span>` : ""}`).join("、")}</p>
+      <p class="tp-src">出どころ：${s.sources.map((x) => `${x.url ? link(x.url, x.label) : esc(x.label)}${x.unverified ? `<span class="tp-uv">未確認</span>` : ""}`).join("、")}</p>
     </div>
   </li>`;
 }
