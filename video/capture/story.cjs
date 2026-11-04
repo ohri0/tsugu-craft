@@ -772,6 +772,50 @@ const CH = {
     a.mark('angle'); await a.box('ring3', '.vp', 0);
     await a.hold(90, { turn: 0.004, hide: true });
   },
+  // 最終案 6（話の芯）：職人の一言 → Claude が決まりに → これでいい → 今の設計と「これまでの作品」を確かめ直す → まとめて直す。
+  // 記録に作品がないので、アプリの「見本の作品を入れて試す」で見本を入れる（見本は、職人の作品ではないと画面に書かれている）
+  heart6: async (a) => {
+    const { p } = a;
+    await studio(a); await workshopB(a); await renderDisp(a);
+    if (await p.locator('.add-samples').count()) {
+      await p.locator('.add-samples').first().scrollIntoViewIfNeeded(); await a.settle(300);
+      await p.click('.add-samples'); await a.settle(1500);
+    }
+    console.log('heart6 前の数字', await specsText(p));
+    await p.locator('.ar-text').scrollIntoViewIfNeeded(); await a.settle(300);
+    await a.box('ring', '.vp', 0); await a.box('panel', '.studio-refine', 0); a.mark('start');
+    await a.hold(20);
+    await a.box('field', '.ar-text', 10); a.mark('type');
+    await a.type('.ar-text', 'この大きさの石なら、爪は最低 0.7 ミリ、基本は 0.8 から 1 ミリくらい。細すぎると曲がって石が落ちる。', { each: 2 });
+    a.mark('typed');
+    await a.hold(8);
+    await a.press('.ar-go', { after: 0 });
+    a.mark('wait');
+    await a.until(() => /これでいい/.test(document.querySelector('.ar-proposal')?.innerText || ''), null, { label: 'Claude の案', timeout: 180000 });
+    await a.box('proposal', '.ar-proposal', 10); a.mark('proposal');
+    console.log('heart6 の案', await p.evaluate(() => document.querySelector('.ar-proposal')?.innerText.replace(/\s+/g, ' ')));
+    await a.hold(30);
+    await a.press('.ar-proposal button.ok', { after: 0 });
+    a.mark('applied');
+    await a.hold(30);
+    await a.until(() => !!document.querySelector('.past-check'), null, { label: 'これまでの作品', timeout: 60000 });
+    await p.evaluate(() => document.querySelector('.past-check').scrollIntoView({ block: 'start' }));
+    await a.settle(500);
+    await a.box('past', '.past-check', 10); a.mark('past');
+    console.log('heart6 これまでの作品', await p.evaluate(() => document.querySelector('.past-check')?.innerText.replace(/\s+/g, ' ')));
+    await a.hold(40);
+    if (await p.locator('.past-fix').count()) {
+      await a.press('.past-fix', { after: 0 });
+      a.mark('fixed');
+      await a.settle(800);
+      await p.evaluate(() => document.querySelector('.past-check')?.scrollIntoView({ block: 'start' }));
+      await a.settle(300);
+      await a.box('past2', '.past-check', 10);
+      console.log('heart6 直したあと', await p.evaluate(() => document.querySelector('.past-check')?.innerText.replace(/\s+/g, ' ')));
+      await a.hold(50);
+    }
+    console.log('heart6 後の数字', await specsText(p));
+  },
   // 確かめる・直す：爪が細い＋腕が薄い（作れない所がいくつも）→ 札 → ボタンは決まった直し方を 1 つずつ → （同じ所から）Claude はまとめて直す
   fix3: async (a) => {
     const { p } = a;

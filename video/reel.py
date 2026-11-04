@@ -957,7 +957,7 @@ def render_senior5(clip, tl):
         for q in range(0, 24, 2):
             u0, u1 = q / 24, (q + 1) / 24
             P.line([(sx + 80 + (jx - 70 - sx - 80) * u0, sy + 10 + 40 * math.sin(math.pi * u0)), (sx + 80 + (jx - 70 - sx - 80) * u1, sy + 10 + 40 * math.sin(math.pi * u1))], C3["gold"], a3, 2)
-        P.text((sx + jx) / 2, sy + 104, "手の感じ", S3, C3["white"], a3, "g6")
+        P.text((sx + jx) / 2, sy + 104, k.get("feelText", "手の感じ"), S3, C3["white"], a3, "g6")
     return P.out()
 
 
