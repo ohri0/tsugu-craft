@@ -34,6 +34,15 @@ describe("作り方の詳しい手順", () => {
     }
   });
 
+  it("焼きなましは、石川工房の「ゆっくり冷ます」を先に書き、水で冷やすは注だけ（2026-11-04 職人の言葉）", () => {
+    const a = FORGE_DETAILS.anneal.map((d) => d.text);
+    const mine = a.findIndex((t) => t.startsWith("石川工房：ゆっくり冷ます"));
+    expect(mine).toBeGreaterThanOrEqual(0);
+    for (const [i, t] of a.entries()) if (i !== mine && /水/.test(t)) expect(t.startsWith("注：") && i > mine, t).toBe(true);
+    const note = FORGE_DETAILS.anneal.find((d) => d.text.startsWith("注："))!;
+    expect(note.src!.length).toBeGreaterThan(0);
+  });
+
   it("数字の入った手順には、必ず出典が付いている", () => {
     const missing = allDetails.filter((d) => /[0-9０-９]/.test(d.text) && !(d.src && d.src.length > 0));
     expect(missing.map((d) => d.text)).toEqual([]);
