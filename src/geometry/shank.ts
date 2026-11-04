@@ -3,7 +3,7 @@
 // y は x と z の両方に直角（右手系）。指の軸は x 軸そのもので、腕は y–z の面にある円。
 // 腕の内側のいちばん上（指のいちばん上）は z ＝ 内径 ÷ 2 の所。
 import { GUIDES, innerDiameterMm, type MetalId } from "../rules/guides";
-import { closedPart, ringsToTube, type V3 } from "./mesh";
+import { closedPart, ringsToTube, stackLoops, type V3 } from "./mesh";
 import { meshVolume } from "./stone";
 import { BALL_CUT, ballCut, type BallCut, type SeatCut } from "./notch";
 import { railSeatZ, type Rail } from "./joint";
@@ -92,6 +92,11 @@ export interface ShankResult {
   head: ShankHead | null;
   /** 石座の下の輪を受ける座（溝）のいちばん深い所（mm。その所の腕の上の面から）。座を作らなければ 0 */
   railSeatDepthMm: number;
+  /**
+   * 腕の間に挟む石座のために、いちばん上を切った腕の両端（＋y の側と −y の側）。腕の真ん中（x ＝ 0）での端の y と、端の面の上と下の z。
+   * 切っていなければ null
+   */
+  ends: { y: number; topZ: number; bottomZ: number }[] | null;
 }
 
 /**
@@ -231,7 +236,7 @@ export function cleanPoints(points: readonly SectionPoint[]): SectionPoint[] {
  * 削る所のまわりだけ、腕の点を細かく足してから（断面の線の点と、指のまわりの点を足す。三角形のつながりは格子のまま）、点を下げる。
  * どの点も格子の中にあるので、閉じた形のまま。notchStepMm：削る所の三角形の辺の長さ（なければ BALL_CUT.stepMm）
  */
-export function buildShank(p: ShankParams, cut?: SeatCut, opts: { notchStepMm?: number; rail?: Rail | null; seats?: readonly ShankSeat[] } = {}): ShankResult {
+export function buildShank(p: ShankParams, cut?: SeatCut, opts: { notchStepMm?: number; rail?: Rail | null; seats?: readonly ShankSeat[]; gap?: BandGap | null } = {}): ShankResult {
   const section = p.section ?? "kouman";
   const w = p.widthMm ?? GUIDES.shank.widthMm;
   // 角の断面は、厚みを決めていなければ幅と同じ（四角）
@@ -256,6 +261,7 @@ export function buildShank(p: ShankParams, cut?: SeatCut, opts: { notchStepMm?: 
     if (rail) regions.push(...railRegions(rail, topZ));
     return { phi: sd.phi, c: Math.cos(sd.phi), s: Math.sin(sd.phi), ball, seatZ: rail ? railSeatZ(rail) : null, regions, railBoxes: regions.slice(ball ? 1 : 0) };
   });
+  if (opts.gap) return openBand(p, { section, w, t, metal, dIn, r, outer, gap: opts.gap });
   const active = work.filter((wk) => wk.regions.length);
   let outerRows = outer;
   let phis = Array.from({ length: AROUND }, (_, k) => (k / AROUND) * Math.PI * 2);
@@ -317,6 +323,110 @@ export function buildShank(p: ShankParams, cut?: SeatCut, opts: { notchStepMm?: 
     notchBalls: balls,
     head: p.head && p.head.widthMm > w ? p.head : null,
     railSeatDepthMm: work.reduce((m, wk) => wk.railBoxes.reduce((mm, b) => Math.max(mm, b.depth ?? 0), m), 0),
+    ends: null,
+  };
+}
+
+/**
+ * 腕の間に挟む石座のための、いちばん上を切った腕（指輪の座標）。outline は上から見た、石座の下の輪の外の線（閉じた線、xy）。
+ * 腕の外側の線の点ごとに、その点の幅の位置 x で輪の外の線の +y と −y の所を探し、腕はそこから先（指のまわりの残りの所）だけを作る。
+ * 腕の端の面は、輪の外の面にぴったり沿う（輪の外の面は縦なので、端の面も縦の曲がった面）。端は overlapMm だけ輪の壁に入れる
+ */
+export interface BandGap {
+  outline: readonly [number, number][];
+  /** 腕の端を、輪の外の面からこれだけ輪の中へ入れる（mm。すき間が見えないように。なければ BAND_GAP_OVERLAP_MM） */
+  overlapMm?: number;
+}
+
+/** 腕の端を輪の壁へ入れる長さ（mm。形を作るための決まり） */
+export const BAND_GAP_OVERLAP_MM = 0.03;
+
+/** 上から見た閉じた線と、x ＝ 一定 の線が交わる所の y（小さい順） */
+function crossingsAtX(poly: readonly [number, number][], x: number): number[] {
+  const out: number[] = [];
+  for (let i = 0; i < poly.length; i++) {
+    const [ax, ay] = poly[i];
+    const [bx, by] = poly[(i + 1) % poly.length];
+    if (ax === bx || ax > x === bx > x) continue;
+    out.push(ay + ((by - ay) * (x - ax)) / (bx - ax));
+  }
+  return out.sort((a, b) => a - b);
+}
+
+function openBand(
+  p: ShankParams,
+  c: { section: ShankSection; w: number; t: number; metal: MetalId; dIn: number; r: number; outer: [number, number][]; gap: BandGap },
+): ShankResult {
+  const { w, t, r, outer } = c;
+  const ov = c.gap.overlapMm ?? BAND_GAP_OVERLAP_MM;
+  // 断面（ξ、ρ）：内側の平らな所を −1 → +1、外側を +1 → −1（閉じた断面の線）
+  const sec: [number, number][] = [];
+  const xR = outer[0][0];
+  const xL = outer[outer.length - 1][0];
+  for (let i = 0; i < FLAT; i++) sec.push([xL + ((xR - xL) * i) / FLAT, r]);
+  for (const [xi, eta] of outer.slice(0, -1)) sec.push([xi, r + t * eta]);
+  // 断面の点ごとの、端の角度（＋の側の端 φS、−の側の端 φE ＝ 2π ＋ asin(…)）
+  const ends = sec.map(([xi, rho]) => {
+    const x = (xi * w) / 2;
+    const ys = crossingsAtX(c.gap.outline, x);
+    const yP = ys.length ? ys[ys.length - 1] - ov : 0;
+    const yM = ys.length ? ys[0] + ov : 0;
+    const asin = (y: number) => Math.asin(Math.max(-1, Math.min(1, y / rho)));
+    return { x, rho, s: asin(yP), e: 2 * Math.PI + asin(yM) };
+  });
+  const loops: V3[][] = [];
+  for (let k = 0; k <= AROUND; k++) {
+    const u = k / AROUND;
+    loops.push(ends.map(({ x, rho, s, e }) => {
+      const phi = s + (e - s) * u;
+      return [x, rho * Math.sin(phi), rho * Math.cos(phi)] as V3;
+    }));
+  }
+  const tris: number[] = [];
+  stackLoops(loops, tris);
+  // 両端のふた：断面の真ん中の点から扇に
+  const cap = (loop: V3[], flip: boolean) => {
+    const m: V3 = [0, 0, 0];
+    for (const q of loop) for (let a = 0; a < 3; a++) m[a] += q[a] / loop.length;
+    for (let i = 0; i < loop.length; i++) {
+      const a = loop[i];
+      const b = loop[(i + 1) % loop.length];
+      if (flip) tris.push(...m, ...b, ...a);
+      else tris.push(...m, ...a, ...b);
+    }
+  };
+  cap(loops[0], false);
+  cap(loops[loops.length - 1], true);
+  const positions = closedPart(tris);
+  const volumeMm3 = meshVolume(positions);
+  // 腕の端の、腕の真ん中（x ＝ 0）での位置と、上と下の z
+  const endAt = (sgn: 1 | -1) => {
+    const ys = crossingsAtX(c.gap.outline, 0);
+    const y = ys.length ? (sgn > 0 ? ys[ys.length - 1] - ov : ys[0] + ov) : 0;
+    const zOf = (rho: number) => Math.sqrt(Math.max(0, rho * rho - y * y));
+    return { y, bottomZ: zOf(r), topZ: zOf(r + t) };
+  };
+  return {
+    positions,
+    gou: p.gou,
+    innerDiameterMm: c.dIn,
+    innerRadiusMm: r,
+    outerRadiusMm: r + t,
+    widthMm: w,
+    thicknessMm: t,
+    section: c.section,
+    metal: c.metal,
+    volumeMm3,
+    weightG: weightG(volumeMm3, c.metal),
+    outlineMm: outer.map(([xi, eta]) => [(xi * w) / 2, eta * t] as [number, number]),
+    sideWidthMm: w,
+    notchDepthMm: 0,
+    notchBallDiameterMm: 0,
+    notchBall: null,
+    notchBalls: [],
+    head: null,
+    railSeatDepthMm: 0,
+    ends: [endAt(1), endAt(-1)],
   };
 }
 

@@ -3,7 +3,7 @@
 import { buildRing, type RingDesign, type StonePlace } from "../geometry/ring";
 import { layoutRow, layoutTrio, scaleStone } from "../geometry/multi";
 import { PRESETS, presetOutline } from "./presets";
-import { tAtOutlineIndex, type SolidQuality } from "../geometry/setting";
+import { tAtOutlineIndex, type JoinStyle, type SolidQuality } from "../geometry/setting";
 import type { SectionCurve, SectionPoint, ShankSection } from "../geometry/shank";
 import type { StoneParams } from "../geometry/stone";
 import { FIXES, checkRing, holdRatio, type FixId, type Problem } from "../rules/checks";
@@ -79,6 +79,11 @@ export interface RingState {
   mainAtMm?: number;
   /** 三石・横一列の並べ方で、石座どうしの間を既定より広げる長さ（mm） */
   spreadMm?: number;
+  /** 石座と腕の付け方（爪留めだけ。なければ腕の上にのせる。腕の間に挟むのは一粒の指輪だけ） */
+  join?: JoinStyle;
+  /** 腕の間に挟む石座の下の輪の高さ・板の厚み（mm。なければ目安。直し方で変える） */
+  collarHeightMm?: number;
+  collarWallMm?: number;
 }
 
 /** 並べる石 1 つの、形と大きさ（石の座標） */
@@ -135,6 +140,8 @@ const CHECK_NAME: Record<string, string> = {
   "band-spike": "腕の断面のとがり・薄いヒレ",
   "stone-space": "となりの石との間",
   "metal-space": "となりの石座との間",
+  "collar-wall": "石座の下の輪の板の厚み",
+  "band-end": "腕の端と石座の下の輪",
 };
 
 /** 直し方 → Claude が使える道具と入力の例 */
@@ -287,6 +294,9 @@ export class RingSession implements ToolHost<RingState> {
         // 既定は、角を丸い爪で押さえる普通の爪留め（作者の判断）。V 字の爪は選んだときだけ
         // V 字の爪は、形の出来がまだ足りないので画面では使わない（作者と決めた。2026-11-04）
         vAtCorners: false,
+        join: s.join,
+        collarHeightMm: s.collarHeightMm,
+        collarWallMm: s.collarWallMm,
       },
       shank: {
         gou: s.gou,
@@ -314,6 +324,7 @@ export class RingSession implements ToolHost<RingState> {
       v_corners: !!this.state.vCorners,
       height: this.state.height,
       orientation: this.state.orientation,
+      join: st.join,
       bezel_wall_mm: st.bezel ? Math.round(st.bezel.wallMm * 100) / 100 : null,
     };
   }
@@ -340,6 +351,7 @@ export class RingSession implements ToolHost<RingState> {
       s.culetGapMm = undefined;
     }
     if (input.orientation) s.orientation = input.orientation;
+    if (input.join) s.join = input.join;
     const b = this.build(input.reason);
     return {
       setting: this.settingState(),
@@ -530,7 +542,7 @@ export class RingSession implements ToolHost<RingState> {
         options: p.options.map((o) => ({ action: o.label, appearance: o.effectOnLook, tool_hint: hintFor(o.id, this.state, std) })),
       })),
       passed: Object.entries(CHECK_NAME)
-        .filter(([k]) => !failed.has(k as Problem["check"]) && (b.ring.stones.length > 1 || !k.endsWith("-space")))
+        .filter(([k]) => !failed.has(k as Problem["check"]) && (b.ring.stones.length > 1 || !k.endsWith("-space")) && (b.ring.setting.collar !== null || (k !== "collar-wall" && k !== "band-end")))
         .map(([, v]) => v),
       note: `数字は目安・最後は職人が決める。石の一番下と指のすき間は ${b.ring.culetGapMm.toFixed(2)} mm、地金は約 ${b.ring.metalWeightG.toFixed(1)} g。`,
     };
@@ -555,6 +567,9 @@ export class RingSession implements ToolHost<RingState> {
 
 /** 石の間を広げる直し方で、1 回に広げる長さ（mm）と、横の石を小さくする割合（直し方の 1 歩。形を作るための決まり） */
 export const SPREAD_STEP_MM = 0.3;
+/** 下の輪を高くする直し方の 1 歩（mm）と、腕を薄くする 1 歩（mm）。形を作るための決まり */
+export const COLLAR_STEP_MM = 0.2;
+export const BAND_THIN_STEP_MM = 0.1;
 export const SMALLER_STEP = 0.85;
 
 /** 直し方の名前（画面のボタン） */

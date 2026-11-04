@@ -46,6 +46,8 @@ export interface SolidOptions {
   blend: number;
   /** 引く形（石）：点の、その形の表面までの距離（内側は負） */
   subtract?: (x: number, y: number, z: number) => number;
+  /** 引く所の縁に付ける丸み（mm。なければ角のまま）。座を彫った縁が、格子でぎざぎざに見えないように */
+  subtractBlend?: number;
   /** この高さより下は作らない（腕の中に入る所を切る） */
   minZ?: number;
   /** ならす回数（既定 6） */
@@ -328,7 +330,7 @@ export function buildSolid(tubes: readonly Tube[], o: SolidOptions): SolidMesh {
         d = d === FAR ? dd : smin(d, dd, o.blend);
         perTube[t] = NaN;
       }
-      if (o.subtract && d < band) d = Math.max(d, -o.subtract(x, y, z));
+      if (o.subtract && d < band) d = o.subtractBlend ? smax(d, -o.subtract(x, y, z), o.subtractBlend) : Math.max(d, -o.subtract(x, y, z));
     }
     if (o.minZ !== undefined && z < o.minZ) d = Math.max(d, o.minZ - z);
     return d;

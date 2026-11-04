@@ -201,6 +201,11 @@ line.ax-z { stroke: #4ea1ff; } text.ax-z { fill: #4ea1ff; }
 .pick button { flex: 1 1 auto; border: 0; background: transparent; color: var(--fg-2); height: 22px; padding: 0 8px; border-radius: 4px; font-size: 11px; white-space: nowrap; }
 .pick button:hover { color: var(--fg); }
 .pick button[aria-pressed="true"] { background: var(--panel-2); color: var(--fg); box-shadow: 0 0 0 1px var(--line-2); }
+/* 選び方ごとの一行の説明（腕への付け方） */
+.pick-notes { list-style: none; margin: -2px 0 8px 84px; padding: 0; display: grid; gap: 3px; }
+.pick-notes li { font-size: 10.5px; line-height: 1.45; color: var(--fg-3); }
+.pick-notes li.on { color: var(--fg-2); }
+.pick-notes b { font-weight: 600; margin-right: 6px; color: inherit; }
 .sliders { display: grid; gap: 6px; margin: 8px 0; }
 /* 数のつまみ：名前・−・つまみ・＋・数の欄。指でも押さえやすいよう、どれも 32 px 以上の高さ */
 .slider { display: grid; grid-template-columns: 76px 32px 1fr 32px 78px; align-items: center; gap: 6px; }
