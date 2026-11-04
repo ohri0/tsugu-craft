@@ -29,7 +29,7 @@ import { bindVoice } from "../app/voice";
 import { bookLabel, masterName, sourceName } from "../app/master";
 import { toStl } from "../cad/solid";
 import { buildStone } from "../geometry/stone";
-import { LAYOUT_LABEL, METAL_LABEL, RingSession, SLOT_SHAPE_LABEL, type Built, type SlotShape } from "./session";
+import { LAYOUT_LABEL, METAL_LABEL, RingSession, SLOT_SHAPE_LABEL, carryDesign, type Built, type SlotShape } from "./session";
 import { howToMake, placeText, type Method } from "./howto";
 import { sheetHtml } from "./sheet";
 import { whyHtml } from "./why";
@@ -318,7 +318,8 @@ document.querySelector(".shoot-help-btn")?.addEventListener("click", (e) => {
   const h = $(".shoot-help");
   h.hidden = !h.hidden;
 });
-async function loadStone(img: ImageData, label: string, longMm: number, depthMm: number, opts: { intro?: boolean } = {}) {
+/** same：今の石と同じ形か・同じ大きさか（長辺や深さの数字を直しただけのとき。引き継ぐ物が増える） */
+async function loadStone(img: ImageData, label: string, longMm: number, depthMm: number, opts: { intro?: boolean; same?: { shape?: boolean; size?: boolean } } = {}) {
   const extraction = extractStone(img);
   const measured = measureOutline({ outlinePx: extraction.outlinePx, longMm });
   const corners = findCorners(measured.outlineMm);
@@ -336,7 +337,11 @@ async function loadStone(img: ImageData, label: string, longMm: number, depthMm:
   $<HTMLInputElement>(".in-depth").value = String(depthMm);
   $(".stone-sub").textContent = `${stone.shapeName}・${measured.longMm.toFixed(2)} × ${measured.widthMm.toFixed(2)} mm`;
   drawThumb();
+  // 手で決めた設計は、新しい石へ引き継ぐ（前は毎回 はじめの設計に戻っていた。2026-11-05 点検）
+  const prev = session?.snapshot();
+  if (prev && compare) prev.prongMm = compare.prongMm;
   compare = null;
+  undoClaude = null;
   session = new RingSession(
     { outlineMm: measured.outlineMm, longMm: measured.longMm, widthMm: measured.widthMm, depthMm },
     ledgerNow,
@@ -349,7 +354,9 @@ async function loadStone(img: ImageData, label: string, longMm: number, depthMm:
   session.state.style = plan.design.style;
   session.state.height = plan.design.height;
   reason = `${plan.name}：${plan.reason}（決まりごとから）`;
-  tuneProngs();
+  if (prev) session.state = carryDesign(prev, session.state, opts.same);
+  // 深さだけを直したときは、手で決めた爪の太さをそのままにする（足りなければ確かめが知らせる）
+  if (!(opts.same?.shape && opts.same.size)) tuneProngs();
   if (opts.intro) await intro();
   else session.build("最初の案");
 }
@@ -638,7 +645,8 @@ for (const el of [$(".vp"), $(".stone-card")]) {
 for (const sel of [".in-long", ".in-depth"]) {
   $<HTMLInputElement>(sel).addEventListener("change", () => {
     if (!stone) return;
-    void loadStone(stone.photo, stone.label, Number($<HTMLInputElement>(".in-long").value) || stone.longMm, Number($<HTMLInputElement>(".in-depth").value) || stone.depthMm);
+    const long = Number($<HTMLInputElement>(".in-long").value) || stone.longMm;
+    void loadStone(stone.photo, stone.label, long, Number($<HTMLInputElement>(".in-depth").value) || stone.depthMm, { same: { shape: true, size: Math.abs(long - stone.longMm) < 1e-6 } });
   });
 }
 document.querySelector<HTMLInputElement>(".sketch-file")?.addEventListener("change", async (e) => {

@@ -115,6 +115,48 @@ export const FINAL_DELAY_MS = 250;
 // 石座の付け方の既定は「腕の間に挟む」（職人の言う基本の作り方。作者が決めた 2026-11-04）。「腕の上にのせる」も選べる。石がいくつもの指輪は、形の方で腕の上にのせる
 export const DEFAULT_STATE: RingState = { style: "prong", height: "standard", orientation: "along", metal: "k18yg", gou: 11, position: "top", join: "between" };
 
+/**
+ * 石を変えるときに、今の設計から新しい石の設計へ引き継ぐ。
+ * 引き継ぐ：石の形に関係しない物（地金・号・腕の断面と太さ・留め方・高さ・石の下のすき間）。
+ * 向きと付け方は、人が選んだ物だけ（選んでいなければ、新しい石に合わせて自動で決め直す）。
+ * 爪の本数と位置は石の形で、爪の太さと下の輪の寸法は石の大きさで決まるので、同じ形・同じ大きさのときだけ渡す。
+ * 石を並べる設定は引き継がない（欄を隠している間は、一粒に戻る）
+ */
+export function carryDesign(prev: RingState, base: RingState, same: { shape?: boolean; size?: boolean } = {}): RingState {
+  const out: RingState = {
+    ...base,
+    style: prev.style,
+    height: prev.height,
+    culetGapMm: prev.culetGapMm,
+    metal: prev.metal,
+    gou: prev.gou,
+    position: prev.position,
+    shankWidthMm: prev.shankWidthMm,
+    shankThicknessMm: prev.shankThicknessMm,
+    shankSection: prev.shankSection,
+    sectionPoints: prev.sectionPoints && structuredClone(prev.sectionPoints),
+    sectionCurve: prev.sectionCurve && structuredClone(prev.sectionCurve),
+  };
+  if (prev.orientationSet) {
+    out.orientation = prev.orientation;
+    out.orientationSet = true;
+  }
+  if (prev.joinSet) {
+    out.join = prev.join;
+    out.joinSet = true;
+  }
+  if (same.shape) {
+    out.prongCount = prev.prongCount;
+    out.prongPositions = prev.prongPositions && [...prev.prongPositions];
+  }
+  if (same.shape && same.size) {
+    out.prongMm = prev.prongMm;
+    out.collarHeightMm = prev.collarHeightMm;
+    out.collarWallMm = prev.collarWallMm;
+  }
+  return out;
+}
+
 /** 道具の地金の名前 → 形と重さを出す地金 */
 export function metalIdOf(m: Metal): MetalId {
   if (m === "pt900") return "pt900";
