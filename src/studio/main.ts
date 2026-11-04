@@ -1254,7 +1254,7 @@ function renderCheck() {
     <section class="big-verdict ${probs.length ? "ng" : "ok"}"><b>${probs.length ? "このままでは作れません" : "このまま作れます"}</b><small>${probs.length ? `直す所 ${probs.length}` : `爪・留まり・すき間・角、すべて目安の内側`}</small></section>
     ${workshopBarHtml()}
     ${compareHtml()}
-    ${stonesSectionHtml(b)}
+    ${MULTI_STONE_UI ? stonesSectionHtml(b) : ""}
     ${
       probs.length
         ? `<ul class="probs">${probs
@@ -1386,6 +1386,8 @@ function renderCheck() {
   );
   box.querySelector(".to-build")!.addEventListener("click", () => setMode("hand"));
 }
+/** 石を並べる（三石・横一列）は、まだ並び方が不自然なので画面に出さない（作者と決めた。2026-11-04）。形の処理とテストは残す */
+const MULTI_STONE_UI = false;
 // ---- 石を並べる：三石・横一列・石を置く（腕の上を押して足す・なぞって動かす・押して選ぶ） ----
 /** 石を置く場面か（3D を押すと石を足す・選ぶ・動かす） */
 let placeOn = false;
