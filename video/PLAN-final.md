@@ -1,3 +1,25 @@
+# 最終案 6 の作業の状態（2026-11-05、ここで止めた）
+
+**終わったこと**
+- heart6（これまでの作品を確かめ直す → まとめて直す）を撮った（work/story/heart6。うまくいかなかった 2 回は heart6_try1・heart6_try2）。見本の作品が全部「作れる形」で起きなかったので、アプリの見本に小粒の石（3.5 mm、爪 0.63 mm）を足し、記録の爪の太さを固定した（65bc2c7。テスト 592 通る）。
+- final_build6.py を新しい並びに組み直した（0b3b9db）。声でのばす前 336 拍（2:48）。確かめで気になる所 0。
+- ドロップの数字を、撮り直した word3 の画面から読み直した（指から上 4.98 → 4.13 mm）。fix3 は 318 こま目の「作れます」から、make3 は新しい印で。
+- 木目金の出典を原文で確かめ、docs/RESEARCH-scale.md と README に書いた。画面の出典の行に年は書かない（文書の本文にないため）。
+- 仮声 38 行を作った（work/voice/sim6。前の仮声は sim6_old）。速めずに 2:58（n10・n21・n24・n29・n34 で場面を 2 秒ずつのばす）。
+- NARRATION-ad.md（38 行・外した行の一覧）、この表、video/README.md、LOG を最終案 6 にした。
+
+**残り**
+1. 動画を組む（組んでいる途中で止めた。mp4 はまだない）。下のコマンドで最初から組み直す。
+2. できた動画を見て確かめる：早回しの札と絵が合うか、heart6 の枠（PAST）に「これまでの作品」の欄が入っているか、木目金の歴史の枠（rebuild3 のはじめ）に見出しが入っているか、音楽の段と一打（ドロップ 68 拍・9 / 11 の 280 拍）。
+3. 作者にスマホ用を送って見てもらう。外した声の行で、戻したい物がないか聞く（NARRATION-ad.md の「最終案 5 から外した・まとめた行」）。
+4. GitHub に送る（作者に聞いてから。作業ブランチと main。送り方は docs/NEXT.md）。
+5. docs/NEXT.md のいちばん上の節を、最終案 6 の状態に書き直す。
+
+**次のコマンド**（5180 番の開発用サーバーと 5201 番の capture/serve.cjs は、撮り直すときだけ要る）
+- 組む：`TSUGU_OWN_VOICE=$PWD/video/work/voice/sim6 OWN_TEMPO=auto OWN_TEMPO_MAX=1.10 video/work/.venv/bin/python -I video/final.py --plan 6 --jobs 14 > video/work/log-final6.txt 2>&1`（数分以上かかる。できる物は video/work/vc/継ぐ_デモ_最終案6_*.mp4）
+- 台本だけ確かめる：`TSUGU_OWN_VOICE=$PWD/video/work/voice/sim6 OWN_TEMPO=auto OWN_TEMPO_MAX=1.10 video/work/.venv/bin/python -I video/final_build6.py`
+- 声の行を変えたら、仮声を作り直す：`KOKORO_SPEED=1.0 video/work/.venv/bin/python -I video/tts_kokoro.py video/final6.json "" video/work/voice/sim6`
+
 # 最終案 6 の台本（2026-11-05）
 
 台本の数字（拍・こま・枠）は `final_build6.py`、読む声は `docs/NARRATION-ad.md`（38 行）。並びは、はじめから拍で書いた（前の版のように、あとからずらさない）。
