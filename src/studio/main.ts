@@ -52,6 +52,7 @@ import { placePoint, rebuildShank } from "../geometry/ring";
 import { checkShank, type Problem } from "../rules/checks";
 import { presentHtml, STONE_SIZES, type PresentGroup } from "./present";
 import { MAX_SECONDS, playVoice, putVoice, startRecording, voiceIds } from "./voice-notes";
+import { clearDesign, introSeen, loadDesign, loadPhotoUrl, markIntroSeen, saveDesign, savePhoto, tabBox, type KeptStone } from "./keep-design";
 
 type Mode = "make" | "refine" | "hand" | "works";
 const MODES: { id: Mode; word: string; key: string; sub: string }[] = [
@@ -146,6 +147,7 @@ app.innerHTML = `
       <section class="sec"><h4>Claude の作業</h4>
         <p class="make-note" hidden></p>
         <ol class="worklog"><li class="note">下の欄に希望を書いて「生む」。Claude が組み、作れるか確かめて直します。</li></ol>
+        <button type="button" class="link reset-design">はじめの設計に戻す</button>
       </section>
     </div>
     <div class="pane studio-refine" hidden></div>
@@ -320,7 +322,8 @@ document.querySelector(".shoot-help-btn")?.addEventListener("click", (e) => {
 });
 /** same：今の石と同じ形か・同じ大きさか（長辺や深さの数字を直しただけのとき。引き継ぐ物が増える） */
 async function loadStone(img: ImageData, label: string, longMm: number, depthMm: number, opts: { intro?: boolean; same?: { shape?: boolean; size?: boolean } } = {}) {
-  const extraction = extractStone(img);
+  // 長辺や深さを直しただけなら、写真を読み直さない（輪郭の点がそろったままで、爪の位置がずれない）
+  const extraction = opts.same && stone ? stone.extraction : extractStone(img);
   const measured = measureOutline({ outlinePx: extraction.outlinePx, longMm });
   const corners = findCorners(measured.outlineMm);
   stone = {
@@ -342,13 +345,7 @@ async function loadStone(img: ImageData, label: string, longMm: number, depthMm:
   if (prev && compare) prev.prongMm = compare.prongMm;
   compare = null;
   undoClaude = null;
-  session = new RingSession(
-    { outlineMm: measured.outlineMm, longMm: measured.longMm, widthMm: measured.widthMm, depthMm },
-    ledgerNow,
-    onBuilt,
-    (view) => viewer.snapshotFrom(view).split(",")[1],
-  );
-  session.solid = !new URLSearchParams(location.search).has("tube");
+  session = newSession(measured, depthMm);
   // 最初は、決まりごとから作った案（Claude なしでも形が出る）
   const plan = rulePlans(session.stone, corners)[0];
   session.state.style = plan.design.style;
@@ -357,9 +354,127 @@ async function loadStone(img: ImageData, label: string, longMm: number, depthMm:
   if (prev) session.state = carryDesign(prev, session.state, opts.same);
   // 深さだけを直したときは、手で決めた爪の太さをそのままにする（足りなければ確かめが知らせる）
   if (!(opts.same?.shape && opts.same.size)) tuneProngs();
+  if (!opts.same) keptPhoto = null;
+  keepDesignSoon();
   if (opts.intro) await intro();
   else session.build("最初の案");
 }
+function newSession(m: StoneOutline, depthMm: number): RingSession {
+  const s = new RingSession({ outlineMm: m.outlineMm, longMm: m.longMm, widthMm: m.widthMm, depthMm }, ledgerNow, onBuilt, (view) => viewer.snapshotFrom(view).split(",")[1]);
+  s.solid = !new URLSearchParams(location.search).has("tube");
+  return s;
+}
+
+// ---- 今の設計を、このタブの間だけ残す（読み直しても、帳面へ行って戻っても消えないように） ----
+const tab = tabBox();
+/** ?nointro・?rec は、いつも決まった最初の形から（写真や動画を撮るため）。残さず、戻さない */
+const keepOff = ["nointro", "rec"].some((k) => new URLSearchParams(location.search).has(k));
+let keepTimer = 0;
+let keepPaused = false;
+/** 残した写真の大きさ（null ＝ 今の写真をまだ残していない） */
+let keptPhoto: { k: number; width: number; height: number } | null = null;
+/** 写真を残す。入らなければ小さくして、それでもだめなら写真なしで */
+function keepPhoto(img: ImageData): { k: number; width: number; height: number } {
+  const c = document.createElement("canvas");
+  const from = document.createElement("canvas");
+  from.width = img.width;
+  from.height = img.height;
+  from.getContext("2d")!.putImageData(img, 0, 0);
+  for (const [side, q] of [[1024, 0.9], [640, 0.75]] as const) {
+    const k = Math.min(1, side / Math.max(img.width, img.height));
+    c.width = Math.round(img.width * k);
+    c.height = Math.round(img.height * k);
+    c.getContext("2d")!.drawImage(from, 0, 0, c.width, c.height);
+    if (savePhoto(tab, c.toDataURL("image/jpeg", q))) return { k, width: c.width, height: c.height };
+  }
+  return { k: 1, width: img.width, height: img.height };
+}
+function keepDesignNow() {
+  clearTimeout(keepTimer);
+  keepTimer = 0;
+  if (keepOff || keepPaused || !stone || !session) return;
+  keptPhoto ??= keepPhoto(stone.photo);
+  const { k, width, height } = keptPhoto;
+  const kept: KeptStone = {
+    label: stone.label,
+    depthMm: stone.depthMm,
+    shapeName: stone.shapeName,
+    cornerIdx: stone.cornerIdx,
+    measured: stone.measured,
+    outlinePx: stone.extraction.outlinePx.map((q) => ({ x: q.x * k, y: q.y * k })),
+    color: stone.extraction.color,
+    colorless: stone.extraction.colorless,
+    photoWidth: width,
+    photoHeight: height,
+  };
+  const state = session.snapshot();
+  // 比べている間の爪の太さではなく、職人の決まりで組んだときの太さを残す
+  if (compare) state.prongMm = compare.prongMm;
+  saveDesign(tab, {
+    kind,
+    mode: document.querySelector(".pro")?.getAttribute("data-mode") ?? "make",
+    presetId: document.querySelector<HTMLElement>('.presets button[aria-pressed="true"]')?.dataset.preset,
+    stone: kept,
+    state,
+    band,
+    bandMetal,
+  });
+}
+function keepDesignSoon() {
+  if (keepOff || keepPaused || keepTimer) return;
+  keepTimer = window.setTimeout(keepDesignNow, 300);
+}
+addEventListener("pagehide", () => keepTimer && keepDesignNow());
+/** 残した設計から始める。なければ false */
+async function restoreDesign(): Promise<boolean> {
+  if (keepOff) return false;
+  const d = loadDesign(tab);
+  if (!d) return false;
+  const k = d.stone;
+  const c = document.createElement("canvas");
+  c.width = k.photoWidth;
+  c.height = k.photoHeight;
+  const g = c.getContext("2d", { willReadFrequently: true })!;
+  const url = loadPhotoUrl(tab);
+  if (url) {
+    const im = new Image();
+    im.src = url;
+    await im.decode();
+    g.drawImage(im, 0, 0, c.width, c.height);
+  }
+  const photo = g.getImageData(0, 0, c.width, c.height);
+  stone = {
+    photo,
+    label: k.label,
+    // 輪郭と色だけあれば足りる（読み取りの途中の結果は残さない）
+    extraction: { outlinePx: k.outlinePx, color: k.color, colorless: k.colorless } as Extraction,
+    measured: k.measured,
+    longMm: k.measured.longMm,
+    depthMm: k.depthMm,
+    shapeName: k.shapeName,
+    cornerIdx: k.cornerIdx,
+  };
+  keptPhoto = url ? { k: 1, width: c.width, height: c.height } : null;
+  $<HTMLInputElement>(".in-long").value = String(Number(k.measured.longMm.toFixed(2)));
+  $<HTMLInputElement>(".in-depth").value = String(Number(k.depthMm.toFixed(2)));
+  $(".stone-sub").textContent = `${k.shapeName}・${k.measured.longMm.toFixed(2)} × ${k.measured.widthMm.toFixed(2)} mm`;
+  drawThumb();
+  if (d.presetId) document.querySelectorAll<HTMLButtonElement>(".presets button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.preset === d.presetId)));
+  session = newSession(k.measured, k.depthMm);
+  session.state = d.state;
+  band = d.band;
+  bandMetal = d.bandMetal;
+  if (d.kind === "band") setKind("band");
+  else session.build("前の設計に戻した");
+  if (MODES.some((m) => m.id === d.mode)) setMode(d.mode as Mode);
+  return true;
+}
+$(".reset-design").addEventListener("click", () => {
+  keepPaused = true;
+  clearTimeout(keepTimer);
+  clearDesign(tab);
+  location.reload();
+});
 
 /** 最初の見せ場：写真に輪郭が描かれ → 石が立体になり → まわりに指輪が組み上がる */
 async function intro() {
@@ -597,7 +712,10 @@ async function loadSample() {
   c.height = img.naturalHeight;
   const g = c.getContext("2d", { willReadFrequently: true })!;
   g.drawImage(img, 0, 0);
-  await loadStone(g.getImageData(0, 0, c.width, c.height), SAMPLE.label, SAMPLE.longMm, SAMPLE.depthMm, { intro: !new URLSearchParams(location.search).has("nointro") });
+  // 最初の見せ場は、この画面を開いて最初の 1 回だけ（読み直し・ほかの場所から戻ったときは、待たせない）
+  const play = !new URLSearchParams(location.search).has("nointro") && !introSeen(tab);
+  if (play) markIntroSeen(tab);
+  await loadStone(g.getImageData(0, 0, c.width, c.height), SAMPLE.label, SAMPLE.longMm, SAMPLE.depthMm, { intro: play });
 }
 
 /** 石の写真を入れ替える（ファイルを選ぶ・3D の所や石の欄へ落とす、のどちらからも） */
@@ -685,6 +803,7 @@ function tuneProngs() {
 let sheetTimer = 0;
 function onBuilt(b: Built, _why: string) {
   if (tuning || !stone || kind !== "solitaire") return;
+  keepDesignSoon();
   if (sheetOn) {
     clearTimeout(sheetTimer);
     sheetTimer = window.setTimeout(() => sheetOn && showSheet(), 400);
@@ -750,6 +869,7 @@ function setMode(m: Mode) {
   $(".works-panel").hidden = m !== "works";
   if (m === "works") renderWorks();
   $(".pro").setAttribute("data-mode", m);
+  keepDesignSoon();
   // 生むの画面でも、自動では回さない（2026-11-05 作者：勝手に回るのはいや。回すのは人がドラッグしたときだけ）
   viewer.setAutoRotate(false);
   viewer.setLift(0);
@@ -2345,6 +2465,7 @@ function bandName() {
 }
 /** live：つまみを動かしている間（パネルは描き直さない。描き直すと、指で押さえているつまみが消える） */
 function showBand(live = false) {
+  keepDesignSoon();
   const m = bandMesh(band);
   bandPositions = m.positions;
   bandWeight = m.weightG;
@@ -2402,6 +2523,7 @@ function bandControls(box: HTMLElement) {
 }
 function setKind(k: Kind) {
   kind = k;
+  keepDesignSoon();
   document.querySelectorAll<HTMLButtonElement>(".kinds [data-kind]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.kind === k)));
   document.querySelectorAll<HTMLElement>(".solitaire-only").forEach((e) => (e.hidden = k !== "solitaire"));
   document.querySelectorAll<HTMLElement>(".band-only").forEach((e) => (e.hidden = k !== "band"));
@@ -2898,5 +3020,10 @@ if (new URLSearchParams(location.search).has("rec")) {
 }
 
 setMode("make");
-void loadSample().catch((e) => setStatus(`見本の石を読めませんでした：${(e as Error).message}`));
+void restoreDesign()
+  .catch(() => false)
+  .then(async (back) => {
+    if (!back) await loadSample();
+  })
+  .catch((e) => setStatus(`見本の石を読めませんでした：${(e as Error).message}`));
 (window as unknown as { __studio: unknown }).__studio = { get session() { return session; }, setMode, dimsAvoid, loadPreset, viewer };
