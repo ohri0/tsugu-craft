@@ -89,6 +89,43 @@ async function clip(name, fn) {
 
 const PASS = async (p) => p.addInitScript(() => { try { localStorage.setItem('tsugu.password.v1', 'dev-local'); } catch {} });
 const CLIPS = {
+  // 見せる（本物の機能）：工房 B（公開情報だけ）で開く → 太い爪 → 閉じて職人の一言を決まりに → また見せる → 石の大きさ・断面・留め方・地金を押して切り替える
+  present: async (p) => {
+    await PASS(p);
+    await studioReady(p);
+    await click(p, '.tabs [data-mode="refine"]', { after: 1200, steps: 8 });
+    await p.evaluate(() => { const s = document.querySelector('.ws-pick'); s.value = '__new'; s.dispatchEvent(new Event('change')); });
+    await p.waitForTimeout(400);
+    await p.fill('.ws-name', '工房 B');
+    await p.click('.ws-make'); await p.waitForTimeout(2500);
+    await p.evaluate(() => { document.querySelector('.manual-rule').open = true; });
+    await p.selectOption('.mr-param', 'hold.cornerSet'); await p.fill('.mr-value', '1'); await p.fill('.mr-quote', '三角の石は、角に 1 本ずつの 3 本で留まる');
+    await p.click('.mr-go'); await p.waitForTimeout(2500);
+    await p.evaluate(() => { const s = window.__studio.session; s.setShank({ metal: 'pt900', reason: 'demo' }); });
+    await p.waitForTimeout(1500);
+    await click(p, '.act-present', { after: 3500 });
+    M('thick');
+    await p.waitForTimeout(2500);
+    await click(p, '.pr-close', { after: 800 });
+    await p.evaluate(() => { document.querySelector('.manual-rule').open = true; });
+    await p.selectOption('.mr-param', 'prong.minDiameterMm'); await p.fill('.mr-value', '0.7'); await p.fill('.mr-quote', 'この大きさなら、最低 0.7 mm、基本は 0.8〜1 mm');
+    await p.click('.mr-go'); await p.waitForTimeout(3000);
+    await click(p, '.act-present', { after: 3000 });
+    M('thin');
+    await p.waitForTimeout(2500);
+    M('sizes');
+    for (const v of ['5', '8', '10', '6.5']) { await click(p, `.pr-opt button[data-v="${v}"]`, { after: 2200, steps: 14 }); }
+    M('section');
+    await click(p, '.pr-tabs button[data-g="section"]', { after: 500, steps: 14 });
+    for (const v of ['hirauchi', 'hangouman', 'kaku', 'kouman']) await click(p, `.pr-opt button[data-v="${v}"]`, { after: 1800, steps: 12 });
+    M('setting');
+    await click(p, '.pr-tabs button[data-g="setting"]', { after: 500, steps: 14 });
+    for (const v of ['6', 'bezel', '3']) await click(p, `.pr-opt button[data-v="${v}"]`, { after: 2200, steps: 12 }).catch(() => {});
+    M('metal');
+    await click(p, '.pr-tabs button[data-g="metal"]', { after: 500, steps: 14 });
+    for (const v of ['k18yg', 'k18pg', 'pt900']) await click(p, `.pr-opt button[data-v="${v}"]`, { after: 2000, steps: 12 });
+    M('done');
+  },
   // 学ぶ：学ぶ人が言葉で聞くと、Claude が帳面の職人の言葉まで戻って答える（本物の Claude）
   learn2: async (p) => {
     await PASS(p);

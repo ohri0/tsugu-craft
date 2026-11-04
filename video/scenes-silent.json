@@ -19,22 +19,24 @@
   "say": "",
   "shots": [
    {
-    "seq": "../cine/form",
-    "from": 0,
-    "fps": 36
+    "clip": "mov2/intro.webm",
+    "from": 1,
+    "d": 5,
+    "frame": true,
+    "speed": 1.6
    }
   ]
  },
  {
   "name": "ネットの情報で",
   "key": "ネットの情報で。",
-  "key2": "爪 1.66 mm",
-  "d": 2.5,
+  "key2": "工房 B の帳面：ネットの公開情報だけ　爪 1.66 mm",
+  "d": 2.6,
   "say": "",
   "shots": [
    {
     "seq": "../cine/film",
-    "from": "MARK_net",
+    "from": 8,
     "fps": 30
    }
   ]
@@ -42,22 +44,8 @@
  {
   "name": "職人の一言",
   "key": "職人の一言。",
-  "key2": "Claude が、言葉を決まりに",
-  "d": 4.5,
-  "say": "",
-  "shots": [
-   {
-    "seq": "../cine/film",
-    "from": "MARK_word",
-    "fps": 30
-   }
-  ]
- },
- {
-  "name": "本物の Claude",
-  "key": "",
-  "key2": "",
-  "d": 4,
+  "key2": "話した言葉を、Claude が決まりに",
+  "d": 6.5,
   "say": "",
   "shots": [
    {
@@ -70,12 +58,12 @@
      810
     ],
     "frame": true,
-    "d": 1.8,
-    "speed": 1.5
+    "d": 1.6,
+    "speed": 1.6
    },
    {
     "clip": "demo/claude.webm",
-    "from": 56,
+    "from": 56.2,
     "crop": [
      160,
      40,
@@ -83,7 +71,12 @@
      810
     ],
     "frame": true,
-    "d": 2.2
+    "d": 1.6
+   },
+   {
+    "seq": "../cine/film",
+    "from": 72,
+    "fps": 30
    }
   ]
  },
@@ -91,41 +84,47 @@
   "name": "確かめる",
   "key": "確かめる。",
   "key2": "細すぎると、赤く光る",
-  "d": 3.8,
+  "d": 3.4,
   "say": "",
   "shots": [
    {
-    "seq": "../cine/film",
-    "from": "MARK_check",
-    "fps": 30
+    "clip": "demo/thin.webm",
+    "from": 100,
+    "crop": [
+     160,
+     40,
+     1440,
+     810
+    ],
+    "frame": true
    }
   ]
  },
  {
   "name": "広げる",
   "key": "広げる。",
-  "key2": "石が変われば、爪も変わる",
-  "d": 4.8,
+  "key2": "石の大きさを変えると、帳面の決まりで組み直す",
+  "d": 4.4,
   "say": "",
   "shots": [
    {
     "seq": "../cine/film",
-    "from": "MARK_size",
-    "fps": 30
+    "from": 150,
+    "fps": 32
    }
   ]
  },
  {
   "name": "選ぶ",
   "key": "選ぶ。",
-  "key2": "断面 ・ 幅 ・ 留め方 ・ 地金 ・ 号",
-  "d": 7.4,
+  "key2": "腕の断面 ・ 留め方 ・ 地金",
+  "d": 9,
   "say": "",
   "shots": [
    {
     "seq": "../cine/film",
-    "from": "MARK_pick",
-    "fps": 30
+    "from": 290,
+    "fps": 36
    }
   ]
  },
