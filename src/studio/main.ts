@@ -825,9 +825,9 @@ function logLineTo(li: HTMLLIElement, e: LogEntry) {
       const parts = Object.entries(input)
         .filter(([k]) => k !== "reason")
         .map(([k, v]) => {
-          const name = { style: "留め方", prong_count: "爪", prong_mm: "爪の太さ", v_corners: "角の V 字の爪", height: "高さ", orientation: "向き", prong_positions: "爪の位置", section: "腕の断面", section_points: "腕の断面", width_mm: "幅", thickness_mm: "厚み", gou: "号", metal: "地金" }[k] ?? k;
+          const name = { style: "留め方", prong_count: "爪", prong_mm: "爪の太さ", v_corners: "角の V 字の爪", height: "高さ", orientation: "向き", prong_positions: "爪の位置", section: "腕の断面", section_points: "腕の断面", section_curve: "腕の断面", width_mm: "幅", thickness_mm: "厚み", gou: "号", metal: "地金" }[k] ?? k;
           const val =
-            k === "section" ? (SHANK_SECTION_LABEL[v as ShankSection] ?? v) : k === "section_points" ? "手で描いた形" : k === "v_corners" ? (v ? "あり" : "なし") : Array.isArray(v) ? v.join("・") : v;
+            k === "section" ? (SHANK_SECTION_LABEL[v as ShankSection] ?? v) : k === "section_points" || k === "section_curve" ? "手で描いた形" : k === "v_corners" ? (v ? "あり" : "なし") : Array.isArray(v) ? v.join("・") : v;
           return `${name} ${val}`;
         });
       text = `${TOOL_WORD[e.tool] ?? e.tool}：${parts.join("、")}${input.reason ? ` ― ${String(input.reason)}` : ""}`;
@@ -1326,15 +1326,18 @@ function renderCheck() {
   const sh = b.ring.shank;
   bindSectionEditor(
     box,
-    startShape(s.shankSection ?? "kouman", s.sectionPoints, sh.widthMm, sh.thicknessMm),
+    startShape(s.shankSection ?? "kouman", s.sectionCurve, s.sectionPoints, sh.widthMm, sh.thicknessMm),
     (sec) => {
       holdPanel = true;
-      Object.assign(session!.state, { shankSection: "free", sectionPoints: sec.points, shankWidthMm: sec.widthMm, shankThicknessMm: sec.thicknessMm });
+      Object.assign(session!.state, { shankSection: "free", sectionCurve: sec.curve, sectionPoints: undefined, shankWidthMm: sec.widthMm, shankThicknessMm: sec.thicknessMm });
       session!.build("断面を描いている");
     },
     (sec) => {
       holdPanel = false;
-      session!.setShank({ section_points: sec.points, width_mm: round2(sec.widthMm), thickness_mm: round2(sec.thicknessMm), reason: "断面を手で描いた" });
+      const dims = { width_mm: round2(sec.widthMm), thickness_mm: round2(sec.thicknessMm) };
+      // リセットは決まった断面に戻す。それ以外は手で描いた線
+      if (sec.section !== "free") session!.setShank({ section: sec.section, ...dims, reason: "断面をリセット" });
+      else session!.setShank({ section_curve: sec.curve, ...dims, reason: "断面を手で描いた" });
     },
   );
   box.querySelector(".to-build")!.addEventListener("click", () => setMode("hand"));

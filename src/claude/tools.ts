@@ -99,6 +99,8 @@ export interface SetShankInput {
   section?: ShankSectionChoice;
   /** 手で描いた断面の点（画面だけが使う。片側、真ん中のいちばん上 → 端の内側、0〜1） */
   section_points?: { x: number; y: number }[];
+  /** 手で描いた断面の線（画面だけが使う。なめらかな線の制御点：右の端の内側 → 左の端の内側、x −1〜1・y 0〜1、と節） */
+  section_curve?: { points: { x: number; y: number }[]; knots?: number[] };
   gou?: number;
   metal?: Metal;
   reason: string;
