@@ -1,6 +1,17 @@
 # 動画を組む仕組み
 
-## 最終案 4（2026-11-04 夜〜。いまの作り方）
+## 最終案 5（2026-11-04 夜〜。いまの作り方）
+
+最終案 4 の仕組みのまま、最終案 4 を見た作者の 13 の声を入れたもの。設計は `PLAN-final.md`、声の台本は `../docs/NARRATION-ad.md`（53 行）。
+
+- 台本：`final_build5.py` → `final5.json`。`reel.py` に足した物：flow4 の戻る弧の両はし・高さ・おわりの字（`arc`・`arcH`・`okText`）、学校の図の石の形（`shapes`。エメラルドカット）、工房の新しい図 `senior5`、答え合わせの見出し（`title`）。
+- 撮り直し：learn4m（決まりを直したので、本物の Claude の答えが変わる）。`npx vite build --outDir video/work/dist-cap --emptyOutDir` → `node video/capture/story.cjs learn4m`（5201 番の `capture/serve.cjs`、/api は 5180 番の開発用サーバー）。
+- 仮声（作者の声：行を切る前に、少し速めただけの版を聞きたい）：ふつうの速さの機械の声を作り、作者の録音のまねとして、作者の録音と同じ道に通す。
+  1. `KOKORO_SPEED=1.0 video/work/.venv/bin/python -I video/tts_kokoro.py video/final5.json "" video/work/voice/sim5`（1 秒に約 6 字）
+  2. `TSUGU_OWN_VOICE=$PWD/video/work/voice/sim5 OWN_TEMPO=auto OWN_TEMPO_MAX=1.40 video/work/.venv/bin/python -I video/final.py --plan 5` → 3 分に入るいちばん遅い速さ（いまは 1.36 倍）で混ぜる。録音の場所が `work/voice` でないときは、まねとして `_仮声` の名前になる（`own_sim`）。
+- 作者の録音がそろったら：`work/voice/n<番号>.wav` に置いて `video/work/.venv/bin/python -I video/final.py --plan 5`（速さはそのまま）。3 分を越えたら、作者と相談して `OWN_TEMPO=auto`（`OWN_TEMPO_MAX` で上限）か、行を減らす。
+
+## 最終案 4（2026-11-04 夜）
 
 最終案 3 の仕組みのまま、作者の 11 の直しを入れたもの。設計は `PLAN-final.md`、声の台本は `../docs/NARRATION-ad.md`。
 

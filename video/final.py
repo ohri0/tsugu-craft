@@ -131,7 +131,7 @@ if lines:
     run(["ffmpeg", "-v", "error", "-y", *ins, "-filter_complex", ";".join(flt), "-map", "[a]", mixB])
     mixB2 = os.path.join(VC, "_mixB2.wav")
     loud(mixB, mixB2)
-    outB = os.path.join(VC, f"{NAME}_{'声' if mine == len(lines) else '仮声'}.mp4")  # noqa
+    outB = os.path.join(VC, f"{NAME}_{'声' if mine == len(lines) and not tl.get('own_sim') else '仮声'}.mp4")  # noqa（own_sim：作者の録音のまね）
     run(["ffmpeg", "-v", "error", "-y", "-i", video, "-i", mixB2, "-map", "0:v", "-map", "1:a", "-c:v", "copy", "-c:a", AAC, "-b:a", "256k", "-shortest", outB])
     print("できた：", outB)
 print("できた：", outA, round(total, 1), "秒")

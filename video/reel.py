@@ -825,6 +825,13 @@ def _stone(P, x, y, r, kind, col, a):
         P.line([(x, y - r), (x + r * 0.95, y + r * 0.7), (x - r * 0.95, y + r * 0.7), (x, y - r)], col, a, 3)
     elif kind == "square":
         P.line([(x - r * 0.8, y - r * 0.8), (x + r * 0.8, y - r * 0.8), (x + r * 0.8, y + r * 0.8), (x - r * 0.8, y + r * 0.8), (x - r * 0.8, y - r * 0.8)], col, a, 3)
+    elif kind == "emerald":
+        # エメラルドカット：角を落とした長方形と、内側の段
+        w_, h_, c_ = r * 1.25, r * 0.85, r * 0.38
+        pts = [(x - w_ + c_, y - h_), (x + w_ - c_, y - h_), (x + w_, y - h_ + c_), (x + w_, y + h_ - c_), (x + w_ - c_, y + h_), (x - w_ + c_, y + h_), (x - w_, y + h_ - c_), (x - w_, y - h_ + c_), (x - w_ + c_, y - h_)]
+        P.line(pts, col, a, 3)
+        w2, h2, c2_ = w_ * 0.55, h_ * 0.45, c_ * 0.5
+        P.line([(x - w2 + c2_, y - h2), (x + w2 - c2_, y - h2), (x + w2, y - h2 + c2_), (x + w2, y + h2 - c2_), (x + w2 - c2_, y + h2), (x - w2 + c2_, y + h2), (x - w2, y + h2 - c2_), (x - w2, y - h2 + c2_), (x - w2 + c2_, y - h2)], col, a * 0.7, 2)
     elif kind == "pear":
         P.d.ellipse([(x - r * 0.75) * 2, (y - r * 0.2) * 2, (x + r * 0.75) * 2, (y + r * 1.0) * 2], outline=_mix(col, a), width=6)
         P.line([(x - r * 0.62, y + 0.1 * r), (x, y - r), (x + r * 0.62, y + 0.1 * r)], col, a, 3)
@@ -844,7 +851,7 @@ def render_school3(clip, tl):
     checks = k.get("checks", [4, 6])
     for i, y in enumerate(ys):
         P.ring(sx, y, 40, C3["line"], appear, 2, fill=C3["card"])
-        _stone(P, sx, y, 15, SHAPES[i], C3["gold"], appear)
+        _stone(P, sx, y, 15, k.get("shapes", SHAPES)[i], C3["gold"], appear)
         done = sum(1 for c in checks if tl >= c) > i
         P.line([(sx + 48, y), (tx - 86, ty + (y - ty) * 0.25)], C3["gold"] if done else C3["dim"], appear * (0.9 if done else 0.6), 2)
         if done:
@@ -907,6 +914,53 @@ def render_senior3(clip, tl):
     return P.out()
 
 
+def render_senior5(clip, tl):
+    """工房（最終案 5、作者の声：分かりやすく）：新人が継ぐに「順番は？」「何 mm？」と聞き、継ぐが答える。
+    先輩は手を止めずに打ち続け、教えるのは「手の感じ」だけ"""
+    ow, oh = OUT
+    P = Pad(ow, oh, clip.get("bg", C3["bg"]))
+    k = clip.get("k", {})
+    appear = _ap(tl, 0, 0.8)
+    q1, q2, ans, feel = k.get("q1", 1.5), k.get("q2", 2.5), k.get("ans", 3.5), k.get("feel", 7)
+    sx, sy = ow * 0.2, oh * 0.62
+    jx, jy = ow * 0.64, oh * 0.62
+    gx, gy = ow * 0.64, oh * 0.2
+    P.line([(sx - 150, sy + 92), (sx + 150, sy + 92)], C3["line"], appear, 4)
+    P.ring(sx, sy, 64, C3["white"], appear, 3, fill=C3["card"])
+    P.text(sx, sy, "先輩", S3, C3["white"], appear, "g6")
+    P.ring(jx, jy, 56, C3["white"], appear, 3, fill=C3["card"])
+    P.text(jx, jy, "新人", S3, C3["white"], appear, "g6")
+    P.box(gx, gy, 220, 104, appear, outline=C3["gold"], width=3)
+    P.text(gx, gy, "継ぐ", S3, C3["gold"], appear, "g6")
+    # 金づち：先輩は、ずっと打ち続ける（手を止めない）
+    ph = tl % 1.0
+    ang = -0.9 + 0.9 * (1 - ease_out(ph / 0.25)) if ph < 0.25 else -0.9 + 0.9 * ease_in(min(1, (ph - 0.25) / 0.75))
+    hx, hy = sx + 92, sy + 60
+    L_ = 70
+    ex, ey = hx + L_ * math.cos(ang - 0.4), hy + L_ * math.sin(ang - 0.4)
+    P.line([(hx, hy), (ex, ey)], C3["gold"], appear, 6)
+    P.line([(ex - 16 * math.sin(ang - 0.4), ey + 16 * math.cos(ang - 0.4)), (ex + 16 * math.sin(ang - 0.4), ey - 16 * math.cos(ang - 0.4))], C3["gold"], appear, 12)
+    # 新人 → 継ぐ：順番は？ 何 mm？ → 継ぐが答える
+    a1 = _ap(tl, q1 - 0.3, 0.4)
+    if a1 > 0:
+        P.arrow(jx - 26, jy - 64, gx - 26, gy + 60, C3["gray"], a1, 3)
+        P.text(jx - 60, (jy + gy) / 2 - 24, "順番は？", S3, C3["white"], _ap(tl, q1, 0.4), "g6", "rm")
+        P.text(jx - 60, (jy + gy) / 2 + 26, "何 mm？", S3, C3["white"], _ap(tl, q2, 0.4), "g6", "rm")
+    a2 = _ap(tl, ans, 0.5)
+    if a2 > 0:
+        P.arrow(gx + 26, gy + 60, jx + 26, jy - 64, C3["gold"], a2, 3)
+        P.text(jx + 60, (jy + gy) / 2 - 24, "① → ② → ③", S3, C3["gold"], a2, "g6", "lm")
+        P.text(jx + 60, (jy + gy) / 2 + 26, "ø 0.8 mm", S3, C3["gold"], _ap(tl, ans + 0.5, 0.5), "g6", "lm")
+    # 先輩 → 新人：手の感じだけ
+    a3 = _ap(tl, feel - 0.5, 0.6)
+    if a3 > 0:
+        for q in range(0, 24, 2):
+            u0, u1 = q / 24, (q + 1) / 24
+            P.line([(sx + 80 + (jx - 70 - sx - 80) * u0, sy + 10 + 40 * math.sin(math.pi * u0)), (sx + 80 + (jx - 70 - sx - 80) * u1, sy + 10 + 40 * math.sin(math.pi * u1))], C3["gold"], a3, 2)
+        P.text((sx + jx) / 2, sy + 104, "手の感じ", S3, C3["white"], a3, "g6")
+    return P.out()
+
+
 def render_check3(clip, tl):
     """答え合わせ：本当の工程 11 を並べ、たどり着いた工程に 1 つずつ灯りがつく（一致は塗り・一部は半分）。最後に 9 / 11"""
     ow, oh = OUT
@@ -918,7 +972,7 @@ def render_check3(clip, tl):
     x0, y0 = 110, 150
     lh = 56
     appear = _ap(tl, 0, 0.6)
-    P.text(x0, 84, "本当の工程（隠しておいた答え）", S3, C3["gray"], appear, "g4", "lm")
+    P.text(x0, 84, k.get("title", "本当の工程（隠しておいた答え）"), S3, C3["gray"], appear, "g4", "lm")
     for i, (num, name, kind) in enumerate(rows):
         y = y0 + i * lh
         lit_at = next((b for b, r in lights if r == i), None)
@@ -1001,7 +1055,7 @@ def render_flow4(clip, tl):
             u = _u(tl, b0, b1)
             xa, xb = xs[int(x0)], xs[int(x1)]
             if back:
-                tok = (xa + (xb - xa) * u, cy - nh / 2 - 26 - math.sin(math.pi * u) * oh * 0.2, C3["red"])
+                tok = (xa + (xb - xa) * u, cy - nh / 2 - 26 - math.sin(math.pi * u) * oh * k.get("arcH", 0.2), C3["red"])
             else:
                 tok = (xa + (xb - xa) * u, ty, C3["gold"])
     if c2 == 0 and path and tl >= path[-1][0]:
@@ -1009,12 +1063,14 @@ def render_flow4(clip, tl):
     nb = sum(1 for (b0, _, _), (b1, _, back) in zip(path, path[1:]) if back and tl >= b0)
     if nb and c2 < 1:
         a = (1 - c2) * appear
-        pts = [(xs[1] + (xs[0] - xs[1]) * (q / 40), cy - nh / 2 - 26 - math.sin(math.pi * q / 40) * oh * 0.2) for q in range(41)]
+        af, at_ = k.get("arc", [1, 0])
+        ah = oh * k.get("arcH", 0.2)
+        pts = [(xs[af] + (xs[at_] - xs[af]) * (q / 40), cy - nh / 2 - 26 - math.sin(math.pi * q / 40) * ah) for q in range(41)]
         for q in range(0, 40, 2):
             P.line([pts[q], pts[q + 1]], C3["red"], a, 3)
         ex, ey = pts[-1]
         P.d.polygon([(ex * 2, (ey + 6) * 2), ((ex - 9) * 2, (ey - 12) * 2), ((ex + 10) * 2, (ey - 8) * 2)], fill=_mix(C3["red"], a))
-        P.text((xs[0] + xs[1]) / 2, cy - nh / 2 - 26 - oh * 0.2 - 40, f"作れない、と戻る　{nb} 回目", S3, C3["red"], a, "g6")
+        P.text((xs[af] + xs[at_]) / 2, cy - nh / 2 - 26 - ah - 40, f"作れない、と戻る　{nb} 回目", S3, C3["red"], a, "g6")
     if tok and c2 == 0:
         P.ring(tok[0], tok[1], 14, tok[2], appear, 5)
     # 継ぐのあと：印は戻らずに、デザイン → 設計 → 制作へまっすぐ
@@ -1026,7 +1082,7 @@ def render_flow4(clip, tl):
         if tl >= okb:
             a = _ap(tl, okb, 0.5)
             P.check(xs[2] - 52, ty + 52, 12, C3["green"], a, 4)
-            P.text(xs[2] - 30, ty + 52, "戻らずに", S3, C3["green"], a, "g6", "lm")
+            P.text(xs[2] - 30, ty + 52, k.get("okText", "戻らずに"), S3, C3["green"], a, "g6", "lm")
     return P.out()
 
 
@@ -1210,7 +1266,7 @@ def draw3(base, card, b):
         place(base, im, x - pad, yb - asc - pad + 10 * (1 - u), 1, u * A, 0)
 
 
-KINDS3 = {"flow3": render_flow3, "flow4": render_flow4, "imgs": render_imgs, "term": render_term, "school3": render_school3, "senior3": render_senior3, "check3": render_check3, "stat3": render_stat3}
+KINDS3 = {"senior5": render_senior5, "flow3": render_flow3, "flow4": render_flow4, "imgs": render_imgs, "term": render_term, "school3": render_school3, "senior3": render_senior3, "check3": render_check3, "stat3": render_stat3}
 
 
 def render_clip(clip, tl):
