@@ -762,8 +762,9 @@ dialog.sheet input:focus { border-color: var(--accent); }
 .pr-q { font-size: 20px; }
 .pr-grid { grid-template-columns: 1fr 1fr; }
 @media (max-width: 760px) {
-  .pro.presenting .gl { left: 0; right: 0; top: 0; bottom: auto; height: 46vh; }
-  .pr-panel { top: auto; bottom: 4vh; transform: none; left: 6vw; width: 88vw; }
+  /* 指輪は上 38vh に。字はその下で、入りきらなければ動かして読む（指輪に字を重ねない） */
+  .pro.presenting .gl { left: 0; right: 0; top: 0; bottom: auto; height: 38vh; }
+  .pr-panel { top: 38vh; bottom: 0; transform: none; left: 6vw; width: 88vw; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 16px; touch-action: pan-y; }
   .pr-q { font-size: 15px; margin-bottom: 16px; }
   .pr-opt { margin-bottom: 16px; }
   .pr-grid { gap: 12px 24px; }

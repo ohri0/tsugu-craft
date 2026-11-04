@@ -157,6 +157,24 @@ export function carryDesign(prev: RingState, base: RingState, same: { shape?: bo
   return out;
 }
 
+/** 石の長辺の欄で入れられる範囲（mm。石の大きさのつまみと同じ） */
+export const STONE_LONG_RANGE = { min: 3, max: 14 } as const;
+
+/** 長辺の欄に打った数を、範囲に収める。数でなければ今の値のまま。fixed ＝ 打った数のままではなくなった */
+export function fitStoneLong(raw: number, current: number): { mm: number; fixed: boolean } {
+  if (!Number.isFinite(raw) || raw === 0) return { mm: current, fixed: false };
+  const mm = Math.min(STONE_LONG_RANGE.max, Math.max(STONE_LONG_RANGE.min, raw));
+  return { mm, fixed: mm !== raw };
+}
+
+/** 深さの欄に打った数。0 以下や数でなければ今の値のまま。長辺の上限より深くはしない */
+export function fitStoneDepth(raw: number, current: number): { mm: number; fixed: boolean } {
+  if (!Number.isFinite(raw) || raw === 0) return { mm: current, fixed: false };
+  if (raw < 0) return { mm: current, fixed: true };
+  const mm = Math.min(STONE_LONG_RANGE.max, raw);
+  return { mm, fixed: mm !== raw };
+}
+
 /** 道具の地金の名前 → 形と重さを出す地金 */
 export function metalIdOf(m: Metal): MetalId {
   if (m === "pt900") return "pt900";

@@ -29,7 +29,7 @@ import { bindVoice } from "../app/voice";
 import { bookLabel, masterName, sourceName } from "../app/master";
 import { toStl } from "../cad/solid";
 import { buildStone } from "../geometry/stone";
-import { LAYOUT_LABEL, METAL_LABEL, RingSession, SLOT_SHAPE_LABEL, carryDesign, type Built, type SlotShape } from "./session";
+import { LAYOUT_LABEL, METAL_LABEL, RingSession, SLOT_SHAPE_LABEL, STONE_LONG_RANGE, carryDesign, fitStoneDepth, fitStoneLong, type Built, type SlotShape } from "./session";
 import { howToMake, placeText, type Method } from "./howto";
 import { sheetHtml } from "./sheet";
 import { whyHtml } from "./why";
@@ -142,7 +142,7 @@ app.innerHTML = `
         </div>
         <label class="asset stone-card"><canvas class="stone-thumb" width="120" height="120"></canvas><span><b>石の写真</b><small class="stone-sub">—</small></span><span class="act">変える</span><input type="file" accept="image/*" class="stone-file" hidden></label>
         <div class="presets" role="group" aria-label="よくある形">${PRESETS.map((p) => `<button type="button" data-preset="${p.id}">${p.name}</button>`).join("")}</div>
-        <div class="fields"><label class="field">長辺<span class="in"><input type="number" step="0.01" class="in-long" inputmode="decimal"><i>mm</i></span></label><label class="field">深さ<span class="in"><input type="number" step="0.01" class="in-depth" inputmode="decimal"><i>mm</i></span></label></div>
+        <div class="fields"><label class="field">長辺<span class="in"><input type="number" step="0.01" min="${STONE_LONG_RANGE.min}" max="${STONE_LONG_RANGE.max}" class="in-long" inputmode="decimal"><i>mm</i></span></label><label class="field">深さ<span class="in"><input type="number" step="0.01" class="in-depth" inputmode="decimal"><i>mm</i></span></label></div>
       </section>
       <section class="sec"><h4>Claude の作業</h4>
         <p class="make-note" hidden></p>
@@ -322,6 +322,7 @@ document.querySelector(".shoot-help-btn")?.addEventListener("click", (e) => {
 });
 /** same：今の石と同じ形か・同じ大きさか（長辺や深さの数字を直しただけのとき。引き継ぐ物が増える） */
 async function loadStone(img: ImageData, label: string, longMm: number, depthMm: number, opts: { intro?: boolean; same?: { shape?: boolean; size?: boolean } } = {}) {
+  stopIntro();
   // 長辺や深さを直しただけなら、写真を読み直さない（輪郭の点がそろったままで、爪の位置がずれない）
   const extraction = opts.same && stone ? stone.extraction : extractStone(img);
   const measured = measureOutline({ outlinePx: extraction.outlinePx, longMm });
@@ -477,9 +478,30 @@ $(".reset-design").addEventListener("click", () => {
 });
 
 /** 最初の見せ場：写真に輪郭が描かれ → 石が立体になり → まわりに指輪が組み上がる */
+let introRun = 0;
+let introCleanup: (() => void) | null = null;
+/** 見せ場を途中でやめる（種類や石を変えたとき。やめないと、後から石だけを置いて甲丸の指輪を消していた） */
+function stopIntro() {
+  introRun++;
+  introCleanup?.();
+  introCleanup = null;
+}
 async function intro() {
   if (!stone || !session) return;
+  const run = ++introRun;
+  const alive = () => run === introRun;
   const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+  const parts: (HTMLElement | null)[] = [];
+  let clock = 0;
+  introCleanup = () => {
+    clearInterval(clock);
+    parts.forEach((e) => e?.remove());
+    $(".intro-stage").hidden = true;
+    $(".intro-stage").classList.remove("draw", "out");
+    holdDims = false;
+    viewer.setReveal(null);
+    if (!dispChosen) setDisp(["refine", "hand"].includes($(".pro").dataset.mode ?? "") ? "shaded" : "render");
+  };
   const box = $(".intro-stage");
   const cv = $<HTMLCanvasElement>(".intro-photo");
   const p = stone.photo;
@@ -496,17 +518,21 @@ async function intro() {
   void box.offsetWidth;
   box.classList.add("draw");
   await wait(2200);
+  if (!alive()) return;
   $(".intro-cap").textContent = `${stone.shapeName}・尖った角 ${stone.cornerIdx.length} か所・幅 ${stone.measured.widthMm.toFixed(2)} mm`;
   await wait(1100);
+  if (!alive()) return;
   viewer.setStone(buildStone(session.stone), { color: stone.extraction.color, colorless: stone.extraction.colorless });
   box.classList.add("out");
   await wait(900);
+  if (!alive()) return;
   box.hidden = true;
   box.classList.remove("draw", "out");
   // 線だけで組み上がる → 灰色の面 → 金。寸法を 1 本ずつ入れ、最後に図面と作り方
   const t0 = performance.now();
   const timer = document.createElement("div");
   timer.className = "intro-timer";
+  parts.push(timer);
   $(".vp").appendChild(timer);
   let label = "";
   const draw = () => (timer.innerHTML = `<b>${label}</b><span>${((performance.now() - t0) / 1000).toFixed(1)} 秒</span>`);
@@ -514,15 +540,17 @@ async function intro() {
     label = l;
     draw();
   };
-  const clock = setInterval(draw, 100);
+  clock = window.setInterval(draw, 100);
   holdDims = true;
   setDisp("wire");
   tick("組んでいます");
   session.build("最初の案");
   await viewer.reveal(1500);
+  if (!alive()) return;
   tick("確かめています");
   setDisp("shaded");
   await wait(700);
+  if (!alive()) return;
   setDisp("render");
   holdDims = false;
   const all = dims;
@@ -530,6 +558,7 @@ async function intro() {
     dims = all.slice(0, i);
     drawDims();
     await wait(260);
+    if (!alive()) return;
   }
   dims = all;
   // 図面と作り方ができたことを、小さな札で見せる
@@ -538,17 +567,21 @@ async function intro() {
   const sheetImg = viewer.drawing("front", 14);
   const card = document.createElement("div");
   card.className = "intro-sheet";
+  parts.push(card);
   card.innerHTML = `<img alt="" src="${sheetImg.url}"><div><b>図面と作り方</b><small>正面図ほか ・ ${steps.length} 工程 ・ ${grouped(b).length ? `直す所 ${grouped(b).length}` : "作れる形"}</small></div>`;
   $(".vp").appendChild(card);
   tick("写真 1 枚 → 図面と作り方");
   clearInterval(clock);
   timer.classList.add("done");
   await wait(3200);
+  if (!alive()) return;
   card.classList.add("out");
   timer.classList.add("out");
   await wait(700);
+  if (!alive()) return;
   card.remove();
   timer.remove();
+  introCleanup = null;
 }
 // ---- 見せる：全画面で、黒の上の指輪と本物の数字。押して切り替えられる ----
 let presentOn = false;
@@ -557,6 +590,11 @@ let presentPrevDisp: DisplayMode = "render";
 /** 図面を開いたまま見せるを押したか（閉じたら図面に戻す） */
 let presentPrevSheet = false;
 function presentGroups(): PresentGroup[] {
+  if (kind === "band")
+    return [
+      { key: "section", label: "腕の断面", options: (Object.keys(SECTION_LABEL) as SectionKind[]).map((x) => ({ v: x, label: SECTION_LABEL[x] })), on: band.kind },
+      { key: "metal", label: "地金", options: (["pt900", "k18yg", "k18pg", "k18wg", "sv925"] as Metal[]).map((m) => ({ v: m, label: METAL_LABEL[m] })), on: bandMetal },
+    ];
   if (!session?.built) return [];
   const s = session.state;
   const st = session.built.ring.setting;
@@ -579,8 +617,36 @@ function presentGroups(): PresentGroup[] {
     }] : []),
   ];
 }
+/** 見せるの欄を描いて、押せるようにする */
+function showPresentPanel(html: string) {
+  const panel = $(".pr-panel");
+  panel.innerHTML = html;
+  panel.querySelectorAll<HTMLButtonElement>(".pr-tabs button").forEach((x) =>
+    x.addEventListener("click", () => {
+      presentGroup = x.dataset.g!;
+      renderPresent();
+    }),
+  );
+  panel.querySelectorAll<HTMLButtonElement>(".pr-opt button").forEach((x) => x.addEventListener("click", () => presentPick(x.dataset.g!, x.dataset.v!)));
+}
 function renderPresent() {
-  if (!presentOn || !session?.built || !stone) return;
+  if (!presentOn) return;
+  if (kind === "band") {
+    const n = checkBand(band).length;
+    return showPresentPanel(
+      presentHtml(
+        {
+          shank: `${SECTION_LABEL[band.kind]} 上 ${band.top.width.toFixed(1)} × ${band.top.thickness.toFixed(1)} mm ・ 下 ${band.bottom.width.toFixed(1)} × ${band.bottom.thickness.toFixed(1)} mm`,
+          metal: `${band.metalLabel} ・ 約 ${bandWeight.toFixed(1)} g`,
+          gou: `${band.gou} 号（内径 ${bandInnerDiameter(band.gou).toFixed(1)} mm）`,
+          verdict: { ok: n === 0, text: n === 0 ? "作れます" : `作れない所 ${n}` },
+        },
+        presentGroups(),
+        presentGroup,
+      ),
+    );
+  }
+  if (!session?.built || !stone) return;
   const b = session.built;
   const r = b.ring;
   const st = r.setting;
@@ -599,19 +665,18 @@ function renderPresent() {
     presentGroups(),
     presentGroup,
   );
-  const panel = $(".pr-panel");
-  panel.innerHTML = html;
-  panel.querySelectorAll<HTMLButtonElement>(".pr-tabs button").forEach((x) =>
-    x.addEventListener("click", () => {
-      presentGroup = x.dataset.g!;
-      renderPresent();
-    }),
-  );
-  panel.querySelectorAll<HTMLButtonElement>(".pr-opt button").forEach((x) => x.addEventListener("click", () => presentPick(x.dataset.g!, x.dataset.v!)));
+  showPresentPanel(html);
 }
 function presentPick(g: string, v: string) {
-  if (!session) return;
   presentGroup = g;
+  if (kind === "band") {
+    if (g === "section") band = { ...band, kind: v as SectionKind };
+    if (g === "metal") setBandMetal(v as Metal);
+    bandControls($(".band-ctrl"));
+    showBand();
+    return;
+  }
+  if (!session) return;
   if (g === "stone") resizeStone(Number(v), true);
   else if (g === "section") session.setShank({ section: v as ShankSection, reason: "見せる" });
   else if (g === "setting") session.setSetting(v === "bezel" ? { style: "bezel", reason: "見せる" } : { style: "prong", prong_count: Number(v), reason: "見せる" });
@@ -620,7 +685,7 @@ function presentPick(g: string, v: string) {
   renderPresent();
 }
 function setPresent(on: boolean) {
-  if (!session?.built) return;
+  if (kind !== "band" && !session?.built) return;
   presentOn = on;
   $(".pro").classList.toggle("presenting", on);
   $(".present").hidden = !on;
@@ -769,11 +834,19 @@ for (const el of [$(".vp"), $(".stone-card")]) {
     void useStonePhoto(f);
   });
 }
+/** 長辺・深さの欄の注意を出しているか */
+let fitNoted = false;
 for (const sel of [".in-long", ".in-depth"]) {
   $<HTMLInputElement>(sel).addEventListener("change", () => {
     if (!stone) return;
-    const long = Number($<HTMLInputElement>(".in-long").value) || stone.longMm;
-    void loadStone(stone.photo, stone.label, long, Number($<HTMLInputElement>(".in-depth").value) || stone.depthMm, { same: { shape: true, size: Math.abs(long - stone.longMm) < 1e-6 } });
+    // 長辺はつまみと同じ範囲に収める（−5 mm で「作れます」、100 mm で 1 分近く止まっていた）
+    const long = fitStoneLong(Number($<HTMLInputElement>(".in-long").value), stone.longMm);
+    const depth = fitStoneDepth(Number($<HTMLInputElement>(".in-depth").value), stone.depthMm);
+    void loadStone(stone.photo, stone.label, long.mm, depth.mm, { same: { shape: true, size: Math.abs(long.mm - stone.longMm) < 1e-6 } });
+    const note = long.fixed ? `長辺は ${STONE_LONG_RANGE.min}〜${STONE_LONG_RANGE.max} mm で入れてください。${long.mm} mm にしました。` : depth.fixed ? `深さは 0 より大きく、${STONE_LONG_RANGE.max} mm までで入れてください。${depth.mm} mm にしました。` : "";
+    // 正しい数に直したら、前の注意は消す（ほかの知らせは残す）
+    if (note || fitNoted) setStatus(note);
+    fitNoted = !!note;
   });
 }
 document.querySelector<HTMLInputElement>(".sketch-file")?.addEventListener("change", async (e) => {
@@ -1398,7 +1471,7 @@ function prongSlider(b: Built): SliderSpec {
   return { cls: "r-prong", label: "爪の太さ", min: 0.4, max: 1.6, step: 0.05, value: b.ring.setting.prongs[0]?.diameterMm ?? 0.8, unit: "mm" };
 }
 function stoneSlider(): SliderSpec {
-  return { cls: "r-stone", label: "石の大きさ", min: 3, max: 14, step: 0.1, value: Number((session?.stone.longMm ?? 8).toFixed(1)), unit: "mm" };
+  return { cls: "r-stone", label: "石の大きさ", min: STONE_LONG_RANGE.min, max: STONE_LONG_RANGE.max, step: 0.1, value: Number((session?.stone.longMm ?? 8).toFixed(1)), unit: "mm" };
 }
 /**
  * 石を同じ形のまま大きく・小さくする（長辺 mm）。爪の太さは手で決めた値を外し、帳面の決まりで決め直す。
@@ -2432,6 +2505,11 @@ function renderFixPop() {
   });
 }
 $(".verdict-chip").addEventListener("click", () => {
+  // 石のない指輪は、直し方を確かめるの欄に出す
+  if (kind === "band") {
+    if (checkBand(band).length) setMode("refine");
+    return;
+  }
   if (!session?.built?.problems.length) return;
   const pop = $(".fix-pop");
   pop.hidden = !pop.hidden;
@@ -2521,6 +2599,12 @@ function showBand(live = false) {
     ["地金", `${band.metalLabel} ・ 約 ${bandWeight.toFixed(1)} g`],
   ];
   $(".specs").innerHTML = rows.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("");
+  // 図面を開いたままなら、図面も描き直す（一粒石の指輪と同じ）
+  if (sheetOn) {
+    clearTimeout(sheetTimer);
+    sheetTimer = window.setTimeout(() => sheetOn && showSheet(), 400);
+  }
+  renderPresent();
   if (live) return;
   if (!$(".studio-refine").hidden) renderBandCheck();
   if (!$(".build-panel").hidden) renderBandBuild();
@@ -2557,8 +2641,10 @@ function bandControls(box: HTMLElement) {
   });
 }
 function setKind(k: Kind) {
+  stopIntro();
   kind = k;
   keepDesignSoon();
+  $(".fix-pop").hidden = true;
   document.querySelectorAll<HTMLButtonElement>(".kinds [data-kind]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.kind === k)));
   document.querySelectorAll<HTMLElement>(".solitaire-only").forEach((e) => (e.hidden = k !== "solitaire"));
   document.querySelectorAll<HTMLElement>(".band-only").forEach((e) => (e.hidden = k !== "band"));
