@@ -108,7 +108,8 @@ export const LAYOUT_LABEL: Record<StoneLayout | "free", string> = { solo: "一�
 /** つまみや Claude の set_setting が止まってから、細かい一体の形を作り直すまでの待ち（ms） */
 export const FINAL_DELAY_MS = 250;
 
-export const DEFAULT_STATE: RingState = { style: "prong", height: "standard", orientation: "along", metal: "k18yg", gou: 11, position: "top" };
+// 石座の付け方の既定は「腕の間に挟む」（職人の言う基本の作り方。作者が決めた 2026-11-04）。「腕の上にのせる」も選べる。石がいくつもの指輪は、形の方で腕の上にのせる
+export const DEFAULT_STATE: RingState = { style: "prong", height: "standard", orientation: "along", metal: "k18yg", gou: 11, position: "top", join: "between" };
 
 /** 道具の地金の名前 → 形と重さを出す地金 */
 export function metalIdOf(m: Metal): MetalId {
@@ -294,7 +295,7 @@ export class RingSession implements ToolHost<RingState> {
         // 既定は、角を丸い爪で押さえる普通の爪留め（作者の判断）。V 字の爪は選んだときだけ
         // V 字の爪は、形の出来がまだ足りないので画面では使わない（作者と決めた。2026-11-04）
         vAtCorners: false,
-        join: s.join,
+        join: s.join ?? "between", // 前に残した設計（付け方の記録がない）も、既定の「腕の間に挟む」で
         collarHeightMm: s.collarHeightMm,
         collarWallMm: s.collarWallMm,
       },

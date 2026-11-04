@@ -230,16 +230,18 @@ describe("腕の間に挟む石座：道具と作り方", () => {
     expect(bad.ok).toBe(false);
   });
 
-  it("画面の設計の場で付け方を変えると、形と道具の答えが変わる（既定は腕の上にのせる）", () => {
+  it("画面の設計の場の既定は腕の間に挟む。腕の上にのせるも選べ、形と道具の答えが変わる", () => {
     const s = new RingSession(round, () => seedLedger(), () => {}, () => "");
     s.build();
-    expect(s.built!.ring.setting.join).toBe("on");
-    const res = s.setSetting({ join: "between", reason: "腕の間に挟む" });
-    expect(res.setting.join).toBe("between");
+    expect(s.built!.ring.setting.join).toBe("between");
     expect(s.built!.ring.setting.collar).not.toBeNull();
     expect(s.check().passed).toContain("腕の端と石座の下の輪");
-    s.setSetting({ join: "on", reason: "戻す" });
+    const res = s.setSetting({ join: "on", reason: "腕の上にのせる" });
+    expect(res.setting.join).toBe("on");
+    expect(s.built!.ring.setting.collar).toBeNull();
     expect(s.check().passed).not.toContain("腕の端と石座の下の輪");
+    s.setSetting({ join: "between", reason: "戻す" });
+    expect(s.built!.ring.setting.join).toBe("between");
   });
 
   it("手作りの作り方：腕の上を切る → 下の輪を板から作る → 腕の間に挟んでロウ付け → 上の輪と爪 → リューターでザグる → 石を留める", () => {

@@ -1299,7 +1299,7 @@ function renderCheck() {
       ${s.style === "prong" ? pick("爪の本数", s.prongCount ?? 0, [[0, "自動"], [3, "3"], [4, "4"], [5, "5"], [6, "6"]]) : ""}
       ${pick("高さ", s.height, [["low", "低め"], ["standard", "標準"], ["high", "高め"]])}
       ${pick("向き", s.orientation, [["along", "縦"], ["across", "横"]])}
-      ${s.style === "prong" && b.ring.stones.length === 1 ? joinPickHtml(pick, s.join ?? "on") : ""}
+      ${s.style === "prong" && b.ring.stones.length === 1 ? joinPickHtml(pick, s.join ?? "between") : ""}
       ${pick("地金", s.metal, (["k18yg", "pt900", "k18wg", "k18pg", "sv925"] as Metal[]).map((m) => [m, METAL_LABEL[m]] as [Metal, string]))}
       <div class="sliders">
         ${s.style === "prong" ? sliderHtml(prongSlider(b)) : ""}
