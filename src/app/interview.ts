@@ -63,14 +63,14 @@ export function mountInterview(root: HTMLElement, target: InterviewTarget, opts:
     current = gap?.id;
     const claude = !!store.password();
     if (!gap) {
-      root.innerHTML = `<div class="iv-head"><p class="eyebrow">Claude の聞き取り</p></div><p class="iv-done">まだ決まっていない所は、今はありません。帳面の決まりは、どれも職人の言葉か、確かめた資料です。</p>`;
+      root.innerHTML = `<div class="iv-head"><p class="eyebrow">Claude からの質問</p></div><p class="iv-done">今は聞くことはありません。</p>`;
       return;
     }
     asked = gap.question;
     const my = ++seq;
     root.innerHTML = `
       <div class="iv-head">
-        <p class="eyebrow">Claude の聞き取り <span class="iv-mode">${claude ? "Claude が聞いています" : "Claude なし"}</span></p>
+        <p class="eyebrow">Claude から質問が 1 つあります <span class="iv-mode">${claude ? "Claude が聞いています" : "Claude なし"}</span></p>
         <span class="iv-count">まだ決まっていない所 ${gaps.length}</span>
       </div>
       <p class="iv-q" aria-live="polite">${esc(gap.question)}</p>

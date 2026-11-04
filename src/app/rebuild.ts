@@ -48,7 +48,13 @@ const VERDICT: Record<Verdict, { label: string; cls: string }> = {
 };
 const dots = (n: number) => "●".repeat(n) + "○".repeat(3 - n);
 
-export function mountRebuild(root: HTMLElement): void {
+/** 言語モデルの覚えについての注意（長いので、たたんでおく） */
+const CAVEAT = `<details class="caveat"><summary>注意</summary>
+  <p>言語モデルは、学習のときにこの技の作り方を読んでいるかもしれません。だから、工程の一つ一つに「どの手がかりから考えたか」を書かせ、手がかりなしで出てきた工程は「もともとの知識から」として分けて数えます。</p>
+  <p>Claude に渡すのは手がかりだけです。技の名前と本当の作り方は渡しません。公開の記録は、Claude が実際に組み立てた結果を、手を加えずに載せています。</p>
+</details>`;
+
+export function mountRebuild(root: HTMLElement, opts: { onBack?: () => void } = {}): void {
   let tech: Technique | null = null;
   let cond: Condition | null = null;
   let run: Run | null = null;
@@ -56,12 +62,14 @@ export function mountRebuild(root: HTMLElement): void {
 
   function list() {
     tech = null;
+    // 題材が 1 つなら、そのまま開く
+    if (TECHNIQUES.length === 1) return open(TECHNIQUES[0]);
     root.innerHTML = `
     <section class="view rebuild">
+      ${opts.onBack ? `<button type="button" class="back">← 技を選ぶ</button>` : ""}
       <header class="view-head">
-        <p class="eyebrow">途切れた技</p>
         <h2>組み立て直す</h2>
-        <p class="lead">作り方が残っていない技を、残っている品物や材料の手がかりだけから組み立て直します。本当の作り方は隠しておき、最後に答え合わせをします。</p>
+        <p class="lead">途切れた技を、残った手がかりだけから組み立て、本当の作り方と比べます。</p>
       </header>
       <ul class="techs">${TECHNIQUES.map(
         (t, i) => `<li><button type="button" class="tech ready" data-i="${i}">
@@ -70,8 +78,9 @@ export function mountRebuild(root: HTMLElement): void {
           <span class="tech-meta">手がかり ${cluesFor(t, t.conditions[0]).length}〜${t.clues.length}${PUBLISHED_RUNS.some((r) => r.technique === t.id) ? " ・ 公開の記録あり" : ""}</span>
         </button></li>`,
       ).join("")}</ul>
-      <p class="honest">言語モデルは、学習のときにその技の作り方を読んでいるかもしれません。だから、工程の一つ一つに「どの手がかりから考えたか」を書かせ、手がかりなしで出てきた工程は「もともとの知識から」として分けて数えます。</p>
+      ${CAVEAT}
     </section>`;
+    root.querySelector(".back")?.addEventListener("click", () => opts.onBack?.());
     root.querySelectorAll<HTMLButtonElement>(".tech.ready").forEach((b) => b.addEventListener("click", () => open(TECHNIQUES[Number(b.dataset.i)])));
   }
 
@@ -95,30 +104,33 @@ export function mountRebuild(root: HTMLElement): void {
     const h = run?.hypothesis;
     const g = run?.grade;
     const sum = h && g ? tally(h, g, t.answer) : null;
-    const revealed = !!g;
-    root.innerHTML = `
-    <section class="view rebuild">
-      <button type="button" class="back ghost">← 一覧へ</button>
-      <header class="view-head">
-        <p class="eyebrow">${revealed ? "答え合わせ" : "名前を隠した技"}</p>
-        <h2>${revealed ? `${esc(t.name)}<small>（${esc(t.reading)}）</small>` : esc(t.hiddenName)}</h2>
-        <p class="lead">${esc(t.summary)}</p>
-      </header>
-
+    // 手がかりの選び方と、渡す手がかりの一覧（組み立てる前は上に、組み立てたあとは結果の下に）
+    const cluePart = `
+      <div class="block">
+      <h3>${h ? "渡した手がかり" : "Claude に渡す手がかり"}</h3>
       <div class="cond" role="radiogroup" aria-label="渡す手がかり">${t.conditions
         .map((x) => `<button type="button" role="radio" aria-checked="${x.id === c.id}" data-c="${x.id}"><b>${esc(x.label)}</b><small>${esc(x.note)}</small></button>`)
         .join("")}</div>
 
       <details class="clues">
-        <summary>渡す手がかり <b>${clues.length}</b><span class="clue-peek">${clues.slice(0, 3).map((x) => `${esc(x.id)} ${esc(x.title)}`).join(" ・ ")}${clues.length > 3 ? ` ほか ${clues.length - 3}` : ""}</span></summary>
+        <summary>手がかり <b>${clues.length}</b><span class="clue-peek">${clues.slice(0, 3).map((x) => `${esc(x.id)} ${esc(x.title)}`).join(" ・ ")}${clues.length > 3 ? ` ほか ${clues.length - 3}` : ""}</span></summary>
         <ol class="clue-list">${clues.map((x) => `<li id="clue-${esc(x.id)}"><b>${esc(x.id)}</b> <span>${esc(x.title)}</span><p>${esc(x.text)}</p></li>`).join("")}</ol>
       </details>
+      </div>`;
+    root.innerHTML = `
+    <section class="view rebuild">
+      ${opts.onBack || TECHNIQUES.length > 1 ? `<button type="button" class="back">← ${TECHNIQUES.length > 1 ? "一覧へ" : "技を選ぶ"}</button>` : ""}
+      <header class="view-head">
+        <h2>${esc(t.name)}<small>（${esc(t.reading)}）</small>を組み立て直す</h2>
+        <p class="lead">残った手がかりだけから Claude が作り方を組み立て、本当の作り方と比べます。</p>
+      </header>
+
+      ${h ? "" : cluePart}
 
       ${
         h
           ? `<div class="block">
-        <h3>組み立てた作り方 <small>${esc(run!.date)}</small></h3>
-        ${run!.published ? `<p class="published-note">公開の記録：${esc(run!.date)} に Claude が、この手がかりだけから実際に組み立て${g ? "、答え合わせまでし" : ""}た結果を、手を加えずに載せています。合言葉があれば、自分で組み立て直せます。</p>` : ""}
+        <h3>${g ? "答え合わせの結果" : "組み立てた作り方"} <small>${esc(run!.date)}${run!.published ? " ・ 公開の記録" : ""}</small></h3>
         ${sum ? `<div class="score"><b>${sum.covered}<small>/${sum.answerSteps}</small></b><p>${esc(scoreLine(sum))}</p></div>` : ""}
         <ol class="steps-h">${h.steps
           .map((s, i) => {
@@ -149,23 +161,27 @@ export function mountRebuild(root: HTMLElement): void {
             : ""
         }
       </div>`
-          : `<div class="block empty-run"><p>まだ組み立てていません。手がかり ${clues.length} 個だけを Claude に渡して、作り方を組み立てます。技の名前と本当の作り方は渡しません。</p><p class="small">組み立てには Claude を使うので、合言葉が要ります。合言葉がなくても、上の「渡す手がかり」を開くと、Claude に渡す手がかりをそのまま読めます。</p></div>`
+          : ""
       }
 
       ${h && t.id === "mokume" ? `<div class="block sim-slot"></div>` : ""}
 
       <div class="actions">
-        <button type="button" class="primary go">${h ? "もう一度組み立てる" : "組み立てる"}</button>
+        <button type="button" class="primary go">${h ? "もう一度組み立てる" : `この ${clues.length} 個で組み立てる`}</button>
         ${h && !g ? `<button type="button" class="primary gold check">答え合わせ（答えを開く）</button>` : ""}
         ${h && !run!.published ? `<button type="button" class="ghost export">記録を書き出す</button>` : ""}
       </div>
-      <p class="small status"></p>
+      <p class="small status">${h ? "" : "組み立てには合言葉が要ります（1〜2 分）。"}</p>
+
+      ${h ? cluePart : ""}
+
+      ${CAVEAT}
     </section>`;
 
     const $ = <T extends HTMLElement = HTMLElement>(s: string) => root.querySelector<T>(s);
     const slot = $(".sim-slot");
     if (slot) mountSim(slot);
-    $(".back")!.addEventListener("click", list);
+    $(".back")?.addEventListener("click", () => (TECHNIQUES.length > 1 ? list() : opts.onBack?.()));
     root.querySelectorAll<HTMLButtonElement>(".cond [data-c]").forEach((b) =>
       b.addEventListener("click", () => {
         cond = t.conditions.find((x) => x.id === b.dataset.c)!;

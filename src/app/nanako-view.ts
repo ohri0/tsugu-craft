@@ -1,4 +1,4 @@
-// 魚々子の入口：帳面・Claude の聞き取り・小さな図。
+// 魚々子の入口：小さな図 → Claude の質問 → 帳面 の順に並べる。
 // 図は板の上の粒の並び。帳面の決まりに合わない所は赤くなり、理由と出どころが出る。決まりがない所は確かめず「職人に聞く」へ。
 import { activeRules, sourceLabel } from "../rules/ledger";
 import { checkNanako, grainLayout, NANAKO_PARAMS, plateSize, type NanakoDesign, type NanakoFinding, type NanakoLedger, type NanakoRule } from "../rules/nanako";
@@ -46,12 +46,9 @@ export function mountNanako(root: HTMLElement, opts: { gapId?: string; onBack: (
   <section class="view waza nanako">
     <button type="button" class="back">← 技を選ぶ</button>
     <header class="view-head">
-      <p class="eyebrow">彫金・入口</p>
       <h2>魚々子（ななこ）</h2>
-      <p class="lead">先が小さな輪になった鏨（たがね＝金属を打つのみ）を、金属の面に打ちこみ、小さな丸い粒をすきまなく並べる技。魚の卵をまいたように見えるので、この名があります。<a class="src" href="https://shosointen-glossary.narahaku.go.jp/nanako/" target="_blank" rel="noopener">出典：正倉院展用語解説</a></p>
+      <p class="lead">鏨（たがね）の先の小さな輪で、金属の面に丸い粒を並べる彫金の技。<a class="src" href="https://shosointen-glossary.narahaku.go.jp/nanako/" target="_blank" rel="noopener">出典：正倉院展用語解説</a></p>
     </header>
-
-    <div class="block panel iv-root"></div>
 
     <div class="block">
       <h3>図で確かめる</h3>
@@ -68,6 +65,7 @@ export function mountNanako(root: HTMLElement, opts: { gapId?: string; onBack: (
       </div>
       <ul class="nk-findings"></ul>
     </div>
+    <div class="block panel iv-root"></div>
     <div class="block">
       <div class="panel-head"><h3>帳面 <small class="rule-n"></small></h3>
         <div class="row"><button type="button" class="ghost export">書き出す</button><label class="ghost btnlike">読み込む<input type="file" accept="application/json" class="import" hidden></label></div>

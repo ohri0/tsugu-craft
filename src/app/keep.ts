@@ -1,65 +1,163 @@
-// 残す：職人の画面。学ぶ人から届いた質問（似たものはまとめてある）に、空いた時間に声で答えるだけ。
-// 答えは Claude が決まりの案にまとめ、職人が見て「これでいい」を押すと目安帳に入る。次からは「聞く」で答えられる。
-// ほかに、手本を撮る（手の動きの記録）、帳面を見る・印刷する。
+// 帳面：職人の決まりを、いちばん上に札で見せる（決まり・職人の言葉・名前と日・見せた動画）。
+// その下に「Claude から質問が 1 つあります」（指輪の帳面のまだ決まっていない所。src/app/interview.ts の聞き取り）。
+// そのあとに、ほかにできること：帳面を印刷・手本を撮る・思いついたことを話して残す・届いている質問（あるときだけ）。
+// 届いた質問に答えると、Claude が決まりの案にまとめ、職人が「これでいい」を押すと帳面に入る。
 import { runClaude } from "../claude/loop";
 import { keepPrompt } from "../claude/prompt";
 import { TOOLS, type ProposeRuleInput, type ProposeRuleResult, type ToolHost } from "../claude/tools";
 import { summarizeMetrics } from "../craft/motion";
 import { bookHtml } from "../rules/book";
+import { ringGaps } from "../rules/gaps";
 import { activeRules, addRule, type Rule } from "../rules/ledger";
 import { groupQuestions, markAnswered, type QuestionGroup } from "../rules/teacher-queue";
 import { mountMotion, savedRecords } from "../ui/motion-ui";
-import { masterName } from "./master";
-import { putVideo } from "./video-store";
+import { mountInterview, type Interview } from "./interview";
+import { bookLabel, masterName } from "./master";
+import { getVideo, putVideo } from "./video-store";
 import { askPassword, resetPassword } from "./password";
 import { esc, store, today } from "./store";
 import { bindVoice, canListen } from "./voice";
+import { ringTarget } from "./waza";
 
 const MIC = `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-2.1A7 7 0 0 0 19 12h-2Z" fill="currentColor"/></svg>`;
 
 /** 答える欄ごとに、職人が見せた動画 */
 const shownVideo = new WeakMap<HTMLElement, File>();
 
-export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void } = {}): { refresh(): void } {
+/** 「あとで」を押した回数（この画面を開いている間だけ） */
+const LATER_STORE = "tsugu.ledgerLater.v1";
+function laterCount(): number {
+  try {
+    return Number(sessionStorage.getItem(LATER_STORE) ?? "0") || 0;
+  } catch {
+    return 0;
+  }
+}
+function setLater(n: number) {
+  try {
+    sessionStorage.setItem(LATER_STORE, String(n));
+  } catch {
+    // 残せなくても動く
+  }
+}
+
+export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void } = {}): { refresh(): void; route(sub: string): void } {
   root.innerHTML = `
   <section class="view keep">
     <header class="view-head">
-      <p class="eyebrow">職人の画面</p>
       <h2 class="keep-title"></h2>
-      <p class="lead">作業を撮るだけで手本になります。届いた質問には、空いた時間に声か動画で答えるだけ。答えは決まりになって、次の人に届きます。</p>
+      <p class="lead">職人の決まり。設計の確かめと、学ぶ人への答えに使います。</p>
     </header>
-    <div class="block tiles">
-      <button type="button" class="tile" data-open="motion"><b>手本を撮る</b><small>作業を撮るだけ。話さなくていい。手の動きを数字にして、学ぶ人の動画と比べられます</small></button>
-      <button type="button" class="tile" data-open="book"><b>帳面を見る</b><small class="book-sub"></small></button>
-    </div>
-    <div class="block panel motion-panel" hidden><div class="panel-head"><h3>手本を撮る</h3><button type="button" class="ghost close">閉じる</button></div><div class="motion-root"></div></div>
-    <div class="block panel book-panel" hidden><div class="panel-head"><h3>帳面</h3><div class="row"><button type="button" class="ghost print">印刷する</button><button type="button" class="ghost close">閉じる</button></div></div><ul class="book-list"></ul></div>
-    <div class="block">
+    <ul class="rule-cards"></ul>
+    <details class="free public-rules"><summary class="public-sum"></summary><ul class="book-list"></ul></details>
+    <div class="block ask-card iv-card" hidden></div>
+    <div class="block inbox-block" hidden>
       <h3>届いている質問 <small class="inbox-count"></small></h3>
       <ul class="inbox"></ul>
-      <details class="free">
-        <summary>質問がなくても、思いついたことを話して残す</summary>
-        <div class="free-body"></div>
-      </details>
     </div>
+    <div class="block">
+      <h3>ほかにできること</h3>
+      <div class="acts">
+        <button type="button" class="act print"><b>帳面を印刷</b><small>紙にして工房に置く</small></button>
+        <button type="button" class="act" data-open="motion"><b>手本を撮る</b><small>作業を撮るだけ。学ぶ人が手の動きを比べられます</small></button>
+        <button type="button" class="act" data-open="free"><b>思いついたことを話して残す</b><small>声で話すと、決まりの案になります</small></button>
+      </div>
+    </div>
+    <div class="block panel motion-panel" hidden><div class="panel-head"><h3>手本を撮る</h3><button type="button" class="ghost close">閉じる</button></div><div class="motion-root"></div></div>
+    <div class="block panel free-panel" hidden><div class="panel-head"><h3>話して残す</h3><button type="button" class="ghost close">閉じる</button></div><div class="free-body"></div></div>
   </section>`;
   const $ = <T extends HTMLElement = HTMLElement>(s: string) => root.querySelector<T>(s)!;
+  /** 聞き取りを開いているときの部品（開いていなければ null） */
+  let interview: Interview | null = null;
 
   function refresh() {
     const ledger = store.ledger();
-    const name = masterName(ledger);
-    $(".keep-title").textContent = `${name}さんへ`;
+    const label = bookLabel(ledger);
+    $(".keep-title").textContent = `${label}${/[A-Za-z0-9]$/.test(label) ? " " : ""}の帳面`;
+    renderCards();
+    if (!interview) renderAskCard();
     const groups = groupQuestions(store.queue()).filter((g) => !g.answeredRuleId);
-    $(".inbox-count").textContent = groups.length ? `${groups.length} 件（似た質問はまとめてあります）` : "";
-    $(".inbox").innerHTML = groups.length
-      ? groups.map((g, i) => inboxItem(g, i)).join("")
-      : `<li class="inbox-empty">今、届いている質問はありません。「聞く」で答えられなかった質問がここに届きます。</li>`;
+    $(".inbox-block").hidden = !groups.length;
+    $(".inbox-count").textContent = groups.length ? `${groups.length} 件` : "";
+    $(".inbox").innerHTML = groups.map((g, i) => inboxItem(g, i)).join("");
     root.querySelectorAll<HTMLButtonElement>(".inbox [data-answer]").forEach((b) =>
       b.addEventListener("click", () => openAnswer(b.closest("li")!, groups[Number(b.dataset.answer)])),
     );
-    const mine = activeRules(ledger).filter((r) => r.source.kind === "craftsman");
-    $(".book-sub").textContent = `残した決まり ${mine.length} ・ 手の記録 ${savedRecords().length} ・ 印刷できます`;
-    renderBook();
+  }
+
+  // ---- 職人の決まり（札） ----
+  function card(r: Rule): string {
+    const who = r.source.kind === "craftsman" ? r.source.name : "";
+    return `<li class="rule-card">
+      <p class="rc-title">${esc(r.title)}</p>
+      <p class="rc-text">${esc(r.text)}</p>
+      ${r.quote ? `<blockquote>「${esc(r.quote)}」</blockquote>` : ""}
+      <p class="rc-meta"><span>${esc(who)}${who ? "さん" : ""} ・ ${esc(r.date)}</span><span class="rc-video" data-rule="${esc(r.id)}"></span></p>
+    </li>`;
+  }
+
+  function renderCards() {
+    const rules = activeRules(store.ledger());
+    const mine = rules.filter((r) => r.source.kind === "craftsman");
+    const others = rules.filter((r) => r.source.kind !== "craftsman");
+    $(".rule-cards").innerHTML = mine.length
+      ? mine.map(card).join("")
+      : `<li class="empty-card"><p>職人の決まりは、まだありません。</p><button type="button" class="primary to-ask">Claude の質問に答える</button></li>`;
+    root.querySelector(".to-ask")?.addEventListener("click", () => openInterview());
+    void attachVideos();
+    const pub = $(".public-rules");
+    pub.hidden = !others.length;
+    $(".public-sum").textContent = `資料の目安 ${others.length}（職人がまだ決めていない所）`;
+    const item = (r: Rule) => `<li><b>${esc(r.title)}</b><p>${esc(r.text)}</p><p class="small muted">${esc(r.source.kind === "public" ? `公開情報：${r.source.title}` : "仮の目安")} ・ ${esc(r.date)}</p></li>`;
+    $(".book-list").innerHTML = others.map(item).join("");
+  }
+
+  /** 職人が動画で見せた答えがあれば、札に再生のボタンを出す */
+  async function attachVideos() {
+    for (const slot of root.querySelectorAll<HTMLElement>(".rc-video")) {
+      const blob = await getVideo(`rule:${slot.dataset.rule}`);
+      if (!blob) continue;
+      slot.innerHTML = `<button type="button" class="ghost tiny">▶ 見せた動画</button>`;
+      slot.querySelector("button")!.addEventListener("click", () => {
+        slot.closest(".rule-card")!.insertAdjacentHTML("beforeend", `<video class="rc-player" src="${URL.createObjectURL(blob)}" controls playsinline autoplay></video>`);
+        slot.innerHTML = "";
+      });
+    }
+  }
+
+  // ---- Claude から質問 ----
+  function renderAskCard(gapId?: string) {
+    const box = $(".iv-card");
+    const gaps = ringGaps(store.ledger());
+    if (!gaps.length) {
+      box.hidden = true;
+      return;
+    }
+    const q = (gapId && gaps.find((g) => g.id === gapId)) || gaps[laterCount() % gaps.length];
+    box.hidden = false;
+    box.innerHTML = `
+      <p class="eyebrow">Claude から質問が 1 つあります</p>
+      <p class="iv-q">${esc(q.question)}</p>
+      <div class="row"><button type="button" class="primary answer">答える</button><button type="button" class="ghost later">あとで</button>${gaps.length > 1 ? `<span class="small muted">ほかに ${gaps.length - 1}</span>` : ""}</div>`;
+    box.querySelector(".answer")!.addEventListener("click", () => openInterview(q.id));
+    box.querySelector(".later")!.addEventListener("click", () => {
+      setLater(laterCount() + 1);
+      renderAskCard();
+    });
+  }
+
+  function openInterview(gapId?: string) {
+    const box = $(".iv-card");
+    box.hidden = false;
+    box.innerHTML = "";
+    interview = mountInterview(box, ringTarget(), { onApplied: () => renderCards() });
+    interview.focus(gapId);
+    box.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function route(sub: string) {
+    const gap = new URLSearchParams(sub.split("?")[1] ?? "").get("gap");
+    if (gap) openInterview(gap);
   }
 
   function inboxItem(g: QuestionGroup, i: number): string {
@@ -185,14 +283,6 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
     setTimeout(() => el.remove(), 2600);
   }
 
-  function renderBook() {
-    const rules = activeRules(store.ledger());
-    const mine = rules.filter((r) => r.source.kind === "craftsman");
-    const others = rules.filter((r) => r.source.kind !== "craftsman");
-    const item = (r: Rule) => `<li><b>${esc(r.title)}</b><p>${esc(r.text)}</p><p class="small">なぜ：${esc(r.reason)}</p>${r.quote ? `<blockquote>「${esc(r.quote)}」</blockquote>` : ""}<p class="small muted">${esc(r.source.kind === "craftsman" ? `${r.source.name}さん` : r.source.kind === "public" ? `公開情報：${r.source.title}` : "仮の目安")} ・ ${esc(r.date)}</p></li>`;
-    $(".book-list").innerHTML = mine.map(item).join("") + (others.length ? `<li class="sep">公開情報の目安（${others.length}）</li>${others.map(item).join("")}` : "");
-  }
-
   function book(): string {
     const answered = groupQuestions(store.queue(), { includeAnswered: true })
       .filter((g) => g.answeredRuleId)
@@ -201,29 +291,29 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
     return bookHtml({ ledger: store.ledger(), answered, motions, date: today() });
   }
 
+
   let motionMounted = false;
-  root.querySelectorAll<HTMLButtonElement>("[data-open]").forEach((b) =>
-    b.addEventListener("click", () => {
-      const which = b.dataset.open!;
-      const panel = $(`.${which}-panel`);
-      panel.hidden = false;
-      if (which === "motion" && !motionMounted) {
-        motionMounted = true;
-        mountMotion($(".motion-root"), {
-          // 手本として残したら、動画もこのブラウザにしまい、「見る」に出す
-          onSaved: (r, video) => {
-            if (!video) return;
-            void putVideo(r.id, video).then(() => {
-              flash(`手本として残しました：${r.title}（「見る」に出ます）`);
-              refresh();
-              opts.onExampleSaved?.();
-            });
-          },
-        });
-      }
-      panel.scrollIntoView({ behavior: "smooth", block: "start" });
-    }),
-  );
+  function openPanel(which: string) {
+    const panel = $(`.${which}-panel`);
+    panel.hidden = false;
+    if (which === "motion" && !motionMounted) {
+      motionMounted = true;
+      mountMotion($(".motion-root"), {
+        // 手本として残したら、動画もこのブラウザにしまい、「学ぶ」の「手の動きで比べる」に出す
+        onSaved: (r, video) => {
+          if (!video) return;
+          void putVideo(r.id, video).then(() => {
+            flash(`手本として残しました：${r.title}（学ぶ に出ます）`);
+            refresh();
+            opts.onExampleSaved?.();
+          });
+        },
+      });
+    }
+    if (which === "free" && !$(".free-body").childElementCount) openAnswer($(".free-body"));
+    panel.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  root.querySelectorAll<HTMLButtonElement>("[data-open]").forEach((b) => b.addEventListener("click", () => openPanel(b.dataset.open!)));
   root.querySelectorAll<HTMLButtonElement>(".panel .close").forEach((b) => b.addEventListener("click", () => (b.closest<HTMLElement>(".panel")!.hidden = true)));
   $(".print").addEventListener("click", () => {
     const w = window.open("", "_blank");
@@ -231,11 +321,17 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
     w.document.write(book());
     w.document.close();
   });
-  const freeBody = $(".free-body");
-  $(".free").addEventListener("toggle", () => {
-    if ($<HTMLDetailsElement>(".free").open && !freeBody.childElementCount) openAnswer(freeBody);
-  });
 
   refresh();
-  return { refresh };
+  return {
+    refresh() {
+      refresh();
+      interview?.refresh();
+    },
+    route(sub: string) {
+      route(sub);
+      // 「学ぶ」の「手本を撮る」から来たとき
+      if (sub === "motion") openPanel("motion");
+    },
+  };
 }

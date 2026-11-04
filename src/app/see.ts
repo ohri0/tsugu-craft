@@ -4,7 +4,7 @@
 // 2. 比べる：学ぶ人が同じ仕事を撮ると、手の点を読み、手本と違う瞬間を時間の帯に赤く出す。
 // 3. 違う瞬間：手本のいちばん似た形のこまと並べ、手のひらの中心が通った跡（ふらつき）を描く。
 //    「Claude に赤ペン」で、Claude が 2 枚を見比べ、印を描いて職人の決まりの言葉で直し方を言う。
-// 4. 画像から分からないことは、その瞬間ごと職人に回す（残す に届く）。
+// 4. 画像から分からないことは、その瞬間ごと職人に回す（帳面に届く）。
 import { trackVideo } from "../craft/hand-tracker";
 import { createRecord, importRecord, type SkillRecord } from "../craft/record";
 import { comparePose, poseSummary, poseTrack, type Moment, type PoseComparison, type PoseTrack, type Side } from "../craft/pose";
@@ -63,11 +63,10 @@ async function localExamples(): Promise<Example[]> {
 export function mountSee(root: HTMLElement): { refresh(): void } {
   root.innerHTML = `
   <section class="view see">
+    <a class="back" href="#learn">← 職人に聞く</a>
     <header class="view-head">
-      <p class="eyebrow">学ぶ</p>
-      <h2 class="see-title"></h2>
-      <p class="lead">言葉ではなく、手の動きで比べます。手本と同じ仕事を撮ると、どの瞬間がどれだけ違うかを見せます。</p>
-      <a class="ask-link" href="#ask">言葉で聞く（決まりと理由）→</a>
+      <h2>手の動きで比べる</h2>
+      <p class="lead see-title"></p>
     </header>
     <div class="examples"></div>
     <div class="stage master-stage" hidden>
@@ -110,15 +109,14 @@ export function mountSee(root: HTMLElement): { refresh(): void } {
   // ---- 手本 ----
   async function refresh() {
     const name = masterName(store.ledger());
-    $(".see-title").textContent = `${name}さんの手本`;
+    $(".see-title").textContent = `${name}さんの手本の動画と、あなたの手の動きを比べます。`;
     const samples = await loadSamples();
     const local = await localExamples();
     examples = [...(samples ? [samples.master] : []), ...local];
     sampleLearner = samples?.learner;
     $(".try-sample").hidden = !sampleLearner;
     if (!examples.length) {
-      $(".examples").innerHTML = `<div class="no-example"><p>まだ手本の動画がありません。</p><p class="small">「残す」の「手本を撮る」で職人が作業を撮ると、ここに手本として出ます。それまでは、職人が残した決まりに「なぜ？」と聞いて学べます。</p><div class="row"><a class="primary btnlike" href="#ask">言葉で聞く</a><a class="ghost btnlike to-motion" href="#keep">手本を撮る（職人）</a></div></div>`;
-      $(".examples").querySelector(".to-motion")?.addEventListener("click", () => setTimeout(() => document.querySelector<HTMLButtonElement>('[data-open="motion"]')?.click(), 60));
+      $(".examples").innerHTML = `<div class="no-example"><p>手本の動画は、まだありません。</p><div class="row"><a class="primary btnlike" href="#ledger/motion">職人が手本を撮る</a></div></div>`;
       $(".master-stage").hidden = true;
       $(".cta").hidden = true;
       return;
@@ -350,7 +348,7 @@ export function mountSee(root: HTMLElement): { refresh(): void } {
         }).queue,
       );
       const b = box.querySelector<HTMLButtonElement>(".ask-master")!;
-      b.textContent = `${name}さんに回しました（残す に届きます）`;
+      b.textContent = `${name}さんに回しました（帳面に届きます）`;
       b.disabled = true;
     });
     box.querySelector(".play-both")!.addEventListener("click", async () => {

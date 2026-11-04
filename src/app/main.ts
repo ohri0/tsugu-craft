@@ -1,21 +1,20 @@
-// 継ぐ：4 つの画面。見る（学ぶ人）・残す（職人）・組み立て直す（途切れた技）・技（ほかの技にも）。言葉で聞く（#ask）は「見る」から開く。
-// 画面の切り替えは URL の # で（#see / #ask / #keep / #rebuild / #waza）。#waza/nanako のように「/」の後ろは画面の中の場所。スマホは下のタブ、PC は上のタブ。
+// 継ぐ：下のタブは 4 つ。設計（studio.html）・帳面・学ぶ・技。
+// 画面の切り替えは URL の # で（#ledger / #learn / #waza）。「/」の後ろは画面の中の場所（#learn/hands・#waza/nanako・#waza/rebuild）。
+// 前の名前（#see・#ask・#keep・#rebuild・#waza/ring）で来ても、新しい場所へ送る。スマホは下のタブ、PC は上のタブ。
 import "./app.css";
 import { mountAsk } from "./ask";
 import { mountSee } from "./see";
 import { mountKeep } from "./keep";
-import { mountRebuild } from "./rebuild";
 import { mountWaza } from "./waza";
+import { redirectHash } from "./routes";
 import { onStoreChange, store } from "./store";
 import { groupQuestions } from "../rules/teacher-queue";
 
-type ViewId = "see" | "ask" | "rebuild" | "keep" | "waza";
-const VIEWS: { id: ViewId; label: string; sub: string; icon: string; hidden?: boolean }[] = [
-  { id: "see", label: "学ぶ", sub: "次の人", icon: `<path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12Z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/>` },
-  { id: "ask", label: "言葉で聞く", sub: "学ぶ人", hidden: true, icon: `<path d="M4 5h16v11H8l-4 4V5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>` },
-  { id: "keep", label: "残す", sub: "職人", icon: `<path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm6-3a6 6 0 0 1-12 0M12 18v3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>` },
-  { id: "rebuild", label: "組み立て直す", sub: "途切れた技", icon: `<path d="M4 18h16M6 14h12M8 10h8M10 6h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>` },
-  { id: "waza", label: "技", sub: "ほかの技にも", icon: `<circle cx="7" cy="7" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="7" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="17" cy="7" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="9.5" cy="12" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="14.5" cy="12" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="7" cy="17" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="17" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="17" cy="17" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/>` },
+type ViewId = "ledger" | "learn" | "waza";
+const VIEWS: { id: ViewId; label: string; icon: string }[] = [
+  { id: "ledger", label: "帳面", icon: `<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3V4Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 9h6M9 13h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>` },
+  { id: "learn", label: "学ぶ", icon: `<path d="M4 5h16v11H8l-4 4V5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>` },
+  { id: "waza", label: "技", icon: `<circle cx="7" cy="7" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="7" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="17" cy="7" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="9.5" cy="12" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="14.5" cy="12" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="7" cy="17" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="17" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="17" cy="17" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/>` },
 ];
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
@@ -23,43 +22,56 @@ app.innerHTML = `
 <div class="app">
   <header class="bar">
     <a class="brand" href="./" aria-label="継ぐ（始めの画面へ）" title="始めの画面へ"><span class="seal">継</span><span class="name">継ぐ</span></a>
-    <nav class="nav" aria-label="画面"><a href="studio.html" class="to-design"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="14" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 4h6l-3 4Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span>設計</span></a>${VIEWS.filter((v) => !v.hidden).map((v) => `<a href="#${v.id}" data-view="${v.id}"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">${v.icon}</svg><span>${v.label}</span><i class="badge" hidden></i></a>`).join("")}</nav>
+    <nav class="nav" aria-label="画面"><a href="studio.html" class="to-design"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="14" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 4h6l-3 4Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span>設計</span></a>${VIEWS.map((v) => `<a href="#${v.id}" data-view="${v.id}"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">${v.icon}</svg><span>${v.label}</span><i class="badge" hidden></i></a>`).join("")}</nav>
     <div class="bar-r"><button type="button" class="ghost help" aria-label="使い方">使い方</button></div>
   </header>
-  <main>${VIEWS.map((v) => `<div class="screen" id="screen-${v.id}" hidden></div>`).join("")}</main>
+  <main>
+    <div class="screen" id="screen-ledger" hidden></div>
+    <div class="screen" id="screen-learn" hidden><div class="learn-ask"></div><div class="learn-hands" hidden></div></div>
+    <div class="screen" id="screen-waza" hidden></div>
+  </main>
 </div>
 <dialog class="sheet intro">
   <form method="dialog">
     <p class="eyebrow">継ぐ</p>
     <h3>職人の判断と手を、次の人へ。</h3>
     <ol class="steps">
-      <li><b>見る</b><span>職人の手本の動画を見て、自分の手を撮って比べます。どの瞬間がどれだけ違うかを、手の動きで見せます。</span></li>
-      <li><b>残す</b><span>職人は、作業を撮るだけ。届いた質問には、声で答えるだけ。答えは決まりになって、次の人に届きます。</span></li>
-      <li><b>組み立て直す</b><span>途切れた技を、残っている手がかりから組み立て直します。答えを隠して、たどり着けるかを確かめます。</span></li>
-      <li><b>技</b><span>同じしくみを、彫金の魚々子（ななこ）にも。帳面のまだ決まっていない所は、Claude が職人に聞きます。</span></li>
+      <li><b>設計</b><span>指輪を形にして、職人の決まりで「作れるか」を確かめます。</span></li>
+      <li><b>帳面</b><span>職人の決まりが並びます。まだ決まっていない所は、Claude が 1 つずつ聞きます。</span></li>
+      <li><b>学ぶ</b><span>次の人が、職人の決まりに「なぜ？」と聞けます。手の動きを手本と比べることもできます。</span></li>
+      <li><b>技</b><span>指輪の石留めのほかに、彫金の魚々子（ななこ）と、途切れた技を組み立て直す試み。</span></li>
     </ol>
     <div class="sheet-actions"><button value="ok" class="primary">始める</button></div>
   </form>
 </dialog>`;
 
 const screens = Object.fromEntries(VIEWS.map((v) => [v.id, document.getElementById(`screen-${v.id}`)!])) as Record<ViewId, HTMLElement>;
-const see = mountSee(screens.see);
-const ask = mountAsk(screens.ask);
-const keep = mountKeep(screens.keep, { onExampleSaved: () => see.refresh() });
+const askRoot = screens.learn.querySelector<HTMLElement>(".learn-ask")!;
+const handsRoot = screens.learn.querySelector<HTMLElement>(".learn-hands")!;
+let see: { refresh(): void } | null = null;
+const ask = mountAsk(askRoot);
+const keep = mountKeep(screens.ledger, { onExampleSaved: () => see?.refresh() });
 const waza = mountWaza(screens.waza);
-const mounted: Partial<Record<ViewId, boolean>> = { see: true, ask: true, keep: true, waza: true };
 
 function show() {
-  const [head, ...rest] = location.hash.slice(1).split("/");
-  const id = (head as ViewId) || "see";
-  const view = VIEWS.some((v) => v.id === id) ? id : "see";
-  if (view === "rebuild" && !mounted.rebuild) {
-    mountRebuild(screens.rebuild);
-    mounted.rebuild = true;
+  const to = redirectHash(location.hash);
+  if (to) {
+    history.replaceState(null, "", to);
   }
+  const [path, query = ""] = location.hash.slice(1).split("?");
+  const [head, ...rest] = path.split("/");
+  const sub = rest.join("/") + (query ? `?${query}` : "");
+  const view: ViewId = VIEWS.some((v) => v.id === head) ? (head as ViewId) : "ledger";
   for (const v of VIEWS) screens[v.id].hidden = v.id !== view;
-  if (view === "waza") waza.route(rest.join("/"));
-  document.querySelectorAll<HTMLAnchorElement>(".nav a").forEach((a) => a.setAttribute("aria-current", a.dataset.view === view || (view === "ask" && a.dataset.view === "see") ? "page" : "false"));
+  if (view === "learn") {
+    const hands = sub === "hands";
+    askRoot.hidden = hands;
+    handsRoot.hidden = !hands;
+    if (hands && !see) see = mountSee(handsRoot);
+  }
+  if (view === "waza") waza.route(sub);
+  if (view === "ledger") keep.route(sub);
+  document.querySelectorAll<HTMLAnchorElement>(".nav a").forEach((a) => a.setAttribute("aria-current", a.dataset.view === view ? "page" : "false"));
   window.scrollTo(0, 0);
 }
 window.addEventListener("hashchange", show);
@@ -67,7 +79,7 @@ show();
 
 function badges() {
   const open = groupQuestions(store.queue()).filter((g) => !g.answeredRuleId).length;
-  const b = document.querySelector<HTMLElement>('.nav a[data-view="keep"] .badge')!;
+  const b = document.querySelector<HTMLElement>('.nav a[data-view="ledger"] .badge')!;
   b.hidden = open === 0;
   b.textContent = String(open);
 }
@@ -82,5 +94,5 @@ badges();
 const intro = document.querySelector<HTMLDialogElement>(".intro")!;
 intro.addEventListener("close", () => store.setIntroSeen());
 document.querySelector(".help")!.addEventListener("click", () => intro.showModal());
-// ほかの画面からの「組み立て直す」などのリンクで来たときは、説明を出さずにその場面へ
+// ほかの画面からのリンクで来たときは、説明を出さずにその場面へ
 if (!store.introSeen() && !location.hash && !new URLSearchParams(location.search).has("nointro")) intro.showModal();
