@@ -179,10 +179,10 @@ const html = `
     </div>
 
     <div class="stat rv">
-      <p class="k">作り手は、40 年あまりで</p>
-      <p class="stat-n">約 <span class="num">6</span> 分の <span class="num">1</span></p>
-      <p class="stat-t">国が指定した伝統的工芸品の作り手は、<span class="num">28</span> 万 <span class="num">8</span> 千人（<span class="num">1979</span> 年）から <span class="num">4</span> 万 <span class="num">8</span> 千人（<span class="num">2022</span> 年度）に。</p>
-      <p class="src">出典：伝統的工芸品産業振興協会</p>
+      <p class="k">伝統的工芸品の作り手は、24 年で</p>
+      <p class="stat-n">約 <span class="num">6</span> 割減</p>
+      <p class="stat-t">従業員数は約 <span class="num">11.5</span> 万人（<span class="num">1998</span> 年度）から約 <span class="num">4.8</span> 万人（<span class="num">2022</span> 年度）に。<span class="num">70</span> 歳代以上が <span class="num">18.0</span>%、<span class="num">20</span> 歳代までは <span class="num">6.0</span>%。</p>
+      <p class="src">出典：経済産業省 説明資料（伝統的工芸品産業振興協会の集計データより作成、令和 8 年 7 月）<a href="https://www.bunka.go.jp/seisaku/bunkashingikai/bunkazai/kikaku/r07_r08/05/pdf/94408301_03.pdf" target="_blank" rel="noopener">文化庁サイト掲載の PDF</a></p>
     </div>
 
     <figure class="naiku rv">${heritage("naiku-1953.jpg", "1953 年の内宮を空から見た白黒の写真。森の中に社殿が並ぶ", 984, 1188)}<figcaption>1953 年の内宮（伊勢神宮）</figcaption></figure>

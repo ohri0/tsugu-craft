@@ -1,0 +1,9 @@
+{"from": 0, "to": 301, "keys": [
+ {"f": 0, "to": "full"},
+ {"f": 6, "to": "ring", "pad": 0.0, "move": 22},
+ {"f": 30, "to": "field", "pad": 0.25, "move": 14},
+ {"f": 184, "to": "proposal", "pad": 0.6, "move": 12},
+ {"f": 226, "to": "full", "move": 12},
+ {"f": 241, "to": [44, 44, 1566, 781], "pad": 0.0, "move": 16},
+ {"f": 262, "to": "ring2", "pad": -0.15, "move": 30}
+]}

@@ -3,7 +3,7 @@
 const { chromium, SP, VIDEO } = require('../paths.cjs');
 const fs = require('fs'); const { execFileSync } = require('child_process');
 const D = `${SP}/cine/`;
-const LEN = { q: 6, spread: 4.5, genba: 18.5, gakko: 18.5, keisho: 25, saigen: 13, end: 9, ledger: 15, finale: 11 };
+const LEN = { stat: 8.5, q: 6, spread: 4.5, genba: 18.5, gakko: 18.5, keisho: 25, saigen: 13, end: 9, ledger: 15, finale: 11 };
 (async () => {
   fs.cpSync(`${VIDEO}/cine/html`, `${D}html`, { recursive: true });
   fs.cpSync(`${VIDEO}/../public/heritage`, `${D}heritage`, { recursive: true });
