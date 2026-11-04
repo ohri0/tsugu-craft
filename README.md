@@ -22,9 +22,9 @@ Built with Claude: Japan 2026（テーマ #1「あなたにしかない深さを
 | | |
 | --- | --- |
 | ![](public/lp/before.webp) | **職人の一言で、形が変わる。** 話した言葉を Claude が帳面の決まりにし、その場で全部を確かめ直す（爪 1.66 mm → 0.80 mm）。 |
-| ![](public/lp/thin.webp) | **作れない所は赤く光る。** 押すと理由と直し方。ボタンで 1 つずつ、または Claude が指輪ぜんたいを読んでまとめて直す。職人の声で理由も聞ける。 |
+| ![](public/lp/fixpop.webp) | **作れない所は赤く光る。** 押すと理由と直し方。ボタンで 1 つずつ、または Claude が指輪ぜんたいを読んでまとめて直す。職人の声で理由も聞ける。 |
 | ![](public/lp/c-free.webp) | **だれでも、自由に作れる。** 石の写真 1 枚（白い紙の上で真上から）から組む。腕の断面は指で描く。石の大きさ・留め方・地金を選ぶ。石が腕に当たる所は自動でザグり、石座はロウ付けの形で腕につながる。 |
-| ![](public/lp/ask.webp) | **Claude が、職人に聞きに来る。** 帳面のまだ決まっていない所を、Claude が質問する。答えれば決まりになる。工房ごとに帳面を育てられる。 |
+| ![](public/lp/ledger.webp) | **Claude が、職人に聞きに来る。** 帳面のまだ決まっていない所を、Claude が質問する。答えれば決まりになる。工房ごとに帳面を育てられる。 |
 | ![](public/lp/make.webp) | **作り方と図面まで、その場で。** 鋳造・鍛造の工程、数字、道具。図面（正面・側面・上面と寸法）と STL。 |
 | ![](public/lp/nanako.webp) | **ほかの技にも、途切れた技にも。** 木目金などの技の帳面。作り方が途切れた技は、残った手がかりから Claude が組み立て直し、隠しておいた本当の作り方と答え合わせする（11 工程のうち 9）。 |
 
@@ -204,7 +204,7 @@ Claude Desktop に足す（設定の「開発者」→ 設定ファイル `claud
 | `public/heritage/kazari-tachi.jpg`（飾太刀、平安時代。一部を切り出し） | 東京国立博物館、[ColBase](https://colbase.nich.go.jp/collection_items/tnm/F-356)・[Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Kazari-tachi_Style_Sword_Mounting,_Heian_period.jpg) | CC BY 4.0 |
 | `public/heritage/tachi.jpg`（太刀と拵え） | メトロポリタン美術館、[Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Blade_and_Mounting_for_a_Slung_Sword_(Tachi)_MET_1820.jpg) | CC0 |
 | `public/heritage/naiku-1953.jpg`（1953 年の内宮の空からの写真） | 本田照夫 撮影、[Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Ise_Shrine_Naiku_1953-8-26_cropped.jpg) | パブリックドメイン |
-| `public/lp/*.webp`（入口のページと README の写真：hero・hero-phone・before・after・thin・c-stone5・c-stone10・c-hira・c-free・c-bezel・c-pt・ask・make・draw・nanako と、それぞれ半分の幅の `-sm`） | 継ぐの画面を撮ったもの（`scripts/lp-shots.cjs`） | このリポジトリの作品の一部 |
+| `public/lp/*.webp`（入口のページと README の写真：hero・hero-phone・before・after・fixpop・spike・zaguri・trio-round・trio-pear・c-stone5・c-stone10・c-hira・c-free・c-bezel・c-pt・ledger・ledger-pub・waza・nanako・rebuild・make・draw と、それぞれ半分の幅の `-sm`） | 継ぐの画面を撮ったもの（`scripts/lp-shots.cjs`） | このリポジトリの作品の一部 |
 | `samples/triangle_closeup_2026-11-02.jpg`・`public/stones/triangle.jpg`（同じ写真） | 作者が撮った石の写真（撮影情報は消してある） | このリポジトリの作品の一部 |
 
 ## ライセンス
