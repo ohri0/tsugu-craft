@@ -170,7 +170,7 @@ export function checkShank(sh: Pick<ShankResult, "thicknessMm" | "widthMm"> & { 
       required: `${mm(g.band.minThicknessMm)} 以上`,
       currentValue: t,
       requiredValue: g.band.minThicknessMm,
-      reason: "仕上げで最大 0.2 mm 削れる。薄い腕は曲がりやすく、やわらかい金ではとくに弱い",
+      reason: "公開情報の目安（宝飾メーカーの CAD の手引きと、学校の教材）：仕上げの磨きで最大 0.2 mm 削れる。1 mm より薄い腕は曲がりやすく、やわらかい金ではとくに弱い。工房の決まりで変えられる",
       options: fix("thickerBand"),
       target: { kind: "shank" },
     });

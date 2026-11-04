@@ -109,7 +109,8 @@ app.innerHTML = `
     <svg class="dims" aria-hidden="true"></svg>
     <svg class="gizmo" viewBox="0 0 60 60" aria-hidden="true"></svg>
     <div class="vp-tl"><b class="vp-view">斜め</b><div class="disp" role="group" aria-label="表示">${(["wire", "shaded", "render", "draw"] as const).map((d) => `<button type="button" data-disp="${d}" aria-pressed="${d === "render"}">${{ wire: "ワイヤー", shaded: "シェード", render: "レンダー", draw: "図面" }[d]}</button>`).join("")}</div></div>
-    <div class="verdict-chip" hidden></div>
+    <button type="button" class="verdict-chip" hidden></button>
+    <div class="fix-pop" hidden></div>
     <div class="intro-stage" hidden><div class="intro-frame"><canvas class="intro-photo"></canvas><svg class="intro-line" preserveAspectRatio="none"></svg></div><p class="intro-cap"></p></div>
   </section>
 
@@ -631,9 +632,11 @@ function onBuilt(b: Built, _why: string) {
   chip.textContent = n ? `作れない所 ${grouped(b).length}` : "作れます";
   $(".word-name").textContent = `${stone.shapeName}の一粒石の指輪`;
   if (presentOn) renderPresent();
+  renderFixPop();
   if (holdPanel) return;
   if (!$(".studio-refine").hidden) renderCheck();
   if (!$(".build-panel").hidden) renderBuild();
+  markBadControls();
 }
 
 // ---- 場面 ----
@@ -1666,7 +1669,7 @@ function rulesSectionHtml(): string {
   const where = (r: Rule) => stepsOfRule(r).map((s) => MAKING_STEPS[s]).join("・");
   return `<section class="sec rules-sec"><h4>職人の決まり<small>確かめに効く ${mine.length} 件</small></h4>
     <p class="hint">話すと、Claude が決まりの案にします。数字で確かめられる決まりは、「これでいい」を押すとその場で確かめ直します。手の動かし方などの決まりは、作るの工程に入ります。</p>
-    <textarea rows="2" class="ar-text" placeholder="例：石の一番下と指の間は 2.5 mm は空ける。汗がたまるから">${esc(ruleDraft)}</textarea>
+    <textarea rows="2" class="ar-text" placeholder="例：この大きさの石なら、爪は最低 0.7 mm、基本は 0.8〜1 mm">${esc(ruleDraft)}</textarea>
     <div class="row"><button type="button" class="ghost-d ar-mic">話す</button><button type="button" class="primary ar-go">決まりにする</button></div>
     <div class="ar-proposal"></div>
     <details class="more manual-rule"><summary>Claude なしで、数字で書く</summary>
@@ -1674,7 +1677,7 @@ function rulesSectionHtml(): string {
         .map((k) => `<option value="${k}">${esc(PARAMS[k].label)}${PARAMS[k].unit ? `（${esc(PARAMS[k].unit)}）` : ""}</option>`)
         .join("")}</select></label>
       <label class="mr-row"><span>値</span><input class="mr-value" type="number" step="0.05" min="0" inputmode="decimal" placeholder="例：2.5"></label>
-      <label class="mr-row"><span>職人の言葉</span><input class="mr-quote" type="text" placeholder="例：指の上は 2.5 mm 空ける。汗がたまるから"></label>
+      <label class="mr-row"><span>職人の言葉</span><input class="mr-quote" type="text" placeholder="例：この大きさなら、爪は基本 0.8 mm"></label>
       <div class="row"><button type="button" class="primary mr-go">決まりにする</button></div>
     </details>
     ${mine.length ? `<ul class="rules-mini">${mine
@@ -1827,6 +1830,70 @@ function flashVerdict() {
   c.classList.add("flash");
 }
 /** 新しい決まりに合うように、Claude に直してもらう（作業は確かめるの中に一行ずつ） */
+// ---- 作れない所を押すと：どこが・なぜ・直す（1 つずつ・まとめて・Claude で）をその場で ----
+/** 確かめの種類 → その値を手で変える欄（赤く印をつける） */
+const CHECK_CONTROL: Record<string, string> = {
+  "prong-thin": '.slider[data-s="r-prong"]',
+  hold: '.slider[data-s="r-prong"]',
+  "finger-gap": '.pick:has(button[data-k="高さ"])',
+  "tip-height": '.pick:has(button[data-k="高さ"])',
+  "prong-gap": '.pick:has(button[data-k="爪の本数"])',
+  corner: '.pick:has(button[data-k="爪の本数"])',
+  "band-thin": ".sec-edit",
+  "band-narrow": ".sec-edit",
+  "bezel-wall": '.pick:has(button[data-k="留め方"])',
+};
+function markBadControls() {
+  document.querySelectorAll(".ctl-bad").forEach((e) => e.classList.remove("ctl-bad"));
+  if (!session?.built) return;
+  for (const p of session.built.problems) {
+    const sel = CHECK_CONTROL[p.check];
+    if (sel) document.querySelectorAll(`.studio-refine ${sel}`).forEach((e) => e.classList.add("ctl-bad"));
+  }
+}
+function renderFixPop() {
+  const pop = $(".fix-pop");
+  if (pop.hidden || !session?.built) return;
+  const probs = grouped(session.built);
+  if (!probs.length) {
+    pop.hidden = true;
+    return;
+  }
+  pop.innerHTML = `<div class="fp-h"><b>作れない所 ${probs.length}</b><button type="button" class="fp-x" aria-label="閉じる">×</button></div>
+    <ul>${probs
+      .map(({ p, n }, i) => {
+        const r = craftRuleFor(p.check);
+        return `<li><div><b>${esc(SHORT[p.check] ?? p.where)}</b>${n > 1 ? `<small> ${n} か所</small>` : ""}<span>${esc(p.current)} → ${esc(p.required)}</span>${r?.quote ? `<em>「${esc(r.quote)}」</em>` : `<em>${esc(p.reason)}</em>`}</div>${p.options[0] ? `<button type="button" class="fp-fix" data-i="${i}">${esc(p.options[0].label)}</button>` : ""}</li>`;
+      })
+      .join("")}</ul>
+    <div class="fp-all"><button type="button" class="primary fp-every">まとめて直す</button><button type="button" class="ghost-d fp-claude">Claude で直す</button></div>`;
+  pop.querySelector(".fp-x")!.addEventListener("click", () => (pop.hidden = true));
+  pop.querySelectorAll<HTMLButtonElement>(".fp-fix").forEach((b) =>
+    b.addEventListener("click", () => {
+      const o = probs[Number(b.dataset.i)].p.options[0];
+      if (o) applyFix(o.id);
+      renderFixPop();
+    }),
+  );
+  pop.querySelector(".fp-every")!.addEventListener("click", () => {
+    for (let k = 0; k < 6 && session?.built?.problems.length; k++) {
+      const o = session.built.problems[0].options[0];
+      if (!o) break;
+      applyFix(o.id);
+    }
+    renderFixPop();
+  });
+  pop.querySelector(".fp-claude")!.addEventListener("click", () => {
+    pop.hidden = true;
+    void fixWithClaude();
+  });
+}
+$(".verdict-chip").addEventListener("click", () => {
+  if (!session?.built?.problems.length) return;
+  const pop = $(".fix-pop");
+  pop.hidden = !pop.hidden;
+  renderFixPop();
+});
 async function fixWithClaude() {
   if (!session || !stone || making) return;
   const pass = store.password() || (await askPassword(true));

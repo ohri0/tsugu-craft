@@ -736,3 +736,20 @@ dialog.sheet input:focus { border-color: var(--accent); }
 .dims-menu { position: absolute; left: 16px; bottom: 76px; z-index: 8; padding: 10px 12px; border-radius: 10px; background: rgba(20, 20, 22, 0.95); border: 1px solid var(--line-2); font-size: 12px; display: grid; gap: 8px; max-width: 280px; }
 .dims-menu b { font-size: 11px; color: var(--fg-3); }
 .dims-menu label { display: flex; gap: 8px; align-items: center; }
+/* 作れない所を押すと出る窓 */
+.verdict-chip { cursor: pointer; font: inherit; font-size: 12px; font-weight: 500; }
+.fix-pop { position: absolute; right: 12px; top: 44px; z-index: 9; width: min(360px, calc(100% - 24px)); padding: 12px; border-radius: 12px; background: rgba(20, 20, 22, 0.96); border: 1px solid rgba(255, 69, 58, 0.4); box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45); font-size: 12px; }
+.fp-h { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.fp-h b { color: var(--ng); }
+.fp-x { background: none; border: 0; color: var(--fg-3); font-size: 18px; cursor: pointer; }
+.fix-pop ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.fix-pop li { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 8px 0; border-top: 1px solid var(--line); }
+.fix-pop li span { display: block; margin-top: 2px; color: var(--fg-2); font-family: var(--mono); font-size: 11px; }
+.fix-pop li em { display: block; margin-top: 3px; font-style: normal; color: var(--fg-3); font-size: 11px; }
+.fp-fix { flex: none; padding: 6px 10px; border-radius: 6px; border: 1px solid var(--accent, #0a84ff); background: transparent; color: var(--accent, #0a84ff); font-size: 12px; cursor: pointer; }
+.fp-all { display: flex; gap: 8px; margin-top: 10px; }
+.fp-all button { flex: 1; }
+/* 作れない所に効く、手で変える欄 */
+.ctl-bad { outline: 1.5px solid rgba(255, 69, 58, 0.8); outline-offset: 3px; border-radius: 8px; animation: ctlBad 1.4s ease-in-out infinite alternate; }
+.ctl-bad .sl-name, .ctl-bad > span { color: var(--ng) !important; }
+@keyframes ctlBad { from { outline-color: rgba(255, 69, 58, 0.35); } to { outline-color: rgba(255, 69, 58, 0.95); } }
