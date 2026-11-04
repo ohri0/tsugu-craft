@@ -1386,8 +1386,13 @@ function renderCheck() {
   );
   box.querySelector(".to-build")!.addEventListener("click", () => setMode("hand"));
 }
-/** 石を並べる（三石・横一列）は、まだ並び方が不自然なので画面に出さない（作者と決めた。2026-11-04）。形の処理とテストは残す */
-const MULTI_STONE_UI = false;
+/**
+ * 石を並べる欄を画面に出すか。2026-11-04：三石だけ、並び方を直したので出す（一粒と三石だけ）。
+ * 横一列と、石を 1 つずつ置く（自由な並び）は、まだ並び方が不自然なので出さない（作者と決めた）。形の処理とテストは残す
+ */
+const MULTI_STONE_UI = true;
+/** 横一列・石を置く（自由な並び）を画面に出すか */
+const ROW_AND_FREE_UI = false;
 // ---- 石を並べる：三石・横一列・石を置く（腕の上を押して足す・なぞって動かす・押して選ぶ） ----
 /** 石を置く場面か（3D を押すと石を足す・選ぶ・動かす） */
 let placeOn = false;
@@ -1408,6 +1413,12 @@ function slotSizeSlider(mm: number): SliderSpec {
 function rowSizeSlider(): SliderSpec {
   return { cls: "r-rowsize", label: "石の大きさ", min: 1.5, max: 10, step: 0.1, value: Number((session?.stone.longMm ?? 3).toFixed(1)), unit: "mm" };
 }
+/** 三石の脇の石に選べる形（丸い石・ペア・今の石と同じ形） */
+const TRIO_SIDE_SHAPES: SlotShape[] = ["round", "pear", "photo"];
+/** 三石の脇の石の大きさ（長辺。両脇を同じ大きさで並べ直す） */
+function trioSideSlider(mm: number): SliderSpec {
+  return { cls: "r-trioside", label: "脇の石の大きさ", min: 1.5, max: 10, step: 0.1, value: Number(mm.toFixed(1)), unit: "mm" };
+}
 function stonesSectionHtml(b: Built): string {
   const s = session!.state;
   const r = b.ring;
@@ -1418,11 +1429,15 @@ function stonesSectionHtml(b: Built): string {
   const pick = <T extends string | number>(name: string, cur: T, list: [T, string][]) =>
     `<div class="pick"><span>${name}</span><div>${list.map(([v, l]) => `<button type="button" data-sk="${name}" data-v="${v}" aria-pressed="${v === cur}">${l}</button>`).join("")}</div></div>`;
   const [lo, , hi] = GUIDES.multi.rowCount;
+  const layouts: [string, string][] = ROW_AND_FREE_UI ? [["solo", "一粒"], ["trio", "三石"], ["row", "横一列"]] : [["solo", "一粒"], ["trio", "三石"]];
+  const trioSide = lay === "trio" ? s.stones?.[0] : undefined;
   return `<details class="stones-sec" ${stonesOpen ?? (r.stones.length > 1 || placeOn) ? "open" : ""}><summary>石を並べる${r.stones.length > 1 ? `<small>${esc(layoutName())} ・ ${r.stones.length} 石</small>` : ""}</summary>
-    ${pick("並べ方", lay === "free" ? "" : lay, [["solo", "一粒"], ["trio", "三石"], ["row", "横一列"]])}
+    ${pick("並べ方", lay === "free" ? "" : lay, layouts)}
+    ${trioSide ? pick("脇の石", trioSide.shape, TRIO_SIDE_SHAPES.map((k) => [k, SLOT_SHAPE_LABEL[k]] as [SlotShape, string])) : ""}
+    ${trioSide ? `<div class="sliders">${sliderHtml(trioSideSlider(trioSide.longMm))}</div>` : ""}
     ${lay === "row" ? pick("石の数", r.stones.length, Array.from({ length: hi - lo + 1 }, (_, i) => [lo + i, String(lo + i)] as [number, string]).filter(([n]) => n <= 7)) : ""}
     ${lay === "row" ? `<div class="sliders">${sliderHtml(rowSizeSlider())}</div>` : ""}
-    <div class="place-row"><button type="button" class="place-btn" aria-pressed="${placeOn}">${placeOn ? "石を置くのをやめる" : "石を置く"}</button><small>${placeOn ? "腕の上を押すと石を足します。石を押すと選べて、石をなぞると腕に沿って動きます" : "3D の腕の上を押して、石を 1 つずつ置けます"}</small></div>
+    ${ROW_AND_FREE_UI ? `<div class="place-row"><button type="button" class="place-btn" aria-pressed="${placeOn}">${placeOn ? "石を置くのをやめる" : "石を置く"}</button><small>${placeOn ? "腕の上を押すと石を足します。石を押すと選べて、石をなぞると腕に沿って動きます" : "3D の腕の上を押して、石を 1 つずつ置けます"}</small></div>` : ""}
     <ol class="stone-list">${r.stones
       .map(
         (x, i) =>
@@ -1430,7 +1445,7 @@ function stonesSectionHtml(b: Built): string {
       )
       .join("")}</ol>
     ${
-      sel && slot
+      sel && slot && ROW_AND_FREE_UI
         ? `<div class="stone-edit"><b>石 ${selStone + 1}</b>
         ${pick("形", slot.shape, SLOT_SHAPES.map((k) => [k, SLOT_SHAPE_LABEL[k]] as [SlotShape, string]))}
         <div class="sliders">${sliderHtml(slotSizeSlider(slot.longMm))}</div>
@@ -1438,7 +1453,7 @@ function stonesSectionHtml(b: Built): string {
         <button type="button" class="stone-del">この石を外す</button></div>`
         : ""
     }
-    <p class="stones-note">間の目安：石どうし ${GUIDES.multi.stoneGapMinMm} mm 以上、離れた石座どうし ${GUIDES.multi.metalGapMinMm} mm 以上（仮の目安・最後は職人が決める）</p>
+    <p class="stones-note">${lay === "trio" ? `三石：脇の石座は真ん中より低く寄せ、石座どうしは短い線でつないでロウ付けします。石どうし ${GUIDES.multi.trio.stoneGapMm} mm・爪どうし ${GUIDES.multi.trio.prongGapMm} mm あけます（仮の目安・最後は職人が決める）` : `間の目安：石どうし ${GUIDES.multi.stoneGapMinMm} mm 以上、離れた石座どうし ${GUIDES.multi.metalGapMinMm} mm 以上（仮の目安・最後は職人が決める）`}</p>
   </details>`;
 }
 function bindStones(box: HTMLElement, b: Built) {
@@ -1452,6 +1467,9 @@ function bindStones(box: HTMLElement, b: Built) {
       if (k === "並べ方") {
         selStone = -1;
         session!.setStones({ layout: v as "solo", count: v === "row" ? GUIDES.multi.rowCount[1] : undefined, reason: "手で" });
+      } else if (k === "脇の石") {
+        session!.arrange("trio", { sideShape: v as SlotShape });
+        session!.build("手で");
       } else if (k === "石の数") session!.setStones({ layout: "row", count: Number(v), reason: "手で" });
       else if (k === "形") {
         session!.editStone(selStone, { shape: v as SlotShape });
@@ -1462,7 +1480,13 @@ function bindStones(box: HTMLElement, b: Built) {
       }
     }),
   );
-  sec.querySelector(".place-btn")!.addEventListener("click", () => setPlace(!placeOn));
+  sec.querySelector(".place-btn")?.addEventListener("click", () => setPlace(!placeOn));
+  const trioSide = session!.state.layout === "trio" ? session!.state.stones?.[0] : undefined;
+  if (trioSide)
+    bindSlider(sec, trioSideSlider(trioSide.longMm), (v) => {
+      session!.arrange("trio", { sideMm: v });
+      session!.build("手で");
+    });
   sec.querySelectorAll<HTMLButtonElement>(".stone-row").forEach((btn) =>
     btn.addEventListener("click", () => {
       selStone = Number(btn.dataset.i);

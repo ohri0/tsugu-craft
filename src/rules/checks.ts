@@ -196,6 +196,8 @@ export function checkRing(ring: RingDesign, opts: CheckOptions = {}): Problem[] 
 export function checkSpacing(ring: RingDesign, opts: CheckOptions = {}): Problem[] {
   const g: Guides = opts.guides ?? GUIDES;
   const out: Problem[] = [];
+  // つなぐ線で 1 つにした石座どうし（三石）は、地金の間を数えない（つながっている）
+  const joined = new Set((ring.joins ?? []).map((j) => `${j.a}-${j.b}`));
   for (const sp of stoneSpaces(ring.stones)) {
     const name = `石 ${sp.a + 1} と 石 ${sp.b + 1} の間`;
     if (sp.stoneGapMm < g.multi.stoneGapMinMm - 1e-9) {
@@ -211,7 +213,7 @@ export function checkSpacing(ring: RingDesign, opts: CheckOptions = {}): Problem
         options: fix("spreadStones", "smallerStones"),
         target: { kind: "space", point: sp.stoneMid, stones: [sp.a, sp.b] },
       });
-    } else if (sp.metalGapMm > 0 && sp.metalGapMm < g.multi.metalGapMinMm - 1e-9) {
+    } else if (!joined.has(`${sp.a}-${sp.b}`) && sp.metalGapMm > 0 && sp.metalGapMm < g.multi.metalGapMinMm - 1e-9) {
       // 石座どうしが重なる（つながる）ときは、ロウ付けで一つにするので数えない。少しだけ離れているときが困る
       out.push({
         id: `metal-space:${sp.a}-${sp.b}`,

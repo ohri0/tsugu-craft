@@ -124,6 +124,11 @@ export const GUIDES = {
    * - layoutGapMm：三石・横一列を並べるとき、石座の外の線（縁の高さ）の間にとる既定の間。metalGapMinMm より少し広く。
    * - rowCount：横一列の石の数（いちばん少ない・既定・いちばん多い）。
    * - sideRatio：三石の両脇の石の大きさ（真ん中の石に対する割合の既定）。
+   * - trio：三石の並べ方（2026-11-04、作者の頼み：3 つの石が 1 つの形に見えるよう寄せ、石座はつなげてロウ付けする）。
+   *   stoneGapMm：真ん中と脇の石の縁どうしの間。prongGapMm：となりの石座の爪どうしの間（爪が当たらない）。
+   *   sideHeight：脇の石座の高さ（低め ＝ 脇の石の縁が真ん中より下に来て、縁が ゆるい弧を描く）。
+   *   joinWireRatio：となりの石座をつなぐ短い線の太さ（石座の輪の線の太さに対する割合）。
+   *   pearProngCount：脇の石をペアにしたときの爪の本数（先に 1 本 ＋ 丸い側に 2 本。丸い側の真ん中に爪を立てないので、真ん中の石に寄せられる）。
    */
   multi: {
     stoneGapMinMm: 0.15,
@@ -131,6 +136,7 @@ export const GUIDES = {
     layoutGapMm: 0.4,
     rowCount: [2, 5, 9] as const,
     sideRatio: 0.65,
+    trio: { stoneGapMm: 0.3, prongGapMm: 0.15, sideHeight: "low" as "low" | "standard" | "high", joinWireRatio: 1, pearProngCount: 5 },
   },
   shank: {
     widthMm: 2.2,

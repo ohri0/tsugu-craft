@@ -9,6 +9,7 @@ import { buildStone, meshVolume, type StoneMesh, type StoneParams } from "./ston
 import { BALL_CUT, stoneSeatCut, type SeatCut } from "./notch";
 import { buildSolder, railInRing, type Rail } from "./joint";
 import { concat } from "./mesh";
+import { joinMesh, nearestRails, type HeadJoin, type RailLine } from "./bridge";
 
 /** 向き：along（縦）＝ 石の長辺が指に沿う。across（横）＝ 長辺が指を横切る */
 export type Orientation = "along" | "across";
@@ -29,7 +30,15 @@ export interface RingParams {
   atMm?: number;
   /** ほかに並べる石（石を並べる指輪。なければ一粒） */
   others?: readonly StonePlace[];
+  /**
+   * となりの石座（腕に沿って並べた順で、となり）を、短い線でつないで 1 つにするか（三石。ロウ付けで一つにする所）。
+   * 輪どうしが joinMaxMm より離れていれば、つながない
+   */
+  joinHeads?: boolean;
 }
+
+/** つなぐ線を作る、輪の外の面どうしの間の上限（mm。形を作るための決まり：これより離れた石座は、短い線ではつながらない） */
+const JOIN_MAX_MM = 1.2;
 
 /** 並べる石 1 つ：石・石座・向きと、腕の上の場所 */
 export interface StonePlace {
@@ -38,6 +47,8 @@ export interface StonePlace {
   orientation?: Orientation;
   /** 腕のいちばん上から、腕の外側に沿って測った長さ（mm、＋ は +y の側） */
   atMm: number;
+  /** 石を上から見て回す角度（ラジアン、z 軸のまわり）。向き（orientation）より優先。三石のペアの先を外へ向けるとき */
+  turnRad?: number;
 }
 
 /**
@@ -101,6 +112,8 @@ export interface RingDesign {
   metal: MetalId;
   /** 腕の上の石ぜんぶ（0 番が真ん中の石。一粒なら 1 つ） */
   stones: PlacedStone[];
+  /** となりの石座をつなぐ所（三石。つながなければ空）。形は、番号 b の石の石座の三角形の後ろに入る */
+  joins: HeadJoin[];
 }
 
 export function buildRing(p: RingParams): RingDesign {
@@ -166,6 +179,7 @@ export function buildRing(p: RingParams): RingDesign {
         solder: solderInfo ? { contacts: solderInfo.contacts, filletMm: solderInfo.filletMm } : null,
       },
     ],
+    joins: [],
   };
 }
 
@@ -185,13 +199,28 @@ function buildMulti(p: RingParams): RingDesign {
     const setting = buildSetting({ ...pl.setting, stone: pl.stone, shankThicknessMm: plain.thicknessMm });
     const stone = buildStone(pl.stone);
     const phi = pl.atMm / outerR;
-    const local: RingTransform = { rotationZ: orientation === "across" ? Math.PI / 2 : 0, translateZ: plain.innerRadiusMm - setting.heights.fingerZ };
+    const local: RingTransform = { rotationZ: pl.turnRad ?? (orientation === "across" ? Math.PI / 2 : 0), translateZ: plain.innerRadiusMm - setting.heights.fingerZ };
     const transform: RingTransform = { ...local, tiltRad: phi };
     const seatCut = stoneSeatCut(pl.stone, stone.heights, local, GUIDES.bezel.clearanceMm);
     const rail = railInRing(setting, local);
     return { pl, orientation, setting, stone, phi, local, transform, seatCut, rail };
   });
   const seats: ShankSeat[] = parts.map((q) => ({ phi: q.phi, cut: q.seatCut, rail: q.rail }));
+  // となりの石座をつなぐ：腕に沿って並べた順で となりの 2 つの、輪の中心の線どうしのいちばん近い 2 点を、輪と同じ太さの線で
+  const joins: HeadJoin[] = [];
+  if (p.joinHeads) {
+    const rails = parts.map((q) =>
+      [q.setting.upperRail, q.setting.lowerRail].flatMap((r): RailLine[] => (r ? [{ pts: r.pts.map(([x, y, z]) => placePoint(q.transform, x, y, z)), radiusMm: r.radiusMm }] : [])),
+    );
+    const order = parts.map((q, i) => ({ i, at: q.pl.atMm })).sort((x, y) => x.at - y.at);
+    for (let k = 0; k + 1 < order.length; k++) {
+      const a = Math.min(order[k].i, order[k + 1].i);
+      const b = Math.max(order[k].i, order[k + 1].i);
+      const n = nearestRails(rails[a], rails[b]);
+      if (!n || n.gapMm > JOIN_MAX_MM) continue;
+      joins.push({ a, b, from: n.from, to: n.to, radiusMm: Math.min(n.ra, n.rb) * GUIDES.multi.trio.joinWireRatio, gapMm: n.gapMm });
+    }
+  }
   const shank = buildShank({ ...p.shank, head: undefined }, undefined, { seats });
   const stoneArrs: Float32Array[] = [];
   const settingArrs: Float32Array[] = [];
@@ -214,6 +243,12 @@ function buildMulti(p: RingParams): RingDesign {
         nr = concat([nr, rotateNormals(sd.normals, 0, q.phi)]);
       }
       if (sd.contacts) solder = { contacts: sd.contacts, filletMm: sd.filletMm };
+    }
+    for (const j of joins.filter((x) => x.b === parts.indexOf(q))) {
+      const m = joinMesh(j);
+      st = concat([st, m.positions]);
+      nr = concat([nr, m.normals]);
+      volume += meshVolume(m.positions);
     }
     stoneArrs.push(sp);
     settingArrs.push(st);
@@ -254,6 +289,7 @@ function buildMulti(p: RingParams): RingDesign {
     metalWeightG: weightG(volume, metal),
     metal,
     stones: placed,
+    joins,
   };
 }
 
