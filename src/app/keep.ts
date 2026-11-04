@@ -288,12 +288,20 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
       const read = (k: string) => slot.querySelector<HTMLInputElement>(`[data-p="${k}"]`)!.value.trim();
       slot.querySelectorAll<HTMLButtonElement>("[data-a]").forEach((b) =>
         b.addEventListener("click", () => {
+          if (!b.isConnected) return;
           if (b.dataset.a === "no") {
             slot.innerHTML = `<p class="small">見送りました。</p>`;
             resolve({ status: "declined", note: "職人が見送った" });
             return;
           }
           const ed = { title: read("title"), text: read("text"), reason: read("reason") };
+          // 押したらすぐ案を消す。2 度押しで同じ決まりが 2 つ入らないように。答えの欄も空にして、同じ言葉から案を作り直さないように
+          slot.innerHTML = `<p class="small">足しました：${esc(ed.title)}</p>`;
+          const box = slot.closest(".answer-box");
+          const asked = box?.querySelector("textarea");
+          if (asked) asked.value = "";
+          const said = box?.querySelector(".box-status");
+          if (said) said.textContent = "";
           const next = addRule(store.ledger(), { ...ed, example: p.example, quote: p.quote, param: p.param, value: p.value, steps: p.steps, source: { kind: "craftsman", name: masterName(store.ledger()) }, date: today() });
           const id = next.rules[next.rules.length - 1].id;
           let holder: HTMLElement | null = slot;

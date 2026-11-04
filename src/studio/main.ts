@@ -2077,7 +2077,11 @@ function propose(slot: HTMLElement, p: ProposeRuleInput, name: string): Promise<
       slot.innerHTML = "";
       resolve({ status: "declined", note: "職人が見送った" });
     });
-    slot.querySelector(".ok")!.addEventListener("click", () => resolve({ status: "accepted", rule_id: acceptRule(p, name) }));
+    slot.querySelector(".ok")!.addEventListener("click", () => {
+      // 押したらすぐ案を消す（2 度押しで同じ決まりが 2 つ入らないように）
+      slot.innerHTML = "";
+      resolve({ status: "accepted", rule_id: acceptRule(p, name) });
+    });
   });
 }
 /** 職人が「これでいい」と言った決まりを帳面に足し、今の設計とこれまでの作品を確かめ直す（Claude の案でも、数字で書いた決まりでも同じ） */
