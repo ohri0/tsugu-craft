@@ -164,6 +164,25 @@ export class Viewer {
 
   /** 表示の仕方：レンダリング（写真のよう）・シェード（灰色の面と線）・ワイヤーフレーム（線だけ） */
   private mode: DisplayMode = "render";
+  get displayMode(): DisplayMode {
+    return this.mode;
+  }
+  /** 見せる：黒い背景だけにし、床の目盛りと影を消す */
+  private presenting = false;
+  setPresenting(on: boolean) {
+    this.presenting = on;
+    if (on) {
+      this.scene.background = null;
+      this.renderer.setClearColor(0x000000, 1);
+      this.grid.visible = false;
+      this.shadow.plane.visible = false;
+    } else {
+      this.applyBackdrop();
+      if (!this.darkOn) this.scene.background = backdropTexture();
+      this.updateShadow();
+    }
+    this.dirty = true;
+  }
   setDisplayMode(m: DisplayMode) {
     this.mode = m;
     this.applyBackdrop();
@@ -433,7 +452,7 @@ export class Viewer {
     const box = new THREE.Box3().setFromObject(this.content);
     if (box.isEmpty()) return;
     this.shadow.render(this.renderer, this.scene, this.content, box);
-    if (this.mode === "wire") this.shadow.plane.visible = false;
+    if (this.mode === "wire" || this.presenting) this.shadow.plane.visible = false;
     this.dirty = true;
   }
 
@@ -459,7 +478,7 @@ export class Viewer {
   private darkOn = false;
   /** 暗い画面では、レンダーは黒い撮影台、シェード・ワイヤーは CAD の作業画面のような灰色（作者：調整はシェードの灰色で） */
   private applyBackdrop() {
-    if (!this.darkOn) return;
+    if (!this.darkOn || this.presenting) return;
     this.scene.background = this.mode === "render" ? darkBackdropTexture() : grayBackdropTexture();
     this.dirty = true;
   }

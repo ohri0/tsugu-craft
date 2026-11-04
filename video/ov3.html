@@ -11,5 +11,5 @@
 </style></head><body><div id="r"></div><script>
 const q=JSON.parse(decodeURIComponent(location.hash.slice(1)));
 document.getElementById('r').innerHTML=(q.mode==='ph'?`<div class="ph"><div><small>撮る素材</small>${q.ph}</div></div>`:'')
-+(q.mode==='ov'?(q.key?`<div class="ch">${q.key}</div>`:'')+(q.key2?`<div class="k2">${q.key2}</div>`:'')+(q.claude?`<div class="cl">${q.claude}</div>`:'')+`<div class="sub"><p>${q.say}</p>${q.note?`<small>${q.note}</small>`:''}</div>`:'');
++(q.mode==='ov'?(q.key?`<div class="ch">${q.key}</div>`:'')+(q.key2?`<div class="k2">${q.key2}</div>`:'')+(q.claude?`<div class="cl">${q.claude}</div>`:'')+(q.say&&q.say.trim()?`<div class="sub"><p>${q.say}</p>${q.note?`<small>${q.note}</small>`:''}</div>`:''):'');
 </script></body></html>

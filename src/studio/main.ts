@@ -47,6 +47,7 @@ import { dimsSvg, gizmoSvg, type Dim, type Rect } from "./dims";
 import { bindSlider, sliderHtml, type SliderSpec } from "./slider";
 import { bindSectionEditor, sectionEditorHtml, startShape } from "./section-edit";
 import { SHANK_SECTIONS, SHANK_SECTION_LABEL, type ShankSection } from "../geometry/shank";
+import { presentHtml, STONE_SIZES, type PresentGroup } from "./present";
 import { MAX_SECONDS, playVoice, putVoice, startRecording, voiceIds } from "./voice-notes";
 
 type Mode = "make" | "refine" | "hand" | "works";
@@ -93,7 +94,7 @@ app.innerHTML = `
   <header class="tb">
     <div class="tb-l"><a class="brand" href="./"><span class="logo">継</span>継ぐ</a><span class="doc"><span class="word-name">新しい作品</span></span></div>
     <nav class="tabs" aria-label="場面">${MODES.map((m) => `<button type="button" data-mode="${m.id}" title="${m.sub}（${m.key}）">${m.word}<span class="k">${m.key}</span></button>`).join("")}</nav>
-    <div class="tb-r"><nav class="places hide-sm" aria-label="ほかの場所"><a href="app.html#see" title="次の人が、手本と比べて学ぶ">学ぶ</a><a href="app.html#keep" title="職人が、決まり・手本・答えを残す">残す</a><a href="app.html#rebuild" title="途切れた技を、手がかりから">組み立て直す</a></nav><button type="button" class="btn quiet act-why">なぜ継ぐ</button><button type="button" class="btn act-sheet hide-sm">図面・指示書</button><button type="button" class="btn primary act-stl">STL</button></div>
+    <div class="tb-r"><nav class="places hide-sm" aria-label="ほかの場所"><a href="app.html#see" title="次の人が、手本と比べて学ぶ">学ぶ</a><a href="app.html#keep" title="職人が、決まり・手本・答えを残す">残す</a><a href="app.html#rebuild" title="途切れた技を、手がかりから">組み立て直す</a></nav><button type="button" class="btn quiet act-present">見せる</button><button type="button" class="btn quiet act-why">なぜ継ぐ</button><button type="button" class="btn act-sheet hide-sm">図面・指示書</button><button type="button" class="btn primary act-stl">STL</button></div>
   </header>
   <nav class="tools" aria-label="見る">
     ${(["angle", "top", "side", "front"] as const).map((v) => `<button type="button" class="tool view-btn" data-view="${v}" data-tip="${{ angle: "斜め", top: "上", side: "横", front: "正面" }[v]}" aria-label="${{ angle: "斜め", top: "上", side: "横", front: "正面" }[v]}">${ICON[v]}</button>`).join("")}
@@ -104,6 +105,7 @@ app.innerHTML = `
   </nav>
   <section class="vp">
     <div class="gl"></div>
+    <div class="present" hidden><button type="button" class="pr-close" aria-label="見せるを閉じる">×</button><div class="pr-panel"></div></div>
     <svg class="dims" aria-hidden="true"></svg>
     <svg class="gizmo" viewBox="0 0 60 60" aria-hidden="true"></svg>
     <div class="vp-tl"><b class="vp-view">斜め</b><div class="disp" role="group" aria-label="表示">${(["wire", "shaded", "render", "draw"] as const).map((d) => `<button type="button" data-disp="${d}" aria-pressed="${d === "render"}">${{ wire: "ワイヤー", shaded: "シェード", render: "レンダー", draw: "図面" }[d]}</button>`).join("")}</div></div>
@@ -364,6 +366,86 @@ async function intro() {
   card.remove();
   timer.remove();
 }
+// ---- 見せる：全画面で、黒の上の指輪と本物の数字。押して切り替えられる ----
+let presentOn = false;
+let presentGroup = "stone";
+let presentPrevDisp: DisplayMode = "render";
+function presentGroups(): PresentGroup[] {
+  if (!session?.built) return [];
+  const s = session.state;
+  const st = session.built.ring.setting;
+  const near = STONE_SIZES.reduce((a, c) => (Math.abs(c.mm - session!.stone.longMm) < Math.abs(a.mm - session!.stone.longMm) ? c : a));
+  return [
+    { key: "stone", label: "石の大きさ", options: STONE_SIZES.map((x) => ({ v: String(x.mm), label: x.label })), on: Math.abs(near.mm - session.stone.longMm) < 0.05 ? String(near.mm) : "" },
+    { key: "section", label: "腕の断面", options: SHANK_SECTIONS.map((x) => ({ v: x, label: SHANK_SECTION_LABEL[x] })), on: session.built.ring.shank.section },
+    { key: "setting", label: "留め方", options: [{ v: "4", label: "4 本爪" }, { v: "6", label: "6 本爪" }, { v: "bezel", label: "覆輪" }], on: st.style === "bezel" ? "bezel" : String(st.prongs.length) },
+    { key: "metal", label: "地金", options: (["pt900", "k18yg", "k18pg", "k18wg"] as Metal[]).map((m) => ({ v: m, label: METAL_LABEL[m] })), on: s.metal },
+  ];
+}
+function renderPresent() {
+  if (!presentOn || !session?.built || !stone) return;
+  const b = session.built;
+  const r = b.ring;
+  const st = r.setting;
+  const n = grouped(b).length;
+  const rule = craftRuleFor("prong-thin");
+  const html = presentHtml(
+    {
+      stone: `${stone.shapeName} ${session.stone.longMm.toFixed(2)} × ${session.stone.widthMm.toFixed(2)} mm`,
+      prong: st.style === "bezel" ? `覆輪 ・ 壁 ${st.bezel?.wallMm.toFixed(2)} mm` : `ø ${st.prongs[0]?.diameterMm.toFixed(2)} mm × ${st.prongs.length}`,
+      shank: `${SHANK_SECTION_LABEL[r.shank.section]} ${r.shank.widthMm.toFixed(1)} × ${r.shank.thicknessMm.toFixed(1)} mm`,
+      metal: `${METAL_LABEL[session.state.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g`,
+      gou: `${session.state.gou} 号（内径 ${(r.shank.innerRadiusMm * 2).toFixed(1)} mm）`,
+      verdict: { ok: n === 0, text: n === 0 ? "作れます" : `作れない所 ${n}` },
+      quote: rule?.quote ? { text: rule.quote, by: `${masterName(store.ledger())} ・ ${bookLabel(store.ledger())}の帳面` } : undefined,
+    },
+    presentGroups(),
+    presentGroup,
+  );
+  const panel = $(".pr-panel");
+  panel.innerHTML = html;
+  panel.querySelectorAll<HTMLButtonElement>(".pr-tabs button").forEach((x) =>
+    x.addEventListener("click", () => {
+      presentGroup = x.dataset.g!;
+      renderPresent();
+    }),
+  );
+  panel.querySelectorAll<HTMLButtonElement>(".pr-opt button").forEach((x) => x.addEventListener("click", () => presentPick(x.dataset.g!, x.dataset.v!)));
+}
+function presentPick(g: string, v: string) {
+  if (!session) return;
+  presentGroup = g;
+  if (g === "stone") resizeStone(Number(v), true);
+  else if (g === "section") session.setShank({ section: v as ShankSection, reason: "見せる" });
+  else if (g === "setting") session.setSetting(v === "bezel" ? { style: "bezel", reason: "見せる" } : { style: "prong", prong_count: Number(v), reason: "見せる" });
+  else if (g === "metal") session.setShank({ metal: v as Metal, reason: "見せる" });
+  renderPresent();
+}
+function setPresent(on: boolean) {
+  if (!session?.built) return;
+  presentOn = on;
+  $(".pro").classList.toggle("presenting", on);
+  $(".present").hidden = !on;
+  if (on) {
+    presentPrevDisp = viewer.displayMode;
+    viewer.setDisplayMode("render");
+    viewer.setPresenting(true);
+    viewer.setAutoRotate(true);
+    renderPresent();
+  } else {
+    viewer.setPresenting(false);
+    viewer.setAutoRotate(false);
+    setDisp(presentPrevDisp);
+  }
+  // 指輪を置く所の大きさが変わるので、少し待ってから寄せ直す
+  setTimeout(() => viewer.fit(), 120);
+}
+$(".act-present").addEventListener("click", () => setPresent(!presentOn));
+$(".pr-close").addEventListener("click", () => setPresent(false));
+addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && presentOn) setPresent(false);
+});
+
 /** 人が表示（ワイヤー・シェード・レンダー・図面）を選んだか */
 let dispChosen = false;
 /** 表示の切り替え（ボタンの見た目もそろえる） */
@@ -545,6 +627,7 @@ function onBuilt(b: Built, _why: string) {
   chip.className = `verdict-chip ${n ? "ng" : "ok"}`;
   chip.textContent = n ? `作れない所 ${grouped(b).length}` : "作れます";
   $(".word-name").textContent = `${stone.shapeName}の一粒石の指輪`;
+  if (presentOn) renderPresent();
   if (holdPanel) return;
   if (!$(".studio-refine").hidden) renderCheck();
   if (!$(".build-panel").hidden) renderBuild();
