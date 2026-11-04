@@ -139,6 +139,11 @@ export interface SettingResult {
   standardProngMm: number;
   /** 標準の 4 本爪・標準の太さ・標準の高さのときの爪の長さ（留まり 1.0× の基準） */
   standardLengthMm: number;
+  /**
+   * 下の輪（石座の底。腕の上にのる所）の中心の線（石の座標、閉じた輪）と、輪の線の半径（mm）。爪留めだけ。
+   * 腕の上の座（溝）とロウの丸み（joint.ts）を作るのに使う
+   */
+  lowerRail: { pts: V3[]; radiusMm: number } | null;
 }
 
 /** 縁を取り直す点の数（石座の 3D の細かさ） */
@@ -654,6 +659,7 @@ export function buildSetting(params: SettingParams): SettingResult {
   let v: Vertical;
   let tipZ: number | null = null;
   let solidNormals: Float32Array | undefined;
+  let lowerRail: { pts: V3[]; radiusMm: number } | null = null;
 
   if (params.style === "prong") {
     const plans = planProngs(params, corners);
@@ -796,6 +802,8 @@ export function buildSetting(params: SettingParams): SettingResult {
       ringsToTube(profile, tris);
       rings.push({ z, wireMm: wire, triangles: addPart(closedPart(tris)) });
     }
+    // 下の輪の中心の線（管の形でも一体の形でも同じ線：爪の足の中心、石の縁から すき間 ＋ 爪の半径）
+    lowerRail = { pts: ringAt(f, v.lowerRingZ, cl + meanD / 2), radiusMm: wire / 2 };
     if (params.solid) {
       const solid = solidHead(f, plans, v, tz, wire, meanD, total, params.solidQuality ?? "final");
       solidNormals = solid.normals;
@@ -864,6 +872,7 @@ export function buildSetting(params: SettingParams): SettingResult {
     minProngMm: params.minProngMm ?? minProngMm(size),
     standardProngMm: dStd,
     standardLengthMm,
+    lowerRail,
   };
 }
 
