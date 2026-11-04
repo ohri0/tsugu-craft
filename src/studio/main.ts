@@ -5,7 +5,7 @@
 // 帳面   職人が声で決まりを足すと、その場で確かめが変わる。
 import { MAIN, addWorkshop, setActive } from "../rules/workshops";
 import { side, summarize, sweepDesigns, sweepOne, type SweepDesign, type SweepResult } from "./sweep";
-import { SAMPLE_DESIGNS, SAMPLE_MAKER, SAMPLE_NOTE, isSample, outlineThumb, sampleState, sampleStone, tuneSample } from "./samples";
+import { SAMPLE_DESIGNS, SAMPLE_MAKER, SAMPLE_NOTE, isSample, outlineThumb, sampleState, sampleStone, tuneSample, fixProngSize } from "./samples";
 import { MAKING_STEPS, isCheckRule, makingRulesFor, stepsOfRule } from "../rules/making";
 import "./pro.css";
 import { findCorners } from "../geometry/corners";
@@ -2765,12 +2765,13 @@ function addSampleWorks(): number {
   let n = 0;
   const have = new Set(loadWorks().filter(isSample).map((w) => w.title));
   for (const d of SAMPLE_DESIGNS) {
-    const { preset, stone: st } = sampleStone(d.preset);
+    const { preset, stone: st } = sampleStone(d.preset, d.sizeMm);
     const title = `見本：${preset.name}の一粒石の指輪（${d.label}）`;
     if (have.has(title)) continue;
     const s = new RingSession(st, () => store.ledger(), () => undefined, () => "");
     s.state = sampleState(d);
     tuneSample(s);
+    fixProngSize(s);
     if (!s.built) continue;
     const data = solitaireData(s, { shapeName: preset.name, outlineMm: st.outlineMm, longMm: st.longMm, widthMm: st.widthMm, depthMm: st.depthMm }, "hand");
     const ok = saveWork({
@@ -2796,7 +2797,7 @@ function renderWorks() {
   const works = loadWorks();
   box.innerHTML = `
     <section class="works-head"><b>${works.length} 作品</b><small>作るたびに、形・作れるか・作り方・ひとことが残ります。</small></section>
-    ${works.length ? `<button type="button" class="primary w-print">記録の帳面を印刷</button>` : `<p class="tech-what">まだ記録がありません。「作る」の下の「この作品の記録を残す」から残せます。</p><p class="tech-what">試すだけなら、よくある形の石から継ぐが組んだ見本の作品を入れられます（職人の作品ではありません）。</p><button type="button" class="next-btn w-samples">見本の作品を 5 つ入れる</button>`}
+    ${works.length ? `<button type="button" class="primary w-print">記録の帳面を印刷</button>` : `<p class="tech-what">まだ記録がありません。「作る」の下の「この作品の記録を残す」から残せます。</p><p class="tech-what">試すだけなら、よくある形の石から継ぐが組んだ見本の作品を入れられます（職人の作品ではありません）。</p><button type="button" class="next-btn w-samples">見本の作品を ${SAMPLE_DESIGNS.length} つ入れる</button>`}
     ${works.some(isSample) ? `<button type="button" class="ghost-d w-unsample">見本の作品を消す</button>` : ""}
     <ul class="works-list">${works
       .map(

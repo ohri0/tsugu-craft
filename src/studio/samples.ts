@@ -12,6 +12,8 @@ export interface SampleDesign {
   preset: StonePreset["id"];
   /** 見本の名前のうしろに付ける言葉 */
   label: string;
+  /** 石の長い向きの大きさ（mm）。ないときは、よくある形の石の大きさのまま */
+  sizeMm?: number;
   state: Partial<RingState>;
 }
 
@@ -22,11 +24,17 @@ export const SAMPLE_DESIGNS: SampleDesign[] = [
   { preset: "pear", label: "低めの石座", state: { height: "low", gou: 13 } },
   { preset: "marquise", label: "細身", state: { height: "standard", gou: 10 } },
   { preset: "emerald", label: "高めの石座", state: { height: "high", gou: 12, culetGapMm: 2.8 } },
+  // 小粒：公開の目安では作れるが、爪は 0.6 mm ほど。職人の「爪は最低 0.7 mm」で、細くて留まりが弱いと分かる
+  { preset: "round", label: "小粒", sizeMm: 3.5, state: { height: "standard", gou: 10 } },
 ];
 
-export function sampleStone(id: StonePreset["id"]): { preset: StonePreset; stone: StoneParams } {
+export function sampleStone(id: StonePreset["id"], sizeMm?: number): { preset: StonePreset; stone: StoneParams } {
   const preset = PRESETS.find((p) => p.id === id)!;
-  return { preset, stone: { outlineMm: presetOutline(preset), longMm: preset.longMm, widthMm: preset.widthMm, depthMm: preset.depthMm } };
+  const k = sizeMm ? sizeMm / preset.longMm : 1;
+  return {
+    preset,
+    stone: { outlineMm: presetOutline(preset).map((p) => ({ x: p.x * k, y: p.y * k })), longMm: preset.longMm * k, widthMm: preset.widthMm * k, depthMm: preset.depthMm * k },
+  };
 }
 
 export function sampleState(d: SampleDesign): RingState {
@@ -49,6 +57,12 @@ export function tuneSample(s: RingSession): void {
     const cur = b.ring.setting.prongs[0]?.diameterMm ?? b.ring.setting.standardProngMm;
     s.state.prongMm = Math.ceil(cur * 1.08 * 100) / 100;
   }
+}
+
+/** 作った物の爪は太さが決まっている。今の太さを設計に書いておく（決まりが変わっても、記録の爪は勝手に太くならない） */
+export function fixProngSize(s: RingSession): void {
+  const mm = s.build("見本の爪の太さ").ring.setting.prongs[0]?.diameterMm;
+  if (mm) s.state.prongMm = mm;
 }
 
 export const isSample = (w: { maker: string }) => w.maker === SAMPLE_MAKER;

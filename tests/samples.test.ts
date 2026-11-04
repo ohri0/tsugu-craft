@@ -1,14 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { SAMPLE_DESIGNS, SAMPLE_NOTE, isSample, outlineThumb, sampleState, sampleStone, tuneSample } from "../src/studio/samples";
+import { SAMPLE_DESIGNS, SAMPLE_NOTE, fixProngSize, isSample, outlineThumb, sampleState, sampleStone, tuneSample } from "../src/studio/samples";
 import { RingSession } from "../src/studio/session";
 import { addRule, seedLedger, type Ledger } from "../src/rules/ledger";
 
 const build = (ledger: Ledger) =>
   SAMPLE_DESIGNS.map((d) => {
-    const s = new RingSession(sampleStone(d.preset).stone, () => ledger, () => undefined, () => "");
+    const s = new RingSession(sampleStone(d.preset, d.sizeMm).stone, () => ledger, () => undefined, () => "");
     s.state = sampleState(d);
     tuneSample(s);
     return s.build("見本").problems.length;
+  });
+/** 見本を今の目安で作って記録し（爪の太さは決まる）、あとから帳面を変えて確かめ直す */
+const recheck = (later: Ledger) =>
+  SAMPLE_DESIGNS.map((d) => {
+    let ledger = seedLedger();
+    const s = new RingSession(sampleStone(d.preset, d.sizeMm).stone, () => ledger, () => undefined, () => "");
+    s.state = sampleState(d);
+    tuneSample(s);
+    fixProngSize(s);
+    ledger = later;
+    return s.build("確かめ直す").problems.map((p) => p.check);
   });
 
 describe("見本の作品", () => {
@@ -23,6 +34,14 @@ describe("見本の作品", () => {
     const n = build(strict);
     expect(n.some((x) => x > 0)).toBe(true);
     expect(n.some((x) => x === 0)).toBe(true);
+  });
+  it("職人が「爪は最低 0.7 mm」と決めると、小粒の見本だけ、爪が細くて留まりが弱いと分かる（記録の爪は勝手に太くならない）", () => {
+    const prong = addRule(seedLedger(), { title: "爪の太さ", text: "最低 0.7 mm", reason: "細すぎると曲がって石が落ちる", param: "prong.minDiameterMm", value: 0.7, source: { kind: "craftsman", name: "工房 B" }, date: "2026-11-05" });
+    const r = recheck(prong);
+    const small = SAMPLE_DESIGNS.findIndex((d) => d.label === "小粒");
+    expect(r[small]).toContain("prong-thin");
+    expect(r.filter((x, i) => i !== small).every((x) => x.length === 0)).toBe(true);
+    expect(sampleStone("round", 3.5).stone.longMm).toBeCloseTo(3.5);
   });
   it("見本は見本と分かる", () => {
     expect(isSample({ maker: "見本" })).toBe(true);
