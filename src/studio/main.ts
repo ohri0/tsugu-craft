@@ -149,6 +149,9 @@ viewer.setDark(true);
 // ---- 寸法の線と軸の印（3D を描き直すたびに合わせる） ----
 let dims: Dim[] = [];
 let showDims = true;
+/** 寸法のうち、隠しているもの（寸法のボタンを長く押す・右の小さな ▾ で選ぶ） */
+const hiddenDims = new Set<string>(JSON.parse(localStorage.getItem("tsugu.hiddenDims") ?? "[]"));
+const DIM_NAMES: [string, string][] = [["inner", "内径"], ["stone", "石の大きさ"], ["culet", "石の先〜指（石のいちばん下から指まで）"], ["height", "指から上（指から石座のいちばん上まで）"]];
 /** 見せ場の間は寸法を出さない（最後に 1 本ずつ出す） */
 let holdDims = false;
 /** 石座の箱（3D、mm）。数字の札をこの上に重ねない */
@@ -231,11 +234,11 @@ function ringDims(b: Built): Dim[] {
   const halfY = Math.max(...pts.map((q) => Math.abs(q.y)));
   const bad = new Set(b.problems.map((p) => p.check));
   return [
-    { a: [0, -ri, lift], b: [0, ri, lift], label: `内径 ø${(ri * 2).toFixed(1)}` },
-    { a: [pair[0].x, pair[0].y, tableZ], b: [pair[1].x, pair[1].y, tableZ], label: `石 ${stone.measured.longMm.toFixed(2)}` },
-    { a: [0, 0, fingerTop], b: [0, 0, culetZ], label: `すき間 ${r.culetGapMm.toFixed(2)}`, bad: bad.has("finger-gap") },
-    { a: [0, -halfY - 1.4, fingerTop], b: [0, -halfY - 1.4, top], label: `高さ ${(top - fingerTop).toFixed(2)}`, bad: bad.has("tip-height") },
-  ];
+    { a: [0, -ri, lift], b: [0, ri, lift], label: `内径 ø${(ri * 2).toFixed(1)}`, key: "inner" },
+    { a: [pair[0].x, pair[0].y, tableZ], b: [pair[1].x, pair[1].y, tableZ], label: `石 ${stone.measured.longMm.toFixed(2)}`, key: "stone" },
+    { a: [0, 0, fingerTop], b: [0, 0, culetZ], label: `石の先〜指 ${r.culetGapMm.toFixed(2)}`, bad: bad.has("finger-gap"), key: "culet" },
+    { a: [0, -halfY - 1.4, fingerTop], b: [0, -halfY - 1.4, top], label: `指から上 ${(top - fingerTop).toFixed(2)}`, bad: bad.has("tip-height"), key: "height" },
+  ].filter((d) => !hiddenDims.has(d.key)) as Dim[];
 }
 /** 石のない指輪の寸法：内径・上の幅と厚み・下の厚み */
 function bandDims(positions: Float32Array): Dim[] {
@@ -690,6 +693,36 @@ $(".t-grid").addEventListener("click", (e) => {
   b.setAttribute("aria-pressed", String(on));
   viewer.setGrid(on);
 });
+// 寸法を 1 つずつ出す・隠す
+{
+  const menu = document.createElement("div");
+  menu.className = "dims-menu";
+  menu.hidden = true;
+  const render = () =>
+    (menu.innerHTML = `<b>寸法</b>${DIM_NAMES.map(([k, l]) => `<label><input type="checkbox" data-k="${k}" ${hiddenDims.has(k) ? "" : "checked"}>${esc(l)}</label>`).join("")}`);
+  render();
+  menu.addEventListener("change", (e) => {
+    const k = (e.target as HTMLInputElement).dataset.k!;
+    if ((e.target as HTMLInputElement).checked) hiddenDims.delete(k);
+    else hiddenDims.add(k);
+    try {
+      localStorage.setItem("tsugu.hiddenDims", JSON.stringify([...hiddenDims]));
+    } catch {}
+    if (session?.built) setDims(ringDims(session.built));
+  });
+  $(".vp").appendChild(menu);
+  const more = document.createElement("button");
+  more.type = "button";
+  more.className = "tool t-dims-more";
+  more.setAttribute("aria-label", "寸法を選ぶ");
+  more.dataset.tip = "寸法を選ぶ";
+  more.textContent = "▾";
+  $(".t-dims").after(more);
+  more.addEventListener("click", () => {
+    menu.hidden = !menu.hidden;
+    render();
+  });
+}
 $(".t-dims").addEventListener("click", (e) => {
   const b = e.currentTarget as HTMLButtonElement;
   showDims = !showDims;
@@ -1200,7 +1233,10 @@ function renderCheck() {
     }
     ${(() => {
       const note = prongCountNote(b);
-      return note ? `<p class="look-note"><b>見た目の注意</b>${esc(note)}<small>作れますが、形に対して不自然に見えることがあります（確かめの決まりではありません）</small></p>` : "";
+      const r = b.ring;
+      // 石の先（キューレット）が腕の厚みの中まで下りているときは、腕の上をザグる（削る）
+      const zaguri = r.culetGapMm < r.shank.thicknessMm ? `<p class="look-note"><b>ザグり</b>石の先が腕に当たります（石の先〜指 ${r.culetGapMm.toFixed(2)} mm、腕の厚み ${r.shank.thicknessMm.toFixed(1)} mm）。腕の上を、石の先が入る分だけ削ります。<small>作り方の「石座を腕に付ける」の工程で行います</small></p>` : "";
+      return (note ? `<p class="look-note"><b>見た目の注意</b>${esc(note)}<small>作れますが、形に対して不自然に見えることがあります（確かめの決まりではありません）</small></p>` : "") + zaguri;
     })()}
     <details class="manual" ${manualOpen ?? !probs.length ? "open" : ""}><summary>手で変える</summary>
       ${pick("留め方", patternOf(b), PATTERNS.filter(([v]) => v !== "v"))}

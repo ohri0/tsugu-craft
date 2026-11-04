@@ -4,6 +4,8 @@
 export type V3 = [number, number, number];
 
 export interface Dim {
+  /** 出す・隠すを選ぶための名前 */
+  key?: string;
   a: V3;
   b: V3;
   label: string;

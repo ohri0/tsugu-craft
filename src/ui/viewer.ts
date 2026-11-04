@@ -230,7 +230,7 @@ export class Viewer {
       } else {
         // ワイヤー：なめらかな形（一体の石座・腕）は折れ目がほとんどなく線が出ないので、網目そのものを細い線で見せる
         if (o.geometry.userData.smooth && !isStone(ud.render)) {
-          if (!ud.wire) ud.wire = new THREE.MeshBasicMaterial({ color: this.darkOn ? 0x3a3b3f : 0xd8d8dc, wireframe: true, transparent: true, opacity: 0.09, depthWrite: false });
+          if (!ud.wire) ud.wire = new THREE.MeshBasicMaterial({ color: this.darkOn ? 0x2a2b2e : 0xd8d8dc, wireframe: true, transparent: true, opacity: 0.22 });
           o.material = ud.wire;
           o.visible = true;
           edges.visible = false;
@@ -477,7 +477,7 @@ export class Viewer {
     const h = this.host.clientHeight || 1;
     const free = Math.max(0.5, (h - this.insets.top - this.insets.bottom) / h);
     const fit = (this.camera.aspect < 1 ? Math.min(2.2, 1 / this.camera.aspect) : 1) / free;
-    this.camera.position.copy(sphere.center).addScaledVector(dir, sphere.radius * 3.6 * fit);
+    this.camera.position.copy(sphere.center).addScaledVector(dir, sphere.radius * 3.6 * fit * this.fovScale());
     this.controls.update();
     this.dirty = true;
   }
@@ -505,7 +505,32 @@ export class Viewer {
   }
 
   /** 決まった向きから見る（上・横・正面・斜め）。今の距離のまま */
+  /** ふつうの画角（30°）のときの距離に対する、今の画角での距離の倍率 */
+  private fovScale(): number {
+    return Math.tan((30 * Math.PI) / 360) / Math.tan((this.camera.fov * Math.PI) / 360);
+  }
+  /** 平らな図（正面・横・上）か。パースをなくし、回せない（動かす・寄るだけ）。寸法を正しく読むための図 */
+  private flat = false;
+  get isFlat(): boolean {
+    return this.flat;
+  }
+  private setFlat(on: boolean) {
+    if (this.flat === on) return;
+    const target = this.controls.target.clone();
+    const r = this.camera.position.distanceTo(target) / this.fovScale();
+    this.flat = on;
+    // 画角をとても狭くし、遠くから見る（見た目は、パースのない平らな図と同じになる）
+    this.camera.fov = on ? 0.6 : 30;
+    this.camera.near = on ? 10 : 0.1;
+    this.camera.far = on ? 200000 : 1000;
+    this.camera.updateProjectionMatrix();
+    const dir = this.camera.position.clone().sub(target).normalize();
+    this.camera.position.copy(target).addScaledVector(dir, r * this.fovScale());
+    this.controls.enableRotate = !on;
+    this.controls.update();
+  }
   setView(view: "top" | "side" | "front" | "angle") {
+    this.setFlat(view !== "angle");
     const target = this.controls.target.clone();
     const r = this.camera.position.distanceTo(target);
     const dir = { top: new THREE.Vector3(0, -0.001, 1), side: new THREE.Vector3(1, 0, 0.05), front: new THREE.Vector3(0, -1, 0.05), angle: new THREE.Vector3(0.6, -0.8, 0.6) }[view].normalize();
@@ -792,19 +817,21 @@ export function studioScene(): THREE.Scene {
 
 /** 黒い撮影台：真ん中がわずかに明るい、あたたかい黒 */
 /**
- * CAD の作業画面のような方眼：1 mm の細い線、5 mm ごとに濃い線、まん中の 2 本の軸は赤と緑（横と奥行き）。
+ * CAD の作業画面のような方眼：1 mm の細い線、10 mm ごとに濃い線、まん中の 2 本の軸は赤と緑（横と奥行き）。
  * 灰色の背景の上で、目盛りだと分かるように
  */
 function cadGrid(): THREE.Object3D {
   const g = new THREE.Group();
-  const minor = new THREE.GridHelper(60, 60, 0x9a9ca1, 0x9a9ca1);
-  const major = new THREE.GridHelper(60, 12, 0x77797e, 0x77797e);
+  // 画面の端まで続く広い方眼（400 mm 四方）。1 mm の細い線と 10 mm の濃い線
+  // 1 mm の線は指輪のまわり（80 mm）だけ。遠くで線が詰まって模様に見えないように
+  const minor = new THREE.GridHelper(80, 80, 0x9a9ca1, 0x9a9ca1);
+  const major = new THREE.GridHelper(400, 40, 0x77797e, 0x77797e);
   for (const m of [minor.material, major.material] as THREE.LineBasicMaterial[]) { m.transparent = true; m.depthWrite = false; }
   (minor.material as THREE.LineBasicMaterial).opacity = 0.55;
   (major.material as THREE.LineBasicMaterial).opacity = 0.9;
   const axis = (a: THREE.Vector3, b: THREE.Vector3, color: number) =>
     new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]), new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.85 }));
-  g.add(minor, major, axis(new THREE.Vector3(-30, 0.001, 0), new THREE.Vector3(30, 0.001, 0), 0xb33a3a), axis(new THREE.Vector3(0, 0.001, -30), new THREE.Vector3(0, 0.001, 30), 0x3a8a3a));
+  g.add(minor, major, axis(new THREE.Vector3(-200, 0.001, 0), new THREE.Vector3(200, 0.001, 0), 0xb33a3a), axis(new THREE.Vector3(0, 0.001, -200), new THREE.Vector3(0, 0.001, 200), 0x3a8a3a));
   return g;
 }
 
