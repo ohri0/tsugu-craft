@@ -3065,7 +3065,8 @@ function openSaveWork(slot: HTMLElement, data: WorkData) {
     let leftOver = "";
     let sortNote = "";
     if (said) {
-      const pass = store.password() || (await askPassword(true));
+      // 話を残すだけなら、合言葉の窓を出さない（合言葉があるときだけ、工程に分ける）
+      const pass = store.password();
       if (pass) {
         slot.innerHTML = `<p class="saved working"><span class="pulse"></span> Claude が、話を工程ごとのコツに分けています…</p>`;
         const r = await callTool({ system: tipsPrompt(titles), user: `作った物：${data.title}\n職人が話したこと：${said}`, tool: SORT_TIPS, parse: parseTips(titles), password: pass, speed: "fast" });
