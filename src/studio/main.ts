@@ -1266,6 +1266,12 @@ async function make() {
 function toManual() {
   manualOpen = true;
   setMode("refine");
+  // 質問や帳面の欄の下に隠れないよう、手で変える欄まで動かす
+  const m = document.querySelector<HTMLDetailsElement>(".studio-refine details.manual");
+  if (m) {
+    m.open = true;
+    requestAnimationFrame(() => m.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
 }
 document.querySelector(".make-next")?.addEventListener("click", toManual);
 
@@ -2459,7 +2465,7 @@ function rulesSectionHtml(): string {
     ${mine.length ? `<ul class="rules-mini">${mine
       .slice()
       .reverse()
-      .map((r) => `<li><b>${esc(r.title)}</b>${r.param && r.value !== undefined ? `<span class="v">${r.value} ${esc(PARAMS[r.param].unit)}</span>` : ""}${r.quote ? `<small>「${esc(r.quote)}」</small>` : ""}<small>${esc(name)} ・ ${esc(r.date)}</small><span class="voice-row">${voices.has(r.id) ? `<button type="button" class="link voice-play" data-rid="${esc(r.id)}">▶ 声</button>` : ""}<button type="button" class="link voice-rec${stopRec && recFor === r.id ? " on" : ""}" data-rid="${esc(r.id)}">${stopRec && recFor === r.id ? `■ 止める（${MAX_SECONDS} 秒まで）` : voices.has(r.id) ? "録り直す" : "● 理由を声で残す"}</button></span></li>`)
+      .map((r) => `<li><b>${esc(r.title)}</b>${r.param && r.value !== undefined && r.param !== "hold.cornerSet" ? `<span class="v">${r.value} ${esc(PARAMS[r.param].unit)}</span>` : ""}${r.quote ? `<small>「${esc(r.quote)}」</small>` : ""}<small>${esc(name)} ・ ${esc(r.date)}</small><span class="voice-row">${voices.has(r.id) ? `<button type="button" class="link voice-play" data-rid="${esc(r.id)}">▶ 声</button>` : ""}<button type="button" class="link voice-rec${stopRec && recFor === r.id ? " on" : ""}" data-rid="${esc(r.id)}">${stopRec && recFor === r.id ? `■ 止める（${MAX_SECONDS} 秒まで）` : voices.has(r.id) ? "録り直す" : "● 理由を声で残す"}</button></span></li>`)
       .join("")}</ul>` : `<p class="hint">確かめに効く職人の決まりは、まだありません（いまは公開の目安で確かめています）。</p>`}
     ${loadWorks().some((w) => w.design) ? "" : `<p class="hint no-works">記録に作品がないので、決まりを足しても「これまでの作品」は確かめ直せません。<button type="button" class="link add-samples">見本の作品を入れて試す</button></p>`}
     ${making.length ? `<details class="more making-rules"><summary>作り方の決まり ${making.length} 件（作るの工程に出ます）</summary><ul class="rules-mini">${making
@@ -3148,7 +3154,7 @@ function openSaveWork(slot: HTMLElement, data: WorkData) {
   slot.innerHTML = `<div class="save-form">
     <label>作った人<input type="text" class="w-maker" value="${esc(masterName(store.ledger()) === "職人" ? "" : masterName(store.ledger()))}" placeholder="名前"></label>
     <label>話して残す（気をつけたこと・コツ・なぜそうしたか）<textarea rows="3" class="w-note" placeholder="例：座は爪の 3 分の 1 まで。ロウは継ぎ目の反対から熱した"></textarea></label>
-    <p class="hint">Claude が、話を工程ごとのコツに分けて残します。次に同じ工程を作る人の画面に「前の記録から」と出ます。</p>
+    <p class="hint">${store.password() ? "Claude が、話を工程ごとのコツに分けて残します。次に同じ工程を作る人の画面に「前の記録から」と出ます。" : "話はそのまま残します（合言葉があると、Claude が工程ごとのコツに分けます）。"}</p>
     <div class="row"><button type="button" class="ghost-d w-mic">話す</button><button type="button" class="primary w-save">記録する</button></div>
   </div>`;
   const note = slot.querySelector<HTMLTextAreaElement>(".w-note")!;
