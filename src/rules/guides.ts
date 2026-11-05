@@ -186,7 +186,7 @@ export const GUIDES = {
      */
     sectionShape: { edgeMm: 0.25, chamferMm: 0.4, ridgeRatio: 0.55, grooveHalfMm: 0.45, grooveDepthMm: 0.4, stepMm: 0.4, stepTopRatio: 0.55, hollowMm: 0.35, limitRatio: 0.3 },
     /**
-     * 腕の彫りの目安。**すべて仮**（出典の数字なし。作者が見て直す）。
+     * 腕の彫りの目安。深さ 0.25 mm は作者が見てよいと言った（2026-11-05）。ほかは**仮**（出典の数字なし）。
      * - depthMm：深さの既定。
      * - keepMm：彫った所の下に、いつも残す地金。薄い所では彫りを浅くする（断面の局所の薄さ minLocalMm と同じ値を借りた）。
      * - minUnderMm：彫る場所の、いちばん厚い所から彫りの深さを引いて残る厚み。公開の目安「1 mm より薄い腕は持ちが悪い」を借りた。
