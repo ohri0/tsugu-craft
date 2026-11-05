@@ -704,7 +704,7 @@ def s03b_card():
     save(a, "03b_画面_帳面", grain=0.006)
 
 
-# ---------------------------------------------------------------- 図 A：三幅（デザイン／設計／制作を本物の素材で。戻りは制作からデザインへ）
+# ---------------------------------------------------------------- 図 A：三幅（本物の素材で。ことばは「デザイン・設計（CAD）」と「制作」の 2 つ。戻りは制作から「デザイン・設計」へ）
 def panel(im, target_w, target_h):
     r = max(target_w / im.width, target_h / im.height)
     im = im.resize((round(im.width * r), round(im.height * r)), Image.LANCZOS)
@@ -730,31 +730,29 @@ def s04a_flow_panels():
     a[top:bot, 2 * pw + 3:W] = a3[:, : W - 2 * pw - 3]
     # ことば：パネルの下に。順番は細い線で
     t = Type()
-    cx = [pw * 0.5, pw * 1.5, pw * 2.5]
-    words = ["デザイン", "設計（CAD）", "制作"]
-    for c, word in zip(cx, words):
-        t.h(c, 922, word, "min", S, 0.04, align="c")
-    # 右向きの細い線（デザイン → 設計 → 制作）
-    t.line(cx[0] + 112, 908, cx[1] - 140, 908, 0.8)
-    t.line(cx[1] + 140, 908, cx[2] - 64, 908, 0.8)
-    for xe in (cx[1] - 140, cx[2] - 64):
-        t.line(xe - 13, 901, xe, 908, 0.8)
-        t.line(xe - 13, 915, xe, 908, 0.8)
+    cx = [pw * 1.0, pw * 2.5]
+    t.h(cx[0], 922, "デザイン・設計（CAD）", "min", S, 0.04, align="c")
+    t.h(cx[1], 922, "制作", "min", S, 0.04, align="c")
+    # 右向きの細い線（デザイン・設計 → 制作）
+    xe = cx[1] - 64
+    t.line(cx[0] + 190, 908, xe, 908, 0.8)
+    t.line(xe - 13, 901, xe, 908, 0.8)
+    t.line(xe - 13, 915, xe, 908, 0.8)
     a = ink(a, t.end())
-    # 戻りの線：制作からデザインへ（設計の上を越える）。上の黒の帯の中だけを通す
+    # 戻りの線：制作から「デザイン・設計」へ。上の黒の帯の中だけを通す
     t = Type()
     yl = 124
-    t.line(cx[2], top - 10, cx[2], yl, 1.0)
-    t.line(cx[2], yl, cx[0], yl, 1.0)
+    t.line(cx[1], top - 10, cx[1], yl, 1.0)
+    t.line(cx[1], yl, cx[0], yl, 1.0)
     t.line(cx[0], yl, cx[0], top - 10, 1.0)
     t.line(cx[0] - 10, top - 26, cx[0], top - 10, 1.0)
     t.line(cx[0] + 10, top - 26, cx[0], top - 10, 1.0)
     a = ink(a, t.end(), AKA)
     t = Type()
-    t.h(cx[1], yl - 22, "作れない", "min", S, 0.08, align="c")
+    t.h((cx[0] + cx[1]) / 2, yl - 22, "作れない", "min", S, 0.08, align="c")
     a = ink(a, t.end(), AKA)
     t = Type()
-    t.h(W / 2, 1026, "デザインと制作を、行ったり来たり。", "min", M, 0.04, align="c")
+    t.h(W / 2, 1026, "デザイン・設計と制作を、行ったり来たり。", "min", M, 0.04, align="c")
     a = ink(a, t.end())
     save(a, "04a_図_三つの絵")
 
@@ -775,25 +773,24 @@ def s04b_flow_paper():
         wob = 1 + 0.025 * math.sin(u * 15) + 0.05 * (u - 0.5)
         circ.append((cx + rx * wob * math.cos(ang), cy + ry * wob * math.sin(ang)))
     pen.stroke(circ, w=2.6)
-    # ことばの列（下）。3 つは同じ大きさ
+    # ことばの列（下）。「デザイン・設計」と「制作」の 2 つ（間は矢印でなく中黒。2026-11-05 作者）
     t = Type()
     base = 985
     px = M
-    xs = [LEFT, LEFT + 392, LEFT + 712]
-    t.h(xs[0], base, "デザイン", "min", px, 0.02)
-    t.h(xs[1], base, "設計", "min", px, 0.02)
-    t.h(xs[2], base, "制作", "min", px, 0.02)
-    t.h(xs[1] + 62, base + 42, "CAD", "thin3", T, 0.20, align="c")
+    xs = [LEFT, LEFT + 712]
+    t.h(xs[0], base, "デザイン・設計", "min", px, 0.02)
+    t.h(xs[1], base, "制作", "min", px, 0.02)
+    t.h(xs[0] + 330, base + 42, "CAD", "thin3", T, 0.20, align="c")
     # 右向きの細い線（図面の寸法線と同じ形）
     y_ = base - 21
-    for x0_, x1_ in ((xs[0] + 244, xs[1] - 20), (xs[1] + 142, xs[2] - 20)):
-        t.line(x0_, y_, x1_, y_, 1.0)
-        t.line(x1_ - 13, y_ - 6, x1_, y_, 1.0)
-        t.line(x1_ - 13, y_ + 6, x1_, y_, 1.0)
+    x0_, x1_ = xs[0] + 450, xs[1] - 20
+    t.line(x0_, y_, x1_, y_, 1.0)
+    t.line(x1_ - 13, y_ - 6, x1_, y_, 1.0)
+    t.line(x1_ - 13, y_ + 6, x1_, y_, 1.0)
     a = ink(a, t.end(), INK)
-    # 朱：制作からデザインへ戻る線（設計の上を越える）
-    x_end = xs[2] + 66
-    x_start = xs[0] + 124
+    # 朱：制作から「デザイン・設計」へ戻る線
+    x_end = xs[1] + 66
+    x_start = xs[0] + 220
     mid = (x_end + x_start) / 2
     arc = [(x_end, base - 82), (x_end - 130, base - 196), (mid, base - 262), (x_start + 130, base - 200), (x_start, base - 88)]
     pen.stroke(arc, w=2.8)
@@ -805,7 +802,8 @@ def s04b_flow_paper():
     a = ink(a, t2.end(), SHU)
     # 見出し
     t3 = Type()
-    t3.v(LEFT + 134, TOP - 6, "デザインと制作を、", "min", M, 0.10)
+    t3.v(LEFT + 224, TOP - 6, "デザイン・設計と", "min", M, 0.10)
+    t3.v(LEFT + 134, TOP - 6, "制作を、", "min", M, 0.10)
     t3.v(LEFT + 44, TOP - 6, "行ったり来たり。", "min", M, 0.10)
     a = ink(a, t3.end(), INK)
     save(a, "04b_図_朱入れの図面", grain=0.010)

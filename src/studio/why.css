@@ -1,0 +1,87 @@
+/* 「なぜ継ぐ」：動画と同じ見た目（video/LOOK9.md）。黒と紙、縦書きの明朝、細い線。字に金を使わない。 */
+@font-face {
+  font-family: "Tsugu Mincho";
+  src: url("/fonts/shippori-mincho-sub.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+:root {
+  --t-black: #070606;
+  --t-white: #f4f1ea;
+  --t-paper: #ece6da;
+  --t-ink: #161311;
+  --t-shu: #be321e;
+  --t-red: #ff4533;
+  --t-mincho: "Tsugu Mincho", "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif;
+  --t-sans: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", system-ui, sans-serif;
+}
+
+/* 行ったり来たりの図（入口のページでも使う） */
+.ff { display: block; width: 100%; height: auto; overflow: visible; color: inherit; }
+.ff-labels text { font-family: var(--t-mincho); font-size: 19px; fill: currentColor; }
+.ff-labels tspan { font-size: 14.5px; }
+.ff-go { fill: none; stroke: currentColor; stroke-width: 0.8; opacity: 0.7; }
+.ff-back { fill: none; stroke: var(--t-shu); stroke-width: 1; opacity: 0.26; }
+.ff-tip { fill: none; stroke: var(--t-shu); stroke-width: 1; opacity: 0.8; }
+.ff-mark { fill: none; stroke: var(--t-shu); stroke-width: 1.2; stroke-dasharray: 100; stroke-dashoffset: 100; animation: ff-draw 7s ease-in-out infinite; }
+.ff-say { font-family: var(--t-mincho); font-size: 16px; fill: var(--t-shu); }
+.ff-note { font-family: var(--t-sans); font-size: 15px; fill: currentColor; }
+/* 朱の線を、制作からデザイン・設計へ、線の上に約 1.1 秒で引く。しばらく残して、薄く消える */
+@keyframes ff-draw {
+  0% { stroke-dashoffset: 100; opacity: 1; }
+  16% { stroke-dashoffset: 0; opacity: 1; }
+  80% { stroke-dashoffset: 0; opacity: 1; }
+  90% { stroke-dashoffset: 0; opacity: 0; }
+  100% { stroke-dashoffset: 100; opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ff-mark { animation: none; display: none; }
+  .ff-back { opacity: 0.9; }
+}
+
+/* ページ */
+.why { position: fixed; inset: 0; z-index: 60; overflow-y: auto; -webkit-overflow-scrolling: touch; background: var(--t-black); color: var(--t-white); font: 17px/1.9 var(--t-sans); }
+.why-in { position: relative; }
+.why-close { position: fixed; top: 14px; right: 16px; width: 44px; height: 44px; padding: 0; border-radius: 0; border: 0; background: rgba(7, 6, 6, 0.72); color: var(--t-white); font-size: 22px; line-height: 44px; text-align: center; cursor: pointer; z-index: 2; }
+.why:focus { outline: 0; }
+.why :focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+.why a { color: inherit; }
+.why img { display: block; max-width: 100%; height: auto; }
+.why figure { margin: 0; }
+.wy-w { max-width: 760px; margin: 0 auto; padding: 0 clamp(20px, 5vw, 32px); }
+.wy-head { display: flex; flex-direction: row-reverse; justify-content: center; align-items: flex-start; gap: clamp(32px, 6vw, 72px); min-height: 72vh; padding: clamp(72px, 12vh, 120px) 24px clamp(48px, 8vh, 80px); }
+.wy-title { margin: 0; writing-mode: vertical-rl; font: 400 clamp(52px, 8vw, 88px)/1.2 var(--t-mincho); letter-spacing: 0.18em; font-feature-settings: "vpal"; }
+.wy-lead { margin: 0; writing-mode: vertical-rl; font: 400 clamp(20px, 2.6vw, 26px)/2.1 var(--t-mincho); letter-spacing: 0.12em; font-feature-settings: "vpal"; max-height: 26em; }
+.wy-sec { padding: clamp(72px, 12vh, 128px) 0; }
+.wy-paper { background: var(--t-paper); color: var(--t-ink); }
+.wy-sec h3 { margin: 0 0 24px; font: 400 clamp(27px, 4.2vw, 40px)/1.45 var(--t-mincho); letter-spacing: 0.04em; text-wrap: balance; word-break: keep-all; overflow-wrap: anywhere; }
+.wy-sec p { margin: 0 0 20px; font-size: clamp(16.5px, 1.6vw, 18px); text-wrap: pretty; }
+.wy-flow { display: grid; grid-template-columns: 1fr; gap: 44px; margin: 44px 0; }
+.why .wy-flow figcaption { font: 400 18px/1.6 var(--t-mincho); letter-spacing: 0.12em; margin-bottom: 8px; }
+.why .wy-src { font-size: 14.5px; line-height: 1.8; opacity: 0.86; }
+.why p.wy-src.wy-w { margin: 0 auto 20px; }
+.lf { position: relative; max-width: 860px; margin: 44px auto 12px; padding: 0 clamp(20px, 5vw, 32px); }
+.lf-lab { margin: 0 !important; font: 400 16px/1.6 var(--t-mincho) !important; letter-spacing: 0.1em; }
+.lf-track { position: relative; height: 66px; border-bottom: 1px solid rgba(244, 241, 234, 0.5); }
+.lf-tick { position: absolute; bottom: -8px; width: 1px; height: 22px; background: var(--t-white); font-style: normal; }
+.lf-tick b { position: absolute; bottom: 26px; left: 0; transform: translateX(-50%); white-space: nowrap; font: 400 16px/1.2 var(--t-mincho); }
+.lf-life { position: relative; height: 3px; margin-top: 26px; background: var(--t-white); }
+.lf-axis { position: relative; height: 30px; margin-top: 8px; font-size: 14.5px; }
+.lf-axis span { position: absolute; transform: translateX(-50%); }
+.why figure.wy-photo { max-width: 920px; margin: clamp(48px, 8vh, 80px) auto; }
+.wy-photo img { width: 100%; }
+.why figcaption { margin: 0; color: inherit; font-size: 14.5px; line-height: 1.7; }
+.wy-photo figcaption, .wy-tachi figcaption { padding: 10px clamp(20px, 5vw, 32px) 0; opacity: 0.86; }
+.why figure.wy-tachi { max-width: 1100px; margin: 36px auto clamp(64px, 10vh, 112px); display: grid; gap: 10px; }
+.wy-tachi img { width: 100%; }
+.wy-big { margin: 0 0 16px !important; font: 400 clamp(64px, 11vw, 112px)/1.1 var(--t-mincho) !important; }
+.wy-steps { list-style: none; margin: 32px 0 44px; padding: 0; }
+.wy-steps li { display: grid; gap: 4px; padding: 18px 0; border-top: 1px solid rgba(22, 19, 17, 0.34); }
+.wy-steps b { font: 400 21px/1.6 var(--t-mincho); letter-spacing: 0.06em; }
+.wy-steps span { font-size: clamp(16.5px, 1.6vw, 18px); }
+.wy-go { display: inline-flex; align-items: center; min-height: 50px; padding: 0 30px; border: 1px solid currentColor; border-radius: 0; background: var(--t-ink); color: var(--t-paper) !important; font: 400 17px/1 var(--t-sans); letter-spacing: 0.08em; text-decoration: none; cursor: pointer; }
+@media (min-width: 900px) {
+  .wy-flow { grid-template-columns: 1fr 1fr; gap: 48px; }
+  .wy-w:has(.wy-flow) { max-width: 1040px; }
+}

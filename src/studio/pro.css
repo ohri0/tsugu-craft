@@ -451,59 +451,6 @@ dialog.sheet input:focus { border-color: var(--accent); }
 .lines > li > .term-def { display: block; }
 
 /* ---- なぜ継ぐ ---- */
-.why { position: fixed; inset: 0; z-index: 60; overflow-y: auto; background: #111113; color: var(--fg); }
-.why-in { position: relative; max-width: 760px; margin: 0 auto; padding: 56px 24px 80px; }
-.why-close { position: fixed; top: 14px; right: 16px; width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--line-2); background: var(--panel-2); color: var(--fg-2); font-size: 16px; z-index: 2; }
-.why-k { margin: 0 0 8px; font-size: 12px; font-weight: 600; color: var(--accent-2); }
-.why-sec { padding: 28px 0 40px; border-bottom: 1px solid var(--line); }
-.why-sec:last-child { border-bottom: 0; }
-.why-sec h2 { margin: 0 0 12px; font-size: clamp(22px, 4vw, 32px); font-weight: 700; line-height: 1.3; letter-spacing: -0.01em; }
-.why-sec > p { margin: 0 0 24px; font-size: 15px; line-height: 1.85; color: var(--fg-2); max-width: 640px; }
-.why-note { font-size: 11px !important; color: var(--fg-3) !important; margin-top: 10px !important; }
-.why-heritage { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; margin: 0 0 24px; }
-.why-heritage figure { margin: 0; }
-.why-heritage img { display: block; width: 100%; height: 220px; object-fit: cover; border-radius: 6px; background: #111; }
-.why-heritage figcaption { margin-top: 6px; font-size: 11px; line-height: 1.5; color: var(--fg-3); }
-@media (max-width: 640px) { .why-heritage { grid-template-columns: 1fr; } }
-.flow { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.flow-col { position: relative; padding: 18px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
-.flow-col h4 { margin: 0 0 14px; font-size: 11px; font-weight: 600; color: var(--fg-3); }
-.flow-l { list-style: none; margin: 0; padding: 0; display: grid; gap: 22px; position: relative; }
-.flow-l::before { content: ""; position: absolute; left: 5px; top: 8px; bottom: 8px; width: 1px; background: var(--line-2); }
-.flow-l li { position: relative; padding-left: 22px; }
-.flow-l li::before { content: ""; position: absolute; left: 0; top: 5px; width: 11px; height: 11px; border-radius: 50%; background: var(--panel); border: 1.5px solid var(--fg-3); }
-.flow-l b { display: block; font-size: 14px; font-weight: 600; }
-.flow-l small { font-size: 11px; color: var(--fg-3); }
-.flow-l.new { gap: 40px; }
-.flow-l.new::before { background: var(--accent); }
-.flow-l .hub::before { background: var(--accent); border-color: var(--accent); width: 15px; height: 15px; left: -2px; top: 3px; box-shadow: 0 0 0 6px var(--accent-weak); }
-.flow-l .hub b { color: var(--accent-2); }
-.flow-l .loop-a::before, .flow-l .loop-b::before { border-color: #ff6b61; }
-.loop { position: absolute; right: 22px; top: 128px; width: 150px; height: 62px; border: 1.5px dashed rgba(255, 107, 97, 0.6); border-left: 0; border-radius: 0 30px 30px 0; }
-.loop .ball { position: absolute; left: -4px; top: -5px; width: 9px; height: 9px; border-radius: 50%; background: #ff6b61; offset-path: path("M4 5 H124 A31 31 0 0 1 124 67 H4 H124 A31 31 0 0 0 124 5 Z"); animation: loopgo 2.4s linear infinite; }
-@keyframes loopgo { from { offset-distance: 0%; } to { offset-distance: 100%; } }
-.say { position: absolute; right: -4px; font-style: normal; font-size: 10.5px; padding: 2px 6px; border-radius: 4px; background: var(--ng-weak); color: #ff8a82; white-space: nowrap; opacity: 0; animation: say 4.8s infinite; }
-.say.s1 { top: -24px; }
-.say.s2 { bottom: -24px; animation-delay: 2.4s; }
-@keyframes say { 0%, 8% { opacity: 0; transform: translateY(3px); } 14%, 42% { opacity: 1; transform: none; } 50%, 100% { opacity: 0; } }
-.w-life { width: 100%; height: auto; overflow: visible; }
-.w-grid { stroke: var(--line); }
-.w-ax { fill: var(--fg-3); font: 10px var(--sans); }
-.w-lab { fill: var(--fg-2); font: 600 11px var(--sans); }
-.w-t { fill: var(--fg-2); font: 10.5px var(--sans); }
-.w-build { fill: rgba(255, 214, 10, 0.75); transform-origin: left; transform-box: fill-box; animation: grow 1.2s ease both; }
-.w-life-bar { fill: var(--accent); opacity: 0.85; transform-origin: left; transform-box: fill-box; animation: grow 1.6s ease 0.4s both; }
-.w-dot { fill: #fff; stroke: var(--accent); stroke-width: 2; }
-@keyframes grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-.why-steps { list-style: none; margin: 0 0 28px; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; counter-reset: w; }
-.why-steps li { counter-increment: w; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); display: grid; gap: 6px; }
-.why-steps li::before { content: "0" counter(w); font: 600 11px var(--mono); color: var(--fg-3); }
-.why-steps b { font-size: 16px; }
-.why-steps span { font-size: 12.5px; color: var(--fg-2); line-height: 1.7; }
-@media (max-width: 640px) {
-  .flow { grid-template-columns: 1fr; }
-  .why-steps { grid-template-columns: 1fr; }
-}
 .presets { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
 .presets button { height: 24px; padding: 0 9px; border: 1px solid var(--line-2); border-radius: 12px; background: transparent; color: var(--fg-2); font-size: 11px; }
 .presets button:hover { color: var(--fg); border-color: var(--fg-3); }
@@ -899,7 +846,6 @@ html.fit { --fg-2: #b8b8be; --fg-3: #9e9ea4; --accent: #0a6fdc; }
 html.fit :is(.primary, .btn.primary):hover { background: #1a7fe8; }
 html.fit .fp-fix { color: var(--accent-2); border-color: var(--accent-2); }
 html.fit .sec > h4 small, html.fit .fix-pop small, html.fit .p-head small { font-size: 12px; }
-html.fit .why-note { font-size: 12px !important; }
 html.fit .pr-tabs button, html.fit .pk, html.fit .pr-opt button { color: #c4c4ca; }
 html.fit .pr-tabs button[aria-pressed="true"], html.fit .pr-tabs button[aria-current="true"] { color: #fff; }
 /* 12 px より小さかった字 */
@@ -941,11 +887,6 @@ html.fit .chk small,
 html.fit .term-def small,
 html.fit .term-def i,
 html.fit .term-def .td-sub,
-html.fit .why-note,
-html.fit .why-heritage figcaption,
-html.fit .flow-col h4,
-html.fit .flow-l small,
-html.fit .say,
 html.fit .presets button,
 html.fit .sorted small,
 html.fit [class^="k-"],

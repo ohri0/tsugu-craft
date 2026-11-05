@@ -12,6 +12,12 @@ describe("入口のページ", () => {
     expect(src).not.toContain("石を並べる");
   });
 
+  it("公開の版の合言葉の説明が今の仕様どおり（入口はだれでも見られる。開くときに聞く）", () => {
+    expect(src).not.toContain("合言葉がなくても");
+    expect(src).not.toContain("合言葉なしで全部使えます");
+    expect(src).toContain("開くときに合言葉を聞きます");
+  });
+
   it("決まりの数を直書きせず、帳面から読む", () => {
     expect(src).toContain("BOOK.total");
     expect(src).not.toMatch(/決まりが <span class="num">\d/);
