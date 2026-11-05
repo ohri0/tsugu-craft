@@ -7,6 +7,14 @@ import {
   addClue,
   addTechRule,
   applyPlan,
+  firstView,
+  namesOf,
+  nextAct,
+  nextUntried,
+  plainWords,
+  previousPlan,
+  stageOf,
+  withoutMark,
   clueRefs,
   freshSince,
   isAssertive,
@@ -408,15 +416,89 @@ describe("書き出しと読み込み", () => {
     expect(readProject(raw)!.name).toBe(raw.name);
   });
 
-  it("見本は、架空の技だと分かる記録で、読み込める", () => {
+  it("例は、作り話だと分かる印のある記録で、読み込める", () => {
     const raw = JSON.parse(readFileSync(new URL("../research/restore/sample.json", import.meta.url), "utf8"));
     const r = parseRestoreFile(raw);
     if (!r.ok) throw new Error(r.error);
-    expect(r.project.name).toContain("架空");
+    expect(r.project.sample).toBe(true);
+    expect(r.project.name).toBe("霜目の小箱");
     expect(r.warnings).toEqual([]);
     for (const c of r.project.clues) expect(c.text).toContain("架空");
     for (const t of r.project.results) expect(t.note).toContain("架空");
     expect(r.project.rules).toEqual([]);
+  });
+});
+
+describe("画面の流れ（次に押す 1 つのボタン）", () => {
+  it("分かることがなければ、まず入れる。あれば Claude に頼む", () => {
+    const empty = newProject("r", "技", DAY);
+    expect(stageOf(empty)).toBe(1);
+    expect(firstView(empty)).toBe(1);
+    expect(nextAct(empty, 1)).toEqual({ do: "none" }); // 入れる欄が目立つので、上のボタンは出さない
+    expect(nextAct(empty, 3)).toMatchObject({ do: "view", view: 1 });
+    const p = withClues();
+    expect(stageOf(p)).toBe(2);
+    expect(firstView(p)).toBe(1);
+    expect(nextAct(p, 1)).toEqual({ do: "plan", label: "Claude に案を出してもらう" });
+  });
+
+  it("案ができたら案を見せ、次は試す。結果を入れたら、出し直す", () => {
+    let p = withPlan();
+    expect(stageOf(p)).toBe(3);
+    expect(firstView(p)).toBe(2);
+    expect(nextAct(p, 1)).toMatchObject({ do: "view", view: 2 });
+    expect(nextAct(p, 2)).toMatchObject({ do: "view", view: 3, label: "次へ：試して、結果を入れる" });
+    expect(nextAct(p, 3)).toEqual({ do: "none" }); // 結果を待つ。目立つのは、次の工程の結果のボタン
+    const plan = p.plans[0];
+    expect(nextUntried(p, plan)).toBe(0);
+    p = setResult(p, plan, plan.steps[0], { outcome: "ng", note: "だめ" }, DAY);
+    expect(nextUntried(p, plan)).toBe(1);
+    for (const view of [1, 2, 3] as const) expect(nextAct(p, view)).toEqual({ do: "plan", label: "結果を入れて、案を出し直す" });
+  });
+
+  it("新しく入れた・消したときも、出し直す", () => {
+    const p = withPlan();
+    const r = addClue(p, { kind: "opinion", text: "新しい見立て" }, DAY);
+    if ("error" in r) throw new Error(r.error);
+    expect(nextAct(r.project, 2)).toEqual({ do: "plan", label: "入れたことを足して、案を出し直す" });
+    expect(nextAct(removeClue(p, "C1", DAY), 2)).toMatchObject({ do: "plan" });
+  });
+
+  it("前の案をたどれる", () => {
+    let p = withPlan();
+    expect(previousPlan(p, p.plans[0])).toBeUndefined();
+    p = applyPlan(p, parsed(goodInput({ steps: [step({ prev_step: 1, change: "same" })] }), p), { date: DAY, sent: clueRefs(p), photosSent: [], sources: sourceText(p) });
+    expect(previousPlan(p, p.plans[1])).toBe(p.plans[0]);
+  });
+});
+
+describe("人に見せる言葉", () => {
+  it("Claude の文の番号を名前に直す。範囲はまとめる。無い番号も見せない", () => {
+    let p = withPlan();
+    const plan = p.plans[0];
+    p = setResult(p, plan, plan.steps[2], { outcome: "ng", note: "黒い" }, DAY);
+    const names = namesOf(p);
+    expect(plainWords("C2 に灰とある。", names)).toBe("「蔵の覚え書き」に灰とある。");
+    expect(plainWords("T1 で黒くなった（C1、T1〜T3）。", names)).toBe("「火であぶる」の結果で黒くなった（「表の模様」、試した結果）。");
+    expect(plainWords("C9 と T9 から", names)).toBe("入れたことと試した結果から");
+    expect(plainWords("工程 3 は手がかりにない", names)).toBe("手順 3 は入れたことにない");
+    // ふつうの文の英数字は変えない
+    expect(plainWords("K18 と Pt900、CT スキャン", names)).toBe("K18 と Pt900、CT スキャン");
+  });
+
+  it("消した手がかりの名前も、案の控えから出す", () => {
+    const p = removeClue(withPlan(), "C1", DAY);
+    expect(namesOf(p).get("C1")).toBe("表の模様");
+  });
+
+  it("例の中の【架空】の印は、画面では外す", () => {
+    expect(withoutMark("【架空】灰を洗う")).toBe("灰を洗う");
+    expect(withoutMark("灰を洗う")).toBe("灰を洗う");
+    expect(withoutMark("架空の持ち主の話")).toBe("持ち主の話");
+  });
+
+  it("Claude に、職人が読む文へ番号を書かないよう頼む", () => {
+    expect(restorePrompt()).toContain("職人が読む文");
   });
 });
 

@@ -139,6 +139,8 @@ export interface TechRule {
 export interface RestoreProject {
   id: string;
   name: string;
+  /** 作り話の例（research/restore/sample.json）。画面に「これは作り話の例です」と出す */
+  sample?: boolean;
   created: string;
   updated: string;
   clues: RestoreClue[];
@@ -292,6 +294,74 @@ export function freshSince(p: RestoreProject): { clues: number; results: number;
     removed: last.clues.filter((c) => !now.has(c.id)).length,
   };
 }
+
+// ---- 画面の流れ：① 分かることを入れる → ② Claude が作り方の案を出す → ③ 試して、結果を入れる ----
+
+export type Stage = 1 | 2 | 3;
+
+/** この技が、流れのどこまで来ているか */
+export function stageOf(p: RestoreProject): Stage {
+  if (!p.clues.length) return 1;
+  return p.plans.length ? 3 : 2;
+}
+
+/** 開いたときに見せる所：案があれば案、なければ入れる所 */
+export const firstView = (p: RestoreProject): Stage => (p.plans.length ? 2 : 1);
+
+export type NextAct = { do: "plan" | "view"; view?: Stage; label: string } | { do: "none" };
+
+/** 次に押す 1 つのボタン。見ている所（view）で変わる。なければ none（③ で結果を待つときなど） */
+export function nextAct(p: RestoreProject, view: Stage): NextAct {
+  if (!p.clues.length) return view === 1 ? { do: "none" } : { do: "view", view: 1, label: "分かることを入れる" };
+  if (!p.plans.length) return { do: "plan", label: "Claude に案を出してもらう" };
+  const fresh = freshSince(p);
+  if (fresh.results) return { do: "plan", label: "結果を入れて、案を出し直す" };
+  if (fresh.clues || fresh.removed) return { do: "plan", label: "入れたことを足して、案を出し直す" };
+  if (view === 1) return { do: "view", view: 2, label: "次へ：案を見る" };
+  if (view === 2) return { do: "view", view: 3, label: "次へ：試して、結果を入れる" };
+  return { do: "none" };
+}
+
+/** ③ で「次はこれ」と示す工程（まだ結果のない最初の工程）の順番。全部あれば -1 */
+export function nextUntried(p: RestoreProject, plan: RestorePlan): number {
+  return plan.steps.findIndex((s) => !resultFor(p, plan, s));
+}
+
+/** この案の前の案（なければ undefined） */
+export const previousPlan = (p: RestoreProject, plan: RestorePlan): RestorePlan | undefined => p.plans[p.plans.indexOf(plan) - 1];
+
+// ---- 人に見せる言葉：番号（C1・T2）は見せず、名前で ----
+
+/** 番号 → 人に見せる名前。消した手がかりは、案の控えから */
+export function namesOf(p: RestoreProject): Map<string, string> {
+  const names = new Map<string, string>();
+  const label = (id: string, title: string) => (id.startsWith("T") ? `「${title.replace(/^試した結果：/, "")}」の結果` : title);
+  for (const v of p.plans) for (const c of v.clues) names.set(c.id, label(c.id, c.title));
+  for (const c of p.clues) names.set(c.id, c.title);
+  for (const r of p.results) names.set(r.id, label(r.id, r.stepTitle));
+  return names;
+}
+
+/**
+ * Claude の文を、人に見せる言葉に直す（画面に出すときだけ。記録の中身は変えない）。
+ * 番号 → 名前、「工程」→「手順」、「手がかり」→「入れたこと」。
+ */
+export function plainWords(text: string, names: ReadonlyMap<string, string>): string {
+  const fallback = (kind: string) => (kind === "T" ? "試した結果" : "入れたこと");
+  return text
+    .replace(/ ?([CT])\d+\s*[〜～~ー-]\s*\1?\d+ ?/g, (_m, kind: string) => fallback(kind))
+    .replace(/ ?\b[CT]\d+\b ?/g, (hit) => {
+      const id = hit.trim();
+      const name = names.get(id);
+      if (!name) return fallback(id[0]);
+      return id[0] === "T" ? name : `「${name}」`;
+    })
+    .replace(/工程/g, "手順")
+    .replace(/手がかり/g, "入れたこと");
+}
+
+/** 例の中の印（【架空】）を画面では外す。例には「これは作り話の例です」の札が 1 つあるので。記録の中には残す */
+export const withoutMark = (text: string): string => text.replace(/【架空】\s*/g, "").replace(/架空の/g, "");
 
 // ---- 数字と言い切りの見張り（CLAUDE.md：出典のない数字は作らない。答えのない技で、確かな作り方だと言わない） ----
 
@@ -588,6 +658,7 @@ export function readProject(raw: unknown): RestoreProject | null {
   return {
     id: raw.id,
     name,
+    ...(raw.sample === true ? { sample: true } : {}),
     created,
     updated: dateOr(raw.updated, created),
     clues,

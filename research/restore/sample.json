@@ -4,7 +4,7 @@
   "exported": "2026-11-05",
   "project": {
     "id": "rmw3fsef87cep",
-    "name": "霜目の小箱（架空の技）",
+    "name": "霜目の小箱",
     "created": "2026-11-05",
     "updated": "2026-11-05",
     "clues": [
@@ -552,10 +552,10 @@
         "date": "2026-11-05"
       }
     ],
-    "kept": [],
     "nextClue": 7,
     "nextResult": 5,
-    "nextStep": 8
+    "nextStep": 8,
+    "sample": true
   },
   "photos": {
     "C1": {
