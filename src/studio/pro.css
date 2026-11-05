@@ -1076,7 +1076,7 @@ html.fit .ask-nudge small { font-size: 12px; }
 /* テンションの札：結論 → 小さな表 → 開いて読む */
 .tn-card { margin: 0 14px 12px; padding: 14px; border: 1px solid var(--line-2); border-radius: 8px; display: grid; gap: 12px; font-size: 14px; line-height: 1.7; color: var(--fg); }
 .tn-card h5 { margin: 0; font-size: 14px; font-weight: 600; }
-.tn-facts { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 12px; }
+.tn-facts { margin: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; }
 .tn-facts div { display: flex; justify-content: space-between; gap: 8px; }
 .tn-facts dt { color: var(--fg-2); font-weight: 400; white-space: nowrap; }
 .tn-facts dd { margin: 0; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -1093,7 +1093,7 @@ html.fit .ask-nudge small { font-size: 12px; }
 .tn-table thead td, .tn-table thead th { font-size: 12px; font-weight: 400; color: var(--fg-2); line-height: 1.35; vertical-align: bottom; padding: 2px 6px 6px; border-bottom: 1px solid var(--line-2); }
 .tn-table tbody th { font-weight: 400; text-align: left; padding: 8px 6px; white-space: nowrap; }
 .tn-table thead th { text-align: left; }
-.tn-table thead td { text-align: right; }
+.tn-table thead td { text-align: right; white-space: nowrap; }
 .tn-table tbody td { text-align: right; padding: 8px 6px; white-space: nowrap; }
 .tn-table tbody tr { border-bottom: 1px solid var(--line); }
 .tn-table tbody tr.on th, .tn-table tbody tr.on td { background: var(--accent-weak); }
