@@ -34,6 +34,7 @@ import { toStl } from "../cad/solid";
 import { buildStone } from "../geometry/stone";
 import { LAYOUT_LABEL, METAL_LABEL, RingSession, SLOT_SHAPE_LABEL, STONE_LONG_RANGE, bandFixInput, carryDesign, fitStoneDepth, fitStoneLong, reliefFixInput, stationFrom, tuneProngMm, underLedger, type Built, type SlotShape } from "./session";
 import { bindShankLine, sectionBinding, shankLineHtml } from "./shank-line";
+import bandShowcase from "../lp/band-showcase.json" with { type: "json" };
 import { renderRingShape, ringSectionWord, type RingShapeHost } from "./ring-shape";
 import { howToMake, placeText, type Method } from "./howto";
 import { sheetHtml } from "./sheet";
@@ -4088,4 +4089,14 @@ void restoreDesign()
     }
   })
   .catch((e) => setStatus(`見本の石を読めませんでした：${(e as Error).message}`));
-(window as unknown as { __studio: unknown }).__studio = { get session() { return session; }, setMode, dimsAvoid, loadPreset, viewer };
+/** 入口のページの見本の指輪を開く（アプリの断面の編集で作った形。数字は src/lp/band-showcase.json） */
+function openShowcaseBand(b: Band, cut = false) {
+  setKind("band");
+  band = normalizeBand(structuredClone(b));
+  bandCut = cut;
+  showBand();
+}
+const showcaseId = new URLSearchParams(location.search).get("band");
+const showcase = (bandShowcase.shapes as unknown as { id: string; band: Band; cut?: string }[]).find((x) => x.id === showcaseId);
+if (showcase) openShowcaseBand(showcase.band, !!showcase.cut);
+(window as unknown as { __studio: unknown }).__studio = { get session() { return session; }, setMode, dimsAvoid, loadPreset, viewer, openShowcaseBand };

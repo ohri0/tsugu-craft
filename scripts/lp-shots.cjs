@@ -205,6 +205,18 @@ const SHOTS = {
       await p.context().close();
     }
   },
+  // 地金のみの指輪の見せ場：アプリの断面の編集で作った形（数字は src/lp/band-showcase.json。studio.html?band=<id> で同じ形が開く）
+  async bandShow() {
+    const { shapes } = require('../src/lp/band-showcase.json');
+    for (const s of shapes) {
+      const p = await stage(1000, 1000);
+      await p.evaluate(([b, cut]) => window.__studio.openShowcaseBand(b, cut), [s.band, !!s.cut]);
+      await p.waitForTimeout(3000);
+      await look(p, s.camera, s.zoom ?? 0.72);
+      await shot(p, `band-${s.id}`);
+      await p.context().close();
+    }
+  },
   // 作れない所の窓：爪を細くして、赤い札を押す → 理由と直し方（今の見た目）
   async fixpop() {
     const p = await studioNow();
