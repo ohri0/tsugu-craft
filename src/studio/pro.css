@@ -758,6 +758,7 @@ dialog.sheet input:focus { border-color: var(--accent); }
 .present > * { pointer-events: auto; }
 .pr-close { position: absolute; top: 20px; right: 24px; width: 40px; height: 40px; border-radius: 50%; border: 1px solid #3a3a3c; background: transparent; color: #a1a1a6; font-size: 20px; cursor: pointer; }
 .pr-panel { position: absolute; left: 6vw; bottom: 7vh; width: min(760px, 88vw); }
+.pr-title { margin: 0 0 28px; font-size: 32px; font-weight: 500; letter-spacing: .04em; color: #f5f5f7; }
 .pr-tabs { display: flex; gap: 22px; margin-bottom: 14px; }
 .pr-tabs button { background: none; border: 0; padding: 0; font: inherit; font-size: 13px; letter-spacing: .18em; color: #6e6e73; cursor: pointer; }
 .pr-tabs button[aria-selected="true"] { color: #d2d2d7; }
@@ -771,7 +772,7 @@ dialog.sheet input:focus { border-color: var(--accent); }
 .pr-grid .pv { margin-top: 6px; font-size: 18px; font-variant-numeric: tabular-nums; }
 .pr-grid .pv.ok { color: #f5f5f7; }
 .pr-grid .pv.ng { color: #ff6961; }
-@media (max-width: 640px) { .pr-grid { grid-template-columns: 1fr 1fr; } .pr-opt button { font-size: 18px; } .pr-q { font-size: 18px; } }
+@media (max-width: 640px) { .pr-grid { grid-template-columns: 1fr 1fr; } .pr-opt button { font-size: 18px; } .pr-q { font-size: 18px; } .pr-title { font-size: 24px; margin-bottom: 18px; } }
 /* 見せる：指輪と欄が重ならないよう、PC は左に欄・右に指輪、スマホは上に指輪・下に欄 */
 .pro.presenting .gl { position: absolute; top: 0; bottom: 0; left: 40vw; right: 0; width: auto; height: auto; }
 .pr-panel { top: 50%; bottom: auto; transform: translateY(-50%); width: min(620px, 34vw); }

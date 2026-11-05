@@ -121,8 +121,8 @@ export const GEM_STUDIO: StudioSpec = LOOK.gem;
 export type MetalShade = "k18y" | "k18yg" | "k18wg" | "k18pg" | "pt900" | "sv925";
 export const METAL_COLOR: Record<MetalShade, [number, number, number]> = {
   // K18 イエロー：やわらかな金色（シャンパン色では鈍いと作者。2026-11-05）
-  k18y: [0.95, 0.78, 0.47],
-  k18yg: [0.95, 0.78, 0.47],
+  k18y: [0.97, 0.75, 0.42],
+  k18yg: [0.97, 0.75, 0.42],
   // K18 ホワイト：シルバー寄り。わずかに温かい
   k18wg: [0.88, 0.86, 0.82],
   // K18 ピンク：はっきり赤みがある

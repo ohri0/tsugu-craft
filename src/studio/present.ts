@@ -1,8 +1,10 @@
-// 見せる：お客さまや職人に見せるための全画面の表示。黒の上で指輪が回り、左下に本物の数字と職人の言葉、
+// 見せる：お客さまに見せるための全画面の表示。黒の上で指輪が回り、左下に指輪の名前と本物の数字、
 // その上に押して切り替えられる選ぶ欄（石の大きさ・腕の断面・留め方・地金）。値は組んだ指輪からだけ読む。
 // 作者の声：動画のためだけの見た目は作らない。動画に出すものはアプリでできることにする（2026-11-04）。
 
 export interface PresentInfo {
+  /** 指輪の名前（いちばん上に大きく） */
+  title?: string;
   /** 石のない指輪にはない */
   stone?: string;
   prong?: string;
@@ -26,7 +28,7 @@ const esc = (t: string) => t.replace(/[<&>"]/g, (c) => ({ "<": "&lt;", "&": "&am
 export function presentHtml(info: PresentInfo, groups: PresentGroup[], active: string): string {
   const g = groups.find((x) => x.key === active) ?? groups[0];
   const cell = (k: string, v: string, cls = "") => `<div><div class="pk">${esc(k)}</div><div class="pv ${cls}">${esc(v)}</div></div>`;
-  return `<div class="pr-tabs" role="tablist">${groups.map((x) => `<button type="button" role="tab" data-g="${x.key}" aria-selected="${x.key === g.key}">${esc(x.label)}</button>`).join("")}</div>
+  return `${info.title ? `<h2 class="pr-title">${esc(info.title)}</h2>` : ""}<div class="pr-tabs" role="tablist">${groups.map((x) => `<button type="button" role="tab" data-g="${x.key}" aria-selected="${x.key === g.key}">${esc(x.label)}</button>`).join("")}</div>
     ${g ? `<div class="pr-opt" role="group" aria-label="${esc(g.label)}">${g.options.map((o) => `<button type="button" data-g="${g.key}" data-v="${esc(o.v)}" aria-pressed="${o.v === g.on}">${esc(o.label)}</button>`).join("")}</div>` : ""}
     ${info.quote ? `<p class="pr-q">「${esc(info.quote.text)}」<small>${esc(info.quote.by)}</small></p>` : ""}
     <div class="pr-grid">${info.stone ? cell("石", info.stone) : ""}${info.prong ? cell(info.prongLabel ?? "爪", info.prong) : ""}${cell("腕", info.shank)}${cell("地金", info.metal)}${cell("号", info.gou)}${cell("確かめ", info.verdict.text, info.verdict.ok ? "ok" : "ng")}</div>`;

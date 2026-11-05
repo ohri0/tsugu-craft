@@ -680,17 +680,11 @@ let presentGroup = "stone";
 let presentPrevDisp: DisplayMode = "render";
 /** 図面を開いたまま見せるを押したか（閉じたら図面に戻す） */
 let presentPrevSheet = false;
-/** 見せるの映り込み（高画質。地金が地金を映す。力のある GPU だけ選べる） */
-function reflectGroup(): PresentGroup[] {
-  if (!viewer.canHighQuality) return [];
-  return [{ key: "reflect", label: "映り込み", options: [{ v: "normal", label: "ふつう" }, { v: "high", label: "細かく（少し重い）" }], on: viewer.highQualityOn ? "high" : "normal" }];
-}
 function presentGroups(): PresentGroup[] {
   if (kind === "band")
     return [
       { key: "section", label: "腕の断面", options: [...SECTION_LIST.map((x) => ({ v: x.id as string, label: x.label })), ...(band.kind === "free" ? [{ v: "free", label: SECTION_LABEL.free }] : [])], on: band.kind },
       { key: "metal", label: "地金", options: (["pt900", "k18yg", "k18pg", "k18wg", "sv925"] as Metal[]).map((m) => ({ v: m, label: METAL_LABEL[m] })), on: bandMetal },
-      ...reflectGroup(),
     ];
   if (!session?.built) return [];
   const s = session.state;
@@ -712,7 +706,6 @@ function presentGroups(): PresentGroup[] {
       ],
       on: s.layout === "trio" || s.layout === "row" ? s.layout : s.stones?.length ? "" : "solo",
     }] : []),
-    ...reflectGroup(),
   ];
 }
 /** 見せるの欄を描いて、押せるようにする */
@@ -734,6 +727,7 @@ function renderPresent() {
     return showPresentPanel(
       presentHtml(
         {
+          title: filming() ? undefined : `${sectionWord(band)}の指輪`,
           shank: `${sectionWord(band)} ${sizeWord(band)}`,
           metal: `${band.metalLabel} ・ 約 ${bandWeight.toFixed(1)} g`,
           gou: `${band.gou} 号（内径 ${bandInnerDiameter(band.gou).toFixed(1)} mm）`,
@@ -752,6 +746,7 @@ function renderPresent() {
   const rule = st.tension ? activeRules(store.ledger()).find((x) => x.id === TENSION_RULE_ID) : craftRuleFor("prong-thin");
   const html = presentHtml(
     {
+      title: filming() ? undefined : `${stone.shapeName}の${st.style === "bezel" ? "覆輪の" : st.tension ? "テンションの" : ""}指輪`,
       stone: `${stone.shapeName} ${session.stone.longMm.toFixed(2)} × ${session.stone.widthMm.toFixed(2)} mm${r.stones.length > 1 ? ` ほか ${r.stones.length - 1} 石` : ""}`,
       prongLabel: st.tension ? "留め方" : undefined,
       prong: st.tension ? tensionWord(st) : st.style === "bezel" ? `覆輪 ・ 壁 ${st.bezel?.wallMm.toFixed(2)} mm` : `ø ${st.prongs[0]?.diameterMm.toFixed(2)} mm × ${st.prongs.length}`,
@@ -759,7 +754,8 @@ function renderPresent() {
       metal: `${METAL_LABEL[session.state.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g`,
       gou: `${session.state.gou} 号（内径 ${(r.shank.innerRadiusMm * 2).toFixed(1)} mm）`,
       verdict: { ok: n === 0, text: n === 0 ? (tensionCautionsOf(b).length ? `職人に聞く ${tensionCautionsOf(b).length}` : "作れます") : `作れない所 ${n}` },
-      quote: rule?.quote ? { text: rule.quote, by: `${masterName(store.ledger())} ・ ${bookTitle(bookLabel(store.ledger()))}` } : undefined,
+      // 職人の言葉は、撮影のときだけ（お客さまに見せる画面に、帳面の話は要らない。2026-11-05 作者）
+      quote: filming() && rule?.quote ? { text: rule.quote, by: `${masterName(store.ledger())} ・ ${bookTitle(bookLabel(store.ledger()))}` } : undefined,
     },
     presentGroups(),
     presentGroup,
@@ -768,10 +764,6 @@ function renderPresent() {
 }
 function presentPick(g: string, v: string) {
   presentGroup = g;
-  if (g === "reflect") {
-    void viewer.setHighQuality(v === "high");
-    return renderPresent();
-  }
   if (kind === "band") {
     if (g === "section" && v !== "free") band = pickSection(band, v as PresetKind);
     if (g === "metal") setBandMetal(v as Metal);
