@@ -92,8 +92,8 @@ export function howToMake(o: HowToInput, method: Method): Step[] {
   return settings.some((st) => st.prongTip === "oni") ? list.map(oniStep) : list;
 }
 
-/** 鬼爪の言い方（作り方の中の「先を丸くする」を、尖らせる言い方に）。数字は足さない */
-const ONI_WORDS = "鬼爪（先が尖り、石の上に少しかかる形）";
+/** 尖り爪の言い方（作り方の中の「先を丸くする」を、尖らせる言い方に）。数字は足さない */
+const ONI_WORDS = "尖り爪（先が尖り、石の上に少しかかる形）";
 function oniStep(s: Step): Step {
   if (s.id !== "prong" && s.id !== "finish") return s;
   return {
@@ -310,7 +310,7 @@ function soloSteps(o: HowToInput, method: Method): Step[] {
         ]
       : m.prongWire
         ? [
-            { label: "爪", value: `${s.prongs.length} か所${m.prongWire.vCount ? `（うち V 字 ${m.prongWire.vCount}）` : ""}${s.prongTip === "oni" ? " ・ 鬼爪" : ""}` },
+            { label: "爪", value: `${s.prongs.length} か所${m.prongWire.vCount ? `（うち V 字 ${m.prongWire.vCount}）` : ""}${s.prongTip === "oni" ? " ・ 尖り爪" : ""}` },
             { label: "爪の線材", value: `ø ${mm(m.prongWire.diameter, 2)} × ${m.prongWire.count} 本 ・ 1 本 約 ${mm(m.prongWire.length)}` },
           ]
         : [];

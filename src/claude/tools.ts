@@ -122,7 +122,7 @@ export interface SetSettingInput {
   orientation?: Orientation;
   /** 石座と腕の付け方（爪留めだけ） */
   join?: Join;
-  /** 爪の先の形（爪留めだけ）。round＝丸い爪、oni＝鬼爪 */
+  /** 爪の先の形（爪留めだけ）。round＝丸い爪、oni＝尖り爪 */
   prong_tip?: ProngTipChoice;
   /** テンションの挟む向き（テンションだけ） */
   tension_grip?: TensionGripChoice;
@@ -473,7 +473,7 @@ export const TOOLS: ClaudeTool[] = [
           type: "string",
           enum: ["round", "oni"],
           description:
-            "爪の先の形（爪留めのときだけ）。省くと今のまま（はじめは工房の帳面のベーシックの形）。round＝丸い爪（シンプル。先を丸める）、oni＝鬼爪（先が尖り、石の上に少しかかる。シャープな見た目）。太さとは別に選ぶ。鬼爪の尖り具合の数字は仮の目安で、最後は職人が決める",
+            "爪の先の形（爪留めのときだけ）。省くと今のまま（はじめは工房の帳面のベーシックの形）。round＝丸い爪（シンプル。先を丸める）、oni＝尖り爪（先が尖り、石の上に少しかかる。シャープな見た目）。太さとは別に選ぶ。尖り爪の尖り具合の数字は仮の目安で、最後は職人が決める",
         },
         join: {
           type: "string",

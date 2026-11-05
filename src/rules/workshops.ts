@@ -68,7 +68,7 @@ export function setBasics(ledger: Ledger, basics: LedgerBasics): Ledger {
 }
 
 /**
- * 見本の工房（工房 B）を足して、それを使う帳面にする。爪は細め（GUIDES.prong.sampleWorkshop）で鬼爪。
+ * 見本の工房（工房 B）を足して、それを使う帳面にする。爪は細め（GUIDES.prong.sampleWorkshop）で尖り爪。
  * 太さが例のとおりになるよう「角が 3 つの石は角に 3 本で留まる」も入れる（入れないと、留まりが足りず太くなる）。すでにあれば、それを使うだけ
  */
 export function addSampleWorkshop(ws: Workshops, seed: Ledger, date: string): Workshops {

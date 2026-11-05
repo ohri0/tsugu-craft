@@ -1,4 +1,4 @@
-// 鬼爪（先が尖り、石の上に少しかかる爪。作者が確かめた形 2026-11-05）と、工房のベーシックの雰囲気
+// 尖り爪（先が尖り、石の上に少しかかる爪。作者が確かめた形 2026-11-05）と、工房のベーシックの雰囲気
 import { describe, expect, it } from "vitest";
 import { openEdges } from "../src/cad/solid";
 import { parseToolCall } from "../src/claude/tools";
@@ -98,7 +98,7 @@ function overlapAt(stone: StoneParams, s: ReturnType<typeof buildSetting>): numb
   });
 }
 
-describe("鬼爪の形", () => {
+describe("尖り爪の形", () => {
   for (const id of ["round", "pear", "marquise", "princess"]) {
     for (const join of ["between", "on"] as const) {
       const stone = stoneOf(id);
@@ -141,7 +141,7 @@ describe("鬼爪の形", () => {
       expect(openEdges(s.positions.subarray(r.start * 9, (r.start + r.count) * 9))).toBe(0);
     }
   });
-  it("V 字の爪は、鬼爪を選んでも V 字のまま作れる", () => {
+  it("V 字の爪は、尖り爪を選んでも V 字のまま作れる", () => {
     const s = buildSetting({ stone: stoneOf("pear"), style: "prong", vAtCorners: true, join: "on", prongTip: "oni", solid: true, solidQuality: "preview" });
     expect(s.prongs.some((p) => p.isV)).toBe(true);
     expect(openEdges(s.positions)).toBe(0);
@@ -169,7 +169,7 @@ describe("工房のベーシックの雰囲気", () => {
   const main = seedLedger();
   const sampleLedger = () => addSampleWorkshop(emptyWorkshops(), seedLedger(), today).list[0];
 
-  it("見本の工房 B：印が付き、三角の石で 爪 ø 1 mm くらい・鬼爪・作れない所なし", () => {
+  it("見本の工房 B：印が付き、三角の石で 爪 ø 1 mm くらい・尖り爪・作れない所なし", () => {
     const w = sampleLedger();
     expect(w.sample).toBe(true);
     expect(w.name).toBe(GUIDES.prong.sampleWorkshop.name);
@@ -221,16 +221,16 @@ describe("工房のベーシックの雰囲気", () => {
   });
 });
 
-describe("鬼爪：Claude の道具・MCP・手順の言葉", () => {
+describe("尖り爪：Claude の道具・MCP・手順の言葉", () => {
   it("set_setting の prong_tip：round と oni だけ通す", () => {
     expect(parseToolCall("set_setting", { prong_tip: "oni", reason: "シャープに" }).ok).toBe(true);
     expect(parseToolCall("set_setting", { prong_tip: "round", reason: "シンプルに" }).ok).toBe(true);
     expect(parseToolCall("set_setting", { prong_tip: "star", reason: "x" }).ok).toBe(false);
   });
   it("作業の記録の言葉になる", () => {
-    expect(toolLogLine({ tool: "set_setting", input: { prong_tip: "oni", reason: "x" }, ok: true }, {}).text).toContain("爪の形 鬼爪");
+    expect(toolLogLine({ tool: "set_setting", input: { prong_tip: "oni", reason: "x" }, ok: true }, {}).text).toContain("爪の形 尖り爪");
   });
-  it("手順：丸い爪は今のまま。鬼爪は「丸くする」と書かない。新しい数字を足さない", () => {
+  it("手順：丸い爪は今のまま。尖り爪は「丸くする」と書かない。新しい数字を足さない", () => {
     const input = (prongTip: "round" | "oni") => {
       const stone = trillion();
       return { ring: buildRing(params(stone, { prongTip })), outlineMm: stone.outlineMm, longMm: stone.longMm, widthMm: stone.widthMm, depthMm: stone.depthMm, metalLabel: "K18" };
@@ -239,13 +239,13 @@ describe("鬼爪：Claude の道具・MCP・手順の言葉", () => {
       const round = howToMake(input("round"), m);
       const oni = howToMake(input("oni"), m);
       const text = (l: typeof round) => JSON.stringify(l);
-      expect(text(round)).not.toContain("鬼爪");
+      expect(text(round)).not.toContain("尖り爪");
       expect(text(round)).toContain("先をヤスリで丸くして");
-      expect(text(oni)).toContain("鬼爪");
+      expect(text(oni)).toContain("尖り爪");
       expect(text(oni)).not.toContain("先をヤスリで丸くして");
       expect(text(oni)).not.toContain("爪の先を丸め");
       // 足した言葉に数字がない
-      const added = oni.flatMap((s) => s.details ?? []).find((d) => d.text.includes("鬼爪"))!;
+      const added = oni.flatMap((s) => s.details ?? []).find((d) => d.text.includes("尖り爪"))!;
       expect(added.text).not.toMatch(/\d/);
     }
   });

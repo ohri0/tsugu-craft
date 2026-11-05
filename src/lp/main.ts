@@ -132,9 +132,9 @@ const html = `
     <h2 id="book-h" class="v book-h rv">決まりは、<br>工房ごとに持てます。</h2>
     <div class="book-two">
       <figure class="rv">${shot("book-a", 2000, 2000, "石川工房の帳面で組んだ指輪。細い丸い爪で、シンプルに見える", "(max-width: 760px) 92vw, 46vw")}<figcaption><b>石川工房</b><span>丸い爪 ø <span class="num">0.80</span> mm</span></figcaption></figure>
-      <figure class="rv">${shot("book-b", 2000, 2000, "見本の工房 B の帳面で組んだ指輪。先が尖って石の上に少しかかる鬼爪で、シャープに見える", "(max-width: 760px) 92vw, 46vw")}<figcaption><b>工房 B（見本）</b><span>鬼爪 ø <span class="num">1.00</span> mm</span></figcaption></figure>
+      <figure class="rv">${shot("book-b", 2000, 2000, "見本の工房 B の帳面で組んだ指輪。先が尖って石の上に少しかかる尖り爪で、シャープに見える", "(max-width: 760px) 92vw, 46vw")}<figcaption><b>工房 B（見本）</b><span>尖り爪 ø <span class="num">1.00</span> mm</span></figcaption></figure>
     </div>
-    <p class="book-n rv">同じ石・同じ号で、帳面だけを変えて撮りました。帳面には、爪の形や太さといった、工房のいつもの雰囲気も入ります。あとで直せます。工房 B は見本の工房で、鬼爪（先が尖り、石の上に少しかかる爪）と太さは例です。数字は目安・最後は職人が決めます。</p>
+    <p class="book-n rv">同じ石・同じ号で、帳面だけを変えて撮りました。帳面には、爪の形や太さといった、工房のいつもの雰囲気も入ります。あとで直せます。工房 B は見本の工房で、尖り爪（先が尖り、石の上に少しかかる爪）と太さは例です。数字は目安・最後は職人が決めます。</p>
   </section>
 
   ${door(1, "design", "デザインする人へ", `<figure class="door-draw">${shot("draw-views", 1460, 660, "継ぐが描いた図面の一部。指輪の正面図・側面図・上面図と寸法", "(max-width: 760px) 92vw, 56vw")}</figure>`)}

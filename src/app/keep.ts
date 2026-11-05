@@ -57,7 +57,7 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
     <header class="view-head">
       <div class="keep-name"><h2 class="keep-title"></h2><button type="button" class="linklike rename">名前を変える</button><label class="ws-switch" hidden><span>帳面を切り替える</span><select aria-label="使う帳面"></select></label></div>
       <p class="lead">${flowUI() ? "決まりは、技ごとに残ります。" : "工房の決まり。設計の確かめと、学ぶ人への答えに使います。"}</p>
-      <div class="keep-basics"><span>この工房のベーシック：爪の形</span><div class="seg-b" role="group" aria-label="爪の形（工房の既定）"><button type="button" data-tip="round">丸い爪</button><button type="button" data-tip="oni">鬼爪</button></div><small class="keep-basics-n"></small></div>
+      <div class="keep-basics"><span>この工房のベーシック：爪の形</span><div class="seg-b" role="group" aria-label="爪の形（工房の既定）"><button type="button" data-tip="round">丸い爪</button><button type="button" data-tip="oni">尖り爪</button></div><small class="keep-basics-n"></small></div>
     </header>
     ${flowUI() ? `<ul class="book-techs"></ul><h3 class="pub-sec-h book-ring-h">指輪の石留めの決まり <small>設計の確かめにも使います</small></h3>` : ""}
     <div class="block ask-card iv-card" hidden></div>
