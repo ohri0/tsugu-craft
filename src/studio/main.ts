@@ -134,7 +134,7 @@ app.innerHTML = `
         </div>
       </section>
       <section class="sec band-only" hidden><h4>形</h4><div class="band-ctrl"></div></section>
-      <section class="sec solitaire-only"><h4>石<button type="button" class="shoot-help-btn" aria-label="石の写真の撮り方">？</button></h4>
+      <section class="sec solitaire-only"><h4>石<button type="button" class="shoot-help-btn" aria-label="石の写真の撮り方">?</button></h4>
         <div class="shoot-help" hidden>
           <b>石の写真の撮り方</b>
           <ol>
@@ -1388,6 +1388,8 @@ function switchLedger(id: string) {
   toast(`${label}で確かめ直しました`);
 }
 const ASK_LATER_KEY = "tsugu.askLater";
+/** 今見せている質問の順番（「次の質問」で進む） */
+let askIndex = 0;
 
 /**
  * Claude が聞きに来る：確かめる場面で、今の設計に関わる「帳面に足りない所」を 1 つ出す（2026-11-05 作者：帳面まで見に行くのは遠い）。
@@ -1396,20 +1398,51 @@ const ASK_LATER_KEY = "tsugu.askLater";
 function askNudgeHtml(b: Built): string {
   const q = new URLSearchParams(location.search);
   if (q.has("rec") && !q.has("ask")) return "";
+  const gaps = ringGaps(store.ledger());
+  if (!gaps.length) return "";
+  let later = false;
   try {
-    if (sessionStorage.getItem(ASK_LATER_KEY)) return "";
+    later = !!sessionStorage.getItem(ASK_LATER_KEY);
   } catch {
     /* 読めなければ、出す */
   }
-  const gaps = ringGaps(store.ledger());
-  if (!gaps.length) return "";
+  // 「あとで」のあとも消さない：数と「見る」を残す。暇なときに答え続けられるように（2026-11-05 作者）
+  if (later) return `<button type="button" class="ghost-d ask-again">Claude から質問が ${gaps.length} 個あります ・ 見る</button>`;
   const size = stoneSizeMm(b.ring.params.stone.longMm, b.ring.params.stone.widthMm);
   const near = gaps
     .filter((g) => g.stoneMm !== undefined && Math.abs(g.stoneMm - size) <= 1.5)
-    .sort((x, y) => Math.abs(x.stoneMm! - size) - Math.abs(y.stoneMm! - size))[0];
-  const g = near ?? gaps[0];
-  const why = near ? `この指輪の石（${size.toFixed(1)} mm）に近い大きさの決まりが、帳面に足りません。` : "帳面に足りない所があります。";
-  return `<section class="ask-nudge"><small>Claude から質問</small><b>${esc(g.question)}</b><p>${why}</p><div class="row"><a class="primary" href="app.html#ledger/ask?gap=${encodeURIComponent(g.id)}">答える</a><button type="button" class="ghost-d ask-later">あとで</button></div></section>`;
+    .sort((x, y) => Math.abs(x.stoneMm! - size) - Math.abs(y.stoneMm! - size));
+  const ordered = [...near, ...gaps.filter((g) => !near.includes(g))];
+  const g = ordered[askIndex % ordered.length];
+  const isNear = near.includes(g);
+  const why = isNear ? `この指輪の石（${size.toFixed(1)} mm）に近い大きさの決まりが、帳面に足りません。` : "帳面に足りない所があります。";
+  const next = ordered.length > 1 && !q.has("rec") ? `<button type="button" class="ghost-d ask-next">次の質問（${(askIndex % ordered.length) + 1} / ${ordered.length}）</button>` : "";
+  return `<section class="ask-nudge"><small>Claude から質問</small><b>${esc(g.question)}</b><p>${why}</p><div class="row"><a class="primary" href="app.html#ledger/ask?gap=${encodeURIComponent(g.id)}">答える</a><button type="button" class="ghost-d ask-later">あとで</button>${next}</div></section>`;
+}
+
+/** 質問の札の押す所をつなぐ（札を入れ替えたあとも、もう一度呼ぶ） */
+function wireAskNudge(box: HTMLElement, b: Built) {
+  const swap = () => {
+    const el = box.querySelector(".ask-nudge, .ask-again");
+    if (!el) return;
+    el.outerHTML = askNudgeHtml(b);
+    wireAskNudge(box, b);
+  };
+  const setLater = (on: boolean) => {
+    try {
+      if (on) sessionStorage.setItem(ASK_LATER_KEY, "1");
+      else sessionStorage.removeItem(ASK_LATER_KEY);
+    } catch {
+      /* 覚えられなくても、今は入れ替える */
+    }
+    swap();
+  };
+  box.querySelector(".ask-later")?.addEventListener("click", () => setLater(true));
+  box.querySelector(".ask-again")?.addEventListener("click", () => setLater(false));
+  box.querySelector(".ask-next")?.addEventListener("click", () => {
+    askIndex += 1;
+    swap();
+  });
 }
 
 function workshopTable(): string {
@@ -1736,14 +1769,7 @@ function renderCheck() {
   box.querySelector(".compare-btn")?.addEventListener("click", () => setCompare(true));
   box.querySelector(".sweep-btn")?.addEventListener("click", () => openSweep());
   box.querySelector(".compare-back")?.addEventListener("click", () => setCompare(false));
-  box.querySelector(".ask-later")?.addEventListener("click", () => {
-    try {
-      sessionStorage.setItem(ASK_LATER_KEY, "1");
-    } catch {
-      /* 覚えられなくても、今は閉じる */
-    }
-    box.querySelector(".ask-nudge")?.remove();
-  });
+  wireAskNudge(box, b);
   box.querySelector(".past-fix")?.addEventListener("click", () => {
     if (askConfirm("今の設計と、これまでの作品を、まとめて直しますか？\n爪の太さなどが変わります。")) fixPastWorks();
   });
