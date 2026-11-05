@@ -23,11 +23,14 @@ const recheck = (later: Ledger) =>
   });
 
 describe("見本の作品", () => {
-  it("どの見本も、よくある形の石から組め、今の目安では作れる形から始まる", () => {
+  it("どの見本も、よくある形の石から組める。細い爪の見本のほかは、今の目安で作れる形から始まる", () => {
     for (const d of SAMPLE_DESIGNS) {
       expect(sampleStone(d.preset).stone.outlineMm.length).toBeGreaterThan(3);
     }
-    expect(build(seedLedger())).toEqual(SAMPLE_DESIGNS.map(() => 0));
+    const thin = SAMPLE_DESIGNS.findIndex((d) => d.label === "細い爪");
+    const n = build(seedLedger());
+    expect(n[thin]).toBeGreaterThan(0);
+    expect(n.filter((_x, i) => i !== thin)).toEqual(SAMPLE_DESIGNS.slice(1).map(() => 0));
   });
   it("職人が「指の上は 2.5 mm 空ける」と決めると、作れなくなる見本と、作れるままの見本が混ざる", () => {
     const strict = addRule(seedLedger(), { title: "すき間", text: "2.5 mm", reason: "汗", param: "height.minFingerGapMm", value: 2.5, source: { kind: "craftsman", name: "石川" }, date: "2026-11-03" });
@@ -35,13 +38,13 @@ describe("見本の作品", () => {
     expect(n.some((x) => x > 0)).toBe(true);
     expect(n.some((x) => x === 0)).toBe(true);
   });
-  it("職人が「爪は最低 0.7 mm」と決めると、小粒の見本だけ、爪が細くて留まりが弱いと分かる（記録の爪は勝手に太くならない）", () => {
+  it("職人が「爪は最低 0.7 mm」と決めると、細い爪の見本（6 mm の石に 0.6 mm）だけ、爪が細いと分かる（記録の爪は勝手に太くならない）", () => {
     const prong = addRule(seedLedger(), { title: "爪の太さ", text: "最低 0.7 mm", reason: "細すぎると曲がって石が落ちる", param: "prong.minDiameterMm", value: 0.7, source: { kind: "craftsman", name: "工房 B" }, date: "2026-11-05" });
     const r = recheck(prong);
-    const small = SAMPLE_DESIGNS.findIndex((d) => d.label === "小粒");
+    const small = SAMPLE_DESIGNS.findIndex((d) => d.label === "細い爪");
     expect(r[small]).toContain("prong-thin");
     expect(r.filter((_x, i) => i !== small).every((x) => x.length === 0)).toBe(true);
-    expect(sampleStone("round", 3.5).stone.longMm).toBeCloseTo(3.5);
+    expect(sampleStone("round", 6).stone.longMm).toBeCloseTo(6);
   });
   it("見本は見本と分かる", () => {
     expect(isSample({ maker: "見本" })).toBe(true);

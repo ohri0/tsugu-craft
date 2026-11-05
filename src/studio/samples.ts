@@ -24,8 +24,8 @@ export const SAMPLE_DESIGNS: SampleDesign[] = [
   { preset: "pear", label: "低めの石座", state: { height: "low", gou: 13 } },
   { preset: "marquise", label: "細身", state: { height: "standard", gou: 10 } },
   { preset: "emerald", label: "高めの石座", state: { height: "high", gou: 12, culetGapMm: 2.8 } },
-  // 小粒：公開の目安では作れるが、爪は 0.6 mm ほど。職人の「爪は最低 0.7 mm」で、細くて留まりが弱いと分かる
-  { preset: "round", label: "小粒", sizeMm: 3.5, state: { height: "standard", gou: 10 } },
+  // 細い爪：6 mm の石に爪 0.6 mm。職人の言葉では、0.6 mm はメレ（ごく小さい石）の太さで、この大きさなら 0.7 mm は要る（2026-11-05）
+  { preset: "round", label: "細い爪", sizeMm: 6, state: { height: "standard", gou: 10, prongMm: 0.6 } },
 ];
 
 export function sampleStone(id: StonePreset["id"], sizeMm?: number): { preset: StonePreset; stone: StoneParams } {
@@ -51,6 +51,8 @@ export function outlineThumb(stone: StoneParams, size = 96): string {
 
 /** 留まりと爪の太さが今の目安に通るまで、爪を少しずつ太くする（見本は「今の決まりでは作れる」形から始める） */
 export function tuneSample(s: RingSession): void {
+  // 爪の太さを決めてある見本は、そのまま（細い爪の見本は、細いことを見つけるためにある）
+  if (s.state.prongMm !== undefined) return;
   for (let i = 0; i < 6; i++) {
     const b = s.build("見本の爪の太さ");
     if (!b.problems.some((p) => p.check === "hold" || p.check === "prong-thin")) return;
