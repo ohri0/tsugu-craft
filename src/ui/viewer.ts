@@ -16,6 +16,7 @@ import { COLORED_IOR, COLORLESS_IOR, gemMaterial, type GemQuality, type GemShare
 import { Glow } from "./glow";
 import type { MetalTrace } from "./metal-trace";
 import { GEM_STUDIO, METAL_STUDIO, studioLightScene } from "./studio-light";
+import { guardBufferUploads } from "./gl-upload";
 import { gridSpacing, labelStep, VIEW_DIR, ViewCameras, type FlatViewInfo, type ViewName } from "./view-camera";
 
 export type DisplayMode = "render" | "shaded" | "wire";
@@ -103,10 +104,23 @@ export class Viewer {
   private trace: MetalTrace | null = null;
   private highQuality = false;
 
+  /** 形の配列が GPU へ正しく届かず、3D の絵が乱れているか（数字と STL は正しい） */
+  drawFault = false;
+  private faultListeners: (() => void)[] = [];
+  /** 3D の絵が乱れたときに呼ぶ（壊れた絵のまま「作れます」と出さないため） */
+  onDrawFault(f: () => void) {
+    this.faultListeners.push(f);
+  }
+
   constructor(private host: HTMLElement) {
     // 2 つの GPU がある端末では、強い方で描く
     this.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, powerPreference: "high-performance" });
     this.quality = quality(this.renderer.getContext());
+    // Mac の Safari で 1 MiB より大きい形が崩れないよう、小さく分けて GPU へ送る（gl-upload.ts）
+    guardBufferUploads(this.renderer.getContext() as WebGL2RenderingContext, () => {
+      this.drawFault = true;
+      for (const f of this.faultListeners) f();
+    });
     this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
     // 金の色が転ばないよう、色をそのまま保つ写し方にする
     this.renderer.toneMapping = THREE.NeutralToneMapping;
