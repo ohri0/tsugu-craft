@@ -166,6 +166,7 @@ const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySele
 // ---- 3D ----
 const viewer = new Viewer($(".gl"));
 viewer.setDark(true);
+viewer.wireArm = !filming();
 
 // ---- 寸法の線と軸の印（3D を描き直すたびに合わせる） ----
 let dims: Dim[] = [];

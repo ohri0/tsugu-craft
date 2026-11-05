@@ -156,6 +156,9 @@ export class Viewer {
     return this.live?.lift ?? 0;
   }
 
+  /** ワイヤーで腕も網目で見せるか（撮影では前の見た目のまま） */
+  wireArm = true;
+
   /** 赤い所（作れない所）を押したときに呼ぶ */
   private warnListeners: (() => void)[] = [];
   onWarnClick(f: () => void) {
@@ -262,7 +265,8 @@ export class Viewer {
         continue;
       }
       const stone = isStone(ud.render);
-      const wireSmooth = this.mode === "wire" && !!o.geometry.userData.smooth && !stone;
+      // 腕も網目で見せる（折れ目の線だけだと内側の 2 本の輪しか出ず、石座が浮いて見えた）
+      const wireSmooth = this.mode === "wire" && (!!o.geometry.userData.smooth || (this.wireArm && !!ud.arm)) && !stone;
       // 線が見える時だけ作る（シェードの地金は線を出さないので作らない。腕を描き直すたびに作ると重い）
       const needEdges = (this.mode === "shaded" && stone) || (this.mode === "wire" && !wireSmooth);
       if (!ud.edges && needEdges) {
@@ -292,7 +296,8 @@ export class Viewer {
       } else {
         // ワイヤー：なめらかな形（一体の石座・腕）は折れ目がほとんどなく線が出ないので、網目そのものを細い線で見せる
         if (wireSmooth) {
-          if (!ud.wire) ud.wire = new THREE.MeshBasicMaterial({ color: this.darkOn ? 0x2a2b2e : 0xd8d8dc, wireframe: true, transparent: true, opacity: 0.22 });
+          // 腕は三角が細かく、石座と同じ濃さだと塗りつぶしに見えるので、薄く
+          if (!ud.wire) ud.wire = new THREE.MeshBasicMaterial({ color: this.darkOn ? 0x2a2b2e : 0xd8d8dc, wireframe: true, transparent: true, opacity: ud.arm ? 0.07 : 0.22 });
           o.material = ud.wire;
           o.visible = true;
           if (edges) edges.visible = false;
@@ -425,7 +430,9 @@ export class Viewer {
   setMetalMesh(positions: Float32Array, metal: MetalId, kind = "metal") {
     this.clear();
     const mat = new THREE.MeshPhysicalMaterial({ color: METAL_COLOR[metal], metalness: 1, roughness: 0.1, envMapIntensity: 1.0, side: THREE.DoubleSide });
-    this.content.add(new THREE.Mesh(metalGeometry(positions), mat));
+    const armMesh = new THREE.Mesh(metalGeometry(positions), mat);
+    armMesh.userData.arm = true;
+    this.content.add(armMesh);
     this.applyMode();
     this.frame(kind, new THREE.Vector3(0.95, -1.15, 0.55));
     this.updateShadow();
@@ -486,6 +493,7 @@ export class Viewer {
     if (cursor < total) settingGeo.addGroup(cursor * 3, (total - cursor) * 3, 0);
     const setting = new THREE.Mesh(settingGeo, [metal, warn]);
     const shank = new THREE.Mesh(metalGeometry(ring.ringPositions.shank), badShank ? warn : metal);
+    shank.userData.arm = true;
     setting.position.z = lift;
     shank.position.z = lift;
     this.content.add(setting, shank);
