@@ -936,7 +936,7 @@ def render_senior3(clip, tl):
 
 
 def render_senior5(clip, tl):
-    """工房（最終案 5、作者の声：分かりやすく）：新人が継ぐに「順番は？」「何 mm？」と聞き、継ぐが答える。
+    """工房（最終案 5、作者の声：分かりやすく）：新人が継ぐに「手順は？」「何 mm？」と聞き、継ぐが答える。
     先輩は手を止めずに打ち続け、教えるのは「手の感じ」だけ"""
     ow, oh = OUT
     P = Pad(ow, oh, clip.get("bg", C3["bg"]))
@@ -961,11 +961,11 @@ def render_senior5(clip, tl):
     ex, ey = hx + L_ * math.cos(ang - 0.4), hy + L_ * math.sin(ang - 0.4)
     P.line([(hx, hy), (ex, ey)], C3["gold"], appear, 6)
     P.line([(ex - 16 * math.sin(ang - 0.4), ey + 16 * math.cos(ang - 0.4)), (ex + 16 * math.sin(ang - 0.4), ey - 16 * math.cos(ang - 0.4))], C3["gold"], appear, 12)
-    # 新人 → 継ぐ：順番は？ 何 mm？ → 継ぐが答える
+    # 新人 → 継ぐ：手順は？ 何 mm？ → 継ぐが答える
     a1 = _ap(tl, q1 - 0.3, 0.4)
     if a1 > 0:
         P.arrow(jx - 26, jy - 64, gx - 26, gy + 60, C3["gray"], a1, 3)
-        P.text(jx - 60, (jy + gy) / 2 - 24, "順番は？", S3, C3["white"], _ap(tl, q1, 0.4), "g6", "rm")
+        P.text(jx - 60, (jy + gy) / 2 - 24, "手順は？", S3, C3["white"], _ap(tl, q1, 0.4), "g6", "rm")
         P.text(jx - 60, (jy + gy) / 2 + 26, "何 mm？", S3, C3["white"], _ap(tl, q2, 0.4), "g6", "rm")
     a2 = _ap(tl, ans, 0.5)
     if a2 > 0:
