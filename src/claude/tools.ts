@@ -80,6 +80,8 @@ export type HeightChoice = keyof typeof GUIDES.height.options;
 export type Orientation = "along" | "across";
 /** 石座と腕の付け方：on＝腕の上にのせる、between＝腕の間に挟む */
 export type Join = "on" | "between";
+/** テンションの挟む向き：short＝狭い幅を挟む、long＝長い向きを挟む、corner＝向かい合う角をくぼみに */
+export type TensionGripChoice = "short" | "long" | "corner";
 export type Metal = "pt900" | "k18yg" | "k18wg" | "k18pg" | "sv925";
 export type View = "top" | "side" | "front" | "angle";
 
@@ -95,6 +97,8 @@ export interface SetSettingInput {
   orientation?: Orientation;
   /** 石座と腕の付け方（爪留めだけ） */
   join?: Join;
+  /** テンションの挟む向き（テンションだけ） */
+  tension_grip?: TensionGripChoice;
   reason: string;
 }
 
@@ -197,8 +201,19 @@ export interface SettingState {
   /** 尖った角を V 字の爪で包む設定か */
   v_corners: boolean;
   height: HeightChoice;
-  /** テンションのとき：図面の開き（mm）と、両はしの深さ（mm）。pit＝角のくぼみ、groove＝辺の溝 */
-  tension?: { gap_mm: number; ends: { kind: "pit" | "groove"; depth_mm: number }[] };
+  /**
+   * テンションのとき：図面の開き（mm）と、両はしの深さ（mm。pit＝角のくぼみ、groove＝辺の溝）、挟む向きと選べる向き、
+   * 石の入れ方（形から決まる動き）、横に止める物がないか、腕の幅の外へ出る長さ（片側 mm）
+   */
+  tension?: {
+    gap_mm: number;
+    ends: { kind: "pit" | "groove"; depth_mm: number }[];
+    grip: TensionGripChoice;
+    grips: TensionGripChoice[];
+    insert: string;
+    no_side_stop: boolean;
+    overhang_mm: number;
+  };
   orientation: Orientation;
   /** 石座と腕の付け方 */
   join: Join;
@@ -261,6 +276,35 @@ export interface CheckResult {
   /** 確かめて問題がなかった項目 */
   passed: string[];
   note: string;
+  /**
+   * テンションのとき：地金ごとの大まかな計算（どれだけ小さめに作り、どれだけ広げて入れるか。合否にしない・最後は職人が決める）。
+   * 作れない所ではないが伝えること（cautions）も入れる
+   */
+  tension_calc?: {
+    state: "hardened" | "annealed";
+    state_label: string;
+    stone_span_mm: number | null;
+    gap_mm: number | null;
+    need_mm: number | null;
+    need: string;
+    can_slide: boolean;
+    metals: {
+      metal: string;
+      provisional: boolean;
+      limit_mm: number | null;
+      limit_thick_ring_mm: number | null;
+      verdict: "room" | "tight" | "short";
+      smaller_by_mm: number | null;
+      smaller_by_max_mm: number | null;
+      make_gap_mm: number | null;
+      spread_mm: number | null;
+      grip_mm: number | null;
+      stays_bent_mm: number | null;
+      slide_smaller_by_mm: number | null;
+    }[];
+    note: string;
+    cautions: { title: string; text: string }[];
+  };
 }
 
 export interface LookResult {
@@ -360,7 +404,7 @@ export const TOOLS: ClaudeTool[] = [
           type: "string",
           enum: ["prong", "bezel", "tension"],
           description:
-            `留め方。prong＝爪留め、bezel＝覆輪（石の縁をぐるりと壁で包む。いちばん取れにくいが、見た目が大きく変わる）、tension＝テンション（開いた腕の両はしで石を挟む。三角の石は、片方の端のくぼみに角の先を ${GUIDES.tension.cornerPitMm} mm、もう片方の端の溝に辺を ${GUIDES.tension.edgeGrooveMm} mm 入れる。職人の値。腕は φ${GUIDES.tension.wireMm} mm の丸線に替わる。地金は加工硬化した硬い状態が条件。爪・高さ・向きの項目は使わない）`,
+            `留め方。prong＝爪留め、bezel＝覆輪（石の縁をぐるりと壁で包む。いちばん取れにくいが、見た目が大きく変わる）、tension＝テンション（開いた腕の両はしで石を挟む。三角の石は、片方の端のくぼみに角の先を ${GUIDES.tension.cornerPitMm} mm、もう片方の端の溝に辺を ${GUIDES.tension.edgeGrooveMm} mm 入れる。職人の値。腕は φ${GUIDES.tension.wireMm} mm の丸線に替わる。地金は加工硬化した硬い状態が条件。爪・高さ・向きの項目は使わない。挟む向きは tension_grip。check の tension_calc に、地金ごとの大まかな計算がある）`,
         },
         prong_positions: {
           type: "array",
@@ -386,6 +430,12 @@ export const TOOLS: ClaudeTool[] = [
           type: "string",
           enum: ["along", "across"],
           description: "石の向き。along＝長辺を指に沿って縦、across＝長辺を指を横切る向きに",
+        },
+        tension_grip: {
+          type: "string",
+          enum: ["short", "long", "corner"],
+          description:
+            "テンションで石のどこを挟むか（テンションのときだけ。石の形で選べないものは、自動で short になる）。short＝いちばん狭い幅を挟む（長い向きは腕の幅の外へ出る）、long＝長い向きを挟む（短い辺や丸い端を溝に。開きは広くなる）、corner＝向かい合う 2 つの角をくぼみに（横にずれないが、挟む力が角の先にかかる）",
         },
         join: {
           type: "string",

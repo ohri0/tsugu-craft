@@ -1,6 +1,6 @@
 // 今の設計をタブの間だけ残す（2026-11-05 点検：読み直し・帳面へ行って戻ると設計が消えていた）
 import { describe, expect, it } from "vitest";
-import { clearDesign, introSeen, loadDesign, loadPhotoUrl, markIntroSeen, saveDesign, savePhoto, type KeptDesign } from "../src/studio/keep-design";
+import { clearDesign, introSeen, loadDesign, loadImportedPhotoUrl, loadPhotoUrl, markIntroSeen, saveDesign, saveImportedPhoto, savePhoto, type KeptDesign } from "../src/studio/keep-design";
 import { DEFAULT_STATE } from "../src/studio/session";
 
 function memory(limit = Infinity) {
@@ -35,6 +35,50 @@ const design = (): KeptDesign => ({
   state: { ...DEFAULT_STATE, metal: "pt900", gou: 15, height: "high", shankSection: "hirauchi" },
   band: { gou: 12, kind: "kouman", top: { width: 4, thickness: 1.6 }, bottom: { width: 3.2, thickness: 1.4 }, density: 15.6, metalLabel: "K18 イエロー" },
   bandMetal: "k18yg",
+});
+
+describe("取り込んだ石も残す（よくある形を押しても消えない）", () => {
+  const withImported = (): KeptDesign => ({ ...design(), stoneKey: "round", imported: { ...design().stone, label: "私の石.jpg", shapeName: "エメラルド", depthMm: 4.1 } });
+
+  it("今の石がよくある形でも、取り込んだ石と札がそのまま読める", () => {
+    const box = memory();
+    saveDesign(box, withImported());
+    const d = loadDesign(box)!;
+    expect(d.stoneKey).toBe("round");
+    expect(d.imported?.label).toBe("私の石.jpg");
+    expect(d.imported?.depthMm).toBe(4.1);
+  });
+
+  it("取り込んだ石の写真は別に残し、消すときはいっしょに消える。入らなければ写真だけなし", () => {
+    const box = memory();
+    expect(saveImportedPhoto(box, "data:取り込んだ石")).toBe(true);
+    expect(savePhoto(box, "data:今の石")).toBe(true);
+    expect(loadImportedPhotoUrl(box)).toBe("data:取り込んだ石");
+    expect(loadPhotoUrl(box)).toBe("data:今の石");
+    clearDesign(box);
+    expect(loadImportedPhotoUrl(box)).toBe("");
+    const small = memory(10);
+    small.m.set("tsugu.studio.importedPhoto.v1", "古い");
+    expect(saveImportedPhoto(small, "x".repeat(20))).toBe(false);
+    expect(loadImportedPhotoUrl(small)).toBe("");
+  });
+
+  it("取り込んだ石が壊れていたら、それだけ外して設計は戻す", () => {
+    const box = memory();
+    const d = withImported();
+    d.imported!.measured.longMm = -1;
+    saveDesign(box, d);
+    const back = loadDesign(box)!;
+    expect(back.imported).toBeUndefined();
+    expect(back.stoneKey).toBe("round");
+  });
+
+  it("前に残した設計（札の記録がない）も読める", () => {
+    const box = memory();
+    saveDesign(box, design());
+    expect(loadDesign(box)!.stoneKey).toBeUndefined();
+    expect(loadDesign(box)!.imported).toBeUndefined();
+  });
 });
 
 describe("今の設計をタブの間だけ残す", () => {

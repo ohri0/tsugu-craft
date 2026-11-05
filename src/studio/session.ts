@@ -6,8 +6,10 @@ import { PRESETS, presetOutline } from "./presets";
 import { autoOrientation, tAtOutlineIndex, type JoinStyle, type SolidQuality } from "../geometry/setting";
 import type { SectionCurve, SectionPoint, ShankSection, ShankStation } from "../geometry/shank";
 import type { ReliefParams } from "../geometry/shank-relief";
+import type { TensionGrip, TensionInfo } from "../geometry/tension";
 import type { StoneParams } from "../geometry/stone";
-import { FIXES, checkRing, cornerDistances, holdRatio, tensionNotes, tensionOpening, tensionOpeningText, type FixId, type Problem } from "../rules/checks";
+import { FIXES, checkRing, cornerDistances, holdRatio, tensionInsert, tensionNotes, tensionOpening, tensionOpeningText, type FixId, type Problem } from "../rules/checks";
+import { springForClaude, springIdOf, tensionCautions, tensionSpring } from "../rules/tension-calc";
 import { GUIDES, requiredHold, stoneSizeMm, type Guides, type HeightOption, type MetalId, type StonePosition } from "../rules/guides";
 import { effectiveGuides, prongMinOverride, ruleForCheck, type Ledger, type Rule } from "../rules/ledger";
 import type {
@@ -52,6 +54,8 @@ export interface RingState {
   style: "prong" | "bezel" | "tension";
   /** テンションに切り替える前の腕（戻したときに元へ。テンションの間だけ） */
   beforeTension?: Pick<RingState, "shankSection" | "shankWidthMm" | "shankThicknessMm" | "sectionPoints" | "sectionCurve">;
+  /** テンションの挟む向き（なければ石の形の既定） */
+  tensionGrip?: TensionGrip;
   /** 爪の本数（なければ石の形から自動） */
   prongCount?: number;
   /** 爪の太さ（mm、なければ標準） */
@@ -160,6 +164,7 @@ export function carryDesign(prev: RingState, base: RingState, same: { shape?: bo
   if (same.shape) {
     out.prongCount = prev.prongCount;
     out.prongPositions = prev.prongPositions && [...prev.prongPositions];
+    out.tensionGrip = prev.tensionGrip;
   }
   if (same.shape && same.size) {
     out.prongMm = prev.prongMm;
@@ -315,13 +320,16 @@ const CHECK_NAME: Record<string, string> = {
   "tension-lip": "溝の高さが腕に収まるか",
   "tension-girdle": "石の縁が溝に入るか",
   "tension-pit": "くぼみの両わきの地金",
+  "tension-culet": "石の先が腕の内側より指の側へ出ないか",
+  "tension-sunk": "石が腕の中に沈まないか",
+  "tension-overhang": "石が腕の幅の外へ出すぎないか",
 };
 
 /** テンションで意味のある確かめ（爪の確かめや留まりの比べはない） */
-const TENSION_CHECKS = new Set(["finger-gap", "band-thin", "band-narrow", "band-spike", "tension-gap", "tension-cut", "tension-lip", "tension-girdle", "tension-pit"]);
+const TENSION_CHECKS = new Set(["finger-gap", "band-thin", "band-narrow", "band-spike", "tension-gap", "tension-cut", "tension-lip", "tension-girdle", "tension-pit", "tension-culet", "tension-sunk", "tension-overhang"]);
 
 /** 直し方 → Claude が使える道具と入力の例 */
-function hintFor(id: FixId, s: RingState, std: number): FixOption["tool_hint"] {
+function hintFor(id: FixId, s: RingState, std: number, tension?: TensionInfo | null): FixOption["tool_hint"] {
   switch (id) {
     case "raise":
       return { tool: "set_setting", input: { height: s.height === "low" ? "standard" : "high" } };
@@ -341,6 +349,12 @@ function hintFor(id: FixId, s: RingState, std: number): FixOption["tool_hint"] {
       const next = Math.round(((s.shankThicknessMm ?? GUIDES.tension.wireMm) + WIRE_STEP_MM) * 100) / 100;
       return { tool: "set_shank", input: { width_mm: next, thickness_mm: next } };
     }
+    case "thinnerWire": {
+      const next = Math.round(((s.shankThicknessMm ?? GUIDES.tension.wireMm) - WIRE_STEP_MM) * 100) / 100;
+      return { tool: "set_shank", input: { width_mm: next, thickness_mm: next } };
+    }
+    case "turnGrip":
+      return { tool: "set_setting", input: { tension_grip: nextGrip(tension) } };
     case "vAtCorner":
       // 爪の本数を自動に戻すと、尖った角に 1 本ずつ置く（V 字の爪は画面では使わない）
       return { tool: "set_setting", input: { style: "prong", v_corners: false, prong_count: 0 } };
@@ -359,6 +373,13 @@ function hintFor(id: FixId, s: RingState, std: number): FixOption["tool_hint"] {
     default:
       return undefined;
   }
+}
+
+/** 直し方「挟む向きを変える」の行き先：角をくぼみに入れられる石はそれを先に（角で止まるので、いちばん横にずれない）。なければ長い向き */
+export function nextGrip(t?: TensionInfo | null): TensionGrip {
+  if (!t) return "short";
+  if (t.grip === "short") return t.grips.includes("corner") ? "corner" : t.grips.includes("long") ? "long" : "short";
+  return "short";
 }
 
 export class RingSession implements ToolHost<RingState> {
@@ -473,6 +494,7 @@ export class RingSession implements ToolHost<RingState> {
       others,
       joinHeads: trio,
       stone: this.stone,
+      tension: s.style === "tension" && s.tensionGrip ? { grip: s.tensionGrip } : undefined,
       setting: {
         style: s.style,
         height: s.height,
@@ -545,6 +567,11 @@ export class RingSession implements ToolHost<RingState> {
             tension: {
               gap_mm: Math.round(st.tension.gapMm * 100) / 100,
               ends: st.tension.ends.map((e) => ({ kind: e.kind, depth_mm: Math.round(e.depthMm * 100) / 100 })),
+              grip: st.tension.grip,
+              grips: st.tension.grips,
+              insert: tensionInsert(st.tension).how,
+              no_side_stop: tensionInsert(st.tension).noStop,
+              overhang_mm: Math.round(st.tension.overhangMm * 100) / 100,
             },
           }
         : {}),
@@ -580,6 +607,7 @@ export class RingSession implements ToolHost<RingState> {
       s.join = input.join;
       s.joinSet = true;
     }
+    if (input.tension_grip) s.tensionGrip = input.tension_grip;
     const b = this.build(input.reason);
     if (b.ring.setting.style === "tension") {
       return {
@@ -804,7 +832,9 @@ export class RingSession implements ToolHost<RingState> {
     const b = this.built ?? this.build();
     const std = b.ring.setting.standardProngMm;
     const failed = new Set(b.problems.map((p) => p.check));
-    const opening = tensionOpening(b.ring.setting, b.ring.shank, this.guides());
+    const opening = tensionOpening(b.ring.setting, b.ring.shank, this.guides(), springIdOf(this.state.metal));
+    const spring = tensionSpring(b.ring.setting, b.ring.shank, "hardened", this.guides());
+    const insert = b.ring.setting.tension ? tensionInsert(b.ring.setting.tension) : null;
     return {
       problems: b.problems.map((p) => ({
         check: CHECK_NAME[p.check] ?? p.check,
@@ -812,12 +842,20 @@ export class RingSession implements ToolHost<RingState> {
         current: p.current,
         required: p.required,
         reason: p.rule ? `${p.reason}（根拠：${p.rule.title}・${p.rule.source.kind === "craftsman" ? `職人 ${p.rule.source.name}` : p.rule.source.kind === "public" ? `公開情報 ${p.rule.source.title}` : "仮の目安"}）` : p.reason,
-        options: p.options.map((o) => ({ action: o.label, appearance: o.effectOnLook, tool_hint: hintFor(o.id, this.state, std) })),
+        options: p.options.map((o) => ({ action: o.label, appearance: o.effectOnLook, tool_hint: hintFor(o.id, this.state, std, b.ring.setting.tension) })),
       })),
       passed: Object.entries(CHECK_NAME)
         .filter(([k]) => !failed.has(k as Problem["check"]) && (b.ring.setting.style === "tension" ? TENSION_CHECKS.has(k) : !k.startsWith("tension-") && (b.ring.stones.length > 1 || !k.endsWith("-space")) && (b.ring.setting.collar !== null || (k !== "collar-wall" && k !== "band-end")) && (k !== "band-relief" || !!b.ring.shank.relief)))
         .map(([, v]) => v),
-      note: `数字は目安・最後は職人が決める。石の一番下と指のすき間は ${b.ring.culetGapMm.toFixed(2)} mm、地金は約 ${b.ring.metalWeightG.toFixed(1)} g。${tensionNotes(b.ring.setting, b.ring.shank.thicknessMm, this.guides()).join(" ")}${opening ? ` ${tensionOpeningText(opening)}` : ""}`.trim(),
+      note: `数字は目安・最後は職人が決める。石の一番下と指のすき間は ${b.ring.culetGapMm.toFixed(2)} mm、地金は約 ${b.ring.metalWeightG.toFixed(1)} g。${tensionNotes(b.ring.setting, b.ring.shank.thicknessMm, this.guides()).join(" ")}${insert ? ` 石の入れ方：${insert.how}。${insert.hold}。` : ""}${opening ? ` ${tensionOpeningText(opening)}` : ""}`.trim(),
+      ...(spring
+        ? {
+            tension_calc: {
+              ...springForClaude(spring),
+              cautions: tensionCautions(b.ring.setting, spring, springIdOf(this.state.metal), this.guides()).map((c) => ({ title: c.title, text: c.text })),
+            },
+          }
+        : {}),
     };
   }
 

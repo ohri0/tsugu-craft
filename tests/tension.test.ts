@@ -9,6 +9,7 @@ import type { StoneParams } from "../src/geometry/stone";
 import { TENSION_SHORT_TEXT, checkRing, elasticOpeningMm, tensionNotes, tensionOpening, tensionOpeningText } from "../src/rules/checks";
 import { GUIDES } from "../src/rules/guides";
 import { activeRules, seedLedger, type Ledger } from "../src/rules/ledger";
+import { freshenRules } from "../src/ui/ledger-ui";
 import { howToMake } from "../src/studio/howto";
 import { PRESETS, presetOutline } from "../src/studio/presets";
 import { DEFAULT_STATE, RingSession } from "../src/studio/session";
@@ -375,6 +376,37 @@ describe("帳面と作り方", () => {
     expect(depth.quote).toContain("角はくぼみに 0.8 ミリとかで");
     expect(depth.quote).toContain("辺は溝に 0.5 mm");
     expect(hard.quote).toContain("硬い状態でないと取れる");
+  });
+
+  it("本文は今の値（0.8 mm）で、決め直した日が分かる。計算とつながっている。「最後は職人が決める」はそのまま", () => {
+    const rules = activeRules(repo as unknown as Ledger);
+    const depth = rules.find((r) => r.id === "rule-tension-depth-ishikawa")!;
+    const hard = rules.find((r) => r.id === "rule-tension-hard-ishikawa")!;
+    expect(depth.text).toContain("角の先を 0.8 mm くらい");
+    expect(depth.text).toContain("2026-11-05 に 1 mm くらいから 0.8 mm に決め直した");
+    expect(depth.text).toContain(`辺を ${GUIDES.tension.edgeGrooveMm} mm`);
+    expect(GUIDES.tension.cornerPitMm).toBe(0.8);
+    expect(hard.text).toContain("最後は職人が決める");
+    expect(depth.calc).toBe("tension");
+    expect(hard.calc).toBe("tension");
+  });
+
+  it("このブラウザに前の文のまま残った決まりは、新しい文になる。職人が書き直した文は残す", () => {
+    const rules = activeRules(repo as unknown as Ledger);
+    const depth = rules.find((r) => r.id === "rule-tension-depth-ishikawa")!;
+    const hard = rules.find((r) => r.id === "rule-tension-hard-ishikawa")!;
+    const oldText = "三角の石を腕の両はしで挟むとき、片方の端に小さなくぼみを掘って、角の先を 1 mm くらい入れる。もう片方の端には、辺に沿ったまっすぐな溝を切って、辺を 0.5 mm 差し込む。角がくぼみで止まるので、石は横にずれない";
+    const old = { ...depth, text: oldText, quote: "角はくぼみに 1 mm くらい。辺は溝に 0.5 mm", calc: undefined };
+    const fresh = freshenRules([old], rules)[0];
+    expect(fresh.text).toBe(depth.text);
+    expect(fresh.quote).toBe(depth.quote);
+    const mine = { ...depth, text: "うちは 0.7 mm", calc: undefined };
+    expect(freshenRules([mine], rules)[0].text).toBe("うちは 0.7 mm");
+    expect(freshenRules([mine], rules)[0].calc).toBe("tension");
+    const { calc: _drop, ...noCalc } = hard;
+    expect(freshenRules([noCalc], rules)[0].calc).toBe("tension");
+    const other = { ...hard, id: "どこにもない" };
+    expect(freshenRules([other], rules)[0]).toBe(other);
   });
 
   const howTo = (method: "hand" | "cast") => {

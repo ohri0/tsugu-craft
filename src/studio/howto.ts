@@ -6,7 +6,9 @@
 import type { PlacedStone, RingDesign } from "../geometry/ring";
 import { SHANK_SECTION_LABEL, reliefWords, shankSizeWords } from "../geometry/shank";
 import { perimeter } from "../geometry/polygon";
+import { tensionInsert } from "../rules/checks";
 import { GUIDES } from "../rules/guides";
+import { SPRING_SHORT_TEXT, tensionSpring, type SpringMetalId } from "../rules/tension-calc";
 import type { AlloyId, Detail } from "./process";
 import { castSteps, dropVDetails, finishStep, forgeSteps, settingStep } from "./steps";
 
@@ -44,6 +46,8 @@ export interface HowToInput {
   metalLabel: string;
   /** 温度を出す地金（分からなければ null か省く） */
   alloy?: AlloyId | null;
+  /** テンションの計算に使う地金（K18 の色まで。なければ形の地金の値） */
+  springMetal?: SpringMetalId;
 }
 
 /** 形から出す数字（どちらの作り方でも使う） */
@@ -165,7 +169,8 @@ export function betweenMeasures(r: RingDesign) {
 
 /**
  * テンション（挟む）の作り方（職人 石川の言葉 2026-11-05 ＋ 資料 docs/RESEARCH-tension.md の 5 節）。
- * 数字は形から計算した物と職人の値だけ。硬さ・詰める量・開ける量は、資料にもよい数字がないので「職人が決める」
+ * 数字は形から計算した物と職人の値、それと地金ごとの大まかな計算（src/rules/tension-calc.ts。画面の表と同じ値）。
+ * 硬さや、最後にどこまで詰めるかは、資料にもよい数字がないので「職人が決める」
  */
 function tensionSteps(o: HowToInput, method: Method): Step[] {
   const r = o.ring;
@@ -182,18 +187,37 @@ function tensionSteps(o: HowToInput, method: Method): Step[] {
       : { label: "辺の溝", value: `石の辺を ${mm(e.depthMm, 2)} 入れる（底まで ${mm(e.floorMm, 2)}。${e.straight ? "腕の幅いっぱいに抜けてよい。" : "石の丸みに沿う。"}職人の値）` },
   );
   const gap: Spec = { label: "図面の開き", value: `${mm(info.gapMm, 2)}（石が入る寸法。腕の周りの向きの石の長さ ${mm(info.spanMm, 2)} − 両はしの深さ）` };
+  // 地金ごとの大まかな計算（画面の表と同じ値。硬い状態のとき）。合否にしない
+  const spring = tensionSpring(r.setting, sh)!;
+  const row = spring.rows.find((x) => x.metal === (o.springMetal ?? sh.metal))!;
+  const kari = row.provisional ? "・仮" : "";
+  const insert = tensionInsert(info);
+  const closeSpecs: Spec[] =
+    row.shrinkMm !== null
+      ? [
+          { label: "詰める量", value: `図面の開きより 約 ${row.shrinkMm.toFixed(2)} mm 小さめに（${row.name}・硬い状態の大まかな計算${kari}。上限 約 ${row.shrinkMaxMm!.toFixed(2)} mm。最後は職人が決める）` },
+          { label: "作る時の開き", value: `約 ${row.makeGapMm!.toFixed(2)} mm（同じ計算${kari}）` },
+        ]
+      : [{ label: "詰める量", value: `${row.name}は開く量が足りない見込み（限界 約 ${row.limitMm.toFixed(2)} mm、要る量 ${spring.needMm.toFixed(2)} mm。大まかな計算${kari}）。${SPRING_SHORT_TEXT}` }];
   const close: Step = {
     id: "tension_close",
     title: "開きを詰める",
-    text: "地金を硬くしながら、腕の開きを詰める。どこまで詰めるか（プリロード）は図面に入れない。職人が決める。",
-    specs: [gap, { label: "詰める量", value: "職人が決める（資料によい数字がない）" }],
+    text: "地金を硬くしながら、腕の開きを石より小さめに詰める（プリロード＝石を押さえる力の分）。図面の開きには入れない。",
+    specs: [gap, ...closeSpecs],
     watch: "硬くなったあとに曲げすぎると割れやすい（資料の声）。",
   };
   const set: Step = {
     id: "tension_set",
     title: "石を入れる",
-    text: "腕を開いて、石の角をくぼみへ、辺を溝へ入れ、腕を戻す。開け方（心金・くさびなど）と開ける量は職人が決める。",
-    specs: [...endSpecs, { label: "石と指のすき間", value: mm(r.culetGapMm, 2) }],
+    text: `${insert.how}。${insert.hold}。開け方（心金・くさびなど）は職人が決める。`,
+    specs: [
+      ...endSpecs,
+      ...(row.spreadMm !== null
+        ? [{ label: "広げて入れる量", value: `約 ${row.spreadMm.toFixed(2)} mm（作る時の開きから石が通る ${mm(spring.spanMm, 2)} まで。限界 約 ${row.limitMm.toFixed(2)} mm。大まかな計算${kari}。最後は職人が決める）` }]
+        : []),
+      ...(row.slideShrinkMm !== null ? [{ label: "横から滑らせるとき", value: `開くのは締まりの分だけ。小さめに作れる量は 約 ${row.slideShrinkMm.toFixed(2)} mm まで（大まかな計算${kari}。作者の考えで、まだ試していない）` }] : []),
+      { label: "石と指のすき間", value: mm(r.culetGapMm, 2) },
+    ],
     watch: "火を使わない（熱で地金がやわらかくなると、ばねが消える。資料の声）。欠けやすい石は、職人が向くかを確かめる。",
   };
   const finish = finishStep([{ label: "地金", value: `${o.metalLabel} ・ 約 ${r.metalWeightG.toFixed(1)} g` }], "ヤスリの跡を消し、全体を磨く。");
@@ -244,7 +268,7 @@ function tensionSteps(o: HowToInput, method: Method): Step[] {
     {
       id: "tension_cut",
       title: "溝とくぼみを切る",
-      text: "片方の端に角の先が入るくぼみを、もう片方の端に辺が入る溝を切る。石を当てて確かめながら。溝の高さは、石の縁（ガードル）の厚みに合わせる。",
+      text: `${info.mode === "corner-edge" ? "片方の端に角の先が入るくぼみを、もう片方の端に辺が入る溝を切る" : info.mode === "corner-corner" ? "両方の端に、角の先が入るくぼみを切る" : "両方の端に、石の縁が入る溝を切る"}。石を当てて確かめながら。溝の高さは、石の縁（ガードル）の厚みに合わせる。`,
       specs: [...endSpecs, { label: "石とのすき間", value: `${mm(info.clearanceMm, 2)}（仮の目安）` }],
       watch: "資料には、硬くする前に溝を切る例もある。順は職人が決める。",
     },

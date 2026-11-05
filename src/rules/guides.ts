@@ -230,12 +230,20 @@ export const GUIDES = {
    * - cornerMaxDeg：内角がこれより鋭いものを「角」と数える（hold.cornerSetMatch と同じ値）。
    * - liftEnds・liftBlendDeg：縁を腕の太さの中ほどに置くと石の先が指に当たるとき、腕の両はしを指の丸みからなめらかに持ち上げるか、と、持ち上げる所の長さ（度）。
    * - thinLipMm：彫り口の上下や両わきに残る地金がこれより薄いと、注意を出す（覆輪の壁の最低を借りた）。
+   * 以下も **仮**（確かめのルールの線。作者の声 2026-11-05「腕に刺さってるか、指の側に出てる」から作った。作者が見て直す）：
+   * - maxCuletBelowArmMm：石の先が、腕の端の内側の線より下（指の側）へ出てよい長さ。既定の三角は 0.04〜0.05 mm 出る（作者が決めた値）ので 0.1 mm。
+   * - maxTableBelowArmMm：石の上面が、腕の端のいちばん上より低くてよい長さ。作者が「刺さっている」と見た絵は 0.75〜1.04 mm 低かった。
+   * - askOverhangRatio：腕の幅の外へはみ出す石の長さ（片側）÷ 石の縁の高さの腕の幅 が、これを超えたら「職人に確かめる」。作者が決めた既定の三角（8.88 mm を φ4 に）が 0.84 で、それより大きくはみ出す形は職人が確かめていない。
+   * - maxOverhangRatio：同じ割合が 1 を超える（腕に挟まるのが石の長さの 3 分の 1 より短い）と「作れない」。製品の例はもっと小さい（TS1・TS26 で 0.75 くらいまで）。
+   * - wireMaxMm：腕の線の太さのつまみの上限。資料の声（5 mm は着け心地が悪い。TS13）と製品の太さの上（5 mm。TS26）から。wireMinMm：つまみの下限（形を作るための決まり）。
+   * - gripAspect：長辺 ÷ 幅がこれ以上の石は、挟む向き（短い向き・長い向き）を選べる（形を作るための決まり）。
    * spring：参考の計算（地金が戻れる範囲で開ける量）に使う地金の値。合否には使わない。provisional の値は画面にも「仮」と出す。
    * 出どころは .claude/skills/jeweler-guides/SKILL.md の「テンション」の節。
-   * - young：ヤング率。K18 は地金会社の表の 18 ct 3N・4N の値。K18 の値の出典は、これ 1 つ。
+   * - young：ヤング率（地金の曲がりにくさ）。K18 は地金会社の表（CMSA Alloy Chart）の値。色ごとに合う合金の行を使った。K18 の値の出典は、これ 1 つ。
    * - hvToProofMpa：硬さ HV から耐力（MPa）を出す目安の倍率。貴金属の硬い状態の表（Pt 2.96・Au 2.89・PtIr10 2.93・PtRh10 3.28）から丸めた。測った耐力ではない。
-   * - K18 の加工硬化：地金会社の表の 3N の加工 75 % の硬さ HV 250 × hvToProofMpa。別の資料の引張りの強さ 810〜880 MPa より低いので、矛盾はない。
-   * - K18 の焼きなまし：検索の要約に 1 件あるだけの 180 MPa（状態の書き方なし。原文で確かめられない）。
+   * - K18 イエローの加工硬化：地金会社の表の 3N の加工 75 % の硬さ HV 250 × hvToProofMpa。別の資料の引張りの強さ 810〜880 MPa より低いので、矛盾はない。
+   * - K18 ピンク：同じ表の 4N（Au750 Cu160）。HV 265 × hvToProofMpa。K18 ホワイト：同じ表の Au750 Pd120（E 110 GPa・HV 250）。白は配合で差が大きい（E 93〜115 GPa、HV 195〜260）ので、ヤング率も仮。ニッケル白の値はない。
+   * - K18 の焼きなまし：検索の要約に 1 件あるだけの 180 MPa（状態の書き方なし。原文で確かめられない）。ピンクとホワイトも同じ値を借りた。
    * - Pt900：Pt/Ir 900/100 の値。日本に多い Pd 入りの値は見つからない。
    * - シルバーの加工硬化：地金会社の表の加工 75 % の硬さ HV 155 × hvToProofMpa。
    */
@@ -252,14 +260,33 @@ export const GUIDES = {
     liftEnds: true,
     liftBlendDeg: 70,
     thinLipMm: 0.45,
+    maxCuletBelowArmMm: 0.1,
+    maxTableBelowArmMm: 0.5,
+    askOverhangRatio: 0.85,
+    maxOverhangRatio: 1,
+    wireMaxMm: 5,
+    wireMinMm: 2.5,
+    gripAspect: 1.1,
     spring: {
       hvToProofMpa: 3,
       metals: {
         k18y: {
-          name: "K18",
+          name: "K18 イエロー",
           young: { gpa: 94, provisional: false, basis: "地金会社の表の 18 ct 3N・4N の値" },
           hardened: { proofMpa: 750, provisional: true, basis: "硬さ HV 250 からの換算の目安。耐力を測った値ではない" },
           annealed: { proofMpa: 180, provisional: true, basis: "資料の要約に 1 件だけ。原文で確かめられない" },
+        },
+        k18p: {
+          name: "K18 ピンク",
+          young: { gpa: 94, provisional: false, basis: "地金会社の表の 18 ct 4N（Au750 Cu160）の値" },
+          hardened: { proofMpa: 795, provisional: true, basis: "硬さ HV 265 からの換算の目安。耐力を測った値ではない" },
+          annealed: { proofMpa: 180, provisional: true, basis: "K18 イエローの値を借りた。資料の要約に 1 件だけ。原文で確かめられない" },
+        },
+        k18w: {
+          name: "K18 ホワイト",
+          young: { gpa: 110, provisional: true, basis: "地金会社の表の Au750 Pd120 の値。白は配合で 93〜115 GPa とちがう" },
+          hardened: { proofMpa: 750, provisional: true, basis: "硬さ HV 250 からの換算の目安。白は配合で HV 195〜260 とちがう。ニッケル白の値はない" },
+          annealed: { proofMpa: 180, provisional: true, basis: "K18 イエローの値を借りた。資料の要約に 1 件だけ。原文で確かめられない" },
         },
         pt900: {
           name: "Pt900",
