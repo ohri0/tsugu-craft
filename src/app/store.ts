@@ -11,6 +11,8 @@ const LEDGER_STORE = "tsugu.ledger.v1";
 const WORKSHOP_STORE = "tsugu.workshops.v1";
 const PASS_STORE = "tsugu.password.v1";
 const SEEN_STORE = "tsugu.introSeen.v1";
+const FLOW_STORE = "tsugu.flow.v1";
+const LAST_TECH_STORE = "tsugu.lastTech.v1";
 
 function put(key: string, value: string) {
   try {
@@ -41,6 +43,17 @@ let workshops: Workshops = parseWorkshops(get(WORKSHOP_STORE) || null);
 let queue: TeacherQueue = loadTeacherQueue();
 const techKey = (id: TechId) => `tsugu.ledger.tech.${id}.v1`;
 const techs = new Map<TechId, Ledger<string>>();
+
+/** 技ごとに、学ぶ人が聞いた回数・手を比べた回数（流れの進み具合に使う） */
+type FlowKind = "asked" | "compared";
+function readFlow(): Partial<Record<FlowKind, Record<string, number>>> {
+  try {
+    const v = JSON.parse(get(FLOW_STORE) || "{}") as unknown;
+    return v && typeof v === "object" ? (v as Partial<Record<FlowKind, Record<string, number>>>) : {};
+  } catch {
+    return {};
+  }
+}
 
 /** はじめの帳面の、工房の名前の既定（リポジトリの帳面に名前がないとき） */
 export const DEFAULT_WORKSHOP = "石川工房";
@@ -97,6 +110,18 @@ export const store = {
     put(TEACHER_QUEUE_STORE, JSON.stringify(q));
     changed();
   },
+  flowCount: (kind: FlowKind, id: string): number => readFlow()[kind]?.[id] ?? 0,
+  flowMark(kind: FlowKind, id: string) {
+    const f = readFlow();
+    f[kind] = { ...f[kind], [id]: (f[kind]?.[id] ?? 0) + 1 };
+    put(FLOW_STORE, JSON.stringify(f));
+    changed();
+  },
+  /** 手本など、帳面の外のものが変わったことを、ほかの画面に知らせる */
+  touch: () => changed(),
+  /** 学ぶで最後に選んだ技 */
+  lastTech: () => get(LAST_TECH_STORE),
+  setLastTech: (id: string) => put(LAST_TECH_STORE, id),
   password: () => get(PASS_STORE),
   setPassword: (p: string) => put(PASS_STORE, p),
   introSeen: () => get(SEEN_STORE) === "1",

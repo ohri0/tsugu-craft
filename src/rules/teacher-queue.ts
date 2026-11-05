@@ -13,6 +13,8 @@ export interface TeacherQuestion {
   context?: string;
   /** 聞いた生徒の名前（あれば） */
   student?: string;
+  /** どの技の質問か（なければ指輪の石留め） */
+  technique?: string;
   /** YYYY-MM-DD */
   date: string;
   /** 先生が答えて目安帳に足した決まりの id */
@@ -77,6 +79,7 @@ export function addQuestion(
     date: q.date,
     ...(q.context?.trim() ? { context: q.context.trim() } : {}),
     ...(q.student?.trim() ? { student: q.student.trim() } : {}),
+    ...(q.technique ? { technique: q.technique } : {}),
   };
   return { queue: { items: [...queue.items, item] }, item };
 }
@@ -161,6 +164,8 @@ export function groupQuestions(
     for (const b of buckets) {
       // 答えた質問と、まだの質問は、同じまとめに入れない（答えたかどうかが混ざらないように）
       if (Boolean(b[0].answeredRuleId) !== Boolean(q.answeredRuleId)) continue;
+      // ちがう技の質問は、似ていてもまとめない（答えを入れる帳面がちがう）
+      if ((b[0].technique ?? "") !== (q.technique ?? "")) continue;
       const score = Math.max(...b.map((m) => questionSimilarity(m.question, q.question)));
       if (score >= bestScore) {
         best = b;

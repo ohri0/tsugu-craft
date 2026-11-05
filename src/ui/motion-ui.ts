@@ -21,6 +21,7 @@ interface IndexItem {
   date: string;
   durationS: number;
   tempoPerMin: number | null;
+  technique?: string;
 }
 
 function loadIndex(): IndexItem[] {
@@ -49,10 +50,15 @@ export function savedRecords(): SkillRecord[] {
     .filter((r): r is SkillRecord => r !== null);
 }
 
+/** その技の手本の数（中身を読まずに数える。技の印のない前の記録は指輪の石留めのもの） */
+export function recordCount(technique: string): number {
+  return loadIndex().filter((x) => (x.technique ?? "ring") === technique).length;
+}
+
 /** 残す。入りきらないときは false */
-function storeRecord(r: SkillRecord): boolean {
+export function storeRecord(r: SkillRecord): boolean {
   const main = r.metrics.mainHand === null ? null : r.metrics.hands[r.metrics.mainHand];
-  const item: IndexItem = { id: r.id, title: r.title, craftsman: r.craftsman, date: r.date, durationS: r.durationS, tempoPerMin: main?.tempoPerMin ?? null };
+  const item: IndexItem = { id: r.id, title: r.title, craftsman: r.craftsman, date: r.date, durationS: r.durationS, tempoPerMin: main?.tempoPerMin ?? null, ...(r.technique ? { technique: r.technique } : {}) };
   try {
     localStorage.setItem(RECORD_STORE + r.id, exportRecord(r));
     const idx = loadIndex().filter((x) => x.id !== r.id);
@@ -107,13 +113,21 @@ export interface MotionOptions {
   onNoteToRule?: (note: { text: string; t: number; clock: string; title: string; craftsman: string }) => void;
   /** 「残す」を押して記録を残したとき（読んだ動画のファイルも渡す。開き直した記録で動画がなければ null） */
   onSaved?: (record: SkillRecord, video: File | null) => void;
+  /** どの技の手本か（記録に残す） */
+  technique?: string;
+  /** はじめに入れておく「何の仕事か」「誰の手か」 */
+  defaultTitle?: string;
+  defaultWho?: string;
+  /** 撮るだけの形：撮る → 手が見えたら残す。数字の線・書き出し・比べる所は出さない（技の頁の流れで使う） */
+  simple?: boolean;
 }
 
 export function mountMotion(root: HTMLElement, opts: MotionOptions = {}): MotionUI {
   const p = `motion${++uid}`;
   root.classList.add("motion");
+  root.classList.toggle("motion-simple", !!opts.simple);
   root.innerHTML = `
-    <p class="note">手元を撮った動画から手の動きを読み、動きの数字と職人の言葉を「手の記録」として残します。スマホを台に固定し、手首から指先まで入るように 20〜60 秒撮ってください。技そのものは読めません。残るのは動きの数字と、職人が言った判断です。</p>
+    <p class="note">${opts.simple ? "作業を撮るだけです。スマホを台に固定し、手首から指先まで入るように 20〜60 秒。" : "手元を撮った動画から手の動きを読み、動きの数字と職人の言葉を「手の記録」として残します。スマホを台に固定し、手首から指先まで入るように 20〜60 秒撮ってください。技そのものは読めません。残るのは動きの数字と、職人が言った判断です。"}</p>
     <div class="row motion-pick">
       <label class="btn primary" for="${p}-cam">撮る</label><input id="${p}-cam" type="file" accept="video/*" capture="environment">
       <label class="btn" for="${p}-file">動画を選ぶ</label><input id="${p}-file" type="file" accept="video/*">
@@ -158,7 +172,7 @@ export function mountMotion(root: HTMLElement, opts: MotionOptions = {}): Motion
         <label>誰の手か<input class="motion-who" type="text" placeholder="例：山田" /></label>
       </div>
       <div class="row motion-save-row">
-        <button class="primary motion-save">このブラウザに残す</button>
+        <button class="primary motion-save">${opts.simple ? "手本として残す" : "このブラウザに残す"}</button>
         <button class="motion-export">書き出す（JSON）</button>
       </div>
     </div>
@@ -183,6 +197,8 @@ export function mountMotion(root: HTMLElement, opts: MotionOptions = {}): Motion
     </details>`;
 
   const q = <T extends HTMLElement>(cls: string) => root.querySelector<T>(`.${cls}`)!;
+  if (opts.defaultTitle) q<HTMLInputElement>("motion-title").value = opts.defaultTitle;
+  if (opts.defaultWho) q<HTMLInputElement>("motion-who").value = opts.defaultWho;
   const video = q<HTMLVideoElement>("motion-video");
   const overlay = q<HTMLCanvasElement>("motion-overlay");
   const chart = q<HTMLDivElement>("motion-chart");
@@ -256,7 +272,9 @@ export function mountMotion(root: HTMLElement, opts: MotionOptions = {}): Motion
       if (ctl.signal.aborted) return;
       const title = q<HTMLInputElement>("motion-title").value;
       const who = q<HTMLInputElement>("motion-who").value;
-      record = createRecord(input, { title, craftsman: who, videoName, notes });
+      record = createRecord(input, { title, craftsman: who, videoName, notes, technique: opts.technique });
+      // 撮るだけの形：手が見えていない動画は手本にならないので、残すボタンを出さない（比べるときに行き止まりになる）
+      if (opts.simple) q("motion-save-row").hidden = record.metrics.hands.length === 0;
       overlayFrames = input.frames;
       const secs = ((performance.now() - started) / 1000).toFixed(0);
       const longNote = (input.durationS ?? 0) > MAX_TRACK_S ? `長い動画なので、初めの ${MAX_TRACK_S} 秒だけ読みました。` : "";
