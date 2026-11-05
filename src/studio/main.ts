@@ -1509,11 +1509,12 @@ function askNudgeHtml(b: Built): string {
     .filter((g) => g.stoneMm !== undefined && Math.abs(g.stoneMm - size) <= 1.5)
     .sort((x, y) => Math.abs(x.stoneMm! - size) - Math.abs(y.stoneMm! - size));
   const ordered = [...near, ...gaps.filter((g) => !near.includes(g))];
-  const g = ordered[askIndex % ordered.length];
+  const at = ((askIndex % ordered.length) + ordered.length) % ordered.length;
+  const g = ordered[at];
   const isNear = near.includes(g);
   const why = isNear ? `この指輪の石（${size.toFixed(1)} mm）に近い大きさの決まりが、帳面に足りません。` : "帳面に足りない所があります。";
-  const next = ordered.length > 1 && !q.has("rec") ? `<button type="button" class="ghost-d ask-next">次の質問（${(askIndex % ordered.length) + 1} / ${ordered.length}）</button>` : "";
-  return `<section class="ask-nudge"><small>Claude から質問</small><b>${esc(g.question)}</b><p>${why}</p><div class="row"><a class="primary" href="app.html#ledger/ask?gap=${encodeURIComponent(g.id)}">答える</a><button type="button" class="ghost-d ask-later">あとで</button>${next}</div></section>`;
+  const moves = ordered.length > 1 && !q.has("rec") ? `<button type="button" class="ghost-d ask-prev" aria-label="前の質問">← 前</button><span class="ask-pos">${at + 1} / ${ordered.length}</span><button type="button" class="ghost-d ask-next" aria-label="次の質問">次 →</button>` : "";
+  return `<section class="ask-nudge"><small>Claude から質問</small><b>${esc(g.question)}</b><p>${why}</p><div class="row"><a class="primary" href="app.html#ledger/ask?gap=${encodeURIComponent(g.id)}">答える</a><button type="button" class="ghost-d ask-later">あとで</button>${moves}</div></section>`;
 }
 
 /** 質問の札の押す所をつなぐ（札を入れ替えたあとも、もう一度呼ぶ） */
@@ -1537,6 +1538,10 @@ function wireAskNudge(box: HTMLElement, b: Built) {
   box.querySelector(".ask-again")?.addEventListener("click", () => setLater(false));
   box.querySelector(".ask-next")?.addEventListener("click", () => {
     askIndex += 1;
+    swap();
+  });
+  box.querySelector(".ask-prev")?.addEventListener("click", () => {
+    askIndex -= 1;
     swap();
   });
 }

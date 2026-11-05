@@ -868,7 +868,8 @@ dialog.sheet input:focus { border-color: var(--accent); }
 .ask-nudge small { font-size: 11px; color: var(--fg-3); }
 .ask-nudge b { font-size: 14px; line-height: 1.5; color: var(--fg); }
 .ask-nudge p { margin: 0; font-size: 12px; line-height: 1.6; color: var(--fg-2); }
-.ask-nudge .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.ask-nudge .row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
+.ask-pos { align-self: center; font-size: 12px; color: var(--fg-2); font-variant-numeric: tabular-nums; }
 .ask-again { width: 100%; margin: 10px 0; min-height: 34px; color: var(--accent); }
 .ask-nudge .primary { display: inline-flex; align-items: center; justify-content: center; min-height: 34px; padding: 0 16px; border-radius: 6px; background: var(--accent); color: #fff; text-decoration: none; font-weight: 600; font-size: 13px; }
 
