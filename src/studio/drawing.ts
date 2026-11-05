@@ -41,7 +41,7 @@ export function pickScale(views: { widthMm: number; heightMm: number }[], room =
 export const DRAWING_CSS = `
 .dw { width: 297mm; height: 210mm; padding: 8mm; page-break-after: always; position: relative; }
 .dw-frame { position: absolute; inset: 8mm; border: 0.5mm solid #111; }
-.dw-views { position: absolute; left: 14mm; right: 14mm; top: 16mm; height: 140mm; display: flex; align-items: center; justify-content: center; gap: 16mm; }
+.dw-views { position: absolute; left: 14mm; right: 14mm; top: 12mm; height: 128mm; display: flex; align-items: center; justify-content: center; gap: 16mm; }
 .dw-view { position: relative; display: flex; flex-direction: column; align-items: center; gap: 3mm; }
 .dw-view .fig { position: relative; }
 .dw-view img { mix-blend-mode: multiply; }
@@ -54,12 +54,14 @@ export const DRAWING_CSS = `
 .dw .dim.bad .dim-line, .dw .dim.bad .dim-ext, .dw .dim.bad .dim-leader { stroke: #c4291c; }
 .dw .dim.bad .dim-arrow { fill: #c4291c; }
 .dw .dim.bad .dim-text { fill: #c4291c; }
-.dw-title { position: absolute; right: 8mm; bottom: 8mm; width: 128mm; border-left: 0.4mm solid #111; border-top: 0.4mm solid #111; display: grid; grid-template-columns: 1fr 1fr; font-size: 7.5pt; }
+.dw-title { position: absolute; right: 8mm; bottom: 8mm; width: 180mm; border-left: 0.4mm solid #111; border-top: 0.4mm solid #111; display: grid; grid-template-columns: repeat(3, 1fr); font-size: 7.5pt; }
 .dw-title div { padding: 1.2mm 2mm; border-right: 0.2mm solid #111; border-bottom: 0.2mm solid #111; }
-.dw-title div:nth-child(2n) { border-right: 0; }
-.dw-title .name { grid-column: span 2; font-size: 12pt; font-weight: 700; border-right: 0; }
+.dw-title .name { grid-column: span 3; font-size: 12pt; font-weight: 700; border-right: 0; }
 .dw-title small { display: block; font-size: 6pt; color: #555; }
-.dw-note { position: absolute; left: 12mm; bottom: 11mm; width: 140mm; font-size: 7.5pt; line-height: 1.6; }
+.dw-life { position: absolute; left: 14mm; bottom: 27mm; margin: 0; display: flex; align-items: flex-end; gap: 3mm; font-size: 7pt; line-height: 1.4; }
+.dw-life div { position: relative; }
+.dw-life img { position: absolute; left: 0; top: 0; width: 100%; height: 100%; mix-blend-mode: multiply; }
+.dw-note { position: absolute; left: 12mm; bottom: 11mm; width: 92mm; font-size: 7.5pt; line-height: 1.6; }
 .dw-note .ng { color: #c4291c; }
 `;
 
@@ -78,10 +80,11 @@ export function drawingPage(o: DrawingInput): string {
       </div><h3>${esc(v.name)}</h3></figure>`,
     )
     .join("");
-  const cells = [...o.rows, { label: "尺度", value: `${s} : 1` }, { label: "単位", value: "mm" }, { label: "日付", value: o.date }, { label: "作成", value: "継ぐ" }];
+  const cells = [...o.rows, { label: "尺度", value: s === 1 ? "実物大（1 : 1）" : `実物の ${s} 倍（${s} : 1）` }, { label: "単位", value: "mm" }, { label: "日付", value: o.date }, { label: "作成", value: "継ぐ" }];
   return `<section class="dw">
   <div class="dw-frame"></div>
   <div class="dw-views">${views}</div>
+  ${s > 1 && o.views[0] ? `<figure class="dw-life"><div style="width:${o.views[0].widthMm.toFixed(1)}mm;height:${o.views[0].heightMm.toFixed(1)}mm"><img alt="" src="${o.views[0].url}"></div><figcaption>実物大<br>（100 % で印刷したとき）</figcaption></figure>` : ""}
   <p class="dw-note">${o.problems.length ? `<span class="ng">このままでは作れない所：${o.problems.map(esc).join("、")}（赤い寸法）</span><br>` : "作れるかの確かめ：目安の内側<br>"}寸法は、この形から計算した目安です。最後は職人が決めます。</p>
   <div class="dw-title"><div class="name">${esc(o.title)}</div>${cells.map((c) => `<div><small>${esc(c.label)}</small>${esc(c.value)}</div>`).join("")}</div>
 </section>`;

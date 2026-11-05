@@ -3339,10 +3339,13 @@ function solitaireDrawing(b: Built, problems: string[], sess: RingSession = sess
     pxPerMm: px,
     problems,
     rows: [
-      { label: "号・内径", value: `${sess.state.gou} 号 ・ ø${(ri * 2).toFixed(1)}` },
+      { label: "号", value: `${sess.state.gou} 号（内径 ${(ri * 2).toFixed(1)} mm）` },
       { label: "地金・重さ", value: `${METAL_LABEL[sess.state.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g` },
-      { label: "石", value: `${info.longMm.toFixed(2)} × ${info.widthMm.toFixed(2)} × ${info.depthMm.toFixed(2)}` },
-      { label: "留め方", value: r.setting.tension ? tensionWord(r.setting) : r.setting.style === "bezel" ? `覆輪 ・ 壁 ${r.setting.bezel?.wallMm.toFixed(2)}` : `爪 ${r.setting.prongs.length} ・ ø${r.setting.prongs[0]?.diameterMm.toFixed(2)}` },
+      { label: "石（長さ × 幅 × 深さ）", value: `${info.longMm.toFixed(2)} × ${info.widthMm.toFixed(2)} × ${info.depthMm.toFixed(2)} mm` },
+      { label: "留め方", value: r.setting.tension ? tensionWord(r.setting) : r.setting.style === "bezel" ? `覆輪（壁の厚み ${r.setting.bezel?.wallMm.toFixed(2)} mm）` : `爪 ${r.setting.prongs.length} 本（太さ ø ${r.setting.prongs[0]?.diameterMm.toFixed(2)} mm）` },
+      ...(r.setting.tension
+        ? []
+        : [{ label: "腕", value: `${SHANK_SECTION_LABEL[r.shank.section]} 幅 ${r.shank.widthMm.toFixed(1)} × 厚み ${r.shank.thicknessMm.toFixed(1)} mm` }]),
       ...(r.setting.tension
         ? [
             { label: "腕の両はし", value: r.setting.tension.ends.map((e) => `${e.kind === "pit" ? "角のくぼみ" : "辺の溝"} ${e.depthMm.toFixed(2)}`).join(" ・ ") },
@@ -3353,14 +3356,19 @@ function solitaireDrawing(b: Built, problems: string[], sess: RingSession = sess
         label: `石 ${i + 2}`,
         value: `${x.params.longMm.toFixed(2)} × ${x.params.widthMm.toFixed(2)} ・ ${x.setting.style === "bezel" ? "覆輪" : `爪 ${x.setting.prongs.length} ・ ø${x.setting.prongs[0]?.diameterMm.toFixed(2)}`} ・ ${placeText(x)}`,
       })),
-      ...(r.notchDepthMm > 0 ? [{ label: "ザグり", value: `腕の上 深さ ${r.notchDepthMm.toFixed(2)}・丸いビット 直径 約 ${r.shank.notchBallDiameterMm.toFixed(1)}` }] : []),
+      ...(r.notchDepthMm > 0 ? [{ label: "腕の上のザグり（石の先を逃がす）", value: `深さ ${r.notchDepthMm.toFixed(2)} mm ・ 丸いビット 直径 約 ${r.shank.notchBallDiameterMm.toFixed(1)} mm` }] : []),
       ...(r.setting.collar
         ? [
-            { label: "石座の座", value: `腕の間に挟む ・ 下の輪 板 厚み ${r.setting.collar.wallMm.toFixed(2)} × 高さ ${r.setting.collar.heightMm.toFixed(2)}` },
-            { label: "ロウ付け", value: `腕の両はし ${r.solder?.contacts ?? 2} か所 ・ 上の輪は丸線をザグる` },
+            { label: "腕との付け方", value: "腕の間に挟む" },
+            { label: "下の輪", value: `板 厚み ${r.setting.collar.wallMm.toFixed(2)} × 高さ ${r.setting.collar.heightMm.toFixed(2)} mm` },
+            { label: "上の輪", value: "丸線。石の座をリューターでザグる" },
+            { label: "ロウ付け", value: `腕の両はし ${r.solder?.contacts ?? 2} か所` },
           ]
         : r.solder
-          ? [{ label: "石座の座", value: `腕の上に下の輪の溝 深さ ${r.shank.railSeatDepthMm.toFixed(2)}・ロウ付け ${r.solder.contacts} か所` }]
+          ? [
+              { label: "腕との付け方", value: `腕の上にのせる（下の輪の溝 深さ ${r.shank.railSeatDepthMm.toFixed(2)} mm）` },
+              { label: "ロウ付け", value: `${r.solder.contacts} か所` },
+            ]
           : []),
     ],
     views: views(
