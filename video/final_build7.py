@@ -27,11 +27,11 @@ LOWY = (1000, 1045)                 # 下の小さな字の線（指輪を真ん
 PRES7 = [655, 40, 892, 730]         # 「見せる」の指輪（hero7・first7。同じカメラ・同じ枠で、腕の輪が重なる。どの向きでも y 60〜749・x 912〜1328 に入る）
 PRES7B = [700, 100, 806, 660]       # 右の窓の指輪（今の指輪だけなので、少し大きく。y 121〜749 が入る）
 CELL = [804, 25, 632, 780]          # 見本 6 つの 1 つ（比 0.81。窓を 3 × 2 に分けた形）
-CLOSE = [700, 60, 840, 687]         # 細い爪に寄った絵（word7 の closeRed・closeFixed）
+CLOSE = [685, 176, 840, 687]        # 細い爪に寄った絵（word7 の closeRed・closeFixed。石座が窓のまん中に）
 WS_HALF = [840, 20, 520, 860]       # 工房ごと：半分の窓（比 0.60）
 SPIKE = [800, 40, 800, 654]         # 尖った所：指輪・右上の札・断面の図が 1 つの枠に
-FIELD = [1170, 376, 430, 352]       # 職人の言葉の欄（word7）。撮った枠の場所で下の word7 の所で直す
-PROP = [1170, 548, 430, 352]        # Claude の案
+FIELD = [1262, 530, 338, 277]       # 職人の言葉の欄（word7）。撮った枠の場所で、下の word7 の所で直す
+PROP = [1262, 450, 338, 277]        # Claude の案
 PHONE = 480                         # スマホの幅で撮った画面の幅（ページの px）
 PH = lambda y: [0, y, PHONE, 393]   # noqa: E731（スマホの幅の画面を、窓いっぱいに）
 
@@ -122,6 +122,7 @@ def big(at, ln, t, pos, color=WHITE, sub=None, size=None):
     d = dict(mode="tag3", at=at, len=ln, text=t, label=pos, color=color, fout=0.4, size=size or H)
     if sub:
         d["sub"] = sub
+        d["subY"] = 64  # 大きな数字の下に、重ならないように
     text.append(d)
     ev(at, f"札：{t}")
 
@@ -164,8 +165,8 @@ n_ch = sum(len(t_) for t_, _ in QUOTE)
 for i in range(n_ch):
     sfx.append([K0 + (DELAY + i / CPS) / 0.5, "key"])
 ev(K0 + 0.5, "打つ字")
-text.append(dict(mode="head", at=K0 + 4, len=19.6 - (K0 + 4), lines=[], body=[["職人の一言", 0, GRAY]], fout=0.4, x=HX, y=HY + 83 * 2 + 100, H=H, S=S))
-ev(K0 + 4, "本文：職人の一言")
+text.append(dict(mode="head", at=K0 + 7, len=19.6 - (K0 + 7), lines=[], body=[["職人の一言", 0, GRAY]], fout=0.4, x=HX, y=HY + 83 * 2 + 100, H=H, S=S))
+ev(K0 + 7, "本文：職人の一言")
 say(1, 0.5, "私は、彫金の職人です。")
 say(2, 8.5, "作れるかどうかの判断は、職人の頭の中にしかない。")
 
@@ -200,16 +201,21 @@ T = 48
 # word7 の区切り（撮ったこまの meta.json）を読む
 WM = json.load(open(os.path.join(WORK, "story", "word7", "meta.json")))["marks"] if has("word7") else {}
 WB = json.load(open(os.path.join(WORK, "story", "word7", "meta.json")))["boxes"] if has("word7") else {}
+# 枠は右の欄の幅だけ（字を大きく。細かい字を読ませない）。ページの y は撮った枠の場所から
 if WB.get("field"):
-    b_ = WB["field"]
-    FIELD = [1170, max(60, b_["y"] - 60), 430, 352]
+    FIELD = [1262, WB["field"]["y"] - 30, 338, 277]
 if WB.get("proposal"):
-    b_ = WB["proposal"]
-    PROP = [1170, max(60, b_["y"] - 40), 430, 352]
+    PROP = [1262, WB["proposal"]["y"] - 16, 338, 277]
 if WM:
-    win(T, 8, "word7", cam=[[0, FIELD]], ramp=[[0, "type-14"], [0.5, "type"], [6.2, "typed"], [7.2, "typed+8"], [8, "wait"]], keys=[["type", "typed"]])
-    win(T + 8, 8, "word7", cam=[[0, PROP]], ramp=[[0, "proposal"], [5.0, "proposal+40"], [6.2, "applied-3"], [7.0, "applied+3"], [8, "applied+18"]],
-        focus=[[4.4, "ok", 0.0], [5.0, "ok", 1.0], [6.4, "ok", 1.0], [6.8, "ok", 0.0]], focusDim=0.5, focusWidth=2)
+    # 言葉を打つ（1 字 2 こま。少しゆっくり）→ 打ち終わって、読む間 → 決まりにする を押す
+    # 見せたい所（字の欄とボタン）だけ明るく。下の札（前に入れた決まり）は読ませない
+    Fb = WB["field"]
+    FB = [Fb["x"], Fb["y"], Fb["w"], WB["go"]["y"] + WB["go"]["h"] - Fb["y"]]
+    win(T, 8, "word7", cam=[[0, FIELD]], ramp=[[0, "type-4"], [0.6, "type+8"], [5.6, "typed"], [7.0, "typed+6"], [8, "wait"]], keys=[["type+17", "typed"]],
+        focus=[[0.0, FB, 0.0], [0.6, FB, 1.0], [8, FB, 1.0]], focusDim=0.55, focusWidth=2)
+    # Claude の案（本物）→ これでいい を押す（押すと欄が描き直されて上へ飛ぶので、押す瞬間のこまで止める）
+    win(T + 8, 8, "word7", cam=[[0, PROP]], ramp=[[0, "proposal"], [5.0, "proposal+38"], [6.6, "applied-6"], [7.0, "applied-3"], [8, "applied-3"]],
+        focus=[[0.0, "proposal", 1.0], [6.0, "proposal", 1.0], [6.5, "ok", 1.0], [8, "ok", 1.0]], focusDim=0.55, focusWidth=2)
     ev(T + 13, "枠：これでいい")
 else:
     kind(T, 16, "black", color=BG)
@@ -263,13 +269,13 @@ if LM:
     B_ = LM["boxes"]
     box_ = lambda k: [B_[k]["x"], B_[k]["y"], B_[k]["w"], B_[k]["h"]]  # noqa: E731
     # Claude の問い → 職人の言葉を打つ（問いは Claude が言い直した本物。答えは作者の言葉）
-    win(T, 12, "ledger7m", cam=[[0, [0, 46, PHONE, 393]]], ramp=[[0, "asked"], [3, "asked+36"], [9.5, "typed"], [12, "typed+10"]], keys=[["asked+40", "typed"]],
-        focus=[[0.3, box_("q"), 0.0], [0.9, box_("q"), 1.0], [3.0, box_("q"), 1.0], [3.6, box_("answer"), 1.0], [11.5, box_("answer"), 1.0]], focusDim=0.45, focusWidth=2)
+    win(T, 12, "ledger7m", cam=[[0, [0, 46, PHONE, 393]]], ramp=[[0, "asked"], [4.5, "asked+36"], [10.8, "typed"], [12, "typed+8"]], keys=[["asked+53", "typed"]],
+        focus=[[0.3, box_("q"), 0.0], [0.9, box_("q"), 1.0], [4.4, box_("q"), 1.0], [5.0, box_("answer"), 1.0], [11.8, box_("answer"), 1.0]], focusDim=0.45, focusWidth=2)
     # Claude がまとめた決まり。「帳面に入れる」を押す手前で切る（押すと画面が上に戻るので）
-    win(T + 12, 8, "ledger7m", cam=[[0, [22, 276, 437, 358]]], ramp=[[0, "draft"], [8, "draft+60"]])
+    win(T + 12, 8, "ledger7m", cam=[[0, [22, 296, 437, 358]]], ramp=[[0, "draft"], [8, "draft+60"]])
 else:
     kind(T, 20, "black", color=BG)
-ev(T + 1, "枠：問い"); ev(T + 4, "枠：答え")
+ev(T + 1, "枠：問い"); ev(T + 5, "枠：答え")
 head(T, 12, ["帳面に足りない所は、", "Claude が、", "*聞きに来る。"], fout=0.35)
 head(T + 12, 8, ["答えると、", "*それが決まりになる。"], ["職人の言葉も、そのまま残る。"], bt=[3])
 low(T, 20, "帳面：職人の言葉と、選んだ資料。", rel=0.5)
@@ -329,7 +335,7 @@ say(21, T + 8, "生徒は多く、先生は少ない。長いときは 1 時間�
 T += 16
 
 # ================================================================ 1:28 継ぐなら、すぐ答えが出る（枠は動かさない）
-win(T, 8, "learn4m", ramp=[[0, 96], [1, 106], [5.5, 146], [7, 165], [8, 166]], cam=[[0, PH(270)]])
+win(T, 8, "learn4m", ramp=[[0, 96], [1, 106], [5.5, 146], [7, 165], [8, 166]], cam=[[0, PH(258)]])
 head(T, 8, ["継ぐなら、", "*すぐ答えが出る。"], ["帳面の決まりから、出どころつきで。"], bt=[4])
 say(22, T + 1, "継ぐなら、すぐ答えが出る。")
 T += 8
@@ -435,7 +441,7 @@ T += 36
 
 # ================================================================ 2:36 柱の一文（黒の上、右に今の指輪。ゆっくり回る）
 FINAL = T
-ring(T, 16, "hero7", "tri+400", spot=WIN, speed=0.62)  # うしろの側からの絵（前の場面と同じ向きを繰り返さない）。少しゆっくり
+ring(T, 16, "hero7b", 5, spot=WIN)  # 前の場面と同じ向きを繰り返さない：回る向きの先の側から（輪が開いて、石も見える。hero7b）
 head(T, 8, ["職人の判断を、", "*蓄える。"], fout=0.4)
 head(T + 8, 8, ["失われた技まで、", "*組み立て直す。"], fout=0.6)
 say(37, T + 1, "職人の判断を、蓄える。")
@@ -477,8 +483,9 @@ CR2 = "Claude の答えも、撮ったときのまま。音楽と効果音は、
 text.append(dict(mode="head", at=E + 3, len=10, lines=[], body=[[CR1, 0, NOTE], [CR2, 0, NOTE]], fout=1.5, x=HX, y=985, H=H, S=S))
 ev(E + 3, "出どころ")
 LEN = E + 13   # 入れた版 348 拍 ＝ 2:54 ／ 外した版 340 拍 ＝ 2:50
-say(39, E + 1, "継ぐ。")
-say(40, E + 3, "このアプリも、私が Claude Code と作りました。")
+# 「継ぐ。」は、音楽が止まった静けさの中で（一打と題の直前。一打に重ねると、声が埋もれた）
+say(39, E - 0.6, "継ぐ。")
+say(40, E + 2.5, "このアプリも、私が Claude Code と作りました。")
 
 # ================================================================ 音楽の楽譜（bgm5.py が読む）。段・止める所・一打は、上の並びに合わせた。上がる音はなし
 O_ = WSLEN - 8  # 工房ごとを外すと、1:00 からうしろが 8 拍早くなる（light の段が 8 拍短くなる）

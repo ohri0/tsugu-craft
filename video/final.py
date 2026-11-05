@@ -125,7 +125,9 @@ if lines:
         flt.append(f"[{k + 2}:a]aresample=48000,aformat=channel_layouts=stereo,{fast}adelay={ms}|{ms}[v{k}]")
     flt.append("".join(f"[v{k}]" for k in range(len(lines))) + f"amix=inputs={len(lines)}:normalize=0,apad,atrim=0:{total},volume=1.0,asplit=2[vo][vk]")
     flt.append(f"[0:a]atrim=0:{total},volume=0.75[m]")
-    flt.append("[m][vk]sidechaincompress=threshold=0.025:ratio=7:attack=25:release=420:makeup=1[md]")
+    # 最終案 7：音楽の強い所（ドロップ・groove・終わり）でも声が埋もれないよう、声が出ている間は少し深く下げる（声との差が 4 dB しかない行があった）
+    sc = "threshold=0.016:ratio=8" if PLAN == "7" else "threshold=0.025:ratio=7"
+    flt.append(f"[m][vk]sidechaincompress={sc}:attack=25:release=420:makeup=1[md]")
     flt.append(f"[1:a]atrim=0:{total},volume={0.3 if PLAN in ('1', '2') else 0.16}[f]")
     fo = 3 if PLAN in ("1", "2") else 1.0  # 最終案 3：音楽は自分で消えていく。終わりの声（作りました）を消さないよう、最後の 1 秒だけ
     flt.append(f"[vo][md][f]amix=inputs=3:normalize=0,afade=t=out:st={total - fo}:d={fo}[a]")
@@ -143,7 +145,8 @@ def phone(src):
     """スマホで見る・送る用（1280 px・30 MB 以下。最終案 7 は 20 MB 以下）"""
     dst = src[:-4] + "_スマホ.mp4"
     limit = 20 if PLAN == "7" else 30
-    for crf in (28, 30, 32, 34, 36):
+    # 最終案 7：黒が多く字が細いので、20 MB に余裕があるぶん画質を上げる（crf 28 で約 7 MB、crf 23 で約 9 MB だった）
+    for crf in ((20, 22, 24, 26, 28) if PLAN == "7" else (28, 30, 32, 34)):
         run(["ffmpeg", "-v", "error", "-y", "-i", src, "-vf", "scale=1280:-2", "-c:v", "libx264", "-preset", "slow", "-crf", str(crf), "-pix_fmt", "yuv420p", "-c:a", AAC, "-b:a", "128k" if PLAN in ("1", "2") else "192k", "-movflags", "+faststart", dst])
         mb = os.path.getsize(dst) / 1e6
         print("スマホ用", os.path.basename(dst), f"crf {crf}", round(mb, 1), "MB")

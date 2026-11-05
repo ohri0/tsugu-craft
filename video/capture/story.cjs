@@ -1308,6 +1308,20 @@ const CH = {
     a.mark('round');
     await a.hold(N(140), { hide: true });
   },
+  // 見せる（黒の上）：柱の一文の指輪。同じカメラのまま、回る向きの先の側（輪が開いて、石も見える向き）から
+  hero7b: async (a) => {
+    const { p } = a;
+    const cam = JSON.parse(fs.readFileSync(`${OUT}/hero7/camera.json`, 'utf8'));
+    await studio(a);
+    await p.click('.act-present'); await a.settle(1500);
+    await hideClose(p);
+    await p.evaluate(() => { window.__viewer.setView('angle'); window.__viewer.keepCamera = true; }); await a.settle(300);
+    const th = 118 * Math.PI / 180;
+    const [ox, oy] = [cam.pos[0] - cam.tgt[0], cam.pos[1] - cam.tgt[1]];
+    await setCam(p, { pos: [cam.tgt[0] + ox * Math.cos(th) - oy * Math.sin(th), cam.tgt[1] + ox * Math.sin(th) + oy * Math.cos(th), cam.pos[2]], tgt: cam.tgt });
+    a.mark('start');
+    await a.hold(N(270), { hide: true });
+  },
   // 本物の最初の版（7606ee7）：既定の三角。hero7 と同じカメラ・同じ大きさの 3D の所で、地だけ黒に（形はその版のまま）。「作れます」の札や寸法は映さない
   first7: async (a) => {
     const { p } = a;

@@ -1,6 +1,21 @@
 # 動画を組む仕組み
 
-## 最終案 6（2026-11-05。いまの作り方）
+## 最終案 7（2026-11-05。いまの作り方）
+
+最終案 6 の仕組みのまま、場面を減らして 1 つを長くしたもの。台本は `PLAN-final7.md`（いちばん上に今の状況と次のコマンド）、声の 40 行は `../docs/NARRATION-ad.md`。
+
+- 台本：`final_build7.py` → `final7.json`（工房ごとあり 348 拍 ＝ 2:54）／`VARIANT=B` で `final7B.json`（工房ごとなし 340 拍 ＝ 2:50）。声の番号は台本のまま（外す版でも詰めない）。のばす動きだけ残し、つめる動きはやめた。
+- 撮る：`capture/story.cjs` の hero7・hero7b・first7・word7・ledger7m・workshops7・spike7・make7m。
+  1. `npx vite build --outDir video/work/dist-cap --emptyOutDir`、`CAP_PORT=5211 node video/capture/serve.cjs`（撮る相手は `TSUGU_CAP=http://localhost:5211`）、`npx vite --port 5180 --strictPort`（word7・ledger7m の本物の Claude）。
+  2. 最初の版：`git worktree add --detach <場所> 7606ee7`、`node_modules` を symlink、そこで `npx vite build --outDir <出す所>`、`CAP_DIST=<出す所> CAP_PORT=5212 node video/capture/serve.cjs`（`TSUGU_FIRST=http://localhost:5212`）。
+  3. `node video/capture/story.cjs hero7 hero7b first7 workshops7 spike7 make7m word7 ledger7m`。first7 は hero7 が残したカメラの道（`story/hero7/track.json`）を通るので、hero7 のあとに。`CAP_TEST=1` だと、こまを 3 つまでにして Claude を呼ばない（手順の試し）。
+- `reel.py` に足した物：`grid`（本物の画面のこまを 3 × 2 に並べる）・学校の図の字（`clockText`）・数字の札の下の字の位置（`subY`）。`bgm5.py`：`no_roll`（ドロップ前のスネアの連打をやめる）。
+- 仮声：`KOKORO_SPEED=1.0 video/work/.venv/bin/python -I video/tts_kokoro.py video/final7.json "" video/work/voice/sim7`。
+- 組む：`TSUGU_OWN_VOICE=$PWD/video/work/voice/sim7 video/work/.venv/bin/python -I video/final.py --plan 7 --jobs 14`（外す版は `--variant B`）→ `work/vc/継ぐ_デモ_最終案7_工房あり_仮声.mp4`・`_仮声_スマホ.mp4`（1280 × 720・20 MB 以下）。
+- 作者の映像：`work/footage/ring1.mov`（手元）・`ring2.mov`（本物の指輪）を置いて組み直すと差し替わる。字も変わる（`final_build7.py` の `HAND`・`REAL_RING`）。ないときは、黒に字（手元）・見せるの指輪（本物の指輪。字なし）。
+- 作者の録音：`work/voice/n<番号>.wav` を置いて `video/work/.venv/bin/python -I video/final.py --plan 7`。
+
+## 最終案 6（2026-11-05）
 
 最終案 5 の仕組みのまま、並びを作り直したもの。設計は `PLAN-final.md`、声の台本は `../docs/NARRATION-ad.md`（38 行）。
 

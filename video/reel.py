@@ -1249,7 +1249,7 @@ def draw3(base, card, b):
         place(base, im, lx - pad, ly - asc * 0.62 - pad, 1, ua * A, 0)
         if card.get("sub"):
             im2, pad2, asc2, _ = token_img(card["sub"], "g4", S3, C3["gray"])
-            place(base, im2, lx - pad2, ly + S3 * 1.25 - asc2 * 0.62 - pad2, 1, ua * A, 0)
+            place(base, im2, lx - pad2, ly + card.get("subY", S3 * 1.25) - asc2 * 0.62 - pad2, 1, ua * A, 0)
     elif mode == "type3":
         # 打つ字（つかみ：職人の一言）：1 字ずつ出る。打っている所に金色の細い棒（打ち終わったら 1 拍で消える）
         x, y0 = card.get("x", 120), card.get("y", 400)
