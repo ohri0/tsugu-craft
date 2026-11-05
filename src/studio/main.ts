@@ -55,6 +55,9 @@ import { GUIDES, GUIDE_NOTE, minProngMm, stoneSizeMm } from "../rules/guides";
 import { callTool } from "../rebuild/run";
 import { dimsSvg, flatDims, gizmoSvg, type Dim, type Rect, type V3 } from "./dims";
 import { bindSlider, sliderHtml, type SliderSpec } from "./slider";
+import { measureDim, measureLabel, measureMm, ringFeatures } from "./measure";
+import { setupMeasure, type MeasureUi } from "./measure-ui";
+import { setupProngEdit, type ProngEditUi } from "./prong-edit";
 import { bindSectionEditor, sectionEditorHtml, startShape } from "./section-edit";
 import { SHANK_SECTIONS, SHANK_SECTION_LABEL, shankSizeWords, type ShankSection } from "../geometry/shank";
 import { placePoint, rebuildShank } from "../geometry/ring";
@@ -81,6 +84,7 @@ const ICON = {
   grid: `<svg viewBox="0 0 20 20"><path d="M3 7h14M3 13h14M7 3v14M13 3v14"/></svg>`,
   dims: `<svg viewBox="0 0 20 20"><path d="M3 14 14 3l3 3L6 17z"/><path d="M6.5 10.5l1.5 1.5M9 8l1.5 1.5M11.5 5.5 13 7"/></svg>`,
   fit: `<svg viewBox="0 0 20 20"><path d="M3 7V3h4M13 3h4v4M17 13v4h-4M7 17H3v-4"/></svg>`,
+  measure: `<svg viewBox="0 0 20 20"><path d="M4 16 16 4"/><path d="M2.5 13.5l4 4M13.5 2.5l4 4"/><circle cx="10" cy="10" r="0.6"/></svg>`,
   undo: `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 4 3.5 8l4 4"/><path d="M3.5 8H12a4.5 4.5 0 0 1 0 9H9"/></svg>`,
   redo: `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4l4 4-4 4"/><path d="M16.5 8H8a4.5 4.5 0 0 0 0 9h3"/></svg>`,
   solitaire: `<svg viewBox="0 0 24 24"><circle cx="12" cy="15" r="6.5"/><path d="M9 6.5h6l-3 3.5z"/><path d="M8.5 6.5 10 4h4l1.5 2.5"/></svg>`,
@@ -142,6 +146,7 @@ app.innerHTML = `
     <hr>
     <button type="button" class="tool t-grid" data-tip="1 mm の目盛り" aria-label="目盛り" aria-pressed="true">${ICON.grid}</button>
     <button type="button" class="tool t-dims" data-tip="寸法" aria-label="寸法" aria-pressed="true">${ICON.dims}</button>
+    ${filming() ? "" : `<button type="button" class="tool t-measure" data-tip="寸法を引く（2 点を押す）" aria-label="寸法を引く" aria-pressed="false">${ICON.measure}</button>`}
     <button type="button" class="tool t-fit" data-tip="全体を見る" aria-label="全体を見る">${ICON.fit}</button>
   </nav>
   <section class="vp">
@@ -243,7 +248,7 @@ let headBox: { min: [number, number, number]; max: [number, number, number] } | 
 function dimsAvoid(): { avoid: Rect[]; bounds: Rect } {
   const svg = $(".dims").getBoundingClientRect();
   const avoid: Rect[] = [];
-  for (const sel of [".vp-tl", ".verdict-chip", ".gen-swap", ".tools", ".gizmo"]) {
+  for (const sel of [".vp-tl", ".verdict-chip", ".gen-swap", ".tools", ".gizmo", ".ms-panel", ".prong-pop"]) {
     const el = document.querySelector<HTMLElement>(sel);
     if (!el || el.hidden || el.offsetParent === null) continue;
     const r = el.getBoundingClientRect();
@@ -263,14 +268,22 @@ function dimsAvoid(): { avoid: Rect[]; bounds: Rect } {
   }
   return { avoid, bounds: { x: 4, y: 4, w: svg.width - 8, h: svg.height - 8 } };
 }
+/** 寸法の札の置いた所（自分で引く寸法の札が、重ならないように） */
+let dimsPlaced: Rect[] = [];
 function drawDims(d: Dim[] = dims) {
   // 平らな図（正面・横・上）では、図面の寸法（形の外へ引き出し線・本当の長さ）に
   const flat = viewer.flatView;
   if (flat) d = flatDims(d, flat);
-  $(".dims").innerHTML = showDims && !holdDims ? dimsSvg(d, (x, y, z) => viewer.project(x, y, z), 1, dimsAvoid()) : "";
+  dimsPlaced = [];
+  $(".dims").innerHTML = showDims && !holdDims ? dimsSvg(d, (x, y, z) => viewer.project(x, y, z), 1, { ...dimsAvoid(), placed: dimsPlaced }) : "";
 }
+/** 自分で引く寸法（撮影では作らない） */
+let measure: MeasureUi | null = null;
+/** 爪を押して直す欄（撮影では作らない） */
+let prongEdit: ProngEditUi | null = null;
 viewer.onFrame(() => {
   drawDims();
+  measure?.frame(dimsPlaced);
   $(".gizmo").innerHTML = gizmoSvg(viewer.axes());
 });
 function setDims(d: Dim[]) {
@@ -818,7 +831,11 @@ function setPresent(on: boolean) {
   // 指輪を置く所の大きさが変わるので、少し待ってから寄せ直す
   setTimeout(() => viewer.fit(), 120);
 }
-$(".act-present").addEventListener("click", () => setPresent(!presentOn));
+$(".act-present").addEventListener("click", () => {
+  measure?.stop();
+  prongEdit?.close();
+  setPresent(!presentOn);
+});
 $(".pr-close").addEventListener("click", () => setPresent(false));
 addEventListener("keydown", (e) => {
   if (e.key === "Escape" && presentOn) setPresent(false);
@@ -1024,13 +1041,15 @@ function onBuilt(b: Built, _why: string, refined = false) {
   viewer.setRing(b.ring, { color: stone.extraction.color, colorless: stone.extraction.colorless, shade: session!.state.metal }, b.problems);
   headBox = headBoxOf(b);
   setDims(ringDims(b));
+  prongEdit?.sync(b);
+  if (session?.takeEditsDropped()) toast("爪の本数が変わったので、1 本ずつの直しを消しました");
   const r = b.ring;
   const s = session!.state;
   const st = r.setting;
   const rows: [string, string][] = [
     ["石", `${stone.shapeName} ・ ${stone.measured.longMm.toFixed(2)} × ${stone.measured.widthMm.toFixed(2)} × ${stone.depthMm.toFixed(2)} mm`],
     ...(r.stones.length > 1 ? ([["石の並び", `${layoutName()} ・ ${r.stones.length} 石（${r.stones.map((x) => x.params.longMm.toFixed(1)).join(" ・ ")} mm）`]] as [string, string][]) : []),
-    ["留め方", st.tension ? tensionWord(st) : st.style === "bezel" ? `覆輪 ・ 壁 ${st.bezel?.wallMm.toFixed(2)} mm` : `爪 ${st.prongs.length}${st.prongs.some((p) => p.isV) ? `（V 字 ${st.prongs.filter((p) => p.isV).length}）` : ""} ・ ø ${st.prongs[0]?.diameterMm.toFixed(2)} mm${st.prongTip === "oni" ? ` ・ ${PRONG_TIP_LABEL.oni}` : ""}`],
+    ["留め方", st.tension ? tensionWord(st) : st.style === "bezel" ? `覆輪 ・ 壁 ${st.bezel?.wallMm.toFixed(2)} mm` : `爪 ${st.prongs.length}${st.prongs.some((p) => p.isV) ? `（V 字 ${st.prongs.filter((p) => p.isV).length}）` : ""} ・ ${prongDiaWord(st)}${st.prongTip === "oni" ? ` ・ ${PRONG_TIP_LABEL.oni}` : ""}`],
     ["号 ・ 腕", `${s.gou} 号 ・ ${ringSectionWord(s, r.shank.widthMm, r.shank.thicknessMm)} ${shankSizeWords(r.shank)}`],
     ["石と指のすき間", `${r.culetGapMm.toFixed(2)} mm`],
     ["地金", `${METAL_LABEL[s.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g`],
@@ -1075,6 +1094,7 @@ function fitInsets() {
 }
 new ResizeObserver(() => fitInsets()).observe($(".vp"));
 function setMode(m: Mode) {
+  if (m !== "refine") prongEdit?.close();
   if (m !== "refine") ruleVoice?.stop();
   const w = MODES.find((x) => x.id === m)!;
   $(".vp-mode").textContent = w.word;
@@ -1815,7 +1835,7 @@ function workshopTable(): string {
       // 帳面を切り替えたときと同じ順で組む（前は別の太くし方で、表と切り替えた後の爪の太さがちがった）
       const b = underLedger(session!.stone, state, led);
       const st = b.ring.setting;
-      return `<tr><th>${esc(name)}</th><td>${st.tension ? tensionWord(st) : st.style === "bezel" ? `覆輪 ・ 壁 ${st.bezel?.wallMm.toFixed(2)} mm` : `ø ${st.prongs[0]?.diameterMm.toFixed(2)} mm × ${st.prongs.length} ・ ${PRONG_TIP_LABEL[st.prongTip]}`}</td><td>${grouped(b).length}</td></tr>`;
+      return `<tr><th>${esc(name)}</th><td>${st.tension ? tensionWord(st) : st.style === "bezel" ? `覆輪 ・ 壁 ${st.bezel?.wallMm.toFixed(2)} mm` : `${prongDiaWord(st)} × ${st.prongs.length} ・ ${PRONG_TIP_LABEL[st.prongTip]}`}</td><td>${grouped(b).length}</td></tr>`;
     })
     .join("")}</tbody></table><p class="hint">同じ石・同じ形を、帳面だけ替えて組んだ結果です（爪の太さと形は、それぞれの帳面の標準から）。目安・最後は職人が決めます。</p>`;
 }
@@ -2010,7 +2030,18 @@ let manualOpen: boolean | null = null;
 let holdPanel = false;
 /** 確かめるの数のつまみ（爪の太さ・号） */
 function prongSlider(b: Built): SliderSpec {
-  return { cls: "r-prong", label: "爪の太さ", min: 0.4, max: 1.6, step: 0.05, value: b.ring.setting.prongs[0]?.diameterMm ?? 0.8, unit: "mm" };
+  // 1 本ずつ太さを決めた爪があるときは、決めていない爪の太さを出す（このつまみは全部の爪の太さ）
+  const ps = b.ring.setting.prongs;
+  const plain = ps.find((_, i) => !session?.state.prongEdits?.[i]?.diameterMm) ?? ps[0];
+  return { cls: "r-prong", label: "爪の太さ", min: 0.4, max: 1.6, step: 0.05, value: plain?.diameterMm ?? 0.8, unit: "mm" };
+}
+/** 爪の太さの言葉。1 本ずつ変えた爪があれば、細い方〜太い方 */
+function prongDiaWord(st: Built["ring"]["setting"]): string {
+  const ds = st.prongs.map((p) => p.diameterMm);
+  if (!ds.length) return "";
+  const lo = Math.min(...ds);
+  const hi = Math.max(...ds);
+  return hi - lo > 1e-6 ? `ø ${lo.toFixed(2)}〜${hi.toFixed(2)} mm` : `ø ${lo.toFixed(2)} mm`;
 }
 function stoneSlider(): SliderSpec {
   return { cls: "r-stone", label: "石の大きさ", min: STONE_LONG_RANGE.min, max: STONE_LONG_RANGE.max, step: 0.1, value: Number((session?.stone.longMm ?? 8).toFixed(1)), unit: "mm" };
@@ -2032,6 +2063,13 @@ function resizeStone(longMm: number, final: boolean) {
   $<HTMLInputElement>(".in-depth").value = stone.depthMm.toFixed(2);
   $(".stone-sub").textContent = `${stone.shapeName}・${stone.measured.longMm.toFixed(2)} × ${stone.measured.widthMm.toFixed(2)} mm`;
   session.state.prongMm = undefined;
+  // 1 本ずつ決めた爪の太さは、前の石の大きさのもの
+  session.state.prongEdits = session.state.prongEdits?.map((e) => {
+    if (!e) return null;
+    const { diameterMm: _d, ...rest } = e;
+    return Object.keys(rest).length ? rest : null;
+  });
+  if (!session.state.prongEdits?.some(Boolean)) session.state.prongEdits = undefined;
   // 三石・横一列は、石の大きさに合わせて並べ直す（止めたときだけ。動かしている間は場所をそのまま）
   const lay = session.state.layout;
   if (final && (lay === "trio" || lay === "row")) session.arrange(lay);
@@ -2053,6 +2091,12 @@ export const JOIN_NOTE: Record<JoinStyle, string> = {
 };
 function prongTipPickHtml(pick: <T extends string | number>(name: string, cur: T, list: [T, string][]) => string, cur: ProngTip): string {
   return `${pick(PRONG_TIP_PICK, cur, [["round", PRONG_TIP_LABEL.round], ["oni", PRONG_TIP_LABEL.oni]])}<ul class="pick-notes">${(["round", "oni"] as const).map((j) => `<li${j === cur ? ' class="on"' : ""}><b>${PRONG_TIP_LABEL[j]}</b>${esc(PRONG_TIP_NOTE[j])}</li>`).join("")}</ul>`;
+}
+/** 爪を押して直せることの案内と、直した爪の数 */
+function prongHintHtml(b: Built): string {
+  const st = session!.state;
+  const n = b.ring.setting.prongs.filter((_, i) => st.prongEdits?.[i]).length;
+  return `<p class="hint prong-hint">3D の爪を押すと、その爪だけ太さや先の形を直せます。${n ? `<br>1 本ずつ直した爪：${n} 本。` : ""}${n || st.prongLook ? ` <button type="button" class="link prong-reset-all">爪の形の直しを全部消す</button>` : ""}</p>`;
 }
 function joinPickHtml(pick: <T extends string | number>(name: string, cur: T, list: [T, string][]) => string, cur: JoinStyle): string {
   return `${pick(JOIN_PICK, cur, [["between", JOIN_LABEL.between], ["on", JOIN_LABEL.on]])}<ul class="pick-notes">${(["between", "on"] as const).map((j) => `<li${j === cur ? ' class="on"' : ""}><b>${JOIN_LABEL[j]}</b>${esc(JOIN_NOTE[j])}</li>`).join("")}</ul>`;
@@ -2180,6 +2224,7 @@ function renderCheck() {
       return tension + (small ? `<p class="look-note"><b>この石は、別の留め方がおすすめ</b>この大きさ・形では、爪を腕から避けたり、下の輪に収めたりできません。おちょこ留めや、腕に下穴を開けて留めるミル留め・パヴェのような留め方をすすめます。覆輪にする、腕を細くするのも手です。この爪留めのままなら、腕の上にのせる形になります（職人の言葉）<small>覆輪と腕の太さは「手で変える」で選べます。ほかの留め方は、まだ形にできません</small></p>` : "") + (note ? `<p class="look-note"><b>見た目の注意</b>${esc(note)}<small>作れますが、形に対して不自然に見えることがあります（確かめの決まりではありません）</small></p>` : "") + zaguri;
     })()}
     <details class="manual" ${manualOpen ?? !probs.length ? "open" : ""}><summary>手で変える</summary>
+      ${s.style === "prong" && !filming() ? prongHintHtml(b) : ""}
       ${pick("留め方", patternOf(b), PATTERNS.filter(([v]) => v !== "v"))}
       ${s.style === "prong" ? pick("爪の本数", s.prongCount ?? 0, [[0, "自動"], [3, "3"], [4, "4"], [5, "5"], [6, "6"]]) : ""}
       ${b.ring.setting.tension && b.ring.setting.tension.grips.length > 1 ? `${pick("挟む向き", b.ring.setting.tension.grip, b.ring.setting.tension.grips.map((x) => [x, GRIP_LABEL[x]] as [TensionGrip, string]))}<ul class="pick-notes">${b.ring.setting.tension.grips.map((x) => `<li${x === b.ring.setting.tension!.grip ? ' class="on"' : ""}><b>${GRIP_LABEL[x]}</b>${esc(GRIP_NOTE[x])}</li>`).join("")}</ul>` : ""}
@@ -2215,6 +2260,7 @@ function renderCheck() {
   );
   const manual = box.querySelector<HTMLDetailsElement>(".manual")!;
   manual.addEventListener("toggle", () => (manualOpen = manual.open));
+  box.querySelector(".prong-reset-all")?.addEventListener("click", () => session!.resetProngLook(null));
   box.querySelector(".compare-btn")?.addEventListener("click", () => setCompare(true));
   box.querySelector(".sweep-btn")?.addEventListener("click", () => openSweep());
   box.querySelector(".compare-back")?.addEventListener("click", () => setCompare(false));
@@ -2504,7 +2550,7 @@ function stoneAt(p: [number, number, number], onStone: boolean): number {
   gl.addEventListener(
     "pointerdown",
     (e) => {
-      if (!placeOn || !session?.built || kind !== "solitaire") return;
+      if (!placeOn || measure?.on || !session?.built || kind !== "solitaire") return;
       const hit = viewer.pickRing(e.clientX, e.clientY);
       const i = hit ? stoneAt(hit.p, hit.stone) : -1;
       down = { x: e.clientX, y: e.clientY, i, moved: false };
@@ -2598,6 +2644,11 @@ function applyFix(id: string, sess: RingSession = session!, prob?: Problem) {
     }
     case "lower":
       session!.setSetting({ height: s.height === "high" ? "standard" : "low", reason: "直し方から" });
+      break;
+    case "tipUp":
+    case "tipDown":
+      // 爪の先の高さが目安を外れるのは、先の反りや長さを手で直したとき。その直しを消す
+      session!.resetProngTips();
       break;
     case "thicker": {
       // 必要な太さまで一度に上げる（何度も押さなくてよいように）
@@ -2838,7 +2889,7 @@ function printSheet() {
         specs: [
           { label: "石", value: `${stone!.measured.longMm.toFixed(2)} × ${stone!.measured.widthMm.toFixed(2)} × ${stone!.depthMm.toFixed(2)} mm` },
           { label: "号", value: `${session.state.gou} 号 ・ 内径 ${r.shank.innerDiameterMm.toFixed(1)} mm` },
-          { label: "留め方", value: st.tension ? tensionWord(st) : st.style === "bezel" ? `覆輪 ・ 壁 ${st.bezel?.wallMm.toFixed(2)} mm` : `爪 ${st.prongs.length} ・ ø ${st.prongs[0]?.diameterMm.toFixed(2)} mm${st.prongTip === "oni" ? ` ・ ${PRONG_TIP_LABEL.oni}` : ""}` },
+          { label: "留め方", value: st.tension ? tensionWord(st) : st.style === "bezel" ? `覆輪 ・ 壁 ${st.bezel?.wallMm.toFixed(2)} mm` : `爪 ${st.prongs.length} ・ ${prongDiaWord(st)}${st.prongTip === "oni" ? ` ・ ${PRONG_TIP_LABEL.oni}` : ""}` },
           { label: "腕", value: `${r.shank.widthMm.toFixed(1)} × ${r.shank.thicknessMm.toFixed(1)} mm` },
           { label: "石と指のすき間", value: `${r.culetGapMm.toFixed(2)} mm` },
           { label: "地金", value: `${METAL_LABEL[session.state.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g` },
@@ -2980,6 +3031,8 @@ function craftRuleFor(check: string): Rule | undefined {
 }
 // 3D の赤い所を押すと、その問題に効く職人の決まりの声が流れる（声がなければ、職人の言葉と理由を出す）
 viewer.onWarnClick(() => {
+  // 寸法を引いている間と、爪を選んだ押しでは、案内を流さない
+  if (measure?.on || prongEdit?.claimed) return;
   if (kind === "band") {
     const list = bandProblems();
     for (const p of list) {
@@ -3642,8 +3695,22 @@ type DView = "front" | "side" | "top";
 function views(list: [DView, string][], dimsOf: (v: DView, box: { min: number[]; max: number[] }) => Dim[], px = DRAW_PX): DrawingView[] {
   return list.map(([v, name]) => {
     const d = viewer.drawing(v, px);
-    return { name, url: d.url, widthMm: d.widthMm, heightMm: d.heightMm, widthPx: d.widthPx, heightPx: d.heightPx, project: d.project, dims: dimsOf(v, d.box) };
+    // 自分で引いた寸法のうち、この図と同じ向きから引いたものを入れる（記録に残す小さな図には入れない）
+    // 字は数字と「引いた線」だけ（画面の「正面」と図面の「正面図」は見る向きが違うので、向きの名前は書かない）
+    const own = px === DRAW_PX ? (measure?.items ?? []).filter((m) => m.plane && DRAW_AXIS[v](m.plane.dir)).map((m) => ({ ...measureDim(m), label: `${measureMm(m.a, m.b, m.plane?.dir).toFixed(2)}（引いた線）` })) : [];
+    return { name, url: d.url, widthMm: d.widthMm, heightMm: d.heightMm, widthPx: d.widthPx, heightPx: d.heightPx, project: d.project, dims: [...dimsOf(v, d.box), ...own] };
   });
+}
+/** 図面の図と同じ向きか（図面の正面図は指の軸から、側面図は横から見る） */
+const DRAW_AXIS: Record<DView, (dir: readonly number[]) => boolean> = {
+  front: (d) => Math.abs(d[0]) > 0.9,
+  side: (d) => Math.abs(d[1]) > 0.9,
+  top: (d) => Math.abs(d[2]) > 0.9,
+};
+/** 表題欄の行：斜めで引いた寸法（図の面に載らないので、数字だけ） */
+function ownMeasureRows(px: number, sess: RingSession | null): { label: string; value: string }[] {
+  if (px !== DRAW_PX || sess !== session || !measure) return [];
+  return measure.items.filter((m) => !m.plane).map((m) => ({ label: `引いた寸法（${m.nameA ?? "面の点"} 〜 ${m.nameB ?? "面の点"}）`, value: measureLabel(m) }));
 }
 /** 一粒石の指輪の図面。いま 3D に出ている形（b）を描く。記録に残すときは px を小さくして軽くする */
 function solitaireDrawing(b: Built, problems: string[], sess: RingSession = session!, info: StoneInfo = currentStone(), px = DRAW_PX): string {
@@ -3671,7 +3738,7 @@ function solitaireDrawing(b: Built, problems: string[], sess: RingSession = sess
       { label: "号", value: `${sess.state.gou} 号（内径 ${(ri * 2).toFixed(1)} mm）` },
       { label: "地金・重さ", value: `${METAL_LABEL[sess.state.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g` },
       { label: "石（長さ × 幅 × 深さ）", value: `${info.longMm.toFixed(2)} × ${info.widthMm.toFixed(2)} × ${info.depthMm.toFixed(2)} mm` },
-      { label: "留め方", value: r.setting.tension ? tensionWord(r.setting) : r.setting.style === "bezel" ? `覆輪（壁の厚み ${r.setting.bezel?.wallMm.toFixed(2)} mm）` : `爪 ${r.setting.prongs.length} 本（太さ ø ${r.setting.prongs[0]?.diameterMm.toFixed(2)} mm${r.setting.prongTip === "oni" ? ` ・ ${PRONG_TIP_LABEL.oni}` : ""}）` },
+      { label: "留め方", value: r.setting.tension ? tensionWord(r.setting) : r.setting.style === "bezel" ? `覆輪（壁の厚み ${r.setting.bezel?.wallMm.toFixed(2)} mm）` : `爪 ${r.setting.prongs.length} 本（太さ ${prongDiaWord(r.setting)}${r.setting.prongTip === "oni" ? ` ・ ${PRONG_TIP_LABEL.oni}` : ""}）` },
       ...(r.setting.tension
         ? []
         : [{ label: "腕", value: `${SHANK_SECTION_LABEL[r.shank.section]} 幅 ${r.shank.widthMm.toFixed(1)} × 厚み ${r.shank.thicknessMm.toFixed(1)} mm` }]),
@@ -3685,6 +3752,7 @@ function solitaireDrawing(b: Built, problems: string[], sess: RingSession = sess
         label: `石 ${i + 2}`,
         value: `${x.params.longMm.toFixed(2)} × ${x.params.widthMm.toFixed(2)} ・ ${x.setting.style === "bezel" ? "覆輪" : `爪 ${x.setting.prongs.length} ・ ø${x.setting.prongs[0]?.diameterMm.toFixed(2)}`} ・ ${placeText(x)}`,
       })),
+      ...ownMeasureRows(px, sess),
       ...(r.notchDepthMm > 0 ? [{ label: "腕の上のザグり（石の先を逃がす）", value: `深さ ${r.notchDepthMm.toFixed(2)} mm ・ 丸いビット 直径 約 ${r.shank.notchBallDiameterMm.toFixed(1)} mm` }] : []),
       ...(r.setting.collar
         ? [
@@ -3853,7 +3921,7 @@ function solitaireData(sess: RingSession = session!, info: StoneInfo = currentSt
     specs: [
       { label: "石", value: `${info.longMm.toFixed(2)} × ${info.widthMm.toFixed(2)} × ${info.depthMm.toFixed(2)} mm` },
       { label: "号", value: `${sess.state.gou} 号 ・ 内径 ${r.shank.innerDiameterMm.toFixed(1)} mm` },
-      { label: "留め方", value: st.tension ? tensionWord(st) : st.style === "bezel" ? `覆輪 ・ 壁 ${st.bezel?.wallMm.toFixed(2)} mm` : `爪 ${st.prongs.length} ・ ø ${st.prongs[0]?.diameterMm.toFixed(2)} mm${st.prongTip === "oni" ? ` ・ ${PRONG_TIP_LABEL.oni}` : ""}` },
+      { label: "留め方", value: st.tension ? tensionWord(st) : st.style === "bezel" ? `覆輪 ・ 壁 ${st.bezel?.wallMm.toFixed(2)} mm` : `爪 ${st.prongs.length} ・ ${prongDiaWord(st)}${st.prongTip === "oni" ? ` ・ ${PRONG_TIP_LABEL.oni}` : ""}` },
       { label: "腕", value: `${r.shank.widthMm.toFixed(1)} × ${r.shank.thicknessMm.toFixed(1)} mm` },
       { label: "石と指のすき間", value: `${r.culetGapMm.toFixed(2)} mm` },
       { label: "地金", value: `${METAL_LABEL[sess.state.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g` },
@@ -4130,6 +4198,32 @@ $(".act-why").addEventListener("click", () => {
   openWhy();
 });
 if (location.hash === "#why") openWhy();
+// 寸法を引く・爪を押して直す（撮影では出さない。前の動画の絵を変えないため）
+if (!filming()) {
+  measure = setupMeasure(
+    {
+      viewer,
+      vp: $(".vp"),
+      gl: $(".gl"),
+      toast,
+      // 形の印：設計の写しと石の大きさ（細かい形への作り直しでは変わらない）
+      shapeKey: () => JSON.stringify([kind, stone?.measured.longMm, stone?.measured.widthMm, stone?.depthMm, kind === "band" ? [band, bandMetal] : session?.snapshot()]),
+      features: () => (kind === "solitaire" && session?.built ? ringFeatures(session.built.ring) : []),
+      avoid: dimsAvoid,
+    },
+    $(".t-measure"),
+  );
+  $(".t-measure").addEventListener("click", () => prongEdit?.close());
+  prongEdit = setupProngEdit({
+    viewer,
+    vp: $(".vp"),
+    gl: $(".gl"),
+    session: () => session,
+    can: () => $(".pro").dataset.mode === "refine" && kind === "solitaire" && session?.state.style === "prong" && !measure?.on && !placeOn && !presentOn && !sheetOn && !compare,
+    toast,
+    tipLabel: PRONG_TIP_LABEL,
+  });
+}
 // 動画を 1 コマずつ撮るとき（?rec）：3D をページの外から回せるようにする
 if (new URLSearchParams(location.search).has("rec")) {
   const w = window as unknown as { __viewer: Viewer; __propose: (p: ProposeRuleInput) => Promise<ProposeRuleResult> };
@@ -4163,4 +4257,4 @@ function makeCards(m: Method) {
     return { no: c.no, title: c.title, lead: c.text, rows: c.rows.map((x) => [x.label, x.value]), watch: c.watch ?? "", tools: c.tools, more: cardFlow(c, m).lines };
   });
 }
-(window as unknown as { __studio: unknown }).__studio = { get session() { return session; }, setMode, dimsAvoid, loadPreset, viewer, makeCards };
+(window as unknown as { __studio: unknown }).__studio = { get session() { return session; }, get measure() { return measure; }, setMode, dimsAvoid, loadPreset, viewer, makeCards };
