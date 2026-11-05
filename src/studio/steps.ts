@@ -24,10 +24,13 @@ export const STEP_DETAILS: Record<string, Detail[]> = {
   finish: FINISH_DETAILS,
 };
 
+/** V 字の爪の手順を外す（V 字の爪のない指輪） */
+export const dropVDetails = (list: Detail[]): Detail[] => list.filter((d) => !d.text.startsWith("V 字の爪："));
+
 /** 「詳しく」のない工程に、工程の名前から詳しくを戻す（記録から帳面を作るとき） */
 export function withDetails(st: Step): Step {
   if (st.details?.length || !st.id || !STEP_DETAILS[st.id]) return st;
-  return { ...st, details: STEP_DETAILS[st.id] };
+  return { ...st, details: st.vProngs ? STEP_DETAILS[st.id] : dropVDetails(STEP_DETAILS[st.id]) };
 }
 
 /** 地金ごとの温度の行（分からない地金は「使う地金の表を見る」） */

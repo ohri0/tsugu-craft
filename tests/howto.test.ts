@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildRing } from "../src/geometry/ring";
 import { howToMake, measures } from "../src/studio/howto";
+import { withDetails } from "../src/studio/steps";
 import { stoneFrom } from "./helpers/stones";
 import { triangle } from "./helpers/synth";
 import { MAKING_STEPS } from "../src/rules/making";
@@ -69,5 +70,26 @@ describe("作り方：ザグり", () => {
     const i = input("prong");
     expect(i.ring.notchDepthMm).toBe(0);
     expect(howToMake(i, "hand").find((s) => s.title === "石座を腕に付ける")!.text).not.toContain("ザグ");
+  });
+});
+
+describe("V 字の爪の手順は、V 字の爪のある指輪にだけ出す", () => {
+  const vText = (steps: { details?: { text: string }[] }[]) => steps.flatMap((st) => st.details ?? []).filter((d) => d.text.includes("V 字の爪"));
+  const plain = () => ({ ...input("prong"), ring: buildRing({ stone, setting: { style: "prong", height: "standard", vAtCorners: false }, shank: { gou: 11 }, orientation: "along" }) });
+  it("ふつうの爪の指輪には出ない", () => {
+    expect(plain().ring.setting.prongs.some((p) => p.isV)).toBe(false);
+    expect(vText(howToMake(plain(), "hand"))).toEqual([]);
+  });
+  it("記録から戻すときも出ない", () => {
+    const steps = howToMake(plain(), "hand").map(({ details: _d, ...rest }) => rest).map(withDetails);
+    expect(steps.some((st) => st.id === "prong" && st.details?.length)).toBe(true);
+    expect(vText(steps)).toEqual([]);
+  });
+  it("V 字の爪のある指輪には出る", () => {
+    const ring = buildRing({ stone, setting: { style: "prong", height: "standard", vAtCorners: true }, shank: { gou: 11 }, orientation: "along" });
+    expect(ring.setting.prongs.some((p) => p.isV)).toBe(true);
+    const steps = howToMake({ ...input("prong"), ring }, "hand");
+    expect(vText(steps).length).toBeGreaterThan(0);
+    expect(vText(steps.map(({ details: _d, ...rest }) => rest).map(withDetails)).length).toBeGreaterThan(0);
   });
 });

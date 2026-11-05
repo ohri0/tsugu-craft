@@ -8,7 +8,7 @@ import { SHANK_SECTION_LABEL } from "../geometry/shank";
 import { perimeter } from "../geometry/polygon";
 import { GUIDES } from "../rules/guides";
 import type { AlloyId, Detail } from "./process";
-import { castSteps, finishStep, forgeSteps, settingStep } from "./steps";
+import { castSteps, dropVDetails, finishStep, forgeSteps, settingStep } from "./steps";
 
 export type Method = "cast" | "hand";
 
@@ -28,6 +28,8 @@ export interface Step {
   watch?: string;
   /** 「詳しく」の細かい手順（出典つき） */
   details?: Detail[];
+  /** V 字の爪がある指輪か（記録から帳面を作るときに、V 字の爪の手順を出すか決める） */
+  vProngs?: boolean;
 }
 
 const mm = (v: number, d = 1) => `${v.toFixed(d)} mm`;
@@ -78,8 +80,10 @@ export function measures(o: HowToInput) {
 }
 
 export function howToMake(o: HowToInput, method: Method): Step[] {
-  if ((o.ring.stones?.length ?? 1) > 1) return multiSteps(o, method);
-  return soloSteps(o, method);
+  const steps = (o.ring.stones?.length ?? 1) > 1 ? multiSteps(o, method) : soloSteps(o, method);
+  // V 字の爪の手順は、V 字の爪のある指輪にだけ出す（ない爪の話が「詳しく」に残っていた）
+  const hasV = (o.ring.stones?.length ? o.ring.stones.map((st) => st.setting) : [o.ring.setting]).some((st) => st.prongs.some((p) => p.isV));
+  return hasV ? steps.map((s) => (s.id === "prong" ? { ...s, vProngs: true } : s)) : steps.map((s) => (s.details ? { ...s, details: dropVDetails(s.details) } : s));
 }
 
 /** 石の場所の言葉（腕のいちばん上から、腕に沿って） */

@@ -3112,7 +3112,7 @@ function thumbnail(): string {
 function openSaveWork(slot: HTMLElement, data: WorkData) {
   slot.innerHTML = `<div class="save-form">
     <label>作った人<input type="text" class="w-maker" value="${esc(masterName(store.ledger()) === "職人" ? "" : masterName(store.ledger()))}" placeholder="名前"></label>
-    <label>話して残す（気をつけたこと・コツ・なぜそうしたか）<textarea rows="3" class="w-note" placeholder="例：座は爪の 3 分の 1 まで。V 字の爪は角に当てないよう先を逃がした。ロウは継ぎ目の反対から熱した"></textarea></label>
+    <label>話して残す（気をつけたこと・コツ・なぜそうしたか）<textarea rows="3" class="w-note" placeholder="例：座は爪の 3 分の 1 まで。ロウは継ぎ目の反対から熱した"></textarea></label>
     <p class="hint">Claude が、話を工程ごとのコツに分けて残します。次に同じ工程を作る人の画面に「前の記録から」と出ます。</p>
     <div class="row"><button type="button" class="ghost-d w-mic">話す</button><button type="button" class="primary w-save">記録する</button></div>
   </div>`;
