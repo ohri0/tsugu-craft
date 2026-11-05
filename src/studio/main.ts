@@ -94,6 +94,9 @@ let session: RingSession | null = null;
 let reason = "";
 let undoClaude: (() => boolean) | null = null;
 
+// 字・押す所・色の直し（pro.css の html.fit）。撮影では付けない（動画の絵を前のままにする）
+document.documentElement.classList.toggle("fit", !filming());
+
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
 <div class="pro" data-mode="make">
