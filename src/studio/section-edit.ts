@@ -84,7 +84,7 @@ const clampX = (x: number, max: number = VIEW.x) => Math.min(max, Math.max(-max,
 const clampY = (y: number, max: number = VIEW.yMax) => Math.min(max, Math.max(0, y));
 const snap01 = (v: number) => Math.round(v * 10) / 10;
 
-/** 点が動ける広さ（mm）。なければ腕の断面の広さ（VIEW）。石のない指輪は幅が広いので、広くする */
+/** 点が動ける広さ（mm）。なければ腕の断面の広さ（VIEW）。地金のみの指輪は幅が広いので、広くする */
 export interface EditLimits {
   maxX?: number;
   maxY?: number;
@@ -333,14 +333,14 @@ interface Memo {
   /** さっき描いた線（mm）。できた線と見比べられるよう、うすく残す。次に触ると消える */
   lastStroke: P2[] | null;
 }
-/** 断面ごとの覚え（石のある指輪の腕と、石のない指輪の上と下は、別々に戻す） */
+/** 断面ごとの覚え（石のある指輪の腕と、地金のみの指輪の上と下は、別々に戻す） */
 const memos = new Map<string, Memo>();
 
 /** 断面の画面の使い分け。石のある指輪の腕は、何も渡さない */
 export interface SectionEditorOptions extends EditLimits {
   /** 覚え（元に戻す・やり直す）の名前 */
   key?: string;
-  /** 内甲丸の丸みの深さ（mm）。内の線を弧で描き、指の線は真ん中に当たる。ここでは動かさない（石のない指輪の「内側」で変える） */
+  /** 内甲丸の丸みの深さ（mm）。内の線を弧で描き、指の線は真ん中に当たる。ここでは動かさない（地金のみの指輪の「内側」で変える） */
   innerMm?: number;
   /** リセットで戻す形。section を free 以外にして返す（onCommit で、リセットだと分かるように） */
   reset?: () => SectionShape;

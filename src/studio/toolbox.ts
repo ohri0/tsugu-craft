@@ -765,7 +765,7 @@ export const STEP_TOOLS: Record<string, string[]> = {
   // 鋳造
   原型を作る: ["calipers", "wax", "file", "wax-pen", "wax-printer"],
   湯道を付ける: ["sprue", "wax-pen", "sprue-base", "scale"],
-  // 石のない指輪で、上から下へ太さを変えるとき
+  // 地金のみの指輪で、上から下へ太さを変えるとき
   形を整える: ["ring-clamp", "file", "needle-file", "calipers", "loupe"],
   "湯道を切り、整える": ["saw", "file", "mandrel", "mallet", "handpiece", "loupe", "safety-glasses"],
   "埋没して、焼く": ["scale", "sprue-base", "safety-glasses"],

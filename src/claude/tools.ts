@@ -10,11 +10,11 @@ import { SECTION_INPUT, sectionCurveProblem } from "../geometry/section-input.js
 import type { ReliefKind } from "../geometry/shank-relief.js";
 import type { ClaudeTool } from "./wire.js";
 
-export const TOOL_NAMES = ["set_setting", "set_shank", "check", "look", "propose_rule", "ask_teacher", "set_stones"] as const;
+export const TOOL_NAMES = ["set_setting", "set_shank", "check", "look", "propose_rule", "ask_teacher", "set_stones", "choose_stone"] as const;
 export type ToolName = (typeof TOOL_NAMES)[number];
 
 /** 指輪の形を変える道具。最初に呼ばれる前に、戻すための写しを取る。 */
-export const CHANGING_TOOLS: readonly ToolName[] = ["set_setting", "set_shank", "set_stones"];
+export const CHANGING_TOOLS: readonly ToolName[] = ["set_setting", "set_shank", "set_stones", "choose_stone"];
 
 export function isToolName(name: string): name is ToolName {
   return (TOOL_NAMES as readonly string[]).includes(name);
@@ -32,6 +32,29 @@ export function isAllowedToolName(name: string): boolean {
 }
 
 // ---- 入力 ----
+
+/** 「石もおまかせ」で Claude が選べる、よくある形（画面の石の札 src/studio/presets.ts の id と同じ。テストで確かめる） */
+export const STONE_SHAPES = ["round", "oval", "princess", "emerald", "pear", "marquise"] as const;
+export type StoneShape = (typeof STONE_SHAPES)[number];
+
+/** 石もおまかせのとき、石の形と大きさを選ぶ */
+export interface ChooseStoneInput {
+  shape: StoneShape;
+  /** 長辺（mm）。幅と深さは、形の例の比から決まる */
+  long_mm: number;
+  reason: string;
+}
+
+export interface ChooseStoneResult {
+  shape_name: string;
+  long_mm: number;
+  width_mm: number;
+  /** 例の比から出した深さ（測った値ではない） */
+  depth_mm: number;
+  /** 新しい石の説明（輪郭の点の数と尖った角。爪の位置を決めるのに使う） */
+  stone: string;
+  note: string;
+}
 
 /** 聞き取りで、職人の言葉を決まりにして目安帳に足す案 */
 export interface ProposeRuleInput {
@@ -331,6 +354,8 @@ export interface ToolHost<S = unknown> {
   askTeacher?(input: AskTeacherInput): Awaitable<AskTeacherResult>;
   /** 石を並べる（三石・横一列。指輪の作業の画面だけが用意する） */
   setStones?(input: SetStonesInput): Awaitable<SetStonesResult>;
+  /** 石の形と大きさを選ぶ（「石もおまかせ」の生成だけが用意する。なければ、道具は断る） */
+  chooseStone?(input: ChooseStoneInput): Awaitable<ChooseStoneResult>;
   snapshot(): S;
   restore(snapshot: S): void;
 }
@@ -356,6 +381,7 @@ export const INPUT_BOUNDS = {
   relief_depth: [0.1, 0.5],
   relief_deg: [15, 180],
   relief_columns: [1, 3],
+  stone_long_mm: [3, 14],
 } as const;
 
 // ---- 道具の定義（Claude に見せる説明つき） ----
@@ -644,6 +670,26 @@ export const TOOLS: ClaudeTool[] = [
       additionalProperties: false,
     },
   },
+  {
+    name: "choose_stone",
+    description:
+      "石の形と大きさを選ぶ（石もおまかせ と言われたときだけ渡される道具）。今の石と入れ替わる。" +
+      "形：round＝ラウンド、oval＝オーバル、princess＝スクエア、emerald＝エメラルド、pear＝ペア、marquise＝マーキス。" +
+      "長辺を決めると、幅と深さは形の例の比から決まる（測った値ではないので、そう書く）。" +
+      "はじめに選んでから組むこと。腕・地金・留め方はそのまま引き継ぎ、爪の本数と位置と太さは新しい石で決め直す。" +
+      "結果に新しい石の輪郭の点の数と尖った角が返る。選んだら check で確かめること。",
+    strict: true,
+    input_schema: {
+      type: "object",
+      properties: {
+        shape: { type: "string", enum: STONE_SHAPES, description: "石の形" },
+        long_mm: { type: "number", description: `長辺（mm、${range("stone_long_mm", " mm")}）` },
+        reason: { type: "string", description: "なぜこの形と大きさにしたか。希望のどの言葉からかが分かるように、短く書く（作業の記録に残る）" },
+      },
+      required: ["shape", "long_mm", "reason"],
+      additionalProperties: false,
+    },
+  },
 ];
 
 // ---- 入力を確かめる ----
@@ -656,7 +702,8 @@ export type ParsedToolCall =
   | { name: "look"; input: LookInput }
   | { name: "propose_rule"; input: ProposeRuleInput }
   | { name: "ask_teacher"; input: AskTeacherInput }
-  | { name: "set_stones"; input: SetStonesInput };
+  | { name: "set_stones"; input: SetStonesInput }
+  | { name: "choose_stone"; input: ChooseStoneInput };
 
 export type ParseResult = { ok: true; call: ParsedToolCall } | { ok: false; error: string };
 
@@ -679,6 +726,7 @@ const BOUND_OF: Record<string, keyof typeof INPUT_BOUNDS> = {
   spread_mm: "spread_mm",
   at_deg: "at_deg",
   sway_mm: "sway_mm",
+  long_mm: "stone_long_mm",
 };
 
 function checkNumber(key: string, v: unknown, integer: boolean): string | null {

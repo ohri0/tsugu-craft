@@ -372,13 +372,15 @@ details summary::-webkit-details-marker { display: none; }
 .save-form .row button { height: 28px; padding: 0 12px; border-radius: var(--r); font-size: 12px; font-weight: 600; border: 1px solid var(--line-2); background: var(--panel-2); }
 .save-form .row .primary { border-color: transparent; background: var(--accent); flex: 1; }
 .saved { margin: 12px 14px 0; padding: 8px 10px; border-radius: var(--r); background: var(--ok-weak); color: var(--ok); font-size: 12px; }
-.works-head { display: flex; align-items: baseline; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid var(--line); }
-.works-head b { font: 600 20px var(--mono); }
-.works-head small { font-size: 11px; color: var(--fg-3); max-width: 200px; text-align: right; }
+.works-line { margin: 0; padding: 12px 14px 0; font-size: 12px; color: var(--fg-2); line-height: 1.6; }
 .works-panel > .primary { display: block; margin: 12px 14px 0; width: calc(100% - 28px); height: 30px; border: 0; border-radius: var(--r); font-size: 12px; font-weight: 600; }
 .works-panel > .tech-what { padding: 0 14px; }
 .works-list { list-style: none; margin: 12px 0 0; padding: 0; }
-.works-list li { display: grid; grid-template-columns: 56px 1fr auto; gap: 10px; align-items: start; padding: 10px 14px; border-top: 1px solid var(--line); }
+.works-list li { display: grid; grid-template-columns: 56px 1fr auto auto; gap: 10px; align-items: center; padding: 10px 14px; border-top: 1px solid var(--line); }
+.w-more summary { font-size: 13px; font-weight: 600; line-height: 1.45; cursor: pointer; list-style: none; }
+.w-more summary::-webkit-details-marker { display: none; }
+.w-more[open] summary { margin-bottom: 4px; }
+.works-panel > .w-print { display: block; margin: 12px 14px 0; width: calc(100% - 28px); }
 .works-list img { width: 56px; height: 56px; object-fit: cover; border-radius: 4px; background: #111; }
 .works-list b { display: block; font-size: 12px; font-weight: 600; }
 .works-list small { display: block; font-size: 10.5px; font-variant-numeric: tabular-nums; color: var(--fg-3); }
@@ -420,7 +422,7 @@ dialog.sheet input:focus { border-color: var(--accent); }
   .insp { border-left: 0; border-top: 1px solid var(--line); }
   .insp-head { display: none; }
   .cmd-wrap { padding: 6px 8px; }
-  /* 希望の欄は「生む」の時だけ。ほかの場面はパネルを広く */
+  /* 希望の欄は「生成」の時だけ。ほかの場面はパネルを広く */
   .pro:not([data-mode="make"]) .cmd-wrap { display: none; }
   .pro:not([data-mode="make"]) { grid-template-rows: 44px minmax(200px, 38vh) 1fr 0 52px; }
   .pro:not([data-mode="make"]) .tools { top: calc(44px + max(200px, 38vh) - 44px); }
@@ -553,7 +555,6 @@ dialog.sheet input:focus { border-color: var(--accent); }
 .manual-rule select:focus, .manual-rule input:focus { border-color: var(--accent); }
 .manual-rule .row { margin-top: 8px; }
 .no-works .link, .link.add-samples { padding: 0; border: 0; background: none; color: var(--accent-2); font: inherit; text-decoration: underline; cursor: pointer; }
-.works-panel .w-unsample { margin: 8px 0; }
 .works-list .sample-note { font-size: 11px; color: var(--fg-3); }
 
 /* ほかの場所（学ぶ・残す・組み立て直す）：どの画面からも同じ名前・同じ順で */
@@ -832,9 +833,8 @@ dialog.sheet input:focus { border-color: var(--accent); }
 .sf-size { position: relative; overflow: hidden; }
 .sf-size iframe { position: absolute; left: 0; top: 0; border: 0; background: #fff; transform-origin: 0 0; pointer-events: none; }
 
-/* 生むの次の一歩・記録を開く・工房の帳面へ */
-.w-unsample { margin: 8px 14px 0; }
-.w-open { display: block; min-height: 44px; margin-top: 2px; padding: 0; font-size: 14px; text-align: left; }
+/* 生成の次の一歩・記録を開く・工房の帳面へ */
+.w-open { min-height: 32px; padding: 0 12px; font-size: 13px; white-space: nowrap; }
 .ws-edit { font-size: 13px; }
 
 /*
@@ -938,7 +938,7 @@ html.fit .ask-nudge small { font-size: 12px; }
   html.fit .act-more { min-width: 44px; font-size: 18px; }
   html.fit .p-act details > summary { min-width: 44px; }
   html.fit .pr-tabs button { min-width: 44px; }
-  html.fit :is(.primary, .ghost, .ghost-d, .next-btn, .fix-go, .fp-fix, .fp-every, .fp-claude, .w-print, .w-unsample, .ask-later, .compare-btn, .compare-back, .past-fix, .claude-fix, .row.out button, .proposal-d .row button, .ws-new button, .pick button, .presets button, .se-tools button, .method button, .pr-tabs button, .pr-opt button, .sw-close, .voice-play, .voice-rec) { min-height: 44px; }
+  html.fit :is(.primary, .ghost, .ghost-d, .next-btn, .fix-go, .fp-fix, .fp-every, .fp-claude, .w-print, .w-open, .w-keep, .ask-later, .compare-btn, .compare-back, .past-fix, .claude-fix, .row.out button, .proposal-d .row button, .ws-new button, .pick button, .presets button, .se-tools button, .method button, .pr-tabs button, .pr-opt button, .sw-close, .voice-play, .voice-rec) { min-height: 44px; }
   html.fit .link { display: inline-flex; align-items: center; min-height: 44px; font-size: 13px; }
   html.fit .ask-nudge .row .primary { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 18px; }
   html.fit :is(.fp-x, .w-del, .why-close, .pr-close) { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; font-size: 18px; }
@@ -983,10 +983,59 @@ html.fit .ask-nudge small { font-size: 12px; }
 @media (max-width: 380px) {
   html.fit .disp button { padding: 0 4px; }
 }
-/* 石のない指輪の希望の欄は、スマホでは「Claude の作業」の中に入る（下にいつも出ていると、欄がせまくなり、断面の下の設定が隠れた） */
+/* 作るの腕の形：断面を描く画面は、たたんでおく */
+.ring-draw { margin-top: 8px; }
+.ring-draw > summary { cursor: pointer; font-size: 12px; color: var(--accent-2); padding: 4px 0; }
+/* 戻す・進む（上の帯。戻せないときは薄く） */
+.undo-redo { display: flex; gap: 2px; margin-left: auto; flex: none; }
+.undo-redo .btn { padding: 0 8px; gap: 4px; color: var(--fg); }
+.undo-redo .btn:disabled { opacity: 0.32; cursor: default; background: transparent; }
+.undo-redo svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.tb-l { justify-content: flex-start; }
+/* 生成の前に戻す：3D の右上、判定の札の下。すぐ押せるように */
+.gen-swap { position: absolute; right: 12px; top: 44px; z-index: 5; height: 32px; padding: 0 14px; border: 0; border-radius: 16px; background: var(--accent); color: #fff; font-size: 13px; font-weight: 600; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35); cursor: pointer; }
+.gen-swap:hover { background: var(--accent-2); }
+.gen-swap[hidden] { display: none; }
+.pro.presenting .gen-swap, .pro[data-mode="hand"] .gen-swap, .pro[data-mode="works"] .gen-swap { display: none; }
+/* 生成の欄：石の選択と号 */
+html.fit .cmd-wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+html.fit .command { flex: 1 1 320px; min-width: 0; }
+.make-opts { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.gen-stone { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.gen-stone[hidden] { display: none; }
+.sp-label { margin-right: 4px; font: 600 11px var(--mono); color: var(--accent-2); }
+.gen-stone label { display: block; cursor: pointer; }
+.gen-stone input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.gen-stone label span { display: block; padding: 3px 10px; border: 1px solid var(--line-2); border-radius: 7px; background: var(--field); }
+.gen-stone b { display: block; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.gen-stone small { display: block; font-size: 11px; color: var(--fg-2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.gen-stone input:checked + span { border-color: var(--accent); background: var(--accent-weak); }
+.gen-stone input:focus-visible + span { outline: 2px solid var(--accent-2); outline-offset: 1px; }
+.gou-pick { display: flex; align-items: center; gap: 6px; font: 600 11px var(--mono); color: var(--accent-2); flex: none; }
+.gen-gou { height: 34px; padding: 0 6px; border: 1px solid var(--line-2); border-radius: 7px; background: var(--field); color: var(--fg); font-size: 13px; }
+@media (max-width: 820px) {
+  html.fit .undo-redo .ur-word { display: none; }
+  /* 帯がせまいので、継ぐの字は印だけに（戻す・進むの場所を空ける） */
+  html.fit .brand { font-size: 0; gap: 0; }
+  html.fit .brand .logo { font-size: 13px; }
+  html.fit .undo-redo .btn { min-width: 40px; padding: 0 6px; }
+  html.fit .gen-swap { right: 8px; top: 58px; min-height: 40px; }
+  html.fit .cmd-wrap { gap: 6px; }
+  html.fit .make-opts { width: 100%; gap: 6px; }
+  html.fit .gen-stone { flex: 1; }
+  html.fit .sp-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  html.fit .gen-stone { align-items: stretch; min-width: 0; }
+  html.fit .gen-stone label { flex: 1 1 0; min-width: 0; display: flex; }
+  html.fit .gen-stone label span { flex: 1; min-width: 0; min-height: 44px; padding: 4px 6px; }
+  html.fit .gen-stone b { font-size: 12px; }
+  html.fit .gen-stone small { font-size: 11px; white-space: normal; line-height: 1.35; }
+  html.fit .gen-gou { height: 44px; font-size: 14px; }
+  html.fit .gou-pick > span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+}
+/* 地金のみの指輪の希望の欄は、スマホでは「Claude の作業」の中に入る（下にいつも出ていると、欄がせまくなり、断面の下の設定が隠れた） */
 .wish-slot .cmd-wrap { padding: 0 0 8px; background: none; border: 0; }
 
-/* 石のない指輪：断面の見本（本当の断面の絵つき） */
+/* 地金のみの指輪：断面の見本（本当の断面の絵つき） */
 .bs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 6px; }
 .bs-grid button { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; padding: 6px 2px 5px; border: 1px solid var(--line); border-radius: 8px; background: var(--field); color: var(--fg-2); font-size: 12px; line-height: 1.2; touch-action: manipulation; }
 .bs-grid button:hover { color: var(--fg); border-color: var(--line-2); }
@@ -1012,7 +1061,7 @@ html.fit .ask-nudge small { font-size: 12px; }
 .more-menu :is(a, button) { display: flex; align-items: center; min-height: 44px; padding: 0 12px; border: 0; border-radius: 6px; background: none; color: var(--fg); font-size: 14px; text-align: left; text-decoration: none; }
 .more-menu :is(a, button):active { background: var(--hover); }
 
-/* 確かめるの石の形（生むと同じ札の部品） */
+/* 確かめるの石の形（生成と同じ札の部品） */
 .stone-pick { display: grid; gap: 4px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
 .stone-pick > span { font-size: 12px; color: var(--fg-2); }
 .stone-pick .presets { margin-top: 0; }

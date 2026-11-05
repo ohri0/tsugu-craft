@@ -542,7 +542,7 @@ export class Viewer {
   }
 
   /**
-   * 地金だけの形（石のない指輪など）。三角形の並び、mm。いちばん下を床（z ＝ 0）に置く。
+   * 地金だけの形（地金のみの指輪など）。三角形の並び、mm。いちばん下を床（z ＝ 0）に置く。
    * warn：形ぜんぶを赤く光らせる（作れない所があるとき）。spots：赤い線を回す所（幅の位置 x、指の軸からの距離 rho、軸の高さ z。とがった先など）
    */
   setMetalMesh(positions: Float32Array, metal: MetalId, kind = "metal", o: { warn?: boolean; spots?: { x: number; rho: number; z: number }[]; shade?: MetalShade } = {}) {

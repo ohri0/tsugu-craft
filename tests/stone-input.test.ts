@@ -30,12 +30,12 @@ describe("深さの欄", () => {
 });
 
 describe("見せる", () => {
-  it("石のない指輪には、石と爪の項目を出さない", () => {
+  it("地金のみの指輪には、石と爪の項目を出さない", () => {
     const html = presentHtml({ shank: "甲丸", metal: "K18", gou: "12 号", verdict: { ok: true, text: "作れます" } }, [{ key: "section", label: "腕の断面", options: [{ v: "kouman", label: "甲丸" }], on: "kouman" }], "stone");
     expect(html).not.toContain(">石<");
     expect(html).not.toContain(">爪<");
     expect(html).toContain(">腕<");
-    // 選んでいた欄が石のない指輪にないときは、はじめの欄を出す
+    // 選んでいた欄が地金のみの指輪にないときは、はじめの欄を出す
     expect(html).toContain('data-g="section"');
     expect(html).toContain('aria-selected="true"');
   });

@@ -78,7 +78,7 @@ describe("作り方の札：工程 → 札", () => {
       }
     }
   });
-  it("指輪（石のない指輪）の工程も、道具の行が出る", () => {
+  it("指輪（地金のみの指輪）の工程も、道具の行が出る", () => {
     // tests/band.test.ts と同じ指輪で、手のひら側だけ細くする（形を整える の工程も出す）
     const band: Band = { gou: 12, kind: "kouman", top: { width: 4, thickness: 1.6 }, bottom: { width: 3, thickness: 1.6 }, density: 15.5, metalLabel: "K18" };
     for (const st of [...bandHowTo(band, "hand", 3, "k18y"), ...bandHowTo(band, "cast", 3, "k18y")]) expect(stepCard(st, 0).tools.length, st.title).toBeGreaterThan(0);

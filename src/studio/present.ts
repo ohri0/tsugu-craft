@@ -5,7 +5,7 @@
 export interface PresentInfo {
   /** 指輪の名前（いちばん上に大きく） */
   title?: string;
-  /** 石のない指輪にはない */
+  /** 地金のみの指輪にはない */
   stone?: string;
   prong?: string;
   /** prong の欄の名前（なければ「爪」） */

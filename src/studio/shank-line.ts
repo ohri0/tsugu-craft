@@ -10,7 +10,8 @@ import type { SetShankInput } from "../claude/tools";
 import { startShape, type SectionShape } from "./section-edit";
 
 /** つまみの範囲（形を作るための決まり。目安との比べは確かめがする） */
-const RANGE = { width: [1, 6, 0.05], thickness: [0.8, 4, 0.05], at: [30, 150, 5], sway: [-2, 2, 0.1] } as const;
+export const SHANK_RANGE = { width: [1, 6, 0.05], thickness: [0.8, 4, 0.05], at: [30, 150, 5], sway: [-2, 2, 0.1] } as const;
+const RANGE = SHANK_RANGE;
 /** 「場所で変える」を押したときの、はじめの置き方（肩と下。形を作るための決まり） */
 const START = { shoulderDeg: 70, bottomDeg: 180, bottomRatio: 0.85 };
 

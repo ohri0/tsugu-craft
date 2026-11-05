@@ -39,6 +39,14 @@ const NAMES: Record<string, string> = {
   orientation: "向き",
   set_setting: "石座の道具",
   set_shank: "腕の道具",
+  choose_stone: "石の道具",
+  round: "ラウンド",
+  oval: "オーバル",
+  princess: "スクエア",
+  emerald: "エメラルド",
+  pear: "ペア",
+  marquise: "マーキス",
+  long_mm: "長辺",
 };
 const NAME_RE = new RegExp(`(?<![A-Za-z0-9_-])(${Object.keys(NAMES).join("|")})(?![A-Za-z0-9_-])`, "gi");
 
@@ -144,7 +152,7 @@ const SECTION: Record<string, string> = { kouman: "甲丸", hirauchi: "平打ち
 const VIEW: Record<string, string> = { top: "上から", side: "横から", front: "正面から", angle: "斜めから" };
 const LAYOUT: Record<string, string> = { solo: "一粒", trio: "三石", row: "横一列" };
 const RELIEF: Record<string, string> = { arch: "尖ったアーチ", diamond: "菱の格子", wave: "波の線", beads: "粒", lines: "横の筋", leaf: "葉とつる" };
-const TOOL_WORD: Record<string, string> = { set_setting: "石座", set_shank: "腕", set_stones: "石の並び", check: "確かめ", look: "見る" };
+const TOOL_WORD: Record<string, string> = { set_setting: "石座", set_shank: "腕", set_stones: "石の並び", choose_stone: "石", check: "確かめ", look: "見る" };
 
 const num = (v: unknown) => (typeof v === "number" ? String(Math.round(v * 100) / 100) : String(v));
 
@@ -220,6 +228,10 @@ function partOf(key: string, v: unknown, stone?: StoneWords): string | null {
       return `両脇の留め方 ${STYLE[s] ?? s}`;
     case "spread_mm":
       return `間を ${num(v)} mm 広げる`;
+    case "shape":
+      return NAMES[s] ?? s;
+    case "long_mm":
+      return `長辺 ${num(v)} mm`;
     default:
       return null;
   }
