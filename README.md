@@ -202,7 +202,8 @@ Claude Desktop に足す（設定の「開発者」→ 設定ファイル `claud
 | `public/heritage/naiku-goshinpozu.jpg`（「内宮御神宝図」の一部を切り出して横につないだもの） | 国立国会図書館所蔵、[Wikimedia Commons](https://commons.wikimedia.org/wiki/File:NDL2574228_%E5%86%85%E5%AE%AE%E5%BE%A1%E7%A5%9E%E5%AE%9D%E5%9B%B3.(1).pdf) | パブリックドメイン |
 | `public/heritage/tsuba-carp.jpg`（鯉と藻の鐔） | メトロポリタン美術館、[Wikimedia Commons](https://commons.wikimedia.org/wiki/File:%E8%97%BB%E9%AF%89%E5%9B%B3%E9%90%94,_Sword_Guard_(Tsuba)_with_the_Carp_and_Seaweed_Motif.jpg) | CC0 |
 | `public/heritage/kazari-tachi.jpg`（飾太刀、平安時代。一部を切り出し） | 東京国立博物館、[ColBase](https://colbase.nich.go.jp/collection_items/tnm/F-356)・[Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Kazari-tachi_Style_Sword_Mounting,_Heian_period.jpg) | CC BY 4.0 |
-| `public/heritage/mokume-pattern.jpg`（木目金の模様。現代の作例） | Doesdesign67 撮影、[Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Mokume-gane_patroon.jpg) | パブリックドメイン（作者が権利を放棄） |
+| `public/heritage/mokume-tsuba-1.jpg`（木目金の鐔、19 世紀前半） | メトロポリタン美術館（[34992](https://www.metmuseum.org/art/collection/search/34992)） | CC0 |
+| `public/heritage/mokume-tsuba-2.jpg`（木目金の鐔、19 世紀か） | メトロポリタン美術館（[29947](https://www.metmuseum.org/art/collection/search/29947)） | CC0 |
 | `public/heritage/tachi.jpg`（太刀と拵え） | メトロポリタン美術館、[Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Blade_and_Mounting_for_a_Slung_Sword_(Tachi)_MET_1820.jpg) | CC0 |
 | `public/heritage/naiku-1953.jpg`（1953 年の内宮の空からの写真） | 本田照夫 撮影、[Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Ise_Shrine_Naiku_1953-8-26_cropped.jpg) | パブリックドメイン |
 | `public/lp/*.webp`（入口のページと README の写真：hero・hero-phone・before・after・fixpop・spike・zaguri・trio-round・trio-pear・c-stone5・c-stone10・c-hira・c-free・c-bezel・c-pt・ledger・ledger-pub・waza・tech・rebuild・make・draw と、それぞれ半分の幅の `-sm`） | 継ぐの画面を撮ったもの（`scripts/lp-shots.cjs`） | このリポジトリの作品の一部 |
