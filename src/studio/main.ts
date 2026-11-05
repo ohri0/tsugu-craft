@@ -3,7 +3,7 @@
 // 整える。作れない所が赤く光り、誰のどの決まりかと、見た目への影響つきの直し方が出る。人も同じつまみで直せる。
 // 渡す。  職人への指示書・原寸の型紙・3D データ。
 // 帳面   職人が声で決まりを足すと、その場で確かめが変わる。
-import { MAIN, addWorkshop, setActive } from "../rules/workshops";
+import { MAIN, addSampleWorkshop, addWorkshop, prongBasicMm, setActive, setBasics, setProngBasic } from "../rules/workshops";
 import { printHtml } from "../ui/print";
 import { summarize, sweepDesigns, sweepOne, type SweepDesign, type SweepResult } from "./sweep";
 import { SAMPLE_DESIGNS, SAMPLE_MAKER, SAMPLE_NOTE, isSample, outlineThumb, sampleState, sampleStone, tuneSample, fixProngSize } from "./samples";
@@ -12,7 +12,7 @@ import { MAKING_STEPS, isCheckRule, makingRulesFor, stepsOfRule } from "../rules
 import "./pro.css";
 import { findCorners } from "../geometry/corners";
 import { measureOutline, type StoneOutline } from "../geometry/measure";
-import { outlineIndexAtT, type JoinStyle, type SettingResult } from "../geometry/setting";
+import { outlineIndexAtT, type JoinStyle, type ProngTip, type SettingResult } from "../geometry/setting";
 import { nameShape } from "../geometry/shape";
 import { runClaude, type LogEntry } from "../claude/loop";
 import { cannotFrom, hasJapanese, plainWords, ruleTitles, toolLogLine, withoutCannot, type RuleTitles, type StoneWords } from "../claude/words";
@@ -43,7 +43,7 @@ import { PRESETS, presetOutline, sizedPreset, type StonePreset } from "./presets
 import { DesignHistory, generationTools, isTextField, keepGou, makeHost, undoKey } from "./make-run";
 import { drawingPage, type DrawingView, DRAWING_CSS } from "./drawing";
 import { loadWorks, newWorkId, removeSampleWorks, removeWork, saveWork, updateWork, worksBookHtml, type WorkRecord } from "./works";
-import { glossOf, markTerms, stepCard } from "./cards";
+import { cardFlow, glossOf, markTerms, stepCard } from "./cards";
 import { NOTE, type AlloyId } from "./process";
 import type { Step } from "./howto";
 import { MAKE_BAND, SECTION_LABEL, SECTION_LIST, applyDraft, bandCutMesh, bandHowTo, bandInnerDiameter, bandMesh, bandPrompt, bandSpecRows, checkBand, defaultBand, normalizeBand, parseBand, pickSection, sectionWord, sizeWord, specOf, thinSpotsOf, type Band, type BandDraft, type BandProblem } from "./band";
@@ -1004,7 +1004,7 @@ let sheetTimer = 0;
 let panelKey = "";
 function panelKeyOf(b: Built): string {
   const r = b.ring;
-  return JSON.stringify([b.problems.map((p) => [p.check, p.current, p.required, p.options.map((o) => o.id)]), r.setting.join, r.setting.style, r.setting.prongs.length, r.setting.prongs[0]?.diameterMm, r.notchDepthMm, r.culetGapMm, r.shank.widthMm, r.shank.thicknessMm]);
+  return JSON.stringify([b.problems.map((p) => [p.check, p.current, p.required, p.options.map((o) => o.id)]), r.setting.join, r.setting.prongTip, r.setting.style, r.setting.prongs.length, r.setting.prongs[0]?.diameterMm, r.notchDepthMm, r.culetGapMm, r.shank.widthMm, r.shank.thicknessMm]);
 }
 function onBuilt(b: Built, _why: string, refined = false) {
   if (tuning || !stone || kind !== "solitaire") return;
@@ -1030,7 +1030,7 @@ function onBuilt(b: Built, _why: string, refined = false) {
   const rows: [string, string][] = [
     ["石", `${stone.shapeName} ・ ${stone.measured.longMm.toFixed(2)} × ${stone.measured.widthMm.toFixed(2)} × ${stone.depthMm.toFixed(2)} mm`],
     ...(r.stones.length > 1 ? ([["石の並び", `${layoutName()} ・ ${r.stones.length} 石（${r.stones.map((x) => x.params.longMm.toFixed(1)).join(" ・ ")} mm）`]] as [string, string][]) : []),
-    ["留め方", st.tension ? tensionWord(st) : st.style === "bezel" ? `覆輪 ・ 壁 ${st.bezel?.wallMm.toFixed(2)} mm` : `爪 ${st.prongs.length}${st.prongs.some((p) => p.isV) ? `（V 字 ${st.prongs.filter((p) => p.isV).length}）` : ""} ・ ø ${st.prongs[0]?.diameterMm.toFixed(2)} mm`],
+    ["留め方", st.tension ? tensionWord(st) : st.style === "bezel" ? `覆輪 ・ 壁 ${st.bezel?.wallMm.toFixed(2)} mm` : `爪 ${st.prongs.length}${st.prongs.some((p) => p.isV) ? `（V 字 ${st.prongs.filter((p) => p.isV).length}）` : ""} ・ ø ${st.prongs[0]?.diameterMm.toFixed(2)} mm${st.prongTip === "oni" ? ` ・ ${PRONG_TIP_LABEL.oni}` : ""}`],
     ["号 ・ 腕", `${s.gou} 号 ・ ${ringSectionWord(s, r.shank.widthMm, r.shank.thicknessMm)} ${shankSizeWords(r.shank)}`],
     ["石と指のすき間", `${r.culetGapMm.toFixed(2)} mm`],
     ["地金", `${METAL_LABEL[s.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g`],
@@ -1346,7 +1346,7 @@ async function make() {
     type: "text",
     text:
       "この石で指輪を組み、check で確かめ、作れない所があれば直してください。\n" +
-      `この道具で変えられるのは、${free ? "石（よくある形と大きさ）と、" : ""}石座（留め方・爪の本数と太さと位置・高さ・向き・腕への付け方）と腕（断面の線・場所ごとの幅と厚みと断面・腕の流れ・面に彫る模様・地金）です。` + "雰囲気の言葉は、腕の断面と線にも訳してください。\n" +
+      `この道具で変えられるのは、${free ? "石（よくある形と大きさ）と、" : ""}石座（留め方・爪の本数と太さと形と位置・高さ・向き・腕への付け方）と腕（断面の線・場所ごとの幅と厚みと断面・腕の流れ・面に彫る模様・地金）です。` + "雰囲気の言葉は、腕の断面と線にも訳してください。\n" +
       "希望や絵のうち、これで表せないこと（穴を開ける透かし、決まった 6 つのほかの模様、立体の飾り、石の数を増やす など）は、できたふりをせず、「まだできないこと：」の行に正直に短く書いてください。この行には、希望や絵で求められたのに形にできなかったことだけを書きます（帳面の決まりで気づいたことは「残っていること」へ）。すべて表せたときは「まだできないこと：なし」と書いてください。\n" +
       "最後の返事は、次の 4 行だけにしてください。前置き・見出し・箇条書きは書きません。1 行は 100 字ほどまで。\n" +
       "やったこと：…\n確かめたこと：…\n残っていること：…\nまだできないこと：…",
@@ -1702,16 +1702,38 @@ function workshopBarHtml(): string {
   const ws = store.workshops();
   const mainName = bookLabel(store.mainLedger());
   const opts = [`<option value="${MAIN}"${ws.active === MAIN ? " selected" : ""}>${esc(bookTitle(mainName))}</option>`, ...ws.list.map((w) => `<option value="${esc(w.id)}"${ws.active === w.id ? " selected" : ""}>${esc(bookTitle(w.name))}</option>`)];
-  return `<section class="ws-bar"><label><span>使う帳面</span><select class="ws-pick">${opts.join("")}<option value="__new">＋ 工房の帳面を作る</option></select></label>
-    <div class="ws-new" hidden><input class="ws-name" type="text" placeholder="工房の名前（例：工房 B）"><button type="button" class="primary ws-make">作る</button></div>
-    ${ws.list.length ? `<button type="button" class="ghost-d ws-cmp">同じ指輪を、帳面ごとに比べる</button>` : `<p class="hint">工房ごとに決まりはちがいます。工房の帳面を作ると、同じ指輪をそれぞれの決まりで確かめられます。</p>`}
+  const hasSample = ws.list.some((w) => w.sample);
+  return `<section class="ws-bar"><label><span>使う帳面</span><select class="ws-pick">${opts.join("")}<option value="__new">＋ 工房の帳面を作る</option>${hasSample ? "" : `<option value="__sample">＋ 見本の工房を足す（${esc(GUIDES.prong.sampleWorkshop.name)}）</option>`}</select></label>
+    <div class="ws-new" hidden><input class="ws-name" type="text" placeholder="工房の名前（例：工房 C）"><button type="button" class="primary ws-make">作る</button></div>
+    ${workshopBasicsHtml()}
+    ${ws.list.length ? `<button type="button" class="ghost-d ws-cmp">同じ指輪を、帳面ごとに比べる</button>` : `<p class="hint">工房ごとに決まりと雰囲気はちがいます。工房の帳面を作ると、同じ指輪をそれぞれの帳面で確かめられます。</p>`}
     ${ws.list.length && !filming() ? `<a class="link ws-edit" href="app.html#ledger">この帳面の決まりを見る・直す →</a>` : ""}
     <div class="ws-table"></div></section>`;
+}
+const PRONG_TIP_LABEL: Record<ProngTip, string> = { round: "丸い爪", oni: "鬼爪" };
+const PRONG_TIP_PICK = "爪の形";
+const PRONG_TIP_NOTE: Record<ProngTip, string> = {
+  round: "先を丸めた、シンプルな爪",
+  oni: "先が尖り、石の上に少しかかる爪。シャープに見える。尖り具合は仮の目安・最後は職人が決める",
+};
+/** 工房のベーシックの雰囲気：爪の形と太さ。工房ごとの既定で、ここで直せる。爪の太さは帳面の決まりなので、はじめの帳面は決まりの画面で直す */
+function workshopBasicsHtml(): string {
+  const ws = store.workshops();
+  const w = ws.list.find((x) => x.id === ws.active);
+  const tip: ProngTip = store.ledger().basics?.prongTip ?? "round";
+  const now = session?.built?.ring.setting;
+  const std = now?.style === "prong" ? now.standardProngMm : undefined;
+  return `<div class="ws-basics"><p class="ws-b-h"><b>この工房のベーシック</b><small>いつもの雰囲気の既定。あとで直せます</small></p>
+    <div class="seg ws-tip" role="group" aria-label="爪の形（工房の既定）">${(["round", "oni"] as const).map((v) => `<button type="button" data-tip="${v}" aria-pressed="${v === tip}">${PRONG_TIP_LABEL[v]}</button>`).join("")}</div>
+    ${w ? `<label class="ws-b-mm"><span>爪の太さ（大きな石の標準）</span><span class="in"><input class="ws-mm" type="number" inputmode="decimal" min="0.5" max="2" step="0.05" value="${(prongBasicMm(store.ledger()) ?? std ?? GUIDES.prong.sampleWorkshop.prongMm).toFixed(2)}"><i>mm</i></span></label>` : std !== undefined ? `<p class="hint">爪の太さは帳面の決まりから（この石で標準 ø ${std.toFixed(2)} mm）。</p>` : ""}
+    ${w?.sample ? `<p class="hint ws-sample">${esc(w.name)}${/[A-Za-z0-9]$/.test(w.name) ? " " : ""}は見本の工房です。爪の太さと形は雰囲気の例で、本当の工房の値ではありません。目安・最後は職人が決めます。</p>` : ""}</div>`;
 }
 function switchLedger(id: string) {
   store.setWorkshops(setActive(store.workshops(), id));
   if (!session) return;
   session.state.prongMm = undefined;
+  // 爪の形も、切り替えた帳面のベーシックへ
+  session.state.prongTip = undefined;
   tuneProngs();
   session.build("帳面を切り替えた");
   lastRule = null;
@@ -1788,14 +1810,14 @@ function workshopTable(): string {
   if (!session?.built) return "";
   const state = session.snapshot();
   const rows: [string, Ledger][] = [["公開情報だけ", seedLedger()], [bookLabel(store.mainLedger()), store.mainLedger()], ...store.workshops().list.map((w) => [w.name, w.ledger] as [string, Ledger])];
-  return `<table><thead><tr><th>帳面</th><th>爪の太さ</th><th>作れない所</th></tr></thead><tbody>${rows
+  return `<table><thead><tr><th>帳面</th><th>爪の太さと形</th><th>作れない所</th></tr></thead><tbody>${rows
     .map(([name, led]) => {
       // 帳面を切り替えたときと同じ順で組む（前は別の太くし方で、表と切り替えた後の爪の太さがちがった）
       const b = underLedger(session!.stone, state, led);
       const st = b.ring.setting;
-      return `<tr><th>${esc(name)}</th><td>${st.tension ? tensionWord(st) : st.style === "bezel" ? `覆輪 ・ 壁 ${st.bezel?.wallMm.toFixed(2)} mm` : `${st.prongs[0]?.diameterMm.toFixed(2)} mm × ${st.prongs.length}`}</td><td>${grouped(b).length}</td></tr>`;
+      return `<tr><th>${esc(name)}</th><td>${st.tension ? tensionWord(st) : st.style === "bezel" ? `覆輪 ・ 壁 ${st.bezel?.wallMm.toFixed(2)} mm` : `ø ${st.prongs[0]?.diameterMm.toFixed(2)} mm × ${st.prongs.length} ・ ${PRONG_TIP_LABEL[st.prongTip]}`}</td><td>${grouped(b).length}</td></tr>`;
     })
-    .join("")}</tbody></table><p class="hint">同じ石・同じ形を、帳面だけ替えて組んだ結果です（爪はそれぞれの帳面の標準から）。</p>`;
+    .join("")}</tbody></table><p class="hint">同じ石・同じ形を、帳面だけ替えて組んだ結果です（爪の太さと形は、それぞれの帳面の標準から）。目安・最後は職人が決めます。</p>`;
 }
 function bindWorkshops(box: HTMLElement) {
   const pick = box.querySelector<HTMLSelectElement>(".ws-pick");
@@ -1806,7 +1828,33 @@ function bindWorkshops(box: HTMLElement) {
       box.querySelector<HTMLInputElement>(".ws-name")!.focus();
       return;
     }
+    if (pick.value === "__sample") {
+      store.setWorkshops(addSampleWorkshop(store.workshops(), seedLedger(), today()));
+      switchLedger(store.workshops().active);
+      return;
+    }
     switchLedger(pick.value);
+  });
+  // 工房のベーシック：帳面に書いて、今の指輪も組み直す（この設計で手で選んだ形より、いま直した既定を見せる）
+  const rebuildBasics = () => {
+    if (!session) return renderCheck();
+    session.state.prongMm = undefined;
+    session.state.prongTip = undefined;
+    tuneProngs();
+    session.build("工房のベーシックを直した");
+    renderCheck();
+  };
+  box.querySelectorAll<HTMLButtonElement>(".ws-tip button").forEach((b) =>
+    b.addEventListener("click", () => {
+      store.setLedger(setBasics(store.ledger(), { prongTip: b.dataset.tip as ProngTip }));
+      rebuildBasics();
+    }),
+  );
+  box.querySelector<HTMLInputElement>(".ws-mm")?.addEventListener("change", (e) => {
+    const v = Number((e.target as HTMLInputElement).value);
+    if (!Number.isFinite(v) || v < 0.5 || v > 2) return renderCheck();
+    store.setLedger(setProngBasic(store.ledger(), v, today()));
+    rebuildBasics();
   });
   box.querySelector(".ws-make")?.addEventListener("click", () => {
     const name = box.querySelector<HTMLInputElement>(".ws-name")!.value.trim() || "新しい工房";
@@ -2003,6 +2051,9 @@ export const JOIN_NOTE: Record<JoinStyle, string> = {
   between: "腕のいちばん上を切り、腕の両はしの間に石座をはさんでロウ付けします。わりと基本の作り方（職人の言葉）",
   on: "腕の上に浅い溝を入れて、石座をのせてロウ付けします。だめではないが、あまり一般的ではない作り方（職人の言葉）",
 };
+function prongTipPickHtml(pick: <T extends string | number>(name: string, cur: T, list: [T, string][]) => string, cur: ProngTip): string {
+  return `${pick(PRONG_TIP_PICK, cur, [["round", PRONG_TIP_LABEL.round], ["oni", PRONG_TIP_LABEL.oni]])}<ul class="pick-notes">${(["round", "oni"] as const).map((j) => `<li${j === cur ? ' class="on"' : ""}><b>${PRONG_TIP_LABEL[j]}</b>${esc(PRONG_TIP_NOTE[j])}</li>`).join("")}</ul>`;
+}
 function joinPickHtml(pick: <T extends string | number>(name: string, cur: T, list: [T, string][]) => string, cur: JoinStyle): string {
   return `${pick(JOIN_PICK, cur, [["between", JOIN_LABEL.between], ["on", JOIN_LABEL.on]])}<ul class="pick-notes">${(["between", "on"] as const).map((j) => `<li${j === cur ? ' class="on"' : ""}><b>${JOIN_LABEL[j]}</b>${esc(JOIN_NOTE[j])}</li>`).join("")}</ul>`;
 }
@@ -2134,6 +2185,7 @@ function renderCheck() {
       ${b.ring.setting.tension && b.ring.setting.tension.grips.length > 1 ? `${pick("挟む向き", b.ring.setting.tension.grip, b.ring.setting.tension.grips.map((x) => [x, GRIP_LABEL[x]] as [TensionGrip, string]))}<ul class="pick-notes">${b.ring.setting.tension.grips.map((x) => `<li${x === b.ring.setting.tension!.grip ? ' class="on"' : ""}><b>${GRIP_LABEL[x]}</b>${esc(GRIP_NOTE[x])}</li>`).join("")}</ul>` : ""}
       ${s.style === "tension" ? "" : pick("高さ", s.height, [["low", "低め"], ["standard", "標準"], ["high", "高め"]])}
       ${s.style === "tension" ? "" : pick("向き", s.orientation, [["along", "縦"], ["across", "横"]])}
+      ${s.style === "prong" ? prongTipPickHtml(pick, b.ring.setting.prongTip) : ""}
       ${s.style === "prong" && b.ring.stones.length === 1 ? joinPickHtml(pick, b.ring.setting.join) : ""}
       ${pick("地金", s.metal, (["k18yg", "pt900", "k18wg", "k18pg", "sv925"] as Metal[]).map((m) => [m, METAL_LABEL[m]] as [Metal, string]))}
       <div class="sliders">
@@ -2207,6 +2259,7 @@ function renderCheck() {
       if (k === "高さ") session!.setSetting({ height: v as "low", reason: "手で" });
       if (k === "向き") session!.setSetting({ orientation: v as "along", reason: "手で" });
       if (k === JOIN_PICK) session!.setSetting({ join: v as JoinStyle, reason: "手で" });
+      if (k === PRONG_TIP_PICK) session!.setSetting({ prong_tip: v as ProngTip, reason: "手で" });
       if (k === "地金") session!.setShank({ metal: v as Metal, reason: "手で" });
     }),
   );
@@ -2627,60 +2680,75 @@ function pastTipsHtml(title: string): string {
   if (!past.length) return "";
   return `<div class="past"><small>前の記録から</small>${past.map((t) => `<p><i class="k-${t.kind}">${esc(t.kind)}</i>${esc(t.text)}<span>${esc(t.maker || "職人")} ・ ${esc(t.date)}</span></p>`).join("")}</div>`;
 }
-/** ＋（開くと −）の丸 */
-const PLUS_ICON = `<svg class="pm" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8.5"/><path d="M6 10h8"/><path class="v" d="M10 6v8"/></svg>`;
 /**
- * 作り方の札：番号・題・ひとこと・この指輪の数字の表・職人の決まり・前の記録・「＋ 詳しく」。
- * 道具は「詳しく」の「道具」の行に、押せる言葉として入る（札の下の道具の並びはやめた）。
+ * 作り方の札：番号・題・流れの文・この指輪の数字の表・職人の決まり・前の記録。
+ * 流れの文の中の道具と専門の言葉を押すと、そのすぐ下に開き、もう一度押すと閉じる（下にまとめる「詳しく」はやめた。作者の声 2026-11-05）。
+ * 文に出てこない道具だけ、札の最後に一言で書く。同じ言葉に印を付けるのは、札の中で 1 回だけ
  */
 function stepsHtml(steps: Step[]): string {
   return `<ol class="cards">${steps
     .map((st, i) => {
       const c = stepCard(st, i);
-      const body = c.groups
-        .map(
-          (g) =>
-            `${g.group ? `<li class="grp">${markTerms(esc(g.group))}</li>` : ""}${g.lines
-              .map((l) => {
-                const seen = new Set<string>();
-                return `<li${l.lead === "道具" ? ' class="tools-line"' : ""}>${l.lead ? `<b${l.head ? ' class="h"' : ""}>${markTerms(esc(l.lead), seen)}</b>` : ""}${markTerms(esc(l.text), seen)}</li>`;
-              })
-              .join("")}`,
-        )
-        .join("");
+      const f = cardFlow(c, method);
+      const seen = new Set<string>();
+      const mark = (t: string) => markTerms(esc(t), seen);
+      const lead = mark(c.text);
+      const added = f.added ? `<p>${mark(f.added)}</p>` : "";
+      const lines = f.lines.map((l) => (l.g ? `<p class="flow-g">${mark(l.g)}</p>` : `<p>${mark(l.t ?? "")}</p>`)).join("");
       return `<li class="mk-card">
-        <div class="card-head"><span class="n">${c.no}</span><div><h3>${esc(c.title)}</h3><p class="card-lead">${markTerms(esc(c.text))}</p></div></div>
+        <div class="card-head"><span class="n">${c.no}</span><div><h3>${esc(c.title)}</h3><p class="card-lead">${lead}</p></div></div>
+        ${added || lines ? `<div class="flow">${added}${lines}</div>` : ""}
         ${c.rows.length ? `<table class="spec">${c.rows.map((x) => `<tr><th scope="row">${esc(x.label)}</th><td>${esc(x.value)}</td></tr>`).join("")}</table>` : ""}
-        ${c.watch ? `<p class="watch">${markTerms(esc(c.watch))}</p>` : ""}
+        ${c.watch ? `<p class="watch">${mark(c.watch)}</p>` : ""}
         ${makingRulesHtml(st.id)}${pastTipsHtml(st.title)}
-        ${body ? `<details class="more"><summary>${PLUS_ICON}詳しく</summary><ul class="lines">${body}</ul></details>` : ""}
+        ${f.rest.length ? `<p class="flow-tools">ほかに使う道具：${mark(f.rest.join("、"))}</p>` : ""}
       </li>`;
     })
     .join("")}</ol>`;
 }
-/** 言葉を押すと、その行のすぐ下に、やわらかい箱で意味を出す（もう一度押すと消す。道具なら使い方も） */
+/** いちばん近い、中を動かせる親（なければページ） */
+function scrollerOf(el: HTMLElement): HTMLElement | null {
+  for (let p = el.parentElement; p; p = p.parentElement) {
+    const y = getComputedStyle(p).overflowY;
+    if ((y === "auto" || y === "scroll") && p.scrollHeight > p.clientHeight) return p;
+  }
+  return null;
+}
+/**
+ * 言葉を押すと、その文のすぐ下に、やわらかい箱で意味を出す（もう一度押すと消す。道具なら使い方も）。
+ * 開くのは 1 つだけ。上の箱が閉じても、押した言葉が画面の同じ所に残るように動かす
+ */
 function bindTerms(box: HTMLElement) {
   box.querySelectorAll<HTMLButtonElement>(".term").forEach((b) =>
     b.addEventListener("click", () => {
       const word = b.dataset.term!;
-      const line = b.closest<HTMLElement>("li, p")!;
-      // 行（li）の中なら行の終わりに、文（p）なら文のすぐ後に置く
-      const inLi = line.tagName === "LI";
-      const scope = inLi ? line : line.parentElement!;
-      const open = scope.querySelector<HTMLElement>(`:scope > .term-def[data-term="${word}"]`);
-      b.setAttribute("aria-expanded", String(!open));
-      if (open) return open.remove();
-      const g = glossOf(word);
-      if (!g) return;
-      const el = document.createElement("div");
-      el.className = "term-def";
-      el.dataset.term = word;
-      const t = g.tool;
-      el.innerHTML = `<p class="td-h"><b>${esc(g.word)}</b>${g.reading ? `<small>${esc(g.reading)}</small>` : ""}${t ? `<i>道具 ・ ${esc(t.kind)}</i>` : ""}</p>
+      const wasOpen = b.getAttribute("aria-expanded") === "true";
+      const y0 = b.getBoundingClientRect().top;
+      box.querySelectorAll(".term-def").forEach((x) => x.remove());
+      box.querySelectorAll(".term[aria-expanded]").forEach((x) => x.removeAttribute("aria-expanded"));
+      if (!wasOpen) {
+        const g = glossOf(word);
+        if (g) {
+          const line = b.closest<HTMLElement>("li:not(.mk-card), p")!;
+          const el = document.createElement("div");
+          el.className = "term-def";
+          el.dataset.term = word;
+          const t = g.tool;
+          el.innerHTML = `<p class="td-h"><b>${esc(g.word)}</b>${g.reading ? `<small>${esc(g.reading)}</small>` : ""}${t ? `<i>道具 ・ ${esc(t.kind)}</i>` : ""}</p>
         <p>${esc(g.meaning)}</p>${t && t.what !== g.meaning ? `<p>${esc(t.what)}</p>` : ""}
         ${t ? `<p class="td-sub">使い方${t.name !== g.word ? `（${esc(t.name)}）` : ""}</p><ol>${t.how.map((h) => `<li>${esc(h)}</li>`).join("")}</ol>${t.watch ? `<p class="td-watch">${esc(t.watch)}</p>` : ""}` : ""}`;
-      if (inLi) line.appendChild(el);
-      else line.after(el);
+          // 行（li）の中なら行の終わりに、文（p）なら文のすぐ後に置く
+          if (line.tagName === "LI") line.appendChild(el);
+          else line.after(el);
+          b.setAttribute("aria-expanded", "true");
+        }
+      }
+      const dy = b.getBoundingClientRect().top - y0;
+      if (Math.abs(dy) > 1) {
+        const sc = scrollerOf(b);
+        if (sc) sc.scrollTop += dy;
+        else scrollBy(0, dy);
+      }
     }),
   );
 }
@@ -2770,7 +2838,7 @@ function printSheet() {
         specs: [
           { label: "石", value: `${stone!.measured.longMm.toFixed(2)} × ${stone!.measured.widthMm.toFixed(2)} × ${stone!.depthMm.toFixed(2)} mm` },
           { label: "号", value: `${session.state.gou} 号 ・ 内径 ${r.shank.innerDiameterMm.toFixed(1)} mm` },
-          { label: "留め方", value: st.tension ? tensionWord(st) : st.style === "bezel" ? `覆輪 ・ 壁 ${st.bezel?.wallMm.toFixed(2)} mm` : `爪 ${st.prongs.length} ・ ø ${st.prongs[0]?.diameterMm.toFixed(2)} mm` },
+          { label: "留め方", value: st.tension ? tensionWord(st) : st.style === "bezel" ? `覆輪 ・ 壁 ${st.bezel?.wallMm.toFixed(2)} mm` : `爪 ${st.prongs.length} ・ ø ${st.prongs[0]?.diameterMm.toFixed(2)} mm${st.prongTip === "oni" ? ` ・ ${PRONG_TIP_LABEL.oni}` : ""}` },
           { label: "腕", value: `${r.shank.widthMm.toFixed(1)} × ${r.shank.thicknessMm.toFixed(1)} mm` },
           { label: "石と指のすき間", value: `${r.culetGapMm.toFixed(2)} mm` },
           { label: "地金", value: `${METAL_LABEL[session.state.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g` },
@@ -3603,7 +3671,7 @@ function solitaireDrawing(b: Built, problems: string[], sess: RingSession = sess
       { label: "号", value: `${sess.state.gou} 号（内径 ${(ri * 2).toFixed(1)} mm）` },
       { label: "地金・重さ", value: `${METAL_LABEL[sess.state.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g` },
       { label: "石（長さ × 幅 × 深さ）", value: `${info.longMm.toFixed(2)} × ${info.widthMm.toFixed(2)} × ${info.depthMm.toFixed(2)} mm` },
-      { label: "留め方", value: r.setting.tension ? tensionWord(r.setting) : r.setting.style === "bezel" ? `覆輪（壁の厚み ${r.setting.bezel?.wallMm.toFixed(2)} mm）` : `爪 ${r.setting.prongs.length} 本（太さ ø ${r.setting.prongs[0]?.diameterMm.toFixed(2)} mm）` },
+      { label: "留め方", value: r.setting.tension ? tensionWord(r.setting) : r.setting.style === "bezel" ? `覆輪（壁の厚み ${r.setting.bezel?.wallMm.toFixed(2)} mm）` : `爪 ${r.setting.prongs.length} 本（太さ ø ${r.setting.prongs[0]?.diameterMm.toFixed(2)} mm${r.setting.prongTip === "oni" ? ` ・ ${PRONG_TIP_LABEL.oni}` : ""}）` },
       ...(r.setting.tension
         ? []
         : [{ label: "腕", value: `${SHANK_SECTION_LABEL[r.shank.section]} 幅 ${r.shank.widthMm.toFixed(1)} × 厚み ${r.shank.thicknessMm.toFixed(1)} mm` }]),
@@ -3747,7 +3815,7 @@ function askPrint(hasPattern: boolean, go: (p: { drawing: boolean; steps: boolea
     <h3>印刷する物</h3>
     <label class="chk"><input type="checkbox" name="drawing" checked><span><b>図面</b><small>正面・横・上、寸法つき（A4 横）</small></span></label>
     <label class="chk"><input type="checkbox" name="steps" checked><span><b>作り方</b><small>${method === "hand" ? "鍛造" : "鋳造"}の手順と数字</small></span></label>
-    <label class="chk"><input type="checkbox" name="details"><span><b>詳しい手順も</b><small>「詳しく」の中身と温度（ページが増えます）</small></span></label>
+    <label class="chk"><input type="checkbox" name="details"><span><b>詳しい手順も</b><small>工程の細かい手順と温度（ページが増えます）</small></span></label>
     ${hasPattern ? `<label class="chk"><input type="checkbox" name="pattern"><span><b>原寸の型紙</b><small>石を置いて確かめる</small></span></label>` : ""}
     <div class="sheet-actions"><button value="cancel" class="ghost">やめる</button><button value="ok" class="primary">印刷</button></div>
   </form>`;
@@ -3785,7 +3853,7 @@ function solitaireData(sess: RingSession = session!, info: StoneInfo = currentSt
     specs: [
       { label: "石", value: `${info.longMm.toFixed(2)} × ${info.widthMm.toFixed(2)} × ${info.depthMm.toFixed(2)} mm` },
       { label: "号", value: `${sess.state.gou} 号 ・ 内径 ${r.shank.innerDiameterMm.toFixed(1)} mm` },
-      { label: "留め方", value: st.tension ? tensionWord(st) : st.style === "bezel" ? `覆輪 ・ 壁 ${st.bezel?.wallMm.toFixed(2)} mm` : `爪 ${st.prongs.length} ・ ø ${st.prongs[0]?.diameterMm.toFixed(2)} mm` },
+      { label: "留め方", value: st.tension ? tensionWord(st) : st.style === "bezel" ? `覆輪 ・ 壁 ${st.bezel?.wallMm.toFixed(2)} mm` : `爪 ${st.prongs.length} ・ ø ${st.prongs[0]?.diameterMm.toFixed(2)} mm${st.prongTip === "oni" ? ` ・ ${PRONG_TIP_LABEL.oni}` : ""}` },
       { label: "腕", value: `${r.shank.widthMm.toFixed(1)} × ${r.shank.thicknessMm.toFixed(1)} mm` },
       { label: "石と指のすき間", value: `${r.culetGapMm.toFixed(2)} mm` },
       { label: "地金", value: `${METAL_LABEL[sess.state.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g` },
@@ -3889,7 +3957,7 @@ function openSaveWork(slot: HTMLElement, data: WorkData) {
       image: thumbnail(),
       specs: data.specs,
       problems: data.problems,
-      // 記録には「詳しく」を入れない（このブラウザの入れ物が小さいため）
+      // 記録には細かい手順を入れない（このブラウザの入れ物が小さいため）
       steps: data.steps.map(({ details: _d, ...rest }) => rest),
       note: said,
       maker,
@@ -4087,4 +4155,12 @@ void restoreDesign()
     }
   })
   .catch((e) => setStatus(`見本の石を読めませんでした：${(e as Error).message}`));
-(window as unknown as { __studio: unknown }).__studio = { get session() { return session; }, setMode, dimsAvoid, loadPreset, viewer };
+/** 入口のページの手順の札（public/lp/make-steps.json）を作る所：scripts/lp-shots.cjs の steps が読む */
+function makeCards(m: Method) {
+  if (!session?.built) return [];
+  return howToMake(howInput(session.built), m).map((st, i) => {
+    const c = stepCard(st, i);
+    return { no: c.no, title: c.title, lead: c.text, rows: c.rows.map((x) => [x.label, x.value]), watch: c.watch ?? "", tools: c.tools, more: cardFlow(c, m).lines };
+  });
+}
+(window as unknown as { __studio: unknown }).__studio = { get session() { return session; }, setMode, dimsAvoid, loadPreset, viewer, makeCards };

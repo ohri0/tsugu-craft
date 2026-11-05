@@ -12,7 +12,7 @@ import { summarizeMetrics } from "../craft/motion";
 import { bookHtml } from "../rules/book";
 import { freshGap, ringGaps } from "../rules/gaps";
 import { activeRules, addRule, editRule, removedList, removeRule, restoreRule, seedLedger, sourceLabel, type Ledger, type Rule } from "../rules/ledger";
-import { MAIN, removeWorkshop, renameWorkshop, setActive } from "../rules/workshops";
+import { setBasics, MAIN, removeWorkshop, renameWorkshop, setActive } from "../rules/workshops";
 import repoLedger from "../../ledger/jewelry.json";
 import { groupQuestions, markAnswered, removeQuestions, type QuestionGroup } from "../rules/teacher-queue";
 import { mountMotion, savedRecords } from "../ui/motion-ui";
@@ -54,6 +54,7 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
     <header class="view-head">
       <div class="keep-name"><h2 class="keep-title"></h2><button type="button" class="linklike rename">名前を変える</button><label class="ws-switch" hidden><span>帳面を切り替える</span><select aria-label="使う帳面"></select></label></div>
       <p class="lead">工房の決まり。設計の確かめと、学ぶ人への答えに使います。</p>
+      <div class="keep-basics"><span>この工房のベーシック：爪の形</span><div class="seg-b" role="group" aria-label="爪の形（工房の既定）"><button type="button" data-tip="round">丸い爪</button><button type="button" data-tip="oni">鬼爪</button></div><small class="keep-basics-n"></small></div>
     </header>
     <div class="block ask-card iv-card" hidden></div>
     <ul class="rule-cards"></ul>
@@ -99,6 +100,9 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
     sw.hidden = !ws.list.length;
     const pick = sw.querySelector("select")!;
     pick.innerHTML = [`<option value="${MAIN}"${ws.active === MAIN ? " selected" : ""}>${esc(bookTitle(store.mainName()))}</option>`, ...ws.list.map((w) => `<option value="${esc(w.id)}"${ws.active === w.id ? " selected" : ""}>${esc(bookTitle(w.name))}</option>`)].join("");
+    const tip = store.ledger().basics?.prongTip ?? "round";
+    root.querySelectorAll<HTMLButtonElement>(".keep-basics button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.tip === tip)));
+    $(".keep-basics-n").textContent = ws.list.find((w) => w.id === ws.active)?.sample ? "見本の工房です。爪の太さと形は雰囲気の例。あとで直せます。目安・最後は職人が決めます。" : "いつもの雰囲気の既定。設計ごとにも選べます。";
     renderCards();
     renderRemoved();
     if (interview) interview.refresh();
@@ -462,6 +466,13 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
   $(".print").addEventListener("click", () => {
     printHtml(book());
   });
+
+  root.querySelectorAll<HTMLButtonElement>(".keep-basics button").forEach((b) =>
+    b.addEventListener("click", () => {
+      store.setLedger(setBasics(store.ledger(), { prongTip: b.dataset.tip as "round" | "oni" }));
+      refresh();
+    }),
+  );
 
   // 工房の名前を変える（ここ 1 か所。帳面・学ぶ・技・スタジオのどこでもこの名前になる）
   $(".ws-switch select").addEventListener("change", (e) => {

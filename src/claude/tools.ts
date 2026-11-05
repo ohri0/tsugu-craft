@@ -108,6 +108,8 @@ export type TensionGripChoice = "short" | "long" | "corner";
 export type Metal = "pt900" | "k18yg" | "k18wg" | "k18pg" | "sv925";
 export type View = "top" | "side" | "front" | "angle";
 
+export type ProngTipChoice = "round" | "oni";
+
 export interface SetSettingInput {
   style?: SettingStyle;
   /** 爪を置く輪郭の点の番号 */
@@ -120,6 +122,8 @@ export interface SetSettingInput {
   orientation?: Orientation;
   /** 石座と腕の付け方（爪留めだけ） */
   join?: Join;
+  /** 爪の先の形（爪留めだけ）。round＝丸い爪、oni＝鬼爪 */
+  prong_tip?: ProngTipChoice;
   /** テンションの挟む向き（テンションだけ） */
   tension_grip?: TensionGripChoice;
   reason: string;
@@ -240,6 +244,8 @@ export interface SettingState {
   orientation: Orientation;
   /** 石座と腕の付け方 */
   join: Join;
+  /** 爪の先の形 */
+  prong_tip: ProngTipChoice;
   /** 覆輪の壁の厚み（爪のときは null） */
   bezel_wall_mm: number | null;
 }
@@ -462,6 +468,12 @@ export const TOOLS: ClaudeTool[] = [
           enum: ["short", "long", "corner"],
           description:
             "テンションで石のどこを挟むか（テンションのときだけ。石の形で選べないものは、自動で short になる）。short＝いちばん狭い幅を挟む（長い向きは腕の幅の外へ出る）、long＝長い向きを挟む（短い辺や丸い端を溝に。開きは広くなる）、corner＝向かい合う 2 つの角をくぼみに（横にずれないが、挟む力が角の先にかかる）",
+        },
+        prong_tip: {
+          type: "string",
+          enum: ["round", "oni"],
+          description:
+            "爪の先の形（爪留めのときだけ）。省くと今のまま（はじめは工房の帳面のベーシックの形）。round＝丸い爪（シンプル。先を丸める）、oni＝鬼爪（先が尖り、石の上に少しかかる。シャープな見た目）。太さとは別に選ぶ。鬼爪の尖り具合の数字は仮の目安で、最後は職人が決める",
         },
         join: {
           type: "string",

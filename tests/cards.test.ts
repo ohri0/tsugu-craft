@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildRing } from "../src/geometry/ring";
 import { howToMake } from "../src/studio/howto";
-import { cardsPrintHtml, detailGroups, glossary, glossOf, markTerms, splitLead, stepCard, toolWord, wordsIn } from "../src/studio/cards";
+import { cardFlow, cardsPrintHtml, detailGroups, FLOW_TOOLS, flowToolsFor, glossary, glossOf, markTerms, splitLead, stepCard, toolWord, wordsIn } from "../src/studio/cards";
 import { STEP_DETAILS, withDetails } from "../src/studio/steps";
 import { TERMS } from "../src/studio/process";
 import { STEP_TOOLS, TOOLS } from "../src/studio/toolbox";
@@ -125,5 +125,44 @@ describe("帳面と指示書の札（印刷）", () => {
   });
   it("詳しくを入れないときは、詳しくの行がない", () => {
     expect(cardsPrintHtml(steps("prong", "hand"), { details: false })).not.toContain("sc-lines");
+  });
+});
+
+describe("手順の札：流れの文（作者の声 2026-11-05）", () => {
+  it("流れの文に「道具」の行が入らない。道具は、文に出るか、最後の一言に入る（どちらかに必ず）", () => {
+    for (const [style, m] of [["prong", "hand"], ["prong", "cast"], ["bezel", "hand"], ["bezel", "cast"]] as const)
+      for (const st of steps(style, m)) {
+        const c = stepCard(st, 0);
+        const f = cardFlow(c, m);
+        const said = [c.text, f.added, ...f.lines.map((l) => l.g ?? l.t ?? ""), c.watch ?? ""].join("");
+        expect(f.lines.some((l) => l.t?.startsWith("道具"))).toBe(false);
+        for (const t of c.tools) expect(said.includes(t) || f.rest.includes(t), `${st.title} の ${t}`).toBe(true);
+        for (const t of f.rest) expect(said.includes(t), `${st.title} の ${t} は文に出ている`).toBe(false);
+      }
+  });
+  it("見出しの行は「見出し：文」のまま読める（K18 イエロー：620〜677 ℃）", () => {
+    const f = cardFlow(stepCard(steps("prong", "hand").find((s) => s.id === "anneal")!, 0), "hand");
+    expect(f.lines.some((l) => l.t?.startsWith("K18 イエロー：620"))).toBe(true);
+    expect(f.lines.some((l) => l.g === "焼きなまし")).toBe(true);
+  });
+  it("足す文に、新しい数字を作らない。道具の言葉はことば帳にあって押せる", () => {
+    for (const [k, v] of Object.entries(FLOW_TOOLS)) {
+      expect(v.replace(/3D/g, ""), k).not.toMatch(/\d/);
+      expect(wordsIn(v).length, k).toBeGreaterThan(0);
+      const title = k.replace(/^(hand|cast):/, "");
+      expect(STEP_TOOLS[title], `${k} は道具の表の工程`).toBeTruthy();
+    }
+  });
+  it("石を並べた指輪の「（石 2）」の題でも、同じ文が引ける", () => {
+    expect(flowToolsFor("石座を組む（石 2）", "hand")).toBe(FLOW_TOOLS["石座を組む"]);
+    expect(flowToolsFor("仕上げ", "cast")).toBe(FLOW_TOOLS["cast:仕上げ"]);
+    expect(flowToolsFor("知らない工程", "hand")).toBe("");
+  });
+  it("押す言葉の印は、札の中で 1 回だけ（同じ言葉の点線が並ばない）", () => {
+    const seen = new Set<string>();
+    const a = markTerms("バーナーで熱する", seen);
+    const b = markTerms("バーナーを離す", seen);
+    expect(a).toContain('class="term"');
+    expect(b).not.toContain('class="term"');
   });
 });

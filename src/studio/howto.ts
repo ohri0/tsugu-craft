@@ -85,9 +85,22 @@ export function measures(o: HowToInput) {
 
 export function howToMake(o: HowToInput, method: Method): Step[] {
   const steps = (o.ring.stones?.length ?? 1) > 1 ? multiSteps(o, method) : soloSteps(o, method);
-  // V 字の爪の手順は、V 字の爪のある指輪にだけ出す（ない爪の話が「詳しく」に残っていた）
-  const hasV = (o.ring.stones?.length ? o.ring.stones.map((st) => st.setting) : [o.ring.setting]).some((st) => st.prongs.some((p) => p.isV));
-  return hasV ? steps.map((s) => (s.id === "prong" ? { ...s, vProngs: true } : s)) : steps.map((s) => (s.details ? { ...s, details: dropVDetails(s.details) } : s));
+  // V 字の爪の手順は、V 字の爪のある指輪にだけ出す（ない爪の話が細かい手順に残っていた）
+  const settings = o.ring.stones?.length ? o.ring.stones.map((st) => st.setting) : [o.ring.setting];
+  const hasV = settings.some((st) => st.prongs.some((p) => p.isV));
+  const list = hasV ? steps.map((s) => (s.id === "prong" ? { ...s, vProngs: true } : s)) : steps.map((s) => (s.details ? { ...s, details: dropVDetails(s.details) } : s));
+  return settings.some((st) => st.prongTip === "oni") ? list.map(oniStep) : list;
+}
+
+/** 鬼爪の言い方（作り方の中の「先を丸くする」を、尖らせる言い方に）。数字は足さない */
+const ONI_WORDS = "鬼爪（先が尖り、石の上に少しかかる形）";
+function oniStep(s: Step): Step {
+  if (s.id !== "prong" && s.id !== "finish") return s;
+  return {
+    ...s,
+    text: s.text.replace("爪の先を丸め", `爪の先を${ONI_WORDS}に整え`),
+    details: s.details?.map((d) => (d.text.startsWith("爪を切りそろえ、先をヤスリで丸くして") ? { ...d, text: `爪を切りそろえ、先をヤスリで${ONI_WORDS}に尖らせる。尖り具合は職人が決める。` } : d)),
+  };
 }
 
 /** 石の場所の言葉（腕のいちばん上から、腕に沿って） */
@@ -297,7 +310,7 @@ function soloSteps(o: HowToInput, method: Method): Step[] {
         ]
       : m.prongWire
         ? [
-            { label: "爪", value: `${s.prongs.length} か所${m.prongWire.vCount ? `（うち V 字 ${m.prongWire.vCount}）` : ""}` },
+            { label: "爪", value: `${s.prongs.length} か所${m.prongWire.vCount ? `（うち V 字 ${m.prongWire.vCount}）` : ""}${s.prongTip === "oni" ? " ・ 鬼爪" : ""}` },
             { label: "爪の線材", value: `ø ${mm(m.prongWire.diameter, 2)} × ${m.prongWire.count} 本 ・ 1 本 約 ${mm(m.prongWire.length)}` },
           ]
         : [];
