@@ -3,8 +3,6 @@
 // 書いてあることは、どれも今のアプリでできること。数字は、撮った画面の数字か、出典・記録のあるものだけ。
 // 写真は public/lp/（scripts/lp-shots.cjs で撮る）と public/heritage/（README に出どころ）。3D は読み込まない。
 import "./lp.css";
-import repoLedger from "../../ledger/jewelry.json";
-import { ledgerCounts, type Ledger } from "../rules/ledger";
 import { flowBeforeSvg, HAKUSHO_URL, whyHtml } from "../studio/why";
 
 const STUDIO = "studio.html";
@@ -14,7 +12,6 @@ const LEDGER = "app.html#ledger";
 const RESTORE = "app.html#waza/restore";
 const REBUILD_URL = "app.html#waza/rebuild";
 /** 帳面の決まりの数（数字を書かず、はじめて開いた人に見えるリポジトリの帳面から数える） */
-const BOOK = ledgerCounts(repoLedger as Ledger);
 
 /** public/lp/ の写真。w・h は大きい方（2 倍）の画素。-sm は半分の幅 */
 function shot(name: string, w: number, h: number, alt: string, sizes: string, eager = false): string {
@@ -146,7 +143,7 @@ const html = `
     </div>
     <div class="keep-card">
       <figure class="rv">${shot("rule-card", 896, 542, "帳面の決まりの札。三角の石を 3 本爪で留めるときの決まりと、職人の言葉、職人の名前と日付", "(max-width: 760px) 92vw, 448px")}<figcaption>帳面の本物の札。決まり、職人の言葉、名前と日付。</figcaption></figure>
-      <p class="keep-n rv">石川工房の帳面には、決まりが <span class="num">${BOOK.total}</span>。職人の言葉から <span class="num">${BOOK.craftsman}</span>、公開の資料から <span class="num">${BOOK.others}</span>（出どころのリンクつき）。資料に数字がない所は「仮」と書きます。<a href="${LEDGER}">帳面を見る</a></p>
+      <p class="keep-n rv">決まりには、職人の言葉と名前と日付が残ります。公開の資料から入れた目安には、出どころのリンクがつきます。資料に数字がない所は「仮」と書きます。<a href="${LEDGER}">帳面を見る</a></p>
     </div>
   </section>
 

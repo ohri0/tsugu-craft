@@ -18,10 +18,9 @@ describe("入口のページ", () => {
     expect(src).toContain("開くときに合言葉を聞きます");
   });
 
-  it("決まりの数を直書きせず、帳面から読む", () => {
-    expect(src).toContain("BOOK.total");
-    expect(src).not.toMatch(/決まりが <span class="num">\d/);
-    expect(src).not.toMatch(/資料から入れた決まり (<span class="num">)?\d/);
+  it("決まりの数を出さない（職人の言葉の数が弱く見える。2026-11-05 作者）", () => {
+    expect(src).not.toMatch(/決まりが <span class="num">/);
+    expect(src).not.toContain("BOOK.");
   });
 
   it("数は、帳面の画面と同じ分け方（職人の決まり・それ以外）", () => {
