@@ -7,7 +7,7 @@ import { askPrompt } from "../claude/prompt";
 import { TOOLS, type ToolHost } from "../claude/tools";
 import type { ClaudeMessageParam } from "../claude/wire";
 import { activeRules, sourceLabel, type Rule } from "../rules/ledger";
-import { findRules } from "../rules/search";
+import { findRules, prongSizeAnswer } from "../rules/search";
 import { addQuestion, groupQuestions } from "../rules/teacher-queue";
 import { esc, store, today } from "./store";
 import { bindVoice } from "./voice";
@@ -123,8 +123,11 @@ export function mountAsk(root: HTMLElement): { refresh(): void } {
 
   function localAnswer(question: string, el: HTMLElement, reason: string) {
     const rules = activeRules(store.ledger());
+    const sized = prongSizeAnswer(question, rules);
     const found = findRules(question, rules);
-    if (found.length) {
+    if (sized) {
+      el.innerHTML = answerCard({ short: sized.short, why: sized.why, ruleIds: [sized.rule.id] }, [sized.rule], "local", false);
+    } else if (found.length) {
       const r = found[0];
       el.innerHTML = answerCard({ short: r.text, why: r.reason, ruleIds: found.map((x) => x.id) }, found, "local", false);
     } else {
