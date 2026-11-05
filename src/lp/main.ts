@@ -14,7 +14,7 @@ const arrow = `<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8h10M9 4l
 
 /** public/lp/ の写真。w・h は大きい方（2 倍）の画素。-sm は半分の幅 */
 function shot(name: string, w: number, h: number, alt: string, sizes: string, eager = false): string {
-  return `<img src="lp/${name}-sm.webp" srcset="lp/${name}-sm.webp ${w / 2}w, lp/${name}.webp ${w}w" sizes="${sizes}" width="${w / 2}" height="${h / 2}" alt="${alt}" ${eager ? `fetchpriority="high"` : `loading="lazy"`} decoding="async">`;
+  return `<img src="lp/${name}-sm.webp" srcset="lp/${name}-sm.webp ${Math.round(w / 2)}w, lp/${name}.webp ${w}w" sizes="${sizes}" width="${w / 2}" height="${h / 2}" alt="${alt}" ${eager ? `fetchpriority="high"` : `loading="lazy"`} decoding="async">`;
 }
 
 const CHOICES: { name: string; label: string; v: string; alt: string }[] = [
