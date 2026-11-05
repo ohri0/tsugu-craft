@@ -23,6 +23,7 @@ import { loadPhoto } from "../ui/photo";
 import { Viewer, type DisplayMode } from "../ui/viewer";
 import { extractStone, type Extraction } from "../vision/extract";
 import { PARAMS, activeRules, addRule, seedLedger, sourceLabel, valueFor, type Ledger, type ParamId, type Rule } from "../rules/ledger";
+import { askConfirm } from "../app/confirm";
 import { askPassword, resetPassword } from "../app/password";
 import { esc, store, today } from "../app/store";
 import { bindVoice } from "../app/voice";
@@ -471,6 +472,7 @@ async function restoreDesign(): Promise<boolean> {
   return true;
 }
 $(".reset-design").addEventListener("click", () => {
+  if (!askConfirm("はじめの設計に戻しますか？\n今の設計は消えます（記録に残した作品は消えません）。")) return;
   keepPaused = true;
   clearTimeout(keepTimer);
   clearDesign(tab);
@@ -1579,7 +1581,9 @@ function renderCheck() {
   box.querySelector(".compare-btn")?.addEventListener("click", () => setCompare(true));
   box.querySelector(".sweep-btn")?.addEventListener("click", () => openSweep());
   box.querySelector(".compare-back")?.addEventListener("click", () => setCompare(false));
-  box.querySelector(".past-fix")?.addEventListener("click", () => fixPastWorks());
+  box.querySelector(".past-fix")?.addEventListener("click", () => {
+    if (askConfirm("今の設計と、これまでの作品を、まとめて直しますか？\n爪の太さなどが変わります。")) fixPastWorks();
+  });
   box.querySelector(".claude-fix")?.addEventListener("click", () => void fixWithClaude());
   box.querySelectorAll<HTMLButtonElement>(".voice-play").forEach((btn) =>
     btn.addEventListener("click", () => {
@@ -1770,6 +1774,7 @@ function bindStones(box: HTMLElement, b: Built) {
     }),
   );
   sec.querySelector(".stone-del")?.addEventListener("click", () => {
+    if (!askConfirm("この石を外しますか？")) return;
     session!.removeStone(selStone);
     selStone = -1;
     session!.build("石を外した");
@@ -2161,6 +2166,7 @@ function propose(slot: HTMLElement, p: ProposeRuleInput, name: string): Promise<
       resolve({ status: "declined", note: "職人が見送った" });
     });
     slot.querySelector(".ok")!.addEventListener("click", () => {
+      if (!askConfirm(`この決まりを帳面に入れますか？\n「${p.title}」\n今の設計とこれまでの作品を確かめ直します。`)) return;
       // 押したらすぐ案を消す（2 度押しで同じ決まりが 2 つ入らないように）
       slot.innerHTML = "";
       resolve({ status: "accepted", rule_id: acceptRule(p, name) });
@@ -2487,6 +2493,7 @@ function renderFixPop() {
     }),
   );
   pop.querySelector(".fp-every")!.addEventListener("click", () => {
+    if (!askConfirm("作れない所を、まとめて直しますか？\n設計の数字が変わります。")) return;
     for (let k = 0; k < 6 && session?.built?.problems.length; k++) {
       const pr = session.built.problems[0];
       const o = pr.options[0];
@@ -3092,11 +3099,13 @@ function renderWorks() {
     renderWorks();
   });
   box.querySelector(".w-unsample")?.addEventListener("click", () => {
+    if (!askConfirm("見本の作品を、全部消しますか？")) return;
     for (const w of loadWorks()) if (isSample(w)) removeWork(w.id);
     renderWorks();
   });
   box.querySelectorAll<HTMLButtonElement>(".w-del").forEach((b) =>
     b.addEventListener("click", () => {
+      if (!askConfirm("この記録を消しますか？\n消すと戻せません。")) return;
       removeWork(b.dataset.id!);
       renderWorks();
     }),

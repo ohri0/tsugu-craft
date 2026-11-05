@@ -1,6 +1,7 @@
 // Claude の聞き取り：帳面の「まだ決まっていない所」を 1 つずつ職人に聞き、答えを決まりにする部品。
 // 指輪の石留めの帳面にも、ほかの技の帳面にも使う（どれも src/rules/gaps.ts で見つける）。
 // 合言葉があれば Claude が問いを言い直し、答えを決まりにまとめる。なければ、決まった問いと数字を読むしくみで動く（画面にそう書く）。
+import { askConfirm } from "./confirm";
 import { askGapPrompt, askGapUser, ASK_GAP, gapRulePrompt, gapRuleUser, GAP_RULE, parseAskGap, parseGapRule, type GapRuleOut } from "../claude/gap";
 import { callTool } from "../rebuild/run";
 import { valueText, type AnswerResult, type Gap, type RuleDraft } from "../rules/gaps";
@@ -97,6 +98,7 @@ export function mountInterview(root: HTMLElement, target: InterviewTarget, opts:
     const voice = bindVoice($<HTMLButtonElement>(".mic"), field, { onError: st });
     $<HTMLInputElement>(".iv-name input").addEventListener("input", (e) => (name = (e.target as HTMLInputElement).value.trim() || target.defaultName()));
     $(".skip").addEventListener("click", () => {
+      if (!askConfirm("この質問をとばしますか？\n書いた答えは消えます。質問は、あとでまた出ます。")) return;
       voice.stop();
       skipped.add(gap.id);
       const rest = target.gaps().filter((g) => !skipped.has(g.id));
@@ -200,6 +202,7 @@ export function mountInterview(root: HTMLElement, target: InterviewTarget, opts:
       <div class="row"><button type="button" class="primary" data-a="ok">帳面に入れる</button><button type="button" class="ghost" data-a="no">言い直す</button></div>
     </div>`;
     slot.querySelector('[data-a="ok"]')!.addEventListener("click", () => {
+      if (!askConfirm(`この決まりを帳面に入れますか？\n「${d.title}」\n設計の確かめと、学ぶ人への答えに使われます。`)) return;
       target.apply(d);
       opts.onApplied?.(d.title);
       flash(`帳面に入れました：${d.title}`);

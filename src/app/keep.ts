@@ -2,6 +2,7 @@
 // その下に「Claude から質問が 1 つあります」（指輪の帳面のまだ決まっていない所。src/app/interview.ts の聞き取り）。
 // そのあとに、ほかにできること：帳面を印刷・手本を撮る・思いついたことを話して残す・届いている質問（あるときだけ）。
 // 届いた質問に答えると、Claude が決まりの案にまとめ、職人が「これでいい」を押すと帳面に入る。
+import { askConfirm } from "./confirm";
 import { runClaude } from "../claude/loop";
 import { printHtml } from "../ui/print";
 import { keepPrompt } from "../claude/prompt";
@@ -367,6 +368,7 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
             resolve({ status: "declined", note: "職人が見送った" });
             return;
           }
+          if (!askConfirm("この決まりを帳面に入れますか？\n設計の確かめと、学ぶ人への答えに使われます。")) return;
           const ed = { title: read("title"), text: read("text"), reason: read("reason") };
           // 押したらすぐ案を消す。2 度押しで同じ決まりが 2 つ入らないように。答えの欄も空にして、同じ言葉から案を作り直さないように
           slot.innerHTML = `<p class="small">足しました：${esc(ed.title)}</p>`;
