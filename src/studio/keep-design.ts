@@ -9,6 +9,8 @@ import type { RingState } from "./session";
 const DESIGN_KEY = "tsugu.studio.design.v1";
 /** 写真は大きいので別に置く（入らなくても設計は残る） */
 const PHOTO_KEY = "tsugu.studio.photo.v1";
+/** 取り込んだ石の写真（今の石がよくある形でも、戻れるように別に置く。入らなくても設計は残る） */
+const IMPORTED_PHOTO_KEY = "tsugu.studio.importedPhoto.v1";
 /** 最初の見せ場を見たか */
 const INTRO_KEY = "tsugu.studio.introSeen.v1";
 
@@ -33,6 +35,10 @@ export interface KeptDesign {
   mode: string;
   /** よくある形から選んだ石なら、その名札 */
   presetId?: string;
+  /** 今の石の札（よくある形の id・imported・first。どれでもなければ null。前に残した設計にはない） */
+  stoneKey?: string | null;
+  /** 取り込んだ石（今の石がよくある形でも、札から戻れる） */
+  imported?: KeptStone;
   stone: KeptStone;
   state: RingState;
   band: Band;
@@ -57,6 +63,8 @@ export function loadDesign(box: Box): KeptDesign | null {
     if (!Array.isArray(d.stone?.measured?.outlineMm) || !d.stone.measured.outlineMm.length || !Array.isArray(d.stone.outlinePx)) return null;
     if (!(d.stone.measured.longMm > 0) || !(d.stone.depthMm > 0)) return null;
     if (typeof d.state?.gou !== "number" || !d.state.metal || !d.band?.top) return null;
+    // 取り込んだ石が読めなければ、それだけ外す（設計は戻す）
+    if (d.imported && (!Array.isArray(d.imported.measured?.outlineMm) || !d.imported.measured.outlineMm.length || !Array.isArray(d.imported.outlinePx) || !(d.imported.measured.longMm > 0) || !(d.imported.depthMm > 0))) delete d.imported;
     return d;
   } catch {
     return null;
@@ -78,6 +86,29 @@ export function savePhoto(box: Box, dataUrl: string): boolean {
   }
 }
 
+/** 取り込んだ石の写真を残す。入らなければ消して false（写真がなくても、輪郭から戻せる） */
+export function saveImportedPhoto(box: Box, dataUrl: string): boolean {
+  try {
+    box.setItem(IMPORTED_PHOTO_KEY, dataUrl);
+    return true;
+  } catch {
+    try {
+      box.removeItem(IMPORTED_PHOTO_KEY);
+    } catch {
+      // 残せなくても画面は動く
+    }
+    return false;
+  }
+}
+
+export function loadImportedPhotoUrl(box: Box): string {
+  try {
+    return box.getItem(IMPORTED_PHOTO_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
 export function loadPhotoUrl(box: Box): string {
   try {
     return box.getItem(PHOTO_KEY) ?? "";
@@ -91,6 +122,7 @@ export function clearDesign(box: Box): void {
   try {
     box.removeItem(DESIGN_KEY);
     box.removeItem(PHOTO_KEY);
+    box.removeItem(IMPORTED_PHOTO_KEY);
   } catch {
     // 残せなくても画面は動く
   }

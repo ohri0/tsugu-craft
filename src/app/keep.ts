@@ -210,6 +210,7 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
       <p class="rc-title">${esc(r.title)}</p>
       <p class="rc-text">${esc(r.text)}</p>
       ${r.quote ? `<blockquote>「${esc(r.quote)}」</blockquote>` : ""}
+      ${r.calc === "tension" ? `<p class="rc-calc"><a class="linklike" href="studio.html#tension">この決まりの計算を、設計の画面で見る →</a></p>` : ""}
       <p class="rc-meta"><span>${who ? `職人：${esc(who)}` : ""} ・ ${esc(r.date)}</span><span class="rc-acts"><span class="rc-video" data-rule="${esc(r.id)}"></span><button type="button" class="linklike rc-del" data-edit-rule="${esc(r.id)}">編集</button></span></p>
     </li>`;
   }

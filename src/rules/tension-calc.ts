@@ -3,10 +3,10 @@
 import type { Metal } from "../claude/tools";
 import type { SettingResult } from "../geometry/setting";
 import type { ShankResult } from "../geometry/shank";
-import { elasticOpeningMm, HARD_STATE_LABEL, type HardState } from "./checks";
+import { elasticOpeningMm, HARD_STATE_LABEL, type HardState, type SpringMetal } from "./checks";
 import { GUIDE_NOTE, GUIDES, type Guides } from "./guides";
 
-export type SpringMetalId = keyof typeof GUIDES.tension.spring.metals;
+export type SpringMetalId = SpringMetal;
 /** 表に並べる地金の順 */
 export const SPRING_METALS: readonly SpringMetalId[] = ["k18y", "k18p", "k18w", "pt900", "sv925"];
 
@@ -129,6 +129,8 @@ export function springSummary(row: SpringRow): string {
 export const SPRING_SHORT_TEXT = "まっすぐ開くだけでは入らない見込み。斜めに入れる・熱で広げるなど、職人が決める";
 /** 計算の一言の前提 */
 export const SPRING_PREMISE = `加工硬化した硬い線のときの大まかな計算です。${GUIDE_NOTE}`;
+/** やわらかい状態の表に添える一言 */
+export const SPRING_PREMISE_SOFT = `焼きなましたやわらかい線のときの大まかな計算です。やわらかいと、石を入れた時点で曲がります（職人の言葉：硬い状態でないと取れる）。${GUIDE_NOTE}`;
 
 export interface TensionCaution {
   id: string;
@@ -154,8 +156,8 @@ export function tensionCautions(s: Pick<SettingResult, "tension">, table: Spring
       text: `石が腕の幅の外へ、片側 ${info.overhangMm.toFixed(2)} mm 出ます。職人が決めた三角より大きく、留まるかは確かめていません。${info.grips.length > 1 && info.grip === "short" ? "挟む向きを変えると小さくなります。" : ""}職人に確かめてください`,
     });
   const row = table.rows.find((r) => r.metal === metal);
-  if (row?.verdict === "short") out.push({ id: "open-short", title: `${row.name}は開く量が足りない`, text: `${springSummary(row)}。${SPRING_SHORT_TEXT}` });
-  if (row?.verdict === "tight") out.push({ id: "open-tight", title: `${row.name}は開く量がぎりぎり`, text: `${springSummary(row)}。太い輪の分を見ると足りません（細い輪の式 ${row.limitMm.toFixed(2)} mm、太い輪の分を見ると ${row.safeMm.toFixed(2)} mm）` });
+  if (row?.verdict === "short") out.push({ id: "open-short", title: `${row.name}は開く量が足りない`, text: SPRING_SHORT_TEXT });
+  if (row?.verdict === "tight") out.push({ id: "open-tight", title: `${row.name}は開く量がぎりぎり`, text: `太い輪の分を見ると足りません（細い輪の式 ${row.limitMm.toFixed(2)} mm、太い輪の分を見ると ${row.safeMm.toFixed(2)} mm。要る量 ${table.needMm.toFixed(2)} mm）` });
   return out;
 }
 

@@ -7,7 +7,7 @@ import { findThinSpots, type ThinSpot } from "../geometry/section-thin";
 import { stoneSpaces } from "../geometry/multi";
 import { tipMeasures, type SettingResult } from "../geometry/setting";
 import type { TensionEnd, TensionInfo } from "../geometry/tension";
-import { GUIDE_NOTE, GUIDES, type Guides, type MetalId, type StonePosition } from "./guides";
+import { GUIDE_NOTE, GUIDES, type Guides, type StonePosition } from "./guides";
 import { prongMinOverride } from "./ledger";
 
 /** 画面に必ず添える、留まりの注意 */
@@ -464,7 +464,7 @@ export function tensionInsert(info: Pick<TensionInfo, "mode" | "slides">): Tensi
     return {
       kind: "slide-or-open",
       how: "腕を開いて上から入れるか、横から溝に滑らせて入れます。滑らせるなら、開くのは締まり（石を押さえる力）の分だけで済みます",
-      hold: "溝がまっすぐなので、横に止める物がありません。締まりの力だけで止まります。締まりを強めにするのは作者の考えで、まだ試していません",
+      hold: "横に止める物がないので、締まりを強めにします（作者の考え。まだ試していません）",
       noStop: true,
     };
   return { kind: "open", how: "腕を開いて、片側を溝へ入れてから、もう片側を入れます", hold: "溝が石の丸みに沿うので、腕が開かないと横へ動きません", noStop: false };
@@ -482,10 +482,12 @@ export function elasticOpeningMm(radiusMm: number, wireMm: number, youngGpa: num
 }
 
 export type HardState = "hardened" | "annealed";
+/** テンションの計算の地金（K18 は色ごと） */
+export type SpringMetal = keyof typeof GUIDES.tension.spring.metals;
 export const HARD_STATE_LABEL: Record<HardState, string> = { hardened: "加工硬化", annealed: "焼きなまし" };
 
 export interface TensionOpening {
-  metal: MetalId;
+  metal: SpringMetal;
   metalName: string;
   /** 中心の半径 R ＝ 指の半径 ＋ 太さ ÷ 2（mm）と、線の太さ d（mm） */
   radiusMm: number;
@@ -510,10 +512,10 @@ export const TENSION_SHORT_TEXT = "まっすぐ開くだけでは入らない見
  * 参考の計算：地金が戻れる範囲で開ける量と、石を入れるのに要る量を並べる。合否にはしない（確かめの問題には入れない）。
  * 石にかかる力は出さない（信じられる出典がない）。テンションでなければ null
  */
-export function tensionOpening(s: Pick<SettingResult, "tension">, sh: Pick<ShankResult, "innerRadiusMm" | "thicknessMm" | "metal">, g: Guides = GUIDES): TensionOpening | null {
+export function tensionOpening(s: Pick<SettingResult, "tension">, sh: Pick<ShankResult, "innerRadiusMm" | "thicknessMm" | "metal">, g: Guides = GUIDES, springMetal: SpringMetal = sh.metal): TensionOpening | null {
   const info = s.tension;
   if (!info) return null;
-  const m = g.tension.spring.metals[sh.metal];
+  const m = g.tension.spring.metals[springMetal];
   const radiusMm = sh.innerRadiusMm + sh.thicknessMm / 2;
   const wireMm = sh.thicknessMm;
   const needMm = info.ends[0].depthMm + info.ends[1].depthMm;
@@ -523,7 +525,7 @@ export function tensionOpening(s: Pick<SettingResult, "tension">, sh: Pick<Shank
     const openMm = elasticOpeningMm(radiusMm, wireMm, m.young.gpa, v.proofMpa);
     return { state, label: HARD_STATE_LABEL[state], proofMpa: v.proofMpa, provisional: v.provisional, basis: v.basis, openMm, enough: openMm >= needMm };
   });
-  return { metal: sh.metal, metalName: m.name, radiusMm, wireMm, young: m.young, needMm, needText, states, enough: states[0].enough };
+  return { metal: springMetal, metalName: m.name, radiusMm, wireMm, young: m.young, needMm, needText, states, enough: states[0].enough };
 }
 
 /** 参考の計算を、1 つの文に（Claude の確かめの注に添える） */

@@ -63,6 +63,8 @@ export interface Rule<P extends string = ParamId> {
   checks?: CheckId[];
   /** 作り方のどの工程の決まりか（機械で確かめない決まり。src/rules/making.ts の工程の id） */
   steps?: string[];
+  /** 設計の画面の計算とつながる決まり（札から計算を開ける） */
+  calc?: "tension";
   source: RuleSource;
   /** YYYY-MM-DD */
   date: string;

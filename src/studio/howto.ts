@@ -268,7 +268,7 @@ function tensionSteps(o: HowToInput, method: Method): Step[] {
     {
       id: "tension_cut",
       title: "溝とくぼみを切る",
-      text: "片方の端に角の先が入るくぼみを、もう片方の端に辺が入る溝を切る。石を当てて確かめながら。溝の高さは、石の縁（ガードル）の厚みに合わせる。",
+      text: `${info.mode === "corner-edge" ? "片方の端に角の先が入るくぼみを、もう片方の端に辺が入る溝を切る" : info.mode === "corner-corner" ? "両方の端に、角の先が入るくぼみを切る" : "両方の端に、石の縁が入る溝を切る"}。石を当てて確かめながら。溝の高さは、石の縁（ガードル）の厚みに合わせる。`,
       specs: [...endSpecs, { label: "石とのすき間", value: `${mm(info.clearanceMm, 2)}（仮の目安）` }],
       watch: "資料には、硬くする前に溝を切る例もある。順は職人が決める。",
     },

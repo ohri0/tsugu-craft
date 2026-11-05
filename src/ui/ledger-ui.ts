@@ -26,6 +26,28 @@ function savedMainName(): string {
   }
 }
 
+/**
+ * リポジトリで文を直した決まりの、前の文（決まりの id → 前の本文）。
+ * このブラウザに前の文のまま残っていれば、新しい文にする。職人がこのブラウザで書き直した文は、そのまま残す。
+ */
+const OLD_RULE_TEXTS: Record<string, string[]> = {
+  "rule-tension-depth-ishikawa": [
+    "三角の石を腕の両はしで挟むとき、片方の端に小さなくぼみを掘って、角の先を 1 mm くらい入れる。もう片方の端には、辺に沿ったまっすぐな溝を切って、辺を 0.5 mm 差し込む。角がくぼみで止まるので、石は横にずれない",
+    "三角の石を腕の両はしで挟むとき、片方の端に小さなくぼみを掘って、角の先を 0.8 mm くらい入れる。もう片方の端には、辺に沿ったまっすぐな溝を切って、辺を 0.5 mm 差し込む。角がくぼみで止まるので、石は横にずれない",
+  ],
+};
+
+/** このブラウザに残した決まりを、リポジトリの決まりに合わせる（前の文のままなら新しい文に。計算とのつながりは足す） */
+export function freshenRules(saved: readonly Rule[], repo: readonly Rule[]): Rule[] {
+  const byId = new Map(repo.map((r) => [r.id, r]));
+  return saved.map((r) => {
+    const now = byId.get(r.id);
+    if (!now) return r;
+    if (OLD_RULE_TEXTS[r.id]?.includes(r.text)) return now;
+    return now.calc && !r.calc ? { ...r, calc: now.calc } : r;
+  });
+}
+
 export function loadLedger(): Ledger {
   const repo = repoLedger as Ledger;
   const named = (l: Ledger): Ledger => (savedMainName() ? { ...l, owner: savedMainName() } : l);
@@ -39,7 +61,7 @@ export function loadLedger(): Ledger {
         const retired = new Set((repoLedger as { retired?: string[] }).retired ?? []);
         // 職人がこのブラウザで消した決まり（removed）も、リポジトリの帳面から足し直さない
         const removed = new Set(l.removed ?? []);
-        return named({ ...l, owner: repo.owner ?? l.owner, rules: [...l.rules.filter((r) => !retired.has(r.id)), ...repo.rules.filter((r) => !have.has(r.id) && !removed.has(r.id))] });
+        return named({ ...l, owner: repo.owner ?? l.owner, rules: [...freshenRules(l.rules, repo.rules).filter((r) => !retired.has(r.id)), ...repo.rules.filter((r) => !have.has(r.id) && !removed.has(r.id))] });
       }
     }
   } catch {

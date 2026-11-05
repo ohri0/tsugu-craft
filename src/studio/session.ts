@@ -730,7 +730,7 @@ export class RingSession implements ToolHost<RingState> {
     const b = this.built ?? this.build();
     const std = b.ring.setting.standardProngMm;
     const failed = new Set(b.problems.map((p) => p.check));
-    const opening = tensionOpening(b.ring.setting, b.ring.shank, this.guides());
+    const opening = tensionOpening(b.ring.setting, b.ring.shank, this.guides(), springIdOf(this.state.metal));
     const spring = tensionSpring(b.ring.setting, b.ring.shank, "hardened", this.guides());
     const insert = b.ring.setting.tension ? tensionInsert(b.ring.setting.tension) : null;
     return {

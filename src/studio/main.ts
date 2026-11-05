@@ -46,7 +46,7 @@ import { MAKE_BAND, SECTION_LABEL, SECTION_LIST, applyDraft, bandCutMesh, bandHo
 import { bandTarget, renderBandPanel, type BandPanelHost } from "./band-panel";
 import { sectionLoop, sectionPath, type PresetKind, type SectionSpec } from "../cad/section";
 import { effectiveGuides } from "../rules/ledger";
-import { BAND_THIN_STEP_MM, COLLAR_STEP_MM, WIRE_STEP_MM, metalIdOf } from "./session";
+import { BAND_THIN_STEP_MM, COLLAR_STEP_MM, WIRE_STEP_MM, metalIdOf, nextGrip } from "./session";
 import { GUIDES, GUIDE_NOTE, minProngMm, stoneSizeMm } from "../rules/guides";
 import { callTool } from "../rebuild/run";
 import { dimsSvg, flatDims, gizmoSvg, type Dim, type Rect, type V3 } from "./dims";
@@ -54,10 +54,12 @@ import { bindSlider, sliderHtml, type SliderSpec } from "./slider";
 import { bindSectionEditor, sectionEditorHtml, startShape } from "./section-edit";
 import { SHANK_SECTIONS, SHANK_SECTION_LABEL, type ShankSection } from "../geometry/shank";
 import { placePoint, rebuildShank } from "../geometry/ring";
-import { TENSION_OPENING_NOTE, TENSION_SHORT_TEXT, checkShank, tensionNotes, tensionOpening, type Problem } from "../rules/checks";
+import { TENSION_OPENING_NOTE, TENSION_WORDS_NOTE, checkShank, tensionInsert, tensionNotes, type HardState, type Problem } from "../rules/checks";
+import { SPRING_PREMISE, SPRING_PREMISE_SOFT, springIdOf, springSummary, tensionCautions, tensionSpring, type SpringRow, type TensionCaution } from "../rules/tension-calc";
+import type { TensionGrip } from "../geometry/tension";
 import { presentHtml, STONE_SIZES, type PresentGroup } from "./present";
 import { MAX_SECONDS, playVoice, putVoice, startRecording, voiceIds } from "./voice-notes";
-import { clearDesign, introSeen, loadDesign, loadPhotoUrl, markIntroSeen, saveDesign, savePhoto, tabBox, type KeptStone } from "./keep-design";
+import { clearDesign, introSeen, loadDesign, loadImportedPhotoUrl, loadPhotoUrl, markIntroSeen, saveDesign, saveImportedPhoto, savePhoto, tabBox, type KeptStone } from "./keep-design";
 
 type Mode = "make" | "refine" | "hand" | "works";
 const MODES: { id: Mode; word: string; key: string; sub: string }[] = [
@@ -92,6 +94,25 @@ interface Stone {
   cornerIdx: { index: number; angle: number }[];
 }
 let stone: Stone | null = null;
+/** いま使っている石の札（よくある形の id・"imported"＝取り込んだ石・"first"＝はじめの石。どれでもなければ null） */
+let stoneKey: string | null = null;
+/** 取り込んだ石（写真から読んだ石）。よくある形を押しても残り、いつでも戻れる（作者の声 2026-11-05） */
+let imported: Stone | null = null;
+/**
+ * 石の形の札の中身（生むと確かめるの、同じ部品）。よくある形のあとに、取り込んだ石。
+ * 自分の写真を入れたら、はじめの石にも戻れる。撮影の絵は前のまま（取り込んだ石の札を出さない）
+ */
+function stoneButtonsHtml(): string {
+  const on = (k: string) => `aria-pressed="${stoneKey === k}"`;
+  const kept = filming()
+    ? ""
+    : `${imported ? `<button type="button" data-kept="imported" title="${esc(imported.label)}" ${on("imported")}>取り込んだ石</button>` : ""}${imported && imported.label !== SAMPLE.label ? `<button type="button" data-kept="first" title="${esc(SAMPLE.label)}" ${on("first")}>はじめの石</button>` : ""}`;
+  return `${PRESETS.map((p) => `<button type="button" data-preset="${p.id}" ${on(p.id)}>${p.name}</button>`).join("")}${kept}`;
+}
+/** 石の形の札を、画面のどこにあっても描き直す */
+function renderStoneButtons() {
+  document.querySelectorAll<HTMLElement>(".presets").forEach((el) => (el.innerHTML = stoneButtonsHtml()));
+}
 let sketch: { dataUrl: string; base64: string; media: "image/jpeg" | "image/png" } | null = null;
 let session: RingSession | null = null;
 let reason = "";
@@ -149,7 +170,7 @@ app.innerHTML = `
           <small>色の薄い石は、黒い紙の上でも読めます。</small>
         </div>
         <label class="asset stone-card"><canvas class="stone-thumb" width="120" height="120"></canvas><span><b>石の写真</b><small class="stone-sub">—</small></span><span class="act">変える</span><input type="file" accept="image/*" class="stone-file" hidden></label>
-        <div class="presets" role="group" aria-label="よくある形">${PRESETS.map((p) => `<button type="button" data-preset="${p.id}">${p.name}</button>`).join("")}</div>
+        <div class="presets" role="group" aria-label="石の形">${stoneButtonsHtml()}</div>
         <div class="fields"><label class="field">長辺<span class="in"><input type="number" step="0.01" min="${STONE_LONG_RANGE.min}" max="${STONE_LONG_RANGE.max}" class="in-long" inputmode="decimal"><i>mm</i></span></label><label class="field">深さ<span class="in"><input type="number" step="0.01" class="in-depth" inputmode="decimal"><i>mm</i></span></label></div>
       </section>
       <section class="sec"><h4>Claude の作業</h4>
@@ -347,12 +368,12 @@ document.querySelector(".shoot-help-btn")?.addEventListener("click", (e) => {
  * same：今の石と同じ形か・同じ大きさか（長辺や深さの数字を直しただけのとき。引き継ぐ物が増える）。
  * shapeName：押した石の名前（「エメラルド」を押したのに、形から読んで「四角」と出ていた）
  */
-async function loadStone(img: ImageData, label: string, longMm: number, depthMm: number, opts: { intro?: boolean; same?: { shape?: boolean; size?: boolean }; shapeName?: string } = {}) {
+async function loadStone(img: ImageData, label: string, longMm: number, depthMm: number, opts: { intro?: boolean; same?: { shape?: boolean; size?: boolean }; shapeName?: string; key?: string | null; extraction?: Extraction } = {}) {
   stopIntro();
   // 数字を直しただけなら、前の名前のまま
   const keepName = opts.same && stone ? stone.shapeName : undefined;
-  // 長辺や深さを直しただけなら、写真を読み直さない（輪郭の点がそろったままで、爪の位置がずれない）
-  const extraction = opts.same && stone ? stone.extraction : extractStone(img);
+  // 長辺や深さを直しただけなら、写真を読み直さない（輪郭の点がそろったままで、爪の位置がずれない）。取り込んだ石へ戻るときも、読んだ輪郭のまま
+  const extraction = opts.extraction ?? (opts.same && stone ? stone.extraction : extractStone(img));
   const measured = measureOutline({ outlinePx: extraction.outlinePx, longMm });
   const corners = findCorners(measured.outlineMm);
   stone = {
@@ -365,6 +386,13 @@ async function loadStone(img: ImageData, label: string, longMm: number, depthMm:
     shapeName: opts.shapeName ?? keepName ?? nameShape(measured.outlineMm, corners).name,
     cornerIdx: corners.map((c) => ({ index: outlineIndexAtT(measured.outlineMm, c.t), angle: Math.round(c.angleDeg) })),
   };
+  if (opts.key !== undefined) stoneKey = opts.key;
+  // 新しい写真のときだけ、残す写真を入れ替える。大きさを直した取り込んだ石は、直した値のまま残す
+  if (stoneKey === "imported") {
+    if (opts.key === "imported" && !opts.extraction) keptImportedPhoto = null;
+    imported = stone;
+  }
+  renderStoneButtons();
   $<HTMLInputElement>(".in-long").value = String(longMm);
   $<HTMLInputElement>(".in-depth").value = String(depthMm);
   $(".stone-sub").textContent = `${stone.shapeName}・${measured.longMm.toFixed(2)} × ${measured.widthMm.toFixed(2)} mm`;
@@ -402,8 +430,10 @@ let keepTimer = 0;
 let keepPaused = false;
 /** 残した写真の大きさ（null ＝ 今の写真をまだ残していない） */
 let keptPhoto: { k: number; width: number; height: number } | null = null;
+/** 取り込んだ石の、残した写真の大きさ（null ＝ まだ残していない） */
+let keptImportedPhoto: { k: number; width: number; height: number } | null = null;
 /** 写真を残す。入らなければ小さくして、それでもだめなら写真なしで */
-function keepPhoto(img: ImageData): { k: number; width: number; height: number } {
+function keepPhoto(img: ImageData, save: (box: typeof tab, url: string) => boolean = savePhoto): { k: number; width: number; height: number } {
   const c = document.createElement("canvas");
   const from = document.createElement("canvas");
   from.width = img.width;
@@ -414,35 +444,66 @@ function keepPhoto(img: ImageData): { k: number; width: number; height: number }
     c.width = Math.round(img.width * k);
     c.height = Math.round(img.height * k);
     c.getContext("2d")!.drawImage(from, 0, 0, c.width, c.height);
-    if (savePhoto(tab, c.toDataURL("image/jpeg", q))) return { k, width: c.width, height: c.height };
+    if (save(tab, c.toDataURL("image/jpeg", q))) return { k, width: c.width, height: c.height };
   }
   return { k: 1, width: img.width, height: img.height };
+}
+/** 石を、残す形に（写真の上の座標は、残した写真の大きさに合わせる） */
+function keptOf(s: Stone, photo: { k: number; width: number; height: number }): KeptStone {
+  const { k, width, height } = photo;
+  return {
+    label: s.label,
+    depthMm: s.depthMm,
+    shapeName: s.shapeName,
+    cornerIdx: s.cornerIdx,
+    measured: s.measured,
+    outlinePx: s.extraction.outlinePx.map((q) => ({ x: q.x * k, y: q.y * k })),
+    color: s.extraction.color,
+    colorless: s.extraction.colorless,
+    photoWidth: width,
+    photoHeight: height,
+  };
+}
+/** 残した石を、画面で使う形に戻す（写真がなければ、白い写真のまま） */
+async function stoneFromKept(k: KeptStone, url: string): Promise<Stone> {
+  const c = document.createElement("canvas");
+  c.width = k.photoWidth;
+  c.height = k.photoHeight;
+  const g = c.getContext("2d", { willReadFrequently: true })!;
+  if (url) {
+    const im = new Image();
+    im.src = url;
+    await im.decode();
+    g.drawImage(im, 0, 0, c.width, c.height);
+  }
+  return {
+    photo: g.getImageData(0, 0, c.width, c.height),
+    label: k.label,
+    // 輪郭と色だけあれば足りる（読み取りの途中の結果は残さない）
+    extraction: { outlinePx: k.outlinePx, color: k.color, colorless: k.colorless } as Extraction,
+    measured: k.measured,
+    longMm: k.measured.longMm,
+    depthMm: k.depthMm,
+    shapeName: k.shapeName,
+    cornerIdx: k.cornerIdx,
+  };
 }
 function keepDesignNow() {
   clearTimeout(keepTimer);
   keepTimer = 0;
   if (keepOff || keepPaused || !stone || !session) return;
   keptPhoto ??= keepPhoto(stone.photo);
-  const { k, width, height } = keptPhoto;
-  const kept: KeptStone = {
-    label: stone.label,
-    depthMm: stone.depthMm,
-    shapeName: stone.shapeName,
-    cornerIdx: stone.cornerIdx,
-    measured: stone.measured,
-    outlinePx: stone.extraction.outlinePx.map((q) => ({ x: q.x * k, y: q.y * k })),
-    color: stone.extraction.color,
-    colorless: stone.extraction.colorless,
-    photoWidth: width,
-    photoHeight: height,
-  };
+  const kept = keptOf(stone, keptPhoto);
+  if (imported) keptImportedPhoto ??= keepPhoto(imported.photo, saveImportedPhoto);
   const state = session.snapshot();
   // 比べている間の爪の太さではなく、職人の決まりで組んだときの太さを残す
   if (compare) state.prongMm = compare.prongMm;
   saveDesign(tab, {
     kind,
     mode: document.querySelector(".pro")?.getAttribute("data-mode") ?? "make",
-    presetId: document.querySelector<HTMLElement>('.presets button[aria-pressed="true"]')?.dataset.preset,
+    presetId: PRESETS.some((p) => p.id === stoneKey) ? (stoneKey as string) : undefined,
+    stoneKey,
+    imported: imported && keptImportedPhoto ? keptOf(imported, keptImportedPhoto) : undefined,
     stone: kept,
     state,
     band,
@@ -460,35 +521,24 @@ async function restoreDesign(): Promise<boolean> {
   const d = loadDesign(tab);
   if (!d) return false;
   const k = d.stone;
-  const c = document.createElement("canvas");
-  c.width = k.photoWidth;
-  c.height = k.photoHeight;
-  const g = c.getContext("2d", { willReadFrequently: true })!;
   const url = loadPhotoUrl(tab);
-  if (url) {
-    const im = new Image();
-    im.src = url;
-    await im.decode();
-    g.drawImage(im, 0, 0, c.width, c.height);
-  }
-  const photo = g.getImageData(0, 0, c.width, c.height);
-  stone = {
-    photo,
-    label: k.label,
-    // 輪郭と色だけあれば足りる（読み取りの途中の結果は残さない）
-    extraction: { outlinePx: k.outlinePx, color: k.color, colorless: k.colorless } as Extraction,
-    measured: k.measured,
-    longMm: k.measured.longMm,
-    depthMm: k.depthMm,
-    shapeName: k.shapeName,
-    cornerIdx: k.cornerIdx,
-  };
-  keptPhoto = url ? { k: 1, width: c.width, height: c.height } : null;
+  stone = await stoneFromKept(k, url);
+  keptPhoto = url ? { k: 1, width: k.photoWidth, height: k.photoHeight } : null;
+  // 取り込んだ石も戻す。前に残した設計（札の記録がない）は、よくある形でなければ、今の石が取り込んだ石
+  stoneKey = d.stoneKey !== undefined ? d.stoneKey : (d.presetId ?? "imported");
+  if (stoneKey === "imported") {
+    imported = stone;
+    keptImportedPhoto = null;
+  } else if (d.imported) {
+    const importedUrl = loadImportedPhotoUrl(tab);
+    imported = await stoneFromKept(d.imported, importedUrl);
+    keptImportedPhoto = importedUrl ? { k: 1, width: d.imported.photoWidth, height: d.imported.photoHeight } : null;
+  } else imported = null;
   $<HTMLInputElement>(".in-long").value = String(Number(k.measured.longMm.toFixed(2)));
   $<HTMLInputElement>(".in-depth").value = String(Number(k.depthMm.toFixed(2)));
   $(".stone-sub").textContent = `${k.shapeName}・${k.measured.longMm.toFixed(2)} × ${k.measured.widthMm.toFixed(2)} mm`;
   drawThumb();
-  if (d.presetId) document.querySelectorAll<HTMLButtonElement>(".presets button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.preset === d.presetId)));
+  renderStoneButtons();
   session = newSession(k.measured, k.depthMm);
   session.state = d.state;
   band = normalizeBand(d.band);
@@ -696,7 +746,7 @@ function renderPresent() {
       shank: `${SHANK_SECTION_LABEL[r.shank.section]} ${r.shank.widthMm.toFixed(1)} × ${r.shank.thicknessMm.toFixed(1)} mm`,
       metal: `${METAL_LABEL[session.state.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g`,
       gou: `${session.state.gou} 号（内径 ${(r.shank.innerRadiusMm * 2).toFixed(1)} mm）`,
-      verdict: { ok: n === 0, text: n === 0 ? "作れます" : `作れない所 ${n}` },
+      verdict: { ok: n === 0, text: n === 0 ? (tensionCautionsOf(b).length ? `職人に聞く ${tensionCautionsOf(b).length}` : "作れます") : `作れない所 ${n}` },
       quote: rule?.quote ? { text: rule.quote, by: `${masterName(store.ledger())} ・ ${bookTitle(bookLabel(store.ledger()))}` } : undefined,
     },
     presentGroups(),
@@ -811,14 +861,27 @@ async function loadPreset(p: StonePreset) {
   grad.addColorStop(1, "#8e969e");
   g.fillStyle = grad;
   g.fill();
-  document.querySelectorAll<HTMLButtonElement>(".presets button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.preset === p.id)));
   // 撮影は前の名前のまま（台本の絵がそろうように）
-  await loadStone(g.getImageData(0, 0, W, W), `${p.name}の石`, p.longMm, p.depthMm, { intro: false, shapeName: filming() ? undefined : p.name });
+  await loadStone(g.getImageData(0, 0, W, W), `${p.name}の石`, p.longMm, p.depthMm, { intro: false, shapeName: filming() ? undefined : p.name, key: p.id });
   setStatus(`${p.name}（${p.longMm} × ${p.widthMm} mm、深さは例）。ノギスの値があれば、長辺と深さを直してください。`);
 }
-document.querySelectorAll<HTMLButtonElement>(".presets button").forEach((b) => b.addEventListener("click", () => void loadPreset(PRESETS.find((p) => p.id === b.dataset.preset)!)));
+/** 取り込んだ石へ戻す（読んだ輪郭と、直した長辺・深さのまま） */
+async function useImported() {
+  if (!imported) return;
+  const s = imported;
+  await loadStone(s.photo, s.label, s.longMm, s.depthMm, { intro: false, shapeName: s.shapeName, key: "imported", extraction: s.extraction });
+  setStatus(`取り込んだ石に戻しました（${s.shapeName}・${s.measured.longMm.toFixed(2)} × ${s.measured.widthMm.toFixed(2)} mm）。`);
+}
+// 石の形の札は、生むと確かめるの同じ部品。描き直しても効くように、ここ 1 か所で受ける
+document.addEventListener("click", (e) => {
+  const b = (e.target as HTMLElement | null)?.closest?.<HTMLButtonElement>(".presets button");
+  if (!b) return;
+  if (b.dataset.preset) void loadPreset(PRESETS.find((p) => p.id === b.dataset.preset)!);
+  else if (b.dataset.kept === "imported") void useImported();
+  else if (b.dataset.kept === "first") void loadSample(false);
+});
 
-async function loadSample() {
+async function loadSample(startup = true) {
   const img = new Image();
   img.src = SAMPLE.url;
   await img.decode();
@@ -828,9 +891,9 @@ async function loadSample() {
   const g = c.getContext("2d", { willReadFrequently: true })!;
   g.drawImage(img, 0, 0);
   // 最初の見せ場は、この画面を開いて最初の 1 回だけ（読み直し・ほかの場所から戻ったときは、待たせない）
-  const play = !new URLSearchParams(location.search).has("nointro") && !introSeen(tab);
+  const play = startup && !new URLSearchParams(location.search).has("nointro") && !introSeen(tab);
   if (play) markIntroSeen(tab);
-  await loadStone(g.getImageData(0, 0, c.width, c.height), SAMPLE.label, SAMPLE.longMm, SAMPLE.depthMm, { intro: play });
+  await loadStone(g.getImageData(0, 0, c.width, c.height), SAMPLE.label, SAMPLE.longMm, SAMPLE.depthMm, { intro: play, key: startup ? "imported" : "first" });
 }
 
 /** 石の写真を入れ替える（ファイルを選ぶ・3D の所や石の欄へ落とす、のどちらからも） */
@@ -839,13 +902,12 @@ async function useStonePhoto(f: File) {
     setStatus("この写真の形式（HEIC）は、このブラウザで読めません。iPhone の写真は「互換性優先」で撮るか、JPEG に書き出してから選んでください。");
     return;
   }
-  // 自分の石の写真にしたら、よくある形の選択は外す（長辺と深さは今の欄の値で読み、あとでノギスの値に直せる）
-  document.querySelectorAll<HTMLButtonElement>(".presets button").forEach((b) => b.setAttribute("aria-pressed", "false"));
   setStatus(`「${f.name}」を読んでいます…`);
   $(".stone-card").classList.add("busy");
   try {
     const img = await loadPhoto(f);
-    await loadStone(img, f.name, Number($<HTMLInputElement>(".in-long").value) || 8, Number($<HTMLInputElement>(".in-depth").value) || 4);
+    // 自分の石の写真は「取り込んだ石」の札になる（長辺と深さは今の欄の値で読み、あとでノギスの値に直せる）
+    await loadStone(img, f.name, Number($<HTMLInputElement>(".in-long").value) || 8, Number($<HTMLInputElement>(".in-depth").value) || 4, { key: "imported" });
     setStatus("石を入れ替えました。長辺と深さをノギスの値にすると、組み直します。");
   } catch (err) {
     setStatus(`石が読めませんでした。白い紙の上で真上から撮った写真か、確かめてください（${(err as Error).message}）`);
@@ -953,8 +1015,9 @@ function onBuilt(b: Built, _why: string, refined = false) {
   const n = b.problems.length;
   const chip = $(".verdict-chip");
   chip.hidden = false;
-  chip.className = `verdict-chip ${n ? "ng" : "ok"}`;
-  chip.textContent = n ? `作れない所 ${grouped(b).length}` : "作れます";
+  const cautions = tensionCautionsOf(b);
+  chip.className = `verdict-chip ${n ? "ng" : cautions.length ? "warn" : "ok"}`;
+  chip.textContent = n ? `作れない所 ${grouped(b).length}` : cautions.length ? `職人に聞く ${cautions.length}` : "作れます";
   $(".word-name").textContent = r.stones.length > 1 ? `${stone.shapeName}の${layoutName()}の指輪` : `${stone.shapeName}の一粒石の指輪`;
   drawStoneTags();
   if (presentOn) renderPresent();
@@ -1334,6 +1397,9 @@ const SHORT: Record<string, string> = {
   "tension-lip": "溝の高さが腕に収まらない",
   "tension-girdle": "石の縁が溝に入らない",
   "tension-pit": "くぼみの両わきに地金が残らない",
+  "tension-culet": "石の先が指の側へ出る",
+  "tension-sunk": "石が腕に沈む",
+  "tension-overhang": "石が腕の幅から出すぎる",
 };
 function grouped(b: Built) {
   const groups = new Map<string, { p: (typeof b.problems)[number]; n: number }>();
@@ -1691,24 +1757,69 @@ function joinPickHtml(pick: <T extends string | number>(name: string, cur: T, li
 }
 /** テンションの腕の丸線の太さ（幅と厚みを同じに） */
 function wireSlider(b: Built): SliderSpec {
-  return { cls: "r-wire", label: "腕の線の太さ", min: 2.5, max: 5, step: 0.1, value: b.ring.shank.thicknessMm, unit: "mm" };
+  return { cls: "r-wire", label: "腕の線の太さ", min: GUIDES.tension.wireMinMm, max: GUIDES.tension.wireMaxMm, step: 0.1, value: b.ring.shank.thicknessMm, unit: "mm" };
 }
-/** テンションの参考の計算（合否にしない）：地金が戻れる範囲で開ける量と、石を入れるのに要る量 */
-function tensionCalcHtml(b: Built): string {
-  const o = tensionOpening(b.ring.setting, b.ring.shank, session!.guides());
-  if (!o) return "";
-  const k18Other = session!.state.metal === "k18wg" || session!.state.metal === "k18pg";
-  const row = (x: (typeof o.states)[number]) => {
-    const kari = x.provisional || o.young.provisional;
-    return `<tr><th>${esc(x.label)}の状態</th><td class="${x.enough ? "" : "short"}">約 ${x.openMm.toFixed(2)} mm${kari ? "（仮）" : ""}</td></tr>`;
+/** テンションの計算の表で見る硬さの状態（硬い状態が、この留め方の条件） */
+let springState: HardState = "hardened";
+/** 開いて読む欄のうち、開いているもの（形を作り直して欄を描き直しても、閉じない） */
+const tnOpen = new Set<string>();
+const GRIP_LABEL: Record<TensionGrip, string> = { short: "短い向きで挟む", long: "長い向きで挟む", corner: "角で挟む" };
+const GRIP_NOTE: Record<TensionGrip, string> = {
+  short: "石のいちばん狭い幅を腕で挟みます。長い向きは指に沿って、腕の幅の外へ出ます",
+  long: "石の長い向きを腕で挟みます。腕の開きは広くなり、腕の幅の外へ出る所は小さくなります",
+  corner: "向かい合う 2 つの角をくぼみに入れます。横にずれませんが、挟む力が角の先にかかります",
+};
+/** 作れない所ではないが、職人に確かめること（札を緑にしない） */
+function tensionCautionsOf(b: Built): TensionCaution[] {
+  const st = b.ring.setting;
+  if (!st.tension) return [];
+  const g = session!.guides();
+  return tensionCautions(st, tensionSpring(st, b.ring.shank, "hardened", g), springIdOf(session!.state.metal), g);
+}
+/**
+ * テンションの札：まず結論（深さ・開き・入れ方・今の地金の数）。次に地金ごとの小さな表。
+ * 式と前提と出典、気をつけることは、開いて読む（作者の声 2026-11-05：文章が読みにくい）
+ */
+function tensionCardHtml(b: Built): string {
+  const r = b.ring;
+  const info = r.setting.tension!;
+  const g = session!.guides();
+  const insert = tensionInsert(info);
+  const mine = springIdOf(session!.state.metal);
+  const table = tensionSpring(r.setting, r.shank, springState, g)!;
+  const hard = tensionSpring(r.setting, r.shank, "hardened", g)!;
+  const myRow = hard.rows.find((x) => x.metal === mine)!;
+  const facts: [string, string][] = [...info.ends.map((e): [string, string] => [e.kind === "pit" ? "角のくぼみ" : "辺の溝", `${e.depthMm.toFixed(2)} mm`]), ["開き（図面）", `${info.gapMm.toFixed(2)} mm`], ["石の先と指", `${r.culetGapMm.toFixed(2)} mm`]];
+  const cautions = tensionCautionsOf(b);
+  const row = (x: SpringRow) => {
+    const kari = x.provisional ? `<i class="kari">仮</i>` : "";
+    const cells =
+      x.shrinkMm === null
+        ? `<td colspan="3" class="short">足りない（約 ${x.bentMm.toFixed(2)} mm 曲がったまま）</td>`
+        : `<td>${x.shrinkMm.toFixed(2)}${x.verdict === "tight" ? `<i class="tight">ぎりぎり</i>` : ""}</td><td>${x.makeGapMm!.toFixed(2)}</td><td>${x.spreadMm!.toFixed(2)}</td>`;
+    return `<tr class="${x.metal === mine ? "on" : ""}"><th>${esc(x.name)}</th><td>${x.limitMm.toFixed(2)}${kari}</td>${cells}</tr>`;
   };
-  const basis = o.states.map((x) => `${x.label}の耐力 ${x.proofMpa} MPa${x.provisional ? "（仮）" : ""}：${x.basis}`).join("。");
-  return `<div class="tension-calc"><b>参考の計算（合否にしません）</b>
-    <table><tbody><tr><th colspan="2">地金が戻れる範囲で開ける量（${esc(o.metalName)} ・ φ${o.wireMm.toFixed(1)} mm）</th></tr>${o.states.map(row).join("")}
-    <tr><th>石を入れるのに要る量</th><td>${o.needMm.toFixed(2)} mm</td></tr></tbody></table>
-    <small>${esc(o.needText)}</small>
-    ${o.enough ? "" : `<p class="short">${esc(TENSION_SHORT_TEXT)}</p>`}
-    <small>${esc(TENSION_OPENING_NOTE)}。R ${o.radiusMm.toFixed(2)} mm（指の半径 ＋ 太さ ÷ 2）・d ${o.wireMm.toFixed(1)} mm。ヤング率 E ${o.young.gpa} GPa${o.young.provisional ? "（仮）" : ""}：${esc(o.young.basis)}。${esc(basis)}。${k18Other ? "K18 ホワイト・ピンクも K18 イエローの値で計算しています。" : ""}${esc(GUIDE_NOTE)}</small></div>`;
+  const slide = table.slides ? `<p>横から滑らせるなら、開くのは締まりの分だけ。小さめに作れる量：${table.rows.map((x) => `${esc(x.name)} ${x.slideShrinkMm!.toFixed(2)}`).join("・")} mm（仮）</p>` : "";
+  const basis = table.rows.map((x) => `<li><b>${esc(x.name)}</b>ヤング率（地金の曲がりにくさ）${x.young.gpa} GPa${x.young.provisional ? "（仮）" : ""}：${esc(x.young.basis)}。耐力（これを超えると曲がったまま戻らない強さ）${x.proof.mpa} MPa${x.proof.provisional ? "（仮）" : ""}：${esc(x.proof.basis)}</li>`).join("");
+  const more = (key: string, title: string, body: string) => `<details class="tn-more" data-tn="${key}" ${tnOpen.has(key) ? "open" : ""}><summary>${title}</summary>${body}</details>`;
+  const notes = tensionNotes(r.setting, r.shank.thicknessMm, g);
+  return `<section class="tn-card">
+    <h5>テンション（腕のばねで石を挟む）</h5>
+    <dl class="tn-facts">${facts.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl>
+    <p class="tn-line"><b>入れ方</b>${esc(insert.how)}。${esc(insert.hold)}。</p>
+    <p class="tn-line"><b>計算</b>${esc(springSummary(myRow))}。</p>
+    <small class="tn-note">${esc(GUIDE_NOTE)}</small>
+    ${cautions.length ? `<ul class="tn-cautions">${cautions.map((c) => `<li><b>${esc(c.title)}</b>${esc(c.text)}</li>`).join("")}</ul>` : ""}
+    <div class="tn-table">
+      <div class="tn-head"><b>地金ごとの比べ（mm）</b><div class="tn-state" role="group" aria-label="地金の硬さ">${(["hardened", "annealed"] as const).map((st) => `<button type="button" data-state="${st}" aria-pressed="${st === springState}">${st === "hardened" ? "硬い（加工硬化）" : "やわらかい（焼きなまし）"}</button>`).join("")}</div></div>
+      <table><thead><tr><th>地金</th><td>開ける<br>限界</td><td>小さめに<br>作る</td><td>作る時の<br>開き</td><td>広げて<br>入れる</td></tr></thead><tbody>${table.rows.map(row).join("")}</tbody></table>
+      <p>石の長さ ${table.spanMm.toFixed(2)} mm まで広げると、石が通ります。腕は「小さめに作る」の分だけ戻ろうとして、石を押さえます（戻り）。</p>
+      ${slide}
+      <p>${esc(springState === "hardened" ? SPRING_PREMISE : SPRING_PREMISE_SOFT)}</p>
+    </div>
+    ${more("calc", "式と前提と出典を読む", `<p>${esc(TENSION_OPENING_NOTE)}。</p><p>${esc(TENSION_WORDS_NOTE)}。今は R ${table.radiusMm.toFixed(2)} mm（指の半径 ＋ 太さ ÷ 2）・d ${table.wireMm.toFixed(1)} mm。</p><p>開ける限界は、この式の値です。太い輪は線の内側で曲げが強まるので、「小さめに作る」は、限界を ${table.factor.toFixed(2)} で割ってから、開いて入れるのに要る量（${esc(table.needText)}）を引きました（ばねの手引きの式）。割ると足りないときは「ぎりぎり」です。</p><ul>${basis}</ul><p>帳面の決まり「テンションの角はくぼみ、辺は溝」「テンションの地金は硬い状態で」とつながっています。${filming() ? "" : `<a class="link" href="app.html#ledger">帳面で読む →</a>`}</p>`)}
+    ${more("notes", `気をつけること（${notes.length}）`, `<ul class="tension-notes">${notes.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>`)}
+  </section>`;
 }
 function gouSlider(gou: number): SliderSpec {
   return { cls: "r-gou", label: "号", min: 5, max: 25, step: 1, value: gou, unit: "号" };
@@ -1733,7 +1844,8 @@ function renderCheck() {
   const heldProposal = [...(box.querySelector(".ar-proposal")?.childNodes ?? [])];
   box.innerHTML = `
     ${ruleFlashHtml(probs.length)}
-    <section class="big-verdict ${probs.length ? "ng" : "ok"}"><b>${probs.length ? "このままでは作れません" : "このまま作れます"}</b><small>${probs.length ? `直す所 ${probs.length}` : b.ring.setting.tension ? "溝・くぼみ・すき間は目安の内側。ばねの強さは職人が決める" : `爪・留まり・すき間・角、すべて目安の内側`}</small></section>
+    <section class="big-verdict ${probs.length ? "ng" : tensionCautionsOf(b).length ? "warn" : "ok"}"><b>${probs.length ? "このままでは作れません" : tensionCautionsOf(b).length ? "形は作れます。職人に確かめる所があります" : "このまま作れます"}</b><small>${probs.length ? `直す所 ${probs.length}` : tensionCautionsOf(b).length ? tensionCautionsOf(b).map((c) => esc(c.title)).join("・") : b.ring.setting.tension ? "溝・くぼみ・すき間は目安の内側。ばねの強さは職人が決める" : `爪・留まり・すき間・角、すべて目安の内側`}</small></section>
+    ${filming() ? "" : `<div class="stone-pick"><span>石の形</span><div class="presets" role="group" aria-label="石の形">${stoneButtonsHtml()}</div></div>`}
     ${askNudgeHtml(b)}
     ${workshopBarHtml()}
     ${compareHtml()}
@@ -1762,13 +1874,14 @@ function renderCheck() {
       const zaguri = r.notchDepthMm > 0 ? `<p class="look-note"><b>ザグり</b>石の先が当たる所を、腕の上で自動でザグりました（深さ ${r.notchDepthMm.toFixed(2)} mm、丸いビット 直径 約 ${r.shank.notchBallDiameterMm.toFixed(1)} mm）。<small>石の先〜指 ${r.culetGapMm.toFixed(2)} mm、腕の厚み ${r.shank.thicknessMm.toFixed(1)} mm。石とのすき間 ${GUIDES.bezel.clearanceMm} mm を残しています。3D・図面・重さ・STL に入っています（作り方の「石座を腕に付ける」）</small></p>` : "";
       const small = r.setting.style === "prong" && r.setting.join === "on" && !session?.state.joinSet || r.setting.prongsOnArm > 0;
       const tension = r.setting.tension
-        ? `<p class="look-note"><b>テンション（腕のばねで石を挟む）</b>${r.setting.tension.ends.map((e) => `${e.kind === "pit" ? "角のくぼみ" : "辺の溝"} ${e.depthMm.toFixed(2)} mm`).join("、")}。開き ${r.setting.tension.gapMm.toFixed(2)} mm（図面は石が入る寸法。どこまで詰めるかは職人が決める）。${GUIDE_NOTE}</p><ul class="tension-notes">${tensionNotes(r.setting, r.shank.thicknessMm, session!.guides()).map((n) => `<li>${esc(n)}</li>`).join("")}</ul>${tensionCalcHtml(b)}`
+        ? tensionCardHtml(b)
         : "";
       return tension + (small ? `<p class="look-note"><b>この石は、別の留め方がおすすめ</b>この大きさ・形では、爪を腕から避けたり、下の輪に収めたりできません。おちょこ留めや、腕に下穴を開けて留めるミル留め・パヴェのような留め方をすすめます。覆輪にする、腕を細くするのも手です。この爪留めのままなら、腕の上にのせる形になります（職人の言葉）<small>覆輪と腕の太さは「手で変える」で選べます。ほかの留め方は、まだ形にできません</small></p>` : "") + (note ? `<p class="look-note"><b>見た目の注意</b>${esc(note)}<small>作れますが、形に対して不自然に見えることがあります（確かめの決まりではありません）</small></p>` : "") + zaguri;
     })()}
     <details class="manual" ${manualOpen ?? !probs.length ? "open" : ""}><summary>手で変える</summary>
       ${pick("留め方", patternOf(b), PATTERNS.filter(([v]) => v !== "v"))}
       ${s.style === "prong" ? pick("爪の本数", s.prongCount ?? 0, [[0, "自動"], [3, "3"], [4, "4"], [5, "5"], [6, "6"]]) : ""}
+      ${b.ring.setting.tension && b.ring.setting.tension.grips.length > 1 ? `${pick("挟む向き", b.ring.setting.tension.grip, b.ring.setting.tension.grips.map((x) => [x, GRIP_LABEL[x]] as [TensionGrip, string]))}<ul class="pick-notes">${b.ring.setting.tension.grips.map((x) => `<li${x === b.ring.setting.tension!.grip ? ' class="on"' : ""}><b>${GRIP_LABEL[x]}</b>${esc(GRIP_NOTE[x])}</li>`).join("")}</ul>` : ""}
       ${s.style === "tension" ? "" : pick("高さ", s.height, [["low", "低め"], ["standard", "標準"], ["high", "高め"]])}
       ${s.style === "tension" ? "" : pick("向き", s.orientation, [["along", "縦"], ["across", "横"]])}
       ${s.style === "prong" && b.ring.stones.length === 1 ? joinPickHtml(pick, b.ring.setting.join) : ""}
@@ -1791,6 +1904,18 @@ function renderCheck() {
   bindRules(box);
   bindWorkshops(box);
   bindStones(box, b);
+  box.querySelectorAll<HTMLButtonElement>(".tn-state button").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      springState = btn.dataset.state as HardState;
+      renderCheck();
+    }),
+  );
+  box.querySelectorAll<HTMLDetailsElement>(".tn-more").forEach((el) =>
+    el.addEventListener("toggle", () => {
+      if (el.open) tnOpen.add(el.dataset.tn!);
+      else tnOpen.delete(el.dataset.tn!);
+    }),
+  );
   const manual = box.querySelector<HTMLDetailsElement>(".manual")!;
   manual.addEventListener("toggle", () => (manualOpen = manual.open));
   box.querySelector(".compare-btn")?.addEventListener("click", () => setCompare(true));
@@ -1825,6 +1950,7 @@ function renderCheck() {
         else if (pat === "v") session!.setSetting({ style: "prong", v_corners: true, reason: "手で" });
         else session!.setSetting({ style: "prong", v_corners: false, prong_count: Number(pat), reason: "手で" });
       }
+      if (k === "挟む向き") session!.setSetting({ tension_grip: v as TensionGrip, reason: "手で" });
       if (k === "腕の断面") session!.setShank({ section: v as ShankSection, reason: "手で" });
       if (k === "爪の本数") {
         if (Number(v)) session!.setSetting({ prong_count: Number(v), reason: "手で" });
@@ -2180,6 +2306,14 @@ function applyFix(id: string, sess: RingSession = session!, prob?: Problem) {
       session!.setShank({ width_mm: next, thickness_mm: next, reason: "直し方から" });
       break;
     }
+    case "thinnerWire": {
+      const next = round2(session!.built!.ring.shank.thicknessMm - WIRE_STEP_MM);
+      session!.setShank({ width_mm: next, thickness_mm: next, reason: "直し方から" });
+      break;
+    }
+    case "turnGrip":
+      session!.setSetting({ tension_grip: nextGrip(session!.built!.ring.setting.tension), reason: "直し方から" });
+      break;
     case "prongInstead":
       session!.setSetting({ style: "prong", reason: "直し方から" });
       break;
@@ -2287,7 +2421,7 @@ interface StoneInfo {
 }
 const currentStone = (): StoneInfo => ({ shapeName: stone!.shapeName, outlineMm: stone!.measured.outlineMm, longMm: stone!.measured.longMm, widthMm: stone!.measured.widthMm, depthMm: stone!.depthMm });
 function howInput(b: Built, sess: RingSession = session!, info: StoneInfo = currentStone()) {
-  return { ring: b.ring, outlineMm: info.outlineMm, longMm: info.longMm, widthMm: info.widthMm, depthMm: info.depthMm, metalLabel: METAL_LABEL[sess.state.metal], alloy: alloyOf(sess.state.metal) };
+  return { ring: b.ring, outlineMm: info.outlineMm, longMm: info.longMm, widthMm: info.widthMm, depthMm: info.depthMm, metalLabel: METAL_LABEL[sess.state.metal], alloy: alloyOf(sess.state.metal), springMetal: springIdOf(sess.state.metal) };
 }
 function sheet(): string | undefined {
   if (!stone) return;
@@ -2789,6 +2923,9 @@ const CHECK_CONTROL: Record<string, string> = {
   "tension-lip": '.slider[data-s="r-wire"]',
   "tension-girdle": '.slider[data-s="r-wire"]',
   "tension-pit": '.slider[data-s="r-wire"]',
+  "tension-culet": '.slider[data-s="r-wire"]',
+  "tension-sunk": '.slider[data-s="r-wire"]',
+  "tension-overhang": '.pick:has(button[data-k="挟む向き"])',
 };
 function markBadControls() {
   document.querySelectorAll(".ctl-bad").forEach((e) => e.classList.remove("ctl-bad"));
@@ -2844,6 +2981,12 @@ $(".verdict-chip").addEventListener("click", () => {
     const pop = $(".fix-pop");
     pop.hidden = !pop.hidden;
     renderBandFixPop();
+    return;
+  }
+  // 作れない所はないが、職人に確かめることがあるとき：確かめるの欄の札へ
+  if (session?.built && !session.built.problems.length && tensionCautionsOf(session.built).length) {
+    setMode("refine");
+    document.querySelector(".tn-card")?.scrollIntoView({ block: "start" });
     return;
   }
   if (!session?.built?.problems.length) return;
@@ -3548,7 +3691,8 @@ function openWork(w: WorkRecord) {
     keptPhoto = null;
     compare = null;
     undoClaude = null;
-    document.querySelectorAll<HTMLButtonElement>(".presets button").forEach((x) => x.setAttribute("aria-pressed", "false"));
+    stoneKey = null;
+    renderStoneButtons();
     $<HTMLInputElement>(".in-long").value = String(Number(st.longMm.toFixed(2)));
     $<HTMLInputElement>(".in-depth").value = String(Number(st.depthMm.toFixed(2)));
     $(".stone-sub").textContent = `${stone.shapeName}・${st.longMm.toFixed(2)} × ${st.widthMm.toFixed(2)} mm`;
@@ -3639,6 +3783,14 @@ void restoreDesign()
   .catch(() => false)
   .then(async (back) => {
     if (!back) await loadSample();
+    // 帳面の「計算を見る」から来たとき：確かめるの札を開く
+    if (location.hash === "#tension" && session) {
+      if (session.state.style !== "tension") session.setSetting({ style: "tension", reason: "帳面の計算を見る" });
+      setMode("refine");
+      tnOpen.add("calc");
+      renderCheck();
+      document.querySelector(".tn-card")?.scrollIntoView({ block: "start" });
+    }
   })
   .catch((e) => setStatus(`見本の石を読めませんでした：${(e as Error).message}`));
 (window as unknown as { __studio: unknown }).__studio = { get session() { return session; }, setMode, dimsAvoid, loadPreset, viewer };
