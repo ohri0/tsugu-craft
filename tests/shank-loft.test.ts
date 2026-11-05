@@ -7,7 +7,7 @@ import { buildShank, sectionOutline, type ShankParams, type ShankStation } from 
 import { commonRows, pchip } from "../src/geometry/shank-loft";
 import { makeReliefField, reliefPattern } from "../src/geometry/shank-relief";
 import { sectionCurveProblem } from "../src/geometry/section-input";
-import { checkRing, checkShank } from "../src/rules/checks";
+import { checkRing, checkShank, outlineValleys } from "../src/rules/checks";
 import { GUIDES, innerDiameterMm } from "../src/rules/guides";
 import { parseToolCall, TOOLS } from "../src/claude/tools";
 import { seedLedger } from "../src/rules/ledger";
@@ -229,7 +229,7 @@ describe("Claude の道具（set_shank）", () => {
   const ok = (input: unknown) => parseToolCall("set_shank", input);
   const curve = { points: RIDGE };
 
-  it("道具の定義に、断面の線と場所ごとの形がある。入れ子の形も strict の決まりを守る", () => {
+  it("道具の定義に、断面の線と場所ごとの形がある。入れ子の形も項目を閉じている（入力は parseToolCall が確かめる）", () => {
     const t = TOOLS.find((x) => x.name === "set_shank")!;
     const props = (t.input_schema as { properties: Record<string, Record<string, unknown>> }).properties;
     expect(props.section_curve).toBeDefined();
@@ -506,6 +506,92 @@ describe("腕の彫りの仕上がり（作者の声：縁がギザギザ、ブ�
     expect(peak).toBeLessThanOrEqual(0.25 + 1e-9);
     // 左の腕も右の腕も同じ深さ
     expect(field.depth(10, Math.PI * 2 - 1.3)).toBeCloseTo(field.depth(10, 1.3), 9);
+  });
+});
+
+describe("段と溝の断面（モールディング）と、重ねる彫り", () => {
+  const mirror = (half: { x: number; y: number }[]) => [...half, ...[...half].reverse().filter((q) => q.x !== 0).map((q) => ({ x: -q.x, y: q.y }))];
+  const c2 = (x: number, y: number) => [{ x, y }, { x, y }];
+  // 縁取り・溝・細い段・稜線
+  const MOLD = mirror([{ x: 1, y: 0 }, { x: 1, y: 0.28 }, ...c2(1, 0.46), { x: 0.99, y: 0.6 }, { x: 0.93, y: 0.66 }, { x: 0.82, y: 0.66 }, { x: 0.77, y: 0.6 }, { x: 0.75, y: 0.5 }, { x: 0.71, y: 0.46 }, ...c2(0.46, 0.46), ...c2(0.42, 0.58), ...c2(0.34, 0.6), { x: 0.17, y: 0.8 }, { x: 0, y: 1 }, { x: 0, y: 1 }, { x: 0, y: 1 }]);
+  const LOW = mirror([{ x: 1, y: 0 }, { x: 1, y: 0.34 }, ...c2(1, 0.54), { x: 0.92, y: 0.68 }, { x: 0.6, y: 0.76 }, { x: 0.3, y: 0.88 }, { x: 0, y: 1 }, { x: 0, y: 1 }]);
+  const heavy: ShankParams = {
+    gou: 11,
+    widthMm: 3.9,
+    thicknessMm: 2.8,
+    section: "free",
+    sectionCurve: { points: MOLD },
+    stations: [
+      { atDeg: 52, widthMm: 4.7, thicknessMm: 2.9, curve: { points: MOLD } },
+      { atDeg: 118, widthMm: 3.9, thicknessMm: 2.2, curve: { points: MOLD } },
+      { atDeg: 180, widthMm: 3.2, thicknessMm: 1.7, curve: { points: LOW } },
+    ],
+    relief: { kind: "arch", count: 7, depthMm: 0.22, fromDeg: 26, toDeg: 124, across: [0.335, 0.47] },
+    reliefMore: [
+      { kind: "mil", count: 30, depthMm: 0.16, fromDeg: 26, toDeg: 128, across: [0.565, 0.645] },
+      { kind: "blade", count: 2, depthMm: 0.2, fromDeg: 26, toDeg: 66, across: [0.04, 0.25] },
+    ],
+  };
+
+  it("線の入力として通り、確かめ（薄いヒレ・溝の底・溝の幅）も通る", () => {
+    expect(sectionCurveProblem(MOLD)).toBeNull();
+    expect(parseToolCall("set_shank", { section_curve: { points: MOLD }, relief: { pattern: "arch", across_from: 0.335, across_to: 0.47, count: 7 }, relief_more: [{ pattern: "mil", count: 30, across_from: 0.565, across_to: 0.645 }, { pattern: "blade", count: 2, from_deg: 26, to_deg: 66 }], reason: "ためし" }).ok).toBe(true);
+    const sh = buildShank(heavy);
+    expect(checkShank(sh).map((q) => q.check)).toEqual([]);
+    expect(sh.positions.length / 9).toBeLessThan(160000);
+  });
+
+  it("閉じた 1 つの形で、内径は変わらず、腕の端は石座に当たる", () => {
+    const r = buildRing({ stone: presetStone("oval"), setting: { style: "prong", height: "standard", join: "between" }, shank: heavy });
+    expect(openEdges(r.shank.positions)).toBe(0);
+    expect(components(r.shank.positions)).toBe(1);
+    expect(innerRadius(r.shank.positions)).toBeCloseTo(innerDiameterMm(11) / 2, 3);
+    expect(checkRing(r).filter((p) => p.check === "band-end").map((p) => p.where)).toEqual([]);
+    expect(r.shank.relief!.localUnderMm).toBeGreaterThan(GUIDES.band.relief.keepMm - 1e-9);
+  });
+
+  it("重ねた彫りは、それぞれの帯の中だけを彫る", () => {
+    const v = Array.from({ length: 41 }, (_, i) => 1 - i / 20);
+    const at = () => ({ w: 4, t: 2.5, arc: 5 });
+    const f = makeReliefField({ kind: "mil", count: 30, depthMm: 0.16, fromDeg: 0, toDeg: 180, across: [0.56, 0.64] }, { a0: 0.5, a1: 2, v, innerR: 8, at });
+    // 行 r → v：1 − r ÷ 20。帯の外は 0
+    let inside = 0;
+    for (let r = 0; r <= 40; r += 0.1) {
+      for (let a = 0.8; a < 1.7; a += 0.01) {
+        const d = f.depth(r, a);
+        const vv = Math.abs(1 - r / 20);
+        if (vv <= 0.56 || vv >= 0.64) expect(d).toBe(0);
+        else inside = Math.max(inside, d);
+      }
+    }
+    expect(inside).toBeGreaterThan(0.1);
+    expect(reliefPattern("arch", 0.5, 0, 3, 5, 1, [0.3, 0.5])).toBe(0);
+    expect(reliefPattern("blade", 0.5, 2, 3, 5, 1, [0.3, 0.5])).toBeGreaterThanOrEqual(0);
+  });
+
+  it("溝の底が薄い・溝が狭いと、確かめが止める。甲丸のような形は溝に数えない", () => {
+    expect(outlineValleys([[1, 0], [0.8, 0.5], [0, 1], [-0.8, 0.5], [-1, 0]])).toEqual([]);
+    const v = outlineValleys([[2, 0], [2, 1], [1.5, 1.4], [1, 1.4], [0.9, 0.7], [0.4, 0.7], [0.3, 1.6], [-0.3, 1.6], [-0.4, 0.7], [-0.9, 0.7], [-1, 1.4], [-1.5, 1.4], [-2, 1], [-2, 0]]);
+    expect(v.length).toBe(2);
+    expect(v[0].floorMm).toBeCloseTo(0.7, 6);
+    expect(v[0].widthMm).toBeGreaterThan(0.5);
+    const narrow: [number, number][] = [[2, 0], [2, 1], [1.5, 1.4], [1, 1.4], [0.56, 0.7], [0.44, 0.7], [0.3, 1.6], [-0.3, 1.6], [-0.44, 0.7], [-0.56, 0.7], [-1, 1.4], [-1.5, 1.4], [-2, 1], [-2, 0]];
+    const probs = checkShank({ thicknessMm: 1.6, widthMm: 4, along: [{ atDeg: 90, widthMm: 4, thicknessMm: 1.6, outlineMm: narrow }] });
+    expect(probs.map((p) => p.check)).toEqual(expect.arrayContaining(["band-valley", "band-groove"]));
+  });
+
+  it("設計の場：重ねる彫りの入力で腕が変わり、空の並びでなくなる。テンションでは使わない", () => {
+    const s = new RingSession(presetStone("oval"), () => seedLedger(), () => undefined, () => "");
+    s.setShank({ width_mm: 3.2, thickness_mm: 2, section: "hirauchi", relief: { pattern: "arch", count: 4, across_from: 0.1, across_to: 0.6 }, relief_more: [{ pattern: "mil", count: 30, from_deg: 26, to_deg: 110, across_from: 0.8, across_to: 0.95 }], reason: "ためし" });
+    expect(s.state.shankRelief?.across).toEqual([0.1, 0.6]);
+    expect(s.state.shankReliefMore?.[0].kind).toBe("mil");
+    const a = s.built!.ring.shank.positions.length;
+    s.setShank({ relief_more: [], reason: "やめる" });
+    expect(s.state.shankReliefMore).toBeUndefined();
+    expect(s.built!.ring.shank.positions.length).toBeLessThan(a);
+    expect(parseToolCall("set_shank", { relief: { pattern: "arch", across_from: 0.5 }, reason: "x" }).ok).toBe(false);
+    expect(parseToolCall("set_shank", { relief_more: [{ pattern: "castle" }], reason: "x" }).ok).toBe(false);
+    expect(parseToolCall("set_shank", { relief_more: Array.from({ length: 4 }, () => ({ pattern: "mil" })), reason: "x" }).ok).toBe(false);
   });
 });
 

@@ -9,7 +9,7 @@ import { BALL_CUT, ballCut, type BallCut, type SeatCut } from "./notch";
 import { railSeatZ, type Rail } from "./joint";
 import { adaptiveSample, sampleCurve, uniformKnots, validKnots } from "./bspline";
 import { makeLoft, type Loft, type LoftFrame, type LoftPlace } from "./shank-loft";
-import { RELIEF_LABEL, RELIEF_MESH, adaptivePatch, makeReliefField, rowTrace, rowsV, type ReliefParams } from "./shank-relief";
+import { RELIEF_LABEL, RELIEF_MESH, adaptivePatch, combineFields, makeReliefField, rowTrace, rowsV, type ReliefParams } from "./shank-relief";
 
 /** 腕の断面：甲丸・平打ち・半甲丸・角、丸線（内側も丸い）、と手で描いた形 */
 export type ShankSection = "kouman" | "hirauchi" | "hangouman" | "kaku" | "maru" | "free";
@@ -52,6 +52,8 @@ export interface ShankParams {
   stations?: readonly ShankStation[];
   /** 腕の外の面に彫る模様（なければ彫らない）。丸線の腕・テンション・石を並べた指輪では使わない */
   relief?: ReliefParams;
+  /** 重ねて彫る模様（縁の粒、肩の葉など。relief があるときだけ） */
+  reliefMore?: readonly ReliefParams[];
 }
 
 /** 腕の場所の形（左右は同じ。shank-loft.ts がなめらかにつなぐ） */
@@ -198,18 +200,23 @@ const RELIEF_MARGIN_DEG = 2;
 function reliefOf(p: ShankParams, loft: Loft, flat: number, r: number, t: number, holdRad: number) {
   const rel = p.relief!;
   const v = rowsV(loft.rows[0], p.widthMm ?? GUIDES.shank.widthMm, t);
-  const a0 = Math.max((rel.fromDeg * Math.PI) / 180, holdRad + (RELIEF_MARGIN_DEG * Math.PI) / 180);
-  const a1 = Math.max(a0 + 0.05, Math.min(Math.PI, (rel.toDeg * Math.PI) / 180));
-  const field = makeReliefField(rel, {
-    a0,
-    a1,
-    v,
-    innerR: r,
-    at: (a) => {
-      const f = loft.frame(a);
-      return { w: f.w, t: f.t, arc: loft.arcHalf(f) };
-    },
-  });
+  const field = combineFields(
+    [rel, ...(p.reliefMore ?? [])].map((q) => {
+      const a0 = Math.max((q.fromDeg * Math.PI) / 180, holdRad + (RELIEF_MARGIN_DEG * Math.PI) / 180);
+      const a1 = Math.max(a0 + 0.05, Math.min(Math.PI, (q.toDeg * Math.PI) / 180));
+      return makeReliefField(q, {
+        a0,
+        a1,
+        v,
+        innerR: r,
+        at: (a) => {
+          const f = loft.frame(a);
+          return { w: f.w, t: f.t, arc: loft.arcHalf(f) };
+        },
+      });
+    }),
+  );
+  const { a0, a1 } = field;
   const keep = GUIDES.band.relief.keepMm;
   /** 彫ったあとの点（x、ρ）。面の向きに沈める（急な面でも同じ深さに見え、腕の輪郭が欠けない）。薄い所では浅くして、指の側までの地金を残す */
   const surface = (i: number, phi: number, f: LoftFrame, wOverride?: number): [number, number] => {
@@ -369,7 +376,7 @@ function closedWithNormals(tris: number[], normals: number[]): { positions: Floa
 }
 
 /** 彫る所の行の範囲（外側の行の番号）。外に、深さ 0 の行を 2 本ずつ残す（いちばん外の升は分けないので） */
-function patchRows(field: ReturnType<typeof makeReliefField>, rows: number): [number, number] {
+function patchRows(field: ReturnType<typeof combineFields>, rows: number): [number, number] {
   let lo = 0;
   while (lo < rows - 1 && !field.rowMayCarve(lo)) lo++;
   let hi = rows - 1;
@@ -422,7 +429,7 @@ function reliefResult(p: ShankParams, loft: Loft, flat: number, rel: NonNullable
     for (let i = 0; i < n; i++) top = Math.max(top, loft.point(i + flat, flat, f, 0)[1]);
     // 線を点で取った細かさのぶん、いちばん高い所はわずかに低い。決めた厚みに近ければ、決めた厚みで数える
     if (Math.abs(top - f.t) < 0.005 * f.t) top = f.t;
-    peakUnder = Math.min(peakUnder, top - p.relief!.depthMm);
+    peakUnder = Math.min(peakUnder, top - Math.max(p.relief!.depthMm, ...(p.reliefMore ?? []).map((q) => q.depthMm)));
     for (let i = 0; i < n; i++) {
       if (rel.field.depth(i, phi) <= 0) continue;
       const q = rel.surface(i + flat, phi, f);

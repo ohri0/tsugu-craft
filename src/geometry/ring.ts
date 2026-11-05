@@ -128,7 +128,7 @@ export function buildRing(p: RingParams): RingDesign {
   if ((p.others?.length ?? 0) > 0 || (p.atMm ?? 0) !== 0) return buildMulti(p);
   const orientation = p.orientation ?? "along";
   // 大きさを知るだけなので、場所ごとの形と彫りは作らない（彫りの網目は重い）
-  const plain = buildShank({ ...p.shank, stations: undefined, relief: undefined });
+  const plain = buildShank({ ...p.shank, stations: undefined, relief: undefined, reliefMore: undefined });
   const rotationZ = orientation === "across" ? Math.PI / 2 : 0;
   // 腕の間に挟む石座は、下の輪の下の面を指の丸みに合わせる（石の座標で、指の軸は −rotationZ の向き）
   const between = p.setting.style === "prong" && p.setting.join === "between";

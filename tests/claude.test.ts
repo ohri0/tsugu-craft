@@ -398,12 +398,12 @@ describe("Claude との作業の繰り返し", () => {
 // ---- 道具の定義 ----
 
 describe("道具の定義", () => {
-  it("仕様書の 4 つの道具と、聞き取りの propose_rule、教える ask_teacher、石を並べる set_stones、石を選ぶ choose_stone が、strict で、理由を求める", () => {
+  it("仕様書の 4 つの道具と、聞き取りの propose_rule、教える ask_teacher、石を並べる set_stones、石を選ぶ choose_stone が、理由を求める。strict は set_shank のほか全部（上限のため。tests/strict-limits.test.ts）", () => {
     expect(TOOLS.map((t) => t.name)).toEqual(["set_setting", "set_shank", "check", "look", "propose_rule", "ask_teacher", "set_stones", "choose_stone"]);
     expect(TOOLS[5].input_schema.required).toEqual(["question", "why_unanswered"]);
     expect(TOOLS[4].input_schema.required).toEqual(["title", "text", "reason"]);
     for (const t of TOOLS) {
-      expect(t.strict).toBe(true);
+      expect(t.strict).toBe(t.name === "set_shank" ? undefined : true);
       expect(t.description).toBeTruthy();
       expect((t.input_schema as { additionalProperties?: boolean }).additionalProperties).toBe(false);
     }

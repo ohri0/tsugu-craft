@@ -69,6 +69,8 @@ export type CheckId =
   | "band-narrow"
   | "band-spike"
   | "band-relief"
+  | "band-valley"
+  | "band-groove"
   | "stone-space"
   | "metal-space"
   | "collar-wall"
@@ -624,6 +626,40 @@ export function checkShank(sh: Pick<ShankResult, "thicknessMm" | "widthMm"> & { 
   if (sh.outlineMm?.length && !sh.along) {
     sectionSpots(sh.outlineMm.map(([x, y]) => ({ x, y })), g).forEach((sp, i) => out.push(spikeProblem(sp, i, g)));
   }
+  // 断面の溝：底の厚みと、溝の幅（鋳造と磨き）。場所ごとに見る
+  // （どこも同じ形の腕で、決まった見本の断面を選んだだけの形は、これまでどおり見ない。場所ごとの形か彫りのある腕だけ）
+  const outlines: { at?: number; pts: readonly [number, number][] }[] = sh.along ? sh.along.map((q) => ({ at: q.atDeg, pts: q.outlineMm })) : sh.relief && sh.outlineMm?.length ? [{ pts: sh.outlineMm }] : [];
+  const valleys = outlines.flatMap((o) => outlineValleys(o.pts).map((v) => ({ ...v, at: o.at })));
+  const lowest = valleys.reduce<(typeof valleys)[number] | null>((m, v) => (!m || v.floorMm < m.floorMm ? v : m), null);
+  if (lowest && lowest.floorMm < g.band.valleyMinMm - 1e-9) {
+    out.push({
+      id: "band-valley",
+      check: "band-valley",
+      where: `${lowest.at === undefined ? "" : `${placeWord(lowest.at)}の`}断面の溝の底`,
+      current: mm(lowest.floorMm),
+      required: `${mm(g.band.valleyMinMm)} 以上（仮の目安）`,
+      currentValue: lowest.floorMm,
+      requiredValue: g.band.valleyMinMm,
+      reason: `溝の底が薄いと、そこで腕が折れ曲がりやすい（${GUIDE_NOTE}）`,
+      options: fix("bluntTip", "thickerBand"),
+      target: { kind: "shank" },
+    });
+  }
+  const narrowest = valleys.reduce<(typeof valleys)[number] | null>((m, v) => (!m || v.widthMm < m.widthMm ? v : m), null);
+  if (narrowest && narrowest.widthMm < g.band.grooveMinMm - 1e-9) {
+    out.push({
+      id: "band-groove",
+      check: "band-groove",
+      where: `${narrowest.at === undefined ? "" : `${placeWord(narrowest.at)}の`}断面の溝の幅`,
+      current: mm(narrowest.widthMm),
+      required: `${mm(g.band.grooveMinMm)} 以上（仮の目安）`,
+      currentValue: narrowest.widthMm,
+      requiredValue: g.band.grooveMinMm,
+      reason: `狭い溝は、鋳造で型に地金が回りにくく、磨きの道具も入らない（${GUIDE_NOTE}）`,
+      options: fix("bluntTip", "widerBand"),
+      target: { kind: "shank" },
+    });
+  }
   // 腕の彫り：彫る場所の、いちばん厚い所から彫りの深さを引いて、どれだけ残るか
   if (sh.relief && sh.relief.peakUnderMm < g.band.relief.minUnderMm - 1e-9) {
     out.push({
@@ -651,6 +687,41 @@ export function checkShank(sh: Pick<ShankResult, "thicknessMm" | "widthMm"> & { 
         out.push(spikeProblem(sp, n++, g, placeWord(st.atDeg)));
       }
     }
+  }
+  return out;
+}
+
+/** 溝と数える深さ（mm。両側の高い所より、これだけ低い所。形を作るための決まり） */
+const VALLEY_DEPTH_MM = 0.1;
+
+/**
+ * 断面の外の線の溝（両側より低い所）ごとの、底の高さ（指の側から）と、底から VALLEY_DEPTH_MM 上での溝の幅。
+ * 線は右の端の内側 → 左の端の内側。端へ向かって下がるだけの形は溝に数えない
+ */
+export function outlineValleys(pts: readonly (readonly [number, number])[]): { floorMm: number; widthMm: number }[] {
+  const out: { floorMm: number; widthMm: number }[] = [];
+  const n = pts.length;
+  let i = 1;
+  while (i < n - 1) {
+    // 低い所：下りから上りに変わる所（平らな底は 1 つに数える）
+    let j = i;
+    while (j + 1 < n - 1 && Math.abs(pts[j + 1][1] - pts[i][1]) < 1e-6) j++;
+    if (pts[i - 1][1] > pts[i][1] && pts[j + 1][1] > pts[j][1]) {
+      const y = pts[i][1];
+      const level = y + VALLEY_DEPTH_MM;
+      // 両側へ登って、深さを超える所を探す
+      let a = i - 1;
+      while (a > 0 && pts[a][1] < level) a--;
+      let b = j + 1;
+      while (b < n - 1 && pts[b][1] < level) b++;
+      if (pts[a][1] >= level && pts[b][1] >= level) {
+        const cross = (p: readonly number[], q: readonly number[]) => p[0] + ((q[0] - p[0]) * (level - p[1])) / (q[1] - p[1] || 1);
+        const xa = cross(pts[a], pts[a + 1]);
+        const xb = cross(pts[b - 1], pts[b]);
+        out.push({ floorMm: y, widthMm: Math.abs(xa - xb) });
+      }
+    }
+    i = j + 1;
   }
   return out;
 }

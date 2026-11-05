@@ -84,6 +84,8 @@ export interface RingState {
   shankStations?: ShankStation[];
   /** 腕の彫り（なければ彫らない。テンションと石を並べた指輪では使わない） */
   shankRelief?: ReliefParams;
+  /** 重ねて彫る模様（縁の粒、肩の葉など） */
+  shankReliefMore?: ReliefParams[];
   /** 尖った角を V 字の爪で包むか（なければ包まない：丸い爪を角に立てる普通の爪留め。作者の判断） */
   vCorners?: boolean;
   /** 石の一番下と指のすき間（mm）を直接決める（高さの選択より優先。職人の決まりに合わせて直すとき） */
@@ -152,6 +154,7 @@ export function carryDesign(prev: RingState, base: RingState, same: { shape?: bo
     sectionCurve: prev.sectionCurve && structuredClone(prev.sectionCurve),
     shankStations: prev.shankStations && structuredClone(prev.shankStations),
     shankRelief: prev.shankRelief && { ...prev.shankRelief },
+    shankReliefMore: prev.shankReliefMore && structuredClone(prev.shankReliefMore),
     beforeTension: prev.beforeTension && structuredClone(prev.beforeTension),
   };
   if (prev.orientationSet) {
@@ -259,6 +262,7 @@ export function reliefFrom(r: ShankReliefInput, cur: ReliefParams | undefined): 
     fromDeg: r.from_deg ?? cur?.fromDeg ?? 25,
     toDeg: r.to_deg ?? cur?.toDeg ?? 100,
     ...((r.columns ?? cur?.columns) ? { columns: r.columns ?? cur?.columns } : {}),
+    ...(r.across_from !== undefined && r.across_to !== undefined ? { across: [r.across_from, r.across_to] as const } : cur?.across ? { across: cur.across } : {}),
   };
 }
 
@@ -312,6 +316,8 @@ const CHECK_NAME: Record<string, string> = {
   "band-narrow": "腕の幅",
   "band-spike": "腕の断面のとがり・薄いヒレ",
   "band-relief": "腕の彫りの下の地金",
+  "band-valley": "断面の溝の底の厚み",
+  "band-groove": "断面の溝の幅",
   "stone-space": "となりの石との間",
   "metal-space": "となりの石座との間",
   "collar-wall": "石座の下の輪の板の厚み",
@@ -525,6 +531,7 @@ export class RingSession implements ToolHost<RingState> {
         stations: s.style === "tension" ? undefined : s.shankStations,
         // 動かしている間は彫らない（止まったら細かく作り直す。確かめの数は同じ）
         relief: s.style === "tension" || !s.shankRelief ? undefined : quality === "preview" ? { ...s.shankRelief, draft: true } : s.shankRelief,
+        reliefMore: s.style === "tension" ? undefined : s.shankReliefMore,
       },
       orientation: s.orientation,
     };
@@ -657,6 +664,7 @@ export class RingSession implements ToolHost<RingState> {
     if (input.metal) s.metal = input.metal;
     if (input.stations && free) s.shankStations = input.stations.length ? input.stations.map(stationFrom) : undefined;
     if (input.relief && free) s.shankRelief = reliefFrom(input.relief, s.shankRelief);
+    if (input.relief_more && free) s.shankReliefMore = input.relief_more.length ? input.relief_more.flatMap((q) => reliefFrom(q, undefined) ?? []) : undefined;
     if (input.section) {
       s.shankSection = input.section;
       if (input.section !== "free") {
@@ -847,7 +855,7 @@ export class RingSession implements ToolHost<RingState> {
         options: p.options.map((o) => ({ action: o.label, appearance: o.effectOnLook, tool_hint: hintFor(o.id, this.state, std, b.ring.setting.tension) })),
       })),
       passed: Object.entries(CHECK_NAME)
-        .filter(([k]) => !failed.has(k as Problem["check"]) && (b.ring.setting.style === "tension" ? TENSION_CHECKS.has(k) : !k.startsWith("tension-") && (b.ring.stones.length > 1 || !k.endsWith("-space")) && (b.ring.setting.collar !== null || (k !== "collar-wall" && k !== "band-end")) && (k !== "band-relief" || !!b.ring.shank.relief)))
+        .filter(([k]) => !failed.has(k as Problem["check"]) && (b.ring.setting.style === "tension" ? TENSION_CHECKS.has(k) : !k.startsWith("tension-") && (b.ring.stones.length > 1 || !k.endsWith("-space")) && (b.ring.setting.collar !== null || (k !== "collar-wall" && k !== "band-end")) && (k !== "band-relief" || !!b.ring.shank.relief) && (!["band-valley", "band-groove"].includes(k) || b.ring.shank.section === "free")))
         .map(([, v]) => v),
       note: `数字は目安・最後は職人が決める。石の一番下と指のすき間は ${b.ring.culetGapMm.toFixed(2)} mm、地金は約 ${b.ring.metalWeightG.toFixed(1)} g。${tensionNotes(b.ring.setting, b.ring.shank.thicknessMm, this.guides()).join(" ")}${insert ? ` 石の入れ方：${insert.how}。${insert.hold}。` : ""}${opening ? ` ${tensionOpeningText(opening)}` : ""}`.trim(),
       ...(spring

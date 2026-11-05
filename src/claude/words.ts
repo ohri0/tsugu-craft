@@ -28,6 +28,7 @@ const NAMES: Record<string, string> = {
   stations: "腕の場所ごとの形",
   at_deg: "場所の角度",
   relief: "腕の彫り",
+  relief_more: "重ねる彫り",
   depth_mm: "彫りの深さ",
   sway_mm: "腕の流れ",
   width_mm: "幅",
@@ -151,7 +152,7 @@ const METAL: Record<string, string> = { pt900: "プラチナ", k18yg: "18 金イ
 const SECTION: Record<string, string> = { kouman: "甲丸", hirauchi: "平打ち", hangouman: "半甲丸", kaku: "角", maru: "丸線", free: "自由な線" };
 const VIEW: Record<string, string> = { top: "上から", side: "横から", front: "正面から", angle: "斜めから" };
 const LAYOUT: Record<string, string> = { solo: "一粒", trio: "三石", row: "横一列" };
-const RELIEF: Record<string, string> = { arch: "尖ったアーチ", diamond: "菱の格子", wave: "波の線", beads: "粒", lines: "横の筋", leaf: "葉とつる" };
+const RELIEF: Record<string, string> = { arch: "尖ったアーチ", diamond: "菱の格子", wave: "波の線", beads: "粒", lines: "横の筋", leaf: "葉とつる", mil: "縁の粒", blade: "尖った葉" };
 const TOOL_WORD: Record<string, string> = { set_setting: "石座", set_shank: "腕", set_stones: "石の並び", choose_stone: "石", check: "確かめ", look: "見る" };
 
 const num = (v: unknown) => (typeof v === "number" ? String(Math.round(v * 100) / 100) : String(v));
@@ -210,6 +211,8 @@ function partOf(key: string, v: unknown, stone?: StoneWords): string | null {
       const extra = [r.count ? `片側 ${r.count} つ` : "", r.columns && r.columns > 1 ? `${r.columns} 列` : "", r.depth_mm ? `深さ ${num(r.depth_mm)} mm` : ""].filter(Boolean);
       return `彫り ${RELIEF[r.pattern] ?? r.pattern}${extra.length ? `（${extra.join("・")}）` : ""}`;
     }
+    case "relief_more":
+      return Array.isArray(v) && v.length ? `重ねる彫り ${v.map((q: { pattern: string }) => RELIEF[q.pattern] ?? q.pattern).join("・")}` : "重ねる彫り なし";
     case "width_mm":
       return `幅 ${num(v)} mm`;
     case "thickness_mm":

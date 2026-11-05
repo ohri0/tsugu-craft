@@ -32,6 +32,8 @@ export interface Design {
   stations?: ShankStation[];
   /** 腕の彫り（なければ彫らない） */
   relief?: ReliefParams;
+  /** 重ねて彫る模様 */
+  reliefMore?: ReliefParams[];
   /** 腕の幅・厚み（mm、なければ目安） */
   shankWidthMm?: number;
   shankThicknessMm?: number;
@@ -71,7 +73,7 @@ export function build(stone: StoneParams, d: Design, ledger: Ledger = seedLedger
       vAtCorners: d.vCorners,
       join: d.join,
     },
-    shank: { gou: d.gou, metal: d.metal, section: d.section, sectionCurve: d.sectionCurve, stations: d.stations, relief: d.relief, widthMm: d.shankWidthMm, thicknessMm: d.shankThicknessMm },
+    shank: { gou: d.gou, metal: d.metal, section: d.section, sectionCurve: d.sectionCurve, stations: d.stations, relief: d.relief, reliefMore: d.reliefMore, widthMm: d.shankWidthMm, thicknessMm: d.shankThicknessMm },
     orientation: d.orientation,
   });
   const problems = checkRing(ring, { position: d.position, guides: effectiveGuides(ledger, stoneSizeMm(stone.longMm, stone.widthMm)) });

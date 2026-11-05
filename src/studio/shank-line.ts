@@ -85,7 +85,7 @@ export function shankLineHtml(s: RingState): string {
         : ""
     }
     <div class="pick"><span>腕の彫り</span><div>${toggle("relief", "none", !s.shankRelief, "なし")}${RELIEF_KINDS.map((k) => toggle("relief", k, s.shankRelief?.kind === k, RELIEF_LABEL[k])).join("")}</div></div>
-    ${s.shankRelief ? `<div class="sliders">${reliefSpecs(s.shankRelief).map(sliderHtml).join("")}</div><small class="sl-note">面に彫る細い線の模様です（穴は開きません）。腕の縁と石座のそばには彫らず、はじめと終わりはなめらかに消えます。薄い所では自動で浅くなります。形の案で、仕上げは職人が決めます。</small>` : ""}
+    ${s.shankRelief ? `<div class="pick"><span>重ねる彫り</span><div>${toggle("more", "none", !s.shankReliefMore?.length, "なし")}${(["mil", "blade", "beads", "arch"] as ReliefKind[]).map((k) => toggle("more", k, s.shankReliefMore?.[0]?.kind === k, RELIEF_LABEL[k])).join("")}</div></div><div class="sliders">${reliefSpecs(s.shankRelief).map(sliderHtml).join("")}</div><small class="sl-note">面に彫る細い線の模様です（穴は開きません）。腕の縁と石座のそばには彫らず、はじめと終わりはなめらかに消えます。薄い所では自動で浅くなります。形の案で、仕上げは職人が決めます。</small>` : ""}
   </section>`;
 }
 
@@ -139,6 +139,12 @@ export function bindShankLine(box: HTMLElement, session: RingSession, redraw: ()
       if (key === "relief") {
         const cur = s.shankRelief;
         session.setShank({ relief: v === "none" ? { pattern: "none" } : { pattern: v as ReliefKind, count: cur?.count ?? 4, depth_mm: cur?.depthMm ?? GUIDES.band.relief.depthMm, from_deg: cur?.fromDeg ?? 25, to_deg: cur?.toDeg ?? 100, columns: cur?.columns ?? 1 }, reason: "手で" });
+        return;
+      }
+      if (key === "more") {
+        // 粒は腕の縁に近い帯へ、ほかは同じ場所へ（細かい数は Claude か、数字で）
+        const r0 = s.shankRelief;
+        session.setShank({ relief_more: v === "none" || !r0 ? [] : [v === "mil" ? { pattern: "mil", count: 24, depth_mm: 0.2, from_deg: r0.fromDeg, to_deg: r0.toDeg, across_from: 0.84, across_to: 1 } : { pattern: v as ReliefKind, count: 2, depth_mm: r0.depthMm, from_deg: r0.fromDeg, to_deg: r0.toDeg }], reason: "手で" });
         return;
       }
       if (key === "draw") {

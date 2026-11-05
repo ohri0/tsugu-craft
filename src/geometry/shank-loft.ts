@@ -58,6 +58,10 @@ export interface Loft {
   extremes(): { minWidthMm: number; minThicknessMm: number };
 }
 
+/** 断面の行の間引き（形を作るための決まり）：線の長さの割合で、これより近い行は間引く。向きがこれより変わる点（cos）は残す */
+const ROW_MIN_GAP = 0.008;
+const ROW_KEEP_COS = Math.cos((14 * Math.PI) / 180);
+
 /** 線の向きがこれより急に変わる行を、折れ目（稜線）とみなす（度。形を作るための決まり） */
 const CREASE_DEG = 28;
 
@@ -115,10 +119,43 @@ function pointAt(line: SectionRows, fr: readonly number[], f: number): [number, 
 /** どの線の点も入るよう、同じ行数にそろえる */
 export function commonRows(lines: readonly SectionRows[]): [number, number][][] {
   const frs = lines.map(fractions);
-  const all = frs.flat().sort((a, b) => a - b);
+  // 線が折れる点（どの線でも）は必ず行に入れる。ほかの点は、近すぎれば間引く（段と溝の多い断面で、行が増えすぎないように）
+  const items: { f: number; keep: boolean }[] = [];
+  lines.forEach((line, k) => {
+    line.forEach((q, i) => {
+      const a = line[i - 1];
+      const b = line[i + 1];
+      let keep = !a || !b;
+      if (a && b) {
+        const ux = q[0] - a[0], uy = q[1] - a[1], vx = b[0] - q[0], vy = b[1] - q[1];
+        const lu = Math.hypot(ux, uy), lv = Math.hypot(vx, vy);
+        keep = lu > 1e-9 && lv > 1e-9 && (ux * vx + uy * vy) / (lu * lv) < ROW_KEEP_COS;
+      }
+      items.push({ f: frs[k][i], keep });
+    });
+  });
+  items.sort((x, y) => x.f - y.f);
   const marks: number[] = [];
-  for (const f of all) if (!marks.length || f - marks[marks.length - 1] > 1e-5) marks.push(f);
+  let lastKeep = false;
+  for (const it of items) {
+    const last = marks[marks.length - 1];
+    const gap = last === undefined ? 1 : it.f - last;
+    if (gap <= 1e-5) {
+      lastKeep ||= it.keep;
+      continue;
+    }
+    if (it.keep) {
+      // 折れる点は入れる。その前の、折れない近い点は外す
+      if (gap < ROW_MIN_GAP && !lastKeep && marks.length > 1) marks.pop();
+      marks.push(it.f);
+      lastKeep = true;
+    } else if (gap >= ROW_MIN_GAP) {
+      marks.push(it.f);
+      lastKeep = false;
+    }
+  }
   marks[0] = 0;
+  if (marks[marks.length - 1] < 1 - 1e-9) marks.push(1);
   marks[marks.length - 1] = 1;
   return lines.map((line, k) => marks.map((f) => pointAt(line, frs[k], f)));
 }

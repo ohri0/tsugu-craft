@@ -178,6 +178,9 @@ export interface ShankReliefInput {
   from_deg?: number;
   to_deg?: number;
   columns?: number;
+  /** 彫る帯の内と外（真ん中 0・腕の縁 1 の割合。左右同じ） */
+  across_from?: number;
+  across_to?: number;
 }
 
 export interface SetShankInput {
@@ -194,6 +197,8 @@ export interface SetShankInput {
   stations?: ShankStationInput[];
   /** 腕の外の面に彫る模様 */
   relief?: ShankReliefInput;
+  /** 重ねて彫る模様（縁の粒、肩の葉など）。空の並びでなくす */
+  relief_more?: ShankReliefInput[];
   gou?: number;
   metal?: Metal;
   reason: string;
@@ -377,7 +382,9 @@ export const INPUT_BOUNDS = {
   at_deg: [15, 180],
   sway_mm: [-2, 2],
   stations: [0, 4],
-  relief_count: [1, 24],
+  relief_count: [1, 60],
+  relief_across: [0, 1],
+  relief_more: [0, 3],
   relief_depth: [0.1, 0.5],
   relief_deg: [15, 180],
   relief_columns: [1, 3],
@@ -399,7 +406,9 @@ const SECTION_CURVE_SCHEMA = {
     "指の側（内側）はいつも平らで、ここには外側の線だけを書く。x は幅の位置（−1 が左の端・1 が右の端）、y は高さ（0 が指の側、1 がいちばん厚い所）。実際の大きさは幅と厚みの数で決まり、線は幅いっぱい・厚みいっぱいに伸ばされる。" +
     `右の端の内側（x > 0, y ＝ 0）から、上を通って、左の端の内側（x < 0, y ＝ 0）へ順に、${SECTION_INPUT.minPoints}〜${SECTION_INPUT.maxPoints} 個。` +
     "稜線や角を立てたい所は、同じ点を 3 回続けて書く（そこで線が折れて、点を通る）。2 回なら少し丸い角。くぼみは、両わきより低い点を置く。左右はちがってもよい。" +
-    "例：真ん中に稜線が立つ断面 [{x:1,y:0},{x:1,y:0.35},{x:0.55,y:0.55},{x:0,y:1},{x:0,y:1},{x:0,y:1},{x:-0.55,y:0.55},{x:-1,y:0.35},{x:-1,y:0}]",
+    "例：真ん中に稜線が立つ断面 [{x:1,y:0},{x:1,y:0.35},{x:0.55,y:0.55},{x:0,y:1},{x:0,y:1},{x:0,y:1},{x:-0.55,y:0.55},{x:-1,y:0.35},{x:-1,y:0}]。" +
+    "建築のモールディングのように、段・溝・縁取りを重ねることもできる（片側を書いて折り返す。端から順に：壁 → 縁取り（少し高い帯）→ 溝（低く平らな底）→ 細い段 → 稜線）。例の片側 [{x:1,y:0},{x:1,y:0.3},{x:1,y:0.48},{x:0.98,y:0.62},{x:0.8,y:0.68},{x:0.76,y:0.5},{x:0.7,y:0.48},{x:0.46,y:0.48},{x:0.42,y:0.6},{x:0.34,y:0.62},{x:0,y:1},{x:0,y:1}]。" +
+    `作れる形に：縁取りや段の幅は 0.45 mm くらいから、溝の幅は ${GUIDES.band.grooveMinMm} mm 以上、溝の底の厚みは ${GUIDES.band.valleyMinMm} mm 以上（check が見る）。幅は 3〜5 mm あると段と溝が読める。`,
   properties: {
     points: {
       type: "array",
@@ -484,7 +493,8 @@ export const TOOLS: ClaudeTool[] = [
       "腕（リングの輪の部分）を変える。書いた項目だけが変わり、省いた項目は今のまま。変えたあとの寸法と、指輪のおおよその重さを返す。" +
       "腕の形は自由に決められる：断面の線（section_curve）と、腕の場所ごとの幅・厚み・断面・流れ（stations）。" +
       "内径は号で決まり、形を変えても変わらない。腕の端と石座のつなぎは、石座のそばの形でできる。丸線の腕とテンションには、section_curve と stations は使えない。",
-    strict: true,
+    // この道具だけ strict にしない。strict の省ける項目は 1 回の呼び出しで全部合わせて 24 までで（API の上限。超えると 400 で断られ、生成が止まる）、
+    // この道具だけで 26 ある。入力は parseToolCall で確かめ、知らない項目や形の違いは断って、理由を Claude に返す。見張りは tests/strict-limits.test.ts
     input_schema: {
       type: "object",
       properties: {
@@ -528,17 +538,38 @@ export const TOOLS: ClaudeTool[] = [
           properties: {
             pattern: {
               type: "string",
-              enum: ["none", "arch", "diamond", "wave", "beads", "lines", "leaf"],
-              description: "模様。arch＝先の鋭く尖った縦長の窓が腕に沿って並ぶ（幅があれば、中に 2 つの小窓と丸窓）、diamond＝菱の格子、wave＝腕に沿う波の線、beads＝丸い粒のくぼみの列、lines＝腕を横切る筋、leaf＝葉とつる、none＝彫りをなくす",
+              enum: ["none", "arch", "diamond", "wave", "beads", "lines", "leaf", "mil", "blade"],
+              description: "模様。arch＝先の鋭く尖った縦長の窓が腕に沿って並ぶ（幅があれば、中に 2 つの小窓と丸窓）、diamond＝菱の格子、wave＝腕に沿う波の線、beads＝丸い粒のくぼみの列、lines＝腕を横切る筋、leaf＝葉とつる、mil＝縁の粒（帯の上面を削って粒を連ねる。縁取りの上に）、blade＝尖った葉（肩に少しだけ）、none＝彫りをなくす",
             },
             count: { type: "integer", description: `片側の腕に並べる数（${range("relief_count", " つ")}）。省くと 4` },
             depth_mm: { type: "number", description: `彫りの深さ（mm、${range("relief_depth", " mm")}）。省くと ${GUIDES.band.relief.depthMm} mm` },
             from_deg: { type: "number", description: `彫り始める場所（いちばん上からの角度、度、${range("relief_deg")}）。省くと 25` },
             to_deg: { type: "number", description: `彫り終わる場所（度、${range("relief_deg")}）。省くと 100。指の真横が 90` },
             columns: { type: "integer", description: `幅の向きに並べる数（${range("relief_columns", " 列")}）。省くと 1。真ん中に稜線のある断面では 2 にすると稜線の両側に並ぶ。尖った窓は、面が広いと自動で列が増える（縦に細長いまま）` },
+            across_from: { type: "number", description: "彫る帯の内側（真ん中 0・腕の縁 1 の割合。外の面の線の長さで測る。左右同じ）。断面の溝や縁取りに模様を収めるときに書く。across_to と一緒に" },
+            across_to: { type: "number", description: "彫る帯の外側（across_from より大きく）" },
           },
           required: ["pattern"],
           additionalProperties: false,
+        },
+        relief_more: {
+          type: "array",
+          description: `重ねて彫る模様（${range("relief_more", " つ")}。relief があるときだけ。空の並びでなくす）。窓は溝の中、粒は縁取りの上、葉は肩に、のように場所を分けると、断面と彫りが一体に見える`,
+          items: {
+            type: "object",
+            properties: {
+              pattern: { type: "string", enum: ["arch", "diamond", "wave", "beads", "lines", "leaf", "mil", "blade"], description: "模様。relief と同じ" },
+              count: { type: "integer", description: "片側の腕に並べる数" },
+              depth_mm: { type: "number", description: "深さ（mm）" },
+              from_deg: { type: "number", description: "彫り始める場所（度）" },
+              to_deg: { type: "number", description: "彫り終わる場所（度）" },
+              columns: { type: "integer", description: "帯の中の列の数" },
+              across_from: { type: "number", description: "彫る帯の内側（真ん中 0・腕の縁 1 の割合）" },
+              across_to: { type: "number", description: "彫る帯の外側" },
+            },
+            required: ["pattern"],
+            additionalProperties: false,
+          },
         },
         gou: { type: "integer", description: `指輪のサイズ（日本の号数、${range("gou", " 号")}）。号数から内径が決まる` },
         metal: {
@@ -693,7 +724,7 @@ export const TOOLS: ClaudeTool[] = [
 ];
 
 // ---- 入力を確かめる ----
-// strict の道具なので形はふつう正しく届くが、届いた値はそのまま信じず、ここで型と範囲を確かめてから道具に渡す。
+// strict の道具は形がふつう正しく届くが（set_shank は strict でない）、届いた値はそのまま信じず、ここで型と範囲を確かめてから道具に渡す。
 
 export type ParsedToolCall =
   | { name: "set_setting"; input: SetSettingInput }
@@ -755,7 +786,7 @@ function checkProp(key: string, s: PropSchema, v: unknown): string | null {
     case "array":
       if (!Array.isArray(v)) return `${key} は番号の並びで書いてください`;
       // 場所ごとの形は checkStations が見る
-      if (key === "stations") return null;
+      if (key === "stations" || key === "relief_more") return null;
       if (s.items?.type === "object") return checkSizeSteps(key, v);
       for (const item of v) {
         const e = checkNumber(key, item, true);
@@ -812,9 +843,9 @@ function checkStations(v: unknown): string | null {
 function checkRelief(v: unknown): string | null {
   const r = v as Record<string, unknown> | null;
   if (typeof r !== "object" || r === null || Array.isArray(r)) return "腕の彫りは {pattern, …} の形で書いてください";
-  const kinds = ["none", "arch", "diamond", "wave", "beads", "lines", "leaf"];
+  const kinds = ["none", "arch", "diamond", "wave", "beads", "lines", "leaf", "mil", "blade"];
   if (!kinds.includes(r.pattern as string)) return `腕の彫りの模様は ${kinds.join(" / ")} のどれかです（今は ${String(r.pattern)}）`;
-  const bounds: Record<string, keyof typeof INPUT_BOUNDS> = { count: "relief_count", depth_mm: "relief_depth", from_deg: "relief_deg", to_deg: "relief_deg", columns: "relief_columns" };
+  const bounds: Record<string, keyof typeof INPUT_BOUNDS> = { count: "relief_count", depth_mm: "relief_depth", from_deg: "relief_deg", to_deg: "relief_deg", columns: "relief_columns", across_from: "relief_across", across_to: "relief_across" };
   for (const k of Object.keys(r)) {
     if (k === "pattern") continue;
     const b = bounds[k];
@@ -824,6 +855,8 @@ function checkRelief(v: unknown): string | null {
     if ((k === "count" || k === "columns") && !Number.isInteger(r[k])) return `腕の彫りの ${k} は整数で書いてください`;
   }
   if (typeof r.from_deg === "number" && typeof r.to_deg === "number" && r.from_deg >= r.to_deg) return "腕の彫りは、彫り始める角度を、彫り終わる角度より小さくしてください";
+  if ((r.across_from === undefined) !== (r.across_to === undefined)) return "腕の彫りの帯は、across_from と across_to を両方書いてください";
+  if (typeof r.across_from === "number" && typeof r.across_to === "number" && r.across_from >= r.across_to) return "腕の彫りの帯は、across_from を across_to より小さくしてください";
   return null;
 }
 
@@ -888,6 +921,13 @@ export function parseToolCall(name: string, input: unknown): ParseResult {
     if (record.relief !== undefined) {
       const e = checkRelief(record.relief);
       if (e) return { ok: false, error: e };
+    }
+    if (record.relief_more !== undefined) {
+      if (!Array.isArray(record.relief_more) || record.relief_more.length > INPUT_BOUNDS.relief_more[1]) return { ok: false, error: `重ねる彫りは ${INPUT_BOUNDS.relief_more[1]} つまでの並びで書いてください` };
+      for (const q of record.relief_more) {
+        const e = checkRelief(q);
+        if (e) return { ok: false, error: e };
+      }
     }
   }
   if (typeof record.reason === "string" && record.reason.trim() === "") {

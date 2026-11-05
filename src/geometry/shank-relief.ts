@@ -6,11 +6,11 @@
 // 線の太さ・窓の割合は形を作るための決まりで、職人の目安の数ではない（**仮**。作者が見て直す）。
 import { pushTri, type V3 } from "./mesh";
 
-export type ReliefKind = "arch" | "diamond" | "wave" | "beads" | "lines" | "leaf";
+export type ReliefKind = "arch" | "diamond" | "wave" | "beads" | "lines" | "leaf" | "mil" | "blade";
 
-export const RELIEF_KINDS: readonly ReliefKind[] = ["arch", "diamond", "wave", "beads", "lines", "leaf"];
+export const RELIEF_KINDS: readonly ReliefKind[] = ["arch", "diamond", "wave", "beads", "lines", "leaf", "mil", "blade"];
 
-export const RELIEF_LABEL: Record<ReliefKind, string> = { arch: "尖ったアーチ", diamond: "菱の格子", wave: "波の線", beads: "粒", lines: "横の筋", leaf: "葉とつる" };
+export const RELIEF_LABEL: Record<ReliefKind, string> = { arch: "尖ったアーチ", diamond: "菱の格子", wave: "波の線", beads: "粒", lines: "横の筋", leaf: "葉とつる", mil: "縁の粒", blade: "尖った葉" };
 
 export interface ReliefParams {
   kind: ReliefKind;
@@ -23,6 +23,8 @@ export interface ReliefParams {
   toDeg: number;
   /** 幅の向きに並べる数（なければ 1） */
   columns?: number;
+  /** 彫る帯：真ん中 0・腕の縁 1 の割合で、内と外（左右同じ。外の面の線の長さで測る）。断面の溝や縁取りに模様を収める。なければ、腕の縁の余白の内いっぱい */
+  across?: readonly [number, number];
   /** 大きく写す絵のための細かい網目（三角形が増える。入口の絵など。ふだんは使わない） */
   fine?: boolean;
   /** 動かしている間：形には彫らず、数だけ出す（すぐ返す。止まったら彫る） */
@@ -36,14 +38,14 @@ export interface ReliefParams {
  * archRatio：アーチの尖った部分の高さ ÷ 窓の半分の幅（大きいほど鋭い）。archGapMm：窓と窓の間。
  * twoLightMm：窓の半分の幅がこれより広ければ、中に 2 つの小さな窓と丸窓を入れる（ゴシックの窓の組子）。
  */
-const SHAPE = { lineMm: 0.15, edgeMm: 0.26, colGapMm: 0.2, ratio: { arch: 3.1, diamond: 1.3, wave: 3.4, beads: 1, lines: 1, leaf: 1.5 } as Record<ReliefKind, number>, fadeCells: 0.85, archRatio: 2.7, archGapMm: 0.14, twoLightMm: 0.72, archMaxHalf: 1.05, innerFloor: 0.28 };
+const SHAPE = { lineMm: 0.15, edgeMm: 0.26, colGapMm: 0.2, ratio: { arch: 3.1, diamond: 1.3, wave: 3.4, beads: 1, lines: 1, leaf: 1.5, mil: 1, blade: 2.8 } as Record<ReliefKind, number>, fadeCells: 0.85, archRatio: 2.7, archGapMm: 0.14, twoLightMm: 0.72, archMaxHalf: 1.05, innerFloor: 0.28 };
 
 /**
  * 網目の決まり（形を作るための決まり）。baseMm：土台の升の大きさ。minCellMm：いちばん小さい升。tolMm：土台の面との差がこれより小さければ分けない。
  * normalMm：面の向きを測る幅（升と同じくらいにすると、光の筋が出ない。線の壁の向きが少しなめらかになる）。
  * fine は、大きく写す絵のための細かい網目（三角形が増える。画面のふだんの形では使わない）
  */
-export const RELIEF_MESH = { baseMm: 0.28, lattice: 16, normal: { minCellMm: 0.05, tolMm: 0.012, normalMm: 0.05 }, fine: { minCellMm: 0.022, tolMm: 0.005, normalMm: 0.024 } };
+export const RELIEF_MESH = { baseMm: 0.32, lattice: 16, normal: { minCellMm: 0.06, tolMm: 0.016, normalMm: 0.055 }, fine: { minCellMm: 0.022, tolMm: 0.005, normalMm: 0.024 } };
 
 const TWO_PI = Math.PI * 2;
 const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
@@ -113,19 +115,37 @@ function columnsOf(kind: ReliefKind, U: number, cols: number): number {
 }
 
 /** 模様の深さの割合（0〜1）。u：腕に沿って、石座の側から 0〜count。x：幅の向きの位置（mm。真ん中 0）。L：u の 1 あたりの長さ（mm）。arc：外の面の線の長さの半分（mm）。cols：列の数 */
-export function reliefPattern(kind: ReliefKind, u: number, x: number, L: number, arc: number, cols0: number): number {
+export function reliefPattern(kind: ReliefKind, u: number, x: number, L: number, arc: number, cols0: number, across?: readonly [number, number]): number {
   const E = Math.min(SHAPE.edgeMm, arc * 0.3);
   const U = arc - E;
   if (U <= 0 || Math.abs(x) >= U + SHAPE.lineMm) return 0;
-  const cols = columnsOf(kind, U, cols0);
   const n = Math.floor(u);
   const f = u - n;
-  const gap = cols > 1 ? SHAPE.colGapMm : 0;
-  const b = (2 * U - (cols - 1) * gap) / cols / 2;
-  const k = Math.min(cols - 1, Math.max(0, Math.floor((x + U + gap / 2) / (2 * b + gap))));
-  const lx = x - (-U + b + k * (2 * b + gap));
-  const w = Math.min(SHAPE.lineMm, b * 0.3);
   const y = f * L;
+  let lx: number;
+  let b: number;
+  let cols: number;
+  if (across) {
+    // 帯の中に収める（左右同じ）
+    const inner = across[0] * arc;
+    const outer = Math.min(across[1] * arc, arc);
+    const ax = Math.abs(x);
+    if (ax <= inner || ax >= outer) return 0;
+    cols = Math.max(1, cols0);
+    const colW = (outer - inner) / cols;
+    const k = Math.min(cols - 1, Math.floor((ax - inner) / colW));
+    lx = ax - (inner + (k + 0.5) * colW);
+    b = colW / 2;
+  } else {
+    cols = columnsOf(kind, U, cols0);
+    const gap = cols > 1 ? SHAPE.colGapMm : 0;
+    b = (2 * U - (cols - 1) * gap) / cols / 2;
+    const k = Math.min(cols - 1, Math.max(0, Math.floor((x + U + gap / 2) / (2 * b + gap))));
+    lx = x - (-U + b + k * (2 * b + gap));
+  }
+  const w = Math.min(SHAPE.lineMm, b * 0.3);
+  // 帯に収めるときは、線が帯の外へ出ないよう、窓を線の太さぶん内へ
+  if (across) b = Math.max(0.05, b - w);
   switch (kind) {
     case "arch":
       return archWindow(lx, y, b, L, w);
@@ -156,6 +176,26 @@ export function reliefPattern(kind: ReliefKind, u: number, x: number, L: number,
       // 腕を横切る筋（両はしは丸く終わる）
       const dy = Math.abs(y - L / 2);
       return stroke(Math.abs(lx) <= b ? dy : Math.hypot(dy, Math.abs(lx) - b), w * 0.85);
+    }
+    case "mil": {
+      // 縁の粒：帯の上面を、粒の間で下げる（丸い粒が連なって見える）
+      const rb = Math.max(L * 0.5, 0.02);
+      const rho = Math.min(1, Math.hypot(y - L / 2, lx) / rb);
+      const bump = 1 - Math.sqrt(Math.max(0, 1 - rho * rho));
+      return bump * smooth((1 - Math.abs(lx) / Math.max(b, 0.02)) / 0.3);
+    }
+    case "blade": {
+      // 尖った葉：先が石座の側へ向く、輪郭の線と真ん中の葉脈
+      const m = SHAPE.archGapMm;
+      const q = (y - m) / Math.max(0.1, L - 2 * m);
+      if (q <= 0 || q >= 1) return 0;
+      const q0 = 0.62;
+      const hw = b * (q < q0 ? 1 - Math.pow(1 - q / q0, 1.7) : 1 - Math.pow((q - q0) / (1 - q0), 1.3));
+      const slope = Math.hypot(1, (b * 1.7) / (q0 * L));
+      const edge = Math.abs(Math.abs(lx) - hw) / slope;
+      const vein = q > 0.1 && q < 0.92 ? Math.abs(lx) : Infinity;
+      const line = stroke(Math.min(edge, vein), w * 0.8);
+      return Math.abs(lx) < hw ? Math.max(line, SHAPE.innerFloor * smooth((hw - Math.abs(lx)) / (w * 1.2))) : line;
     }
     case "leaf": {
       // 真ん中のつると、左右交互の葉（輪郭の線）
@@ -226,6 +266,7 @@ export function makeReliefField(p: ReliefParams, o: { a0: number; a1: number; v:
   const ratio = SHAPE.ratio[p.kind];
   // 升の長さのもと：列の幅 × 割合
   const L0 = samples.map((s) => {
+    if (p.across) return Math.max(0.2, ((p.across[1] - p.across[0]) * s.arc) / cols) * ratio;
     const U = Math.max(0.1, s.arc - Math.min(SHAPE.edgeMm, s.arc * 0.3));
     return Math.max(0.2, (2 * U) / columnsOf(p.kind, U, cols)) * ratio;
   });
@@ -249,7 +290,8 @@ export function makeReliefField(p: ReliefParams, o: { a0: number; a1: number; v:
     const j = Math.min(v.length - 2, Math.max(0, Math.floor(r)));
     return v[j] + (v[j + 1] - v[j]) * (r - j);
   };
-  const fade = SHAPE.fadeCells;
+  // 粒は升が短いので、消える長さを升の数で長めに
+  const fade = p.kind === "mil" ? 5 : SHAPE.fadeCells;
   // 模様が出ることがある幅（腕の縁からの余白の外）
   const vMax = 1 - (SHAPE.edgeMm * 0.3 - 0.02) / Math.max(arcMax, 0.2);
   return {
@@ -267,8 +309,23 @@ export function makeReliefField(p: ReliefParams, o: { a0: number; a1: number; v:
       const env = smooth(u / fade) * smooth((count - u) / fade);
       if (env <= 0) return 0;
       const arc = lerp(arcT, s);
-      const d = reliefPattern(p.kind, u, vAt(r) * arc, lerp(LT, s), arc, cols);
+      const d = reliefPattern(p.kind, u, vAt(r) * arc, lerp(LT, s), arc, cols, p.across);
       return d <= 0 ? 0 : p.depthMm * d * env;
+    },
+  };
+}
+
+/** いくつかの彫りを重ねる（深い方を取る） */
+export function combineFields(fields: readonly ReliefField[]): ReliefField {
+  if (fields.length === 1) return fields[0];
+  return {
+    a0: Math.min(...fields.map((f) => f.a0)),
+    a1: Math.max(...fields.map((f) => f.a1)),
+    rowMayCarve: (r) => fields.some((f) => f.rowMayCarve(r)),
+    depth(r, phi) {
+      let m = 0;
+      for (const f of fields) m = Math.max(m, f.depth(r, phi));
+      return m;
     },
   };
 }
