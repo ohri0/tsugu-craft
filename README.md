@@ -167,6 +167,7 @@ Claude Desktop に足す（設定の「開発者」→ 設定ファイル `claud
 | 名前 | 用途 | ライセンス |
 | --- | --- | --- |
 | [three.js](https://github.com/mrdoob/three.js)（`three`） | 3D の表示 | MIT |
+| [three-mesh-bvh](https://github.com/gkjohnson/three-mesh-bvh)（`three-mesh-bvh`） | 見せるの映り込みを「細かく」にしたとき、地金が地金を映す光線を形に当てる（選んだときだけ読み込む） | MIT |
 | [Anthropic TypeScript SDK](https://github.com/anthropics/anthropic-sdk-typescript)（`@anthropic-ai/sdk`） | Claude API を呼ぶ（`api/claude.ts`）。画面は型だけ使う | Apache-2.0 |
 | [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk)（`@modelcontextprotocol/sdk`） | MCP サーバー（`mcp/`） | MIT |
 | [Zod](https://github.com/colinhacks/zod)（`zod`） | MCP の道具の入力の形を決めて確かめる | MIT |

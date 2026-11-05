@@ -169,6 +169,8 @@ const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySele
 // ---- 3D ----
 const viewer = new Viewer($(".gl"));
 viewer.setDark(true);
+// 撮影（?rec）では、見せるの映り込みを「細かく」にしておく（アプリの中で選べるのと同じ描き方）
+if (new URLSearchParams(location.search).has("rec")) void viewer.setHighQuality(true);
 viewer.wireArm = !filming();
 
 // ---- 寸法の線と軸の印（3D を描き直すたびに合わせる） ----
@@ -607,11 +609,17 @@ let presentGroup = "stone";
 let presentPrevDisp: DisplayMode = "render";
 /** 図面を開いたまま見せるを押したか（閉じたら図面に戻す） */
 let presentPrevSheet = false;
+/** 見せるの映り込み（高画質。地金が地金を映す。力のある GPU だけ選べる） */
+function reflectGroup(): PresentGroup[] {
+  if (!viewer.canHighQuality) return [];
+  return [{ key: "reflect", label: "映り込み", options: [{ v: "normal", label: "ふつう" }, { v: "high", label: "細かく（少し重い）" }], on: viewer.highQualityOn ? "high" : "normal" }];
+}
 function presentGroups(): PresentGroup[] {
   if (kind === "band")
     return [
       { key: "section", label: "腕の断面", options: (Object.keys(SECTION_LABEL) as SectionKind[]).map((x) => ({ v: x, label: SECTION_LABEL[x] })), on: band.kind },
       { key: "metal", label: "地金", options: (["pt900", "k18yg", "k18pg", "k18wg", "sv925"] as Metal[]).map((m) => ({ v: m, label: METAL_LABEL[m] })), on: bandMetal },
+      ...reflectGroup(),
     ];
   if (!session?.built) return [];
   const s = session.state;
@@ -633,6 +641,7 @@ function presentGroups(): PresentGroup[] {
       ],
       on: s.layout === "trio" || s.layout === "row" ? s.layout : s.stones?.length ? "" : "solo",
     }] : []),
+    ...reflectGroup(),
   ];
 }
 /** 見せるの欄を描いて、押せるようにする */
@@ -688,6 +697,10 @@ function renderPresent() {
 }
 function presentPick(g: string, v: string) {
   presentGroup = g;
+  if (g === "reflect") {
+    void viewer.setHighQuality(v === "high");
+    return renderPresent();
+  }
   if (kind === "band") {
     if (g === "section") band = { ...band, kind: v as SectionKind };
     if (g === "metal") setBandMetal(v as Metal);

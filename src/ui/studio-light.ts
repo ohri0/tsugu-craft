@@ -38,11 +38,12 @@ export interface StudioSpec {
 
 /** 金属に映す光：上の大きな面、左右の弱い面、細い線と帯 */
 export const METAL_STUDIO: StudioSpec = {
-  base: [0.012, 0.05, 0.3],
+  base: [0.008, 0.035, 0.16],
   lights: [
-    { kind: "panel", az: -30, el: 70, w: 34, h: 22, soft: 7, power: 3.0, grad: -0.35 },
-    { kind: "panel", az: 95, el: 30, w: 16, h: 30, soft: 6, power: 1.3 },
-    { kind: "panel", az: -115, el: 30, w: 14, h: 30, soft: 6, power: 1.6 },
+    { kind: "panel", az: -30, el: 72, w: 26, h: 16, soft: 5, power: 3.2, grad: -0.5 },
+    { kind: "panel", az: 60, el: 62, w: 9, h: 20, soft: 3, power: 1.6, grad: 0.4 },
+    { kind: "panel", az: 95, el: 30, w: 12, h: 26, soft: 5, power: 1.0 },
+    { kind: "panel", az: -115, el: 30, w: 11, h: 26, soft: 5, power: 1.2 },
     { kind: "line", el: 34, w: 1.6, soft: 0.8, power: 7 },
     { kind: "line", el: 12, w: 1.0, soft: 0.5, power: 6, arc: [-90, 110, 15] },
     { kind: "line", el: -10, w: 1.0, soft: 0.5, power: 4 },

@@ -14,6 +14,7 @@ import type { Problem } from "../rules/checks";
 import { CadGrid, GRID_LOOK } from "./cad-grid";
 import { COLORED_IOR, COLORLESS_IOR, gemMaterial, type GemQuality, type GemShared } from "./gem";
 import { Glow } from "./glow";
+import type { MetalTrace } from "./metal-trace";
 import { GEM_STUDIO, METAL_STUDIO, studioLightScene } from "./studio-light";
 import { gridSpacing, labelStep, VIEW_DIR, ViewCameras, type FlatViewInfo, type ViewName } from "./view-camera";
 
@@ -98,6 +99,9 @@ export class Viewer {
   private gemShared: GemShared = { uEnv: { value: null }, uEnvRot: { value: new THREE.Matrix3() }, uMetal: { value: new THREE.Color(1, 1, 1) } };
   private glow = new Glow();
   private lightAz = 0;
+  /** 高画質：地金が地金を映す（見せるの間、選んだときだけ。力のある GPU だけ） */
+  private trace: MetalTrace | null = null;
+  private highQuality = false;
 
   constructor(private host: HTMLElement) {
     // 2 つの GPU がある端末では、強い方で描く
@@ -164,6 +168,40 @@ export class Viewer {
       requestAnimationFrame(loop);
     };
     loop();
+  }
+
+  /** 今の地金の形と材質（光線を当てる相手） */
+  private traceParts: THREE.BufferGeometry[] | null = null;
+  private traced: THREE.BufferGeometry[] | null = null;
+  private metalMat: THREE.MeshPhysicalMaterial | null = null;
+  private traceTint = new THREE.Color(1, 1, 1);
+  /** 高画質を選べる端末か（力のある GPU だけ） */
+  get canHighQuality(): boolean {
+    return this.quality.gem.samples === 4;
+  }
+  get highQualityOn(): boolean {
+    return this.highQuality;
+  }
+  /** 高画質（地金が地金を映す）を選ぶ。1 こまが 10 倍ほど重くなるので、見せるの間だけ効かせる */
+  async setHighQuality(on: boolean) {
+    this.highQuality = on && this.canHighQuality;
+    if (this.highQuality && !this.trace) {
+      const { MetalTrace } = await import("./metal-trace");
+      this.trace = new MetalTrace();
+    }
+    this.syncTrace();
+    this.dirty = true;
+  }
+  private syncTrace() {
+    const t = this.trace;
+    if (!t || !this.metalMat) return;
+    const on = this.highQuality && this.presenting && this.mode === "render" && !!this.traceParts;
+    if (on && this.traced !== this.traceParts) {
+      t.setGeometry(this.traceParts!);
+      this.traced = this.traceParts;
+    }
+    t.uniforms.uTint.value.copy(this.traceTint);
+    t.set(this.metalMat, on);
   }
 
   /** 光をカメラの向きに合わせる（指輪を回すと、光は止まったまま指輪だけが回るように見える） */
@@ -291,6 +329,7 @@ export class Viewer {
   private gridOn = false;
   setPresenting(on: boolean) {
     this.presenting = on;
+    this.syncTrace();
     if (on) {
       this.scene.background = null;
       this.renderer.setClearColor(0x000000, 1);
@@ -308,6 +347,7 @@ export class Viewer {
   }
   setDisplayMode(m: DisplayMode) {
     this.mode = m;
+    this.syncTrace();
     this.applyBackdrop();
     this.applyMode();
     this.updateShadow();
@@ -482,6 +522,8 @@ export class Viewer {
   private clear() {
     this.warnMat = null;
     this.live = null;
+    this.traceParts = null;
+    this.metalMat = null;
     for (const o of [...this.content.children]) {
       this.content.remove(o);
       o.traverse((m) => {
@@ -499,6 +541,10 @@ export class Viewer {
     const armMesh = new THREE.Mesh(metalGeometry(positions), mat);
     armMesh.userData.arm = true;
     this.content.add(armMesh);
+    this.metalMat = mat;
+    this.traceParts = [armMesh.geometry];
+    this.traceTint.copy(mat.color);
+    this.syncTrace();
     this.applyMode();
     this.frame(kind, new THREE.Vector3(0.95, -1.15, 0.55));
     this.updateShadow();
@@ -565,6 +611,10 @@ export class Viewer {
     setting.position.z = lift;
     shank.position.z = lift;
     this.content.add(setting, shank);
+    this.metalMat = metal;
+    this.traceParts = [settingGeo, shank.geometry];
+    this.traceTint.copy(metal.color);
+    this.syncTrace();
     // 守られていない角の赤い印（石の座標 → 指輪の座標。石を並べた指輪では、その石の場所へ）
     for (const p of problems) {
       // となりの石・石座の間が狭い所（指輪の座標の点）
