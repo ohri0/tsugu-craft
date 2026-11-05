@@ -6,7 +6,7 @@ import { PRESETS, presetOutline } from "./presets";
 import { autoOrientation, tAtOutlineIndex, type JoinStyle, type SolidQuality } from "../geometry/setting";
 import type { SectionCurve, SectionPoint, ShankSection } from "../geometry/shank";
 import type { StoneParams } from "../geometry/stone";
-import { FIXES, checkRing, cornerDistances, holdRatio, type FixId, type Problem } from "../rules/checks";
+import { FIXES, checkRing, cornerDistances, holdRatio, tensionNotes, tensionOpening, tensionOpeningText, type FixId, type Problem } from "../rules/checks";
 import { GUIDES, requiredHold, stoneSizeMm, type HeightOption, type MetalId, type StonePosition } from "../rules/guides";
 import { effectiveGuides, prongMinOverride, ruleForCheck, type Ledger, type Rule } from "../rules/ledger";
 import type {
@@ -46,7 +46,9 @@ export interface StoneSlot {
 
 /** 設計（Claude の道具と、人のつまみが同じものを動かす） */
 export interface RingState {
-  style: "prong" | "bezel";
+  style: "prong" | "bezel" | "tension";
+  /** テンションに切り替える前の腕（戻したときに元へ。テンションの間だけ） */
+  beforeTension?: Pick<RingState, "shankSection" | "shankWidthMm" | "shankThicknessMm" | "sectionPoints" | "sectionCurve">;
   /** 爪の本数（なければ石の形から自動） */
   prongCount?: number;
   /** 爪の太さ（mm、なければ標準） */
@@ -136,6 +138,7 @@ export function carryDesign(prev: RingState, base: RingState, same: { shape?: bo
     shankSection: prev.shankSection,
     sectionPoints: prev.sectionPoints && structuredClone(prev.sectionPoints),
     sectionCurve: prev.sectionCurve && structuredClone(prev.sectionCurve),
+    beforeTension: prev.beforeTension && structuredClone(prev.beforeTension),
   };
   if (prev.orientationSet) {
     out.orientation = prev.orientation;
@@ -231,7 +234,15 @@ const CHECK_NAME: Record<string, string> = {
   "metal-space": "となりの石座との間",
   "collar-wall": "石座の下の輪の板の厚み",
   "band-end": "腕の端と石座の下の輪",
+  "tension-gap": "腕の開き",
+  "tension-cut": "溝で腕が切れないか",
+  "tension-lip": "溝の高さが腕に収まるか",
+  "tension-girdle": "石の縁が溝に入るか",
+  "tension-pit": "くぼみの両わきの地金",
 };
+
+/** テンションで意味のある確かめ（爪の確かめや留まりの比べはない） */
+const TENSION_CHECKS = new Set(["finger-gap", "band-thin", "band-narrow", "band-spike", "tension-gap", "tension-cut", "tension-lip", "tension-girdle", "tension-pit"]);
 
 /** 直し方 → Claude が使える道具と入力の例 */
 function hintFor(id: FixId, s: RingState, std: number): FixOption["tool_hint"] {
@@ -247,6 +258,13 @@ function hintFor(id: FixId, s: RingState, std: number): FixOption["tool_hint"] {
       return { tool: "set_setting", input: { prong_count: Math.min(8, (s.prongCount ?? 4) + 1) } };
     case "bezel":
       return { tool: "set_setting", input: { style: "bezel" } };
+    case "prongInstead":
+      return { tool: "set_setting", input: { style: "prong" } };
+    case "thickerWire": {
+      // 今の線より 0.5 mm 太く（1 歩）
+      const next = Math.round(((s.shankThicknessMm ?? GUIDES.tension.wireMm) + WIRE_STEP_MM) * 100) / 100;
+      return { tool: "set_shank", input: { width_mm: next, thickness_mm: next } };
+    }
     case "vAtCorner":
       // 爪の本数を自動に戻すと、尖った角に 1 本ずつ置く（V 字の爪は画面では使わない）
       return { tool: "set_setting", input: { style: "prong", v_corners: false, prong_count: 0 } };
@@ -300,7 +318,7 @@ export class RingSession implements ToolHost<RingState> {
   build(why = ""): Built {
     // 向きを人が選んでいなければ、尖った角が腕に当たらない向きにする（爪は腕を避けるので、角が腕の上だと爪で守れない）
     const st = this.state;
-    if (!st.orientationSet && (st.join ?? "between") === "between" && !st.layout && !st.stones?.length) {
+    if (st.style !== "tension" && !st.orientationSet && (st.join ?? "between") === "between" && !st.layout && !st.stones?.length) {
       st.orientation = autoOrientation(this.stone, st.shankWidthMm ?? GUIDES.shank.widthMm);
     }
     const preview = this.solid && this.deferFinal && this.hadFinal;
@@ -363,12 +381,12 @@ export class RingSession implements ToolHost<RingState> {
       const st = slotStone(this.stone, slot);
       return effectiveGuides(ledger, stoneSizeMm(st.longMm, st.widthMm));
     });
-    const others: StonePlace[] = (s.stones ?? []).map((slot, i) => ({
+    const others: StonePlace[] = (s.style === "tension" ? [] : (s.stones ?? [])).map((slot, i) => ({
       stone: slotStone(this.stone, slot),
       orientation: s.orientation,
       atMm: slot.atMm,
       turnRad: trio ? trioTurn(slot) : undefined,
-      setting: { ...head, minProngMm: prongMinOverride(slotGuides[i]), style: slot.style ?? s.style, prongCount: slot.prongCount, prongDiameterMm: slot.prongMm },
+      setting: { ...head, minProngMm: prongMinOverride(slotGuides[i]), style: slot.style ?? (s.style === "tension" ? "prong" : s.style), prongCount: slot.prongCount, prongDiameterMm: slot.prongMm },
     }));
     const ringParams = {
       atMm: s.mainAtMm,
@@ -378,7 +396,8 @@ export class RingSession implements ToolHost<RingState> {
       setting: {
         style: s.style,
         height: s.height,
-        culetGapMm: s.culetGapMm,
+        // テンションには高さの選び方がない。石の先と指のすき間は、今の帳面の最低か、直し方で決めた値
+        culetGapMm: s.style === "tension" ? Math.max(s.culetGapMm ?? 0, guides.height.minFingerGapMm) : s.culetGapMm,
         prongCount: s.prongCount,
         prongDiameterMm: s.prongMm,
         minProngMm: prongMinOverride(guides),
@@ -439,6 +458,14 @@ export class RingSession implements ToolHost<RingState> {
       orientation: this.state.orientation,
       join: st.join,
       bezel_wall_mm: st.bezel ? Math.round(st.bezel.wallMm * 100) / 100 : null,
+      ...(st.tension
+        ? {
+            tension: {
+              gap_mm: Math.round(st.tension.gapMm * 100) / 100,
+              ends: st.tension.ends.map((e) => ({ kind: e.kind, depth_mm: Math.round(e.depthMm * 100) / 100 })),
+            },
+          }
+        : {}),
     };
   }
 
@@ -446,7 +473,7 @@ export class RingSession implements ToolHost<RingState> {
 
   setSetting(input: SetSettingInput): SetSettingResult {
     const s = this.state;
-    if (input.style) s.style = input.style;
+    if (input.style) this.switchStyle(input.style);
     if (input.v_corners !== undefined) {
       s.vCorners = input.v_corners;
       // V 字の爪は尖った角に立てる（手で決めた爪の位置は使わない）
@@ -472,6 +499,12 @@ export class RingSession implements ToolHost<RingState> {
       s.joinSet = true;
     }
     const b = this.build(input.reason);
+    if (b.ring.setting.style === "tension") {
+      return {
+        setting: this.settingState(),
+        hold: { value: 0, required: 0, where: s.position, note: "テンションは爪の留まりでは比べない。地金は加工硬化した硬い状態が条件。最後は職人が決める" },
+      };
+    }
     return {
       setting: this.settingState(),
       hold: {
@@ -481,6 +514,24 @@ export class RingSession implements ToolHost<RingState> {
         note: "標準の 4 本爪・標準の太さ・標準の高さ ＝ 1.0×。爪を片持ちの棒と見なした目安の比べで、強度計算の代わりではない",
       },
     };
+  }
+
+  /**
+   * 留め方を変える。テンションに入るときは、腕を職人の丸線に替え（前の腕は覚えておく）、石は一粒にする。
+   * テンションから出るときは、前の腕へ戻す
+   */
+  private switchStyle(style: RingState["style"]): void {
+    const s = this.state;
+    if (style === s.style) return;
+    if (style === "tension") {
+      s.beforeTension = { shankSection: s.shankSection, shankWidthMm: s.shankWidthMm, shankThicknessMm: s.shankThicknessMm, sectionPoints: s.sectionPoints, sectionCurve: s.sectionCurve };
+      Object.assign(s, { shankSection: "maru", shankWidthMm: GUIDES.tension.wireMm, shankThicknessMm: GUIDES.tension.wireMm, sectionPoints: undefined, sectionCurve: undefined, layout: undefined, stones: undefined, mainAtMm: undefined, spreadMm: undefined });
+    } else if (s.style === "tension") {
+      Object.assign(s, s.beforeTension ?? { shankSection: undefined, shankWidthMm: undefined, shankThicknessMm: undefined, sectionPoints: undefined, sectionCurve: undefined });
+      s.beforeTension = undefined;
+      s.culetGapMm = undefined;
+    }
+    s.style = style;
   }
 
   setShank(input: SetShankInput): SetShankResult {
@@ -651,6 +702,7 @@ export class RingSession implements ToolHost<RingState> {
     const b = this.built ?? this.build();
     const std = b.ring.setting.standardProngMm;
     const failed = new Set(b.problems.map((p) => p.check));
+    const opening = tensionOpening(b.ring.setting, b.ring.shank, this.guides());
     return {
       problems: b.problems.map((p) => ({
         check: CHECK_NAME[p.check] ?? p.check,
@@ -661,9 +713,9 @@ export class RingSession implements ToolHost<RingState> {
         options: p.options.map((o) => ({ action: o.label, appearance: o.effectOnLook, tool_hint: hintFor(o.id, this.state, std) })),
       })),
       passed: Object.entries(CHECK_NAME)
-        .filter(([k]) => !failed.has(k as Problem["check"]) && (b.ring.stones.length > 1 || !k.endsWith("-space")) && (b.ring.setting.collar !== null || (k !== "collar-wall" && k !== "band-end")))
+        .filter(([k]) => !failed.has(k as Problem["check"]) && (b.ring.setting.style === "tension" ? TENSION_CHECKS.has(k) : !k.startsWith("tension-") && (b.ring.stones.length > 1 || !k.endsWith("-space")) && (b.ring.setting.collar !== null || (k !== "collar-wall" && k !== "band-end"))))
         .map(([, v]) => v),
-      note: `数字は目安・最後は職人が決める。石の一番下と指のすき間は ${b.ring.culetGapMm.toFixed(2)} mm、地金は約 ${b.ring.metalWeightG.toFixed(1)} g。`,
+      note: `数字は目安・最後は職人が決める。石の一番下と指のすき間は ${b.ring.culetGapMm.toFixed(2)} mm、地金は約 ${b.ring.metalWeightG.toFixed(1)} g。${tensionNotes(b.ring.setting, b.ring.shank.thicknessMm, this.guides()).join(" ")}${opening ? ` ${tensionOpeningText(opening)}` : ""}`.trim(),
     };
   }
 
@@ -689,6 +741,8 @@ export const SPREAD_STEP_MM = 0.3;
 /** 下の輪を高くする直し方の 1 歩（mm）と、腕を薄くする 1 歩（mm）。形を作るための決まり */
 export const COLLAR_STEP_MM = 0.2;
 export const BAND_THIN_STEP_MM = 0.1;
+/** テンションの腕の線を太くする直し方の 1 歩（mm）。形を作るための決まり */
+export const WIRE_STEP_MM = 0.5;
 export const SMALLER_STEP = 0.85;
 
 /** 直し方の名前（画面のボタン） */

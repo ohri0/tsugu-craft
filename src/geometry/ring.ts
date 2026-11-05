@@ -10,6 +10,8 @@ import { BALL_CUT, stoneSeatCut, type SeatCut } from "./notch";
 import { buildEndSolder, buildSolder, collarInRing, railInRing, type Rail } from "./joint";
 import { concat } from "./mesh";
 import { joinMesh, nearestRails, type HeadJoin, type RailLine } from "./bridge";
+import { findCorners } from "./corners";
+import { buildTensionBand, type TensionOptions } from "./tension";
 
 /** 向き：along（縦）＝ 石の長辺が指に沿う。across（横）＝ 長辺が指を横切る */
 export type Orientation = "along" | "across";
@@ -35,6 +37,8 @@ export interface RingParams {
    * 輪どうしが joinMaxMm より離れていれば、つながない
    */
   joinHeads?: boolean;
+  /** テンションのくぼみ・溝の深さなど（なければ GUIDES.tension の値） */
+  tension?: TensionOptions;
 }
 
 /** つなぐ線を作る、輪の外の面どうしの間の上限（mm。形を作るための決まり：これより離れた石座は、短い線ではつながらない） */
@@ -59,6 +63,9 @@ export interface RingTransform {
   rotationZ: number;
   translateZ: number;
   tiltRad?: number;
+  /** 回したあとに、上から見てずらす量（mm）。テンションだけ（角を腕の幅の真ん中へ、開きを腕のいちばん上の真ん中へ）。なければ 0 */
+  translateX?: number;
+  translateY?: number;
 }
 
 /** 腕の上に置いた石 1 つ（石を並べた指輪では石の数だけ。0 番が真ん中の石 ＝ RingDesign の stone・setting） */
@@ -117,6 +124,7 @@ export interface RingDesign {
 }
 
 export function buildRing(p: RingParams): RingDesign {
+  if (p.setting.style === "tension") return tensionRing(p);
   if ((p.others?.length ?? 0) > 0 || (p.atMm ?? 0) !== 0) return buildMulti(p);
   const orientation = p.orientation ?? "along";
   const plain = buildShank(p.shank);
@@ -245,6 +253,85 @@ function betweenRing(p: RingParams, orientation: Orientation, setting: SettingRe
 }
 
 /**
+ * テンション（挟む）の指輪（職人 石川の言葉 2026-11-05）：石座はなく、開いた腕の両はしに石の形を彫って挟む。
+ * 石は一粒だけ。石座の形は空で、石の高さの数だけ持つ（確かめと画面が同じ入れ物を読めるように）
+ */
+function tensionRing(p: RingParams): RingDesign {
+  const { shank, info } = buildTensionBand(p.shank, p.stone, { culetGapMm: p.setting.culetGapMm, ...p.tension });
+  const stone = buildStone(p.stone);
+  const h = stone.heights;
+  const transform: RingTransform = { rotationZ: info.rotationZ, translateZ: info.girdleZ, translateX: info.translateX, translateY: info.translateY };
+  const ringStone = applyTransform(stone.positions, transform);
+  const fingerZ = shank.innerRadiusMm - info.girdleZ;
+  const culetGapMm = h.culetZ - fingerZ;
+  const empty = new Float32Array(0);
+  const setting: SettingResult = {
+    style: "tension",
+    positions: empty,
+    prongs: [],
+    prongsOnArm: 0,
+    collarBlocked: false,
+    rings: [],
+    bezel: null,
+    heights: {
+      ...h,
+      fingerZ,
+      shankTopZ: fingerZ + shank.thicknessMm,
+      baseZ: fingerZ,
+      culetGapMm,
+      tipZ: null,
+      upperRingZ: null,
+      lowerRingZ: null,
+      topZ: h.tableZ,
+      heightAboveFingerMm: h.tableZ - fingerZ,
+    },
+    corners: findCorners(p.stone.outlineMm),
+    minProngMm: 0,
+    standardProngMm: 0,
+    standardLengthMm: 0,
+    lowerRail: null,
+    upperRail: null,
+    join: "on",
+    collar: null,
+    tension: info,
+  };
+  const seatCut = stoneSeatCut(p.stone, stone.heights, transform, GUIDES.bezel.clearanceMm);
+  const metal = shank.metal;
+  return {
+    params: p,
+    orientation: "along",
+    stone,
+    setting,
+    shank,
+    transform,
+    ringPositions: { stone: ringStone, setting: empty, shank: shank.positions },
+    solder: null,
+    culetGapMm,
+    notchDepthMm: 0,
+    seatCut,
+    metalWeightG: shank.weightG,
+    metal,
+    stones: [
+      {
+        params: p.stone,
+        orientation: "along",
+        stone,
+        setting,
+        transform,
+        atMm: 0,
+        phi: 0,
+        seatCut,
+        rail: null,
+        culetGapMm,
+        ranges: { stone: { start: 0, count: ringStone.length / 9 }, setting: { start: 0, count: 0 } },
+        solder: null,
+      },
+    ],
+    joins: [],
+  };
+}
+
+/**
  * 石を並べた指輪：石ごとに、一粒と同じ石座（buildSetting）を作り、その石の座標（石が腕の真上）で高さを決め、
  * 腕に沿った場所へ、指の軸のまわりに回して置く（石座は腕の丸みに沿って、腕に直角に立つ）。
  * 腕は石ごとに、その石の真下をザグり、下の輪の座を作る（buildShank の seats）。ロウの丸みも石ごと。
@@ -359,8 +446,8 @@ function buildMulti(p: RingParams): RingDesign {
 export function placePoint(t: RingTransform, x: number, y: number, z: number): [number, number, number] {
   const c = Math.cos(t.rotationZ);
   const s = Math.sin(t.rotationZ);
-  const px = x * c - y * s;
-  const py = x * s + y * c;
+  const px = x * c - y * s + (t.translateX ?? 0);
+  const py = x * s + y * c + (t.translateY ?? 0);
   const pz = z + t.translateZ;
   const a = t.tiltRad ?? 0;
   if (a === 0) return [px, py, pz];
@@ -374,6 +461,7 @@ export function placePoint(t: RingTransform, x: number, y: number, z: number): [
  * 肩（石座の足を受ける広い所）は、今の石座から buildRing と同じように決める。ザグりも同じ球のビットで削り、石座の座も作る（動かしている間は、削る所の格子を粗くして速くする。ロウの丸みは指を離したときに作る）
  */
 export function rebuildShank(ring: RingDesign, shank: ShankParams): ShankResult {
+  if (ring.setting.style === "tension") return buildTensionBand(shank, ring.params.stone, { culetGapMm: ring.params.setting.culetGapMm, ...ring.params.tension }).shank;
   const collar = collarInRing(ring.setting, ring.transform);
   if (collar) return buildShank({ ...shank, head: undefined }, undefined, { gap: { outline: collar.outer } });
   if (ring.stones.length > 1 || ring.stones[0]?.phi) {
@@ -414,13 +502,15 @@ export function applyTransform(positions: Float32Array, t: RingTransform): Float
   const a = t.tiltRad ?? 0;
   const ca = Math.cos(a);
   const sa = Math.sin(a);
+  const dx = t.translateX ?? 0;
+  const dy = t.translateY ?? 0;
   const out = new Float32Array(positions.length);
   for (let i = 0; i < positions.length; i += 3) {
     const x = positions[i];
     const y = positions[i + 1];
-    const py = x * s + y * c;
+    const py = x * s + y * c + dy;
     const pz = positions[i + 2] + t.translateZ;
-    out[i] = x * c - y * s;
+    out[i] = x * c - y * s + dx;
     out[i + 1] = a === 0 ? py : py * ca + pz * sa;
     out[i + 2] = a === 0 ? pz : -py * sa + pz * ca;
   }

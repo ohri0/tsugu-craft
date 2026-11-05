@@ -9,10 +9,10 @@ import { BALL_CUT, ballCut, type BallCut, type SeatCut } from "./notch";
 import { railSeatZ, type Rail } from "./joint";
 import { adaptiveSample, sampleCurve, uniformKnots, validKnots } from "./bspline";
 
-/** 腕の断面：甲丸・平打ち・半甲丸・角、と手で描いた形 */
-export type ShankSection = "kouman" | "hirauchi" | "hangouman" | "kaku" | "free";
+/** 腕の断面：甲丸・平打ち・半甲丸・角、丸線（内側も丸い）、と手で描いた形 */
+export type ShankSection = "kouman" | "hirauchi" | "hangouman" | "kaku" | "maru" | "free";
 export const SHANK_SECTIONS = ["kouman", "hirauchi", "hangouman", "kaku"] as const;
-export const SHANK_SECTION_LABEL: Record<ShankSection, string> = { kouman: "甲丸", hirauchi: "平打ち", hangouman: "半甲丸", kaku: "角", free: "手で描く" };
+export const SHANK_SECTION_LABEL: Record<ShankSection, string> = { kouman: "甲丸", hirauchi: "平打ち", hangouman: "半甲丸", kaku: "角", maru: "丸線", free: "手で描く" };
 
 /** 断面の点（幅の位置 x：真ん中 0〜端 1、高さ y：内側 0〜いちばん厚い所 1） */
 export interface SectionPoint {
@@ -140,7 +140,7 @@ export const SECTION_SHAPE = {
     hangouman: [[0, 1], [0.5, 1], [0.95, 0.8], [1, 0.5], [1, 0]],
     hirauchi: [[0, 1], [0.4, 1], [0.72, 1], [1, 0.8], [1, 0.4], [1, 0]],
     kaku: [[0, 1], [0.5, 1], [0.86, 1], [1, 1], [1, 0.86], [1, 0.4], [1, 0]],
-  } as Record<Exclude<ShankSection, "free">, [number, number][]>,
+  } as Record<Exclude<ShankSection, "free" | "maru">, [number, number][]>,
   turnDeg: 3,
   stepLen: 0.25,
 };
@@ -203,13 +203,27 @@ export function normalizeCurve(c: SectionCurve): SectionCurve {
  * なめらかな線を、曲がる所ほど細かく取る。どの断面も、幅の端が ±1、いちばん高い所が 1
  */
 export function sectionOutline(section: ShankSection = "kouman", points?: readonly SectionPoint[], curve?: SectionCurve): [number, number][] {
+  if (section === "maru") return roundWireOutline();
   const c = section === "free" ? (curve?.points.length ? normalizeCurve(curve) : curveFromHalf(points?.length ? points : sectionControlPoints("kouman"))) : presetCurve(section);
   return adaptiveSample(c.points, curveKnots(c), SECTION_SHAPE.turnDeg, SECTION_SHAPE.stepLen).map((p) => [p.x, Math.max(0, p.y)] as [number, number]);
 }
 
-/** 決まった断面の片側の制御点（真ん中のいちばん上 → 端の内側） */
+/** 丸線の断面を 1 周する点の数（形を作るための決まり。2 度ごと） */
+const ROUND_WIRE_POINTS = 180;
+
+/** 丸線の断面（ξ：−1〜1、η：0〜1）：いちばん下（指の側）から右 → 上 → 左 → いちばん下。最初と最後の点は同じ所（内側の平らな所がない） */
+function roundWireOutline(): [number, number][] {
+  const out: [number, number][] = [];
+  for (let i = 0; i <= ROUND_WIRE_POINTS; i++) {
+    const a = -Math.PI / 2 + (i / ROUND_WIRE_POINTS) * Math.PI * 2;
+    out.push(i === 0 || i === ROUND_WIRE_POINTS ? [0, 0] : [Math.cos(a), 0.5 + 0.5 * Math.sin(a)]);
+  }
+  return out;
+}
+
+/** 決まった断面の片側の制御点（真ん中のいちばん上 → 端の内側）。丸線は線で決めないので、手で描き始めるときは甲丸から */
 export function sectionControlPoints(section: ShankSection): SectionPoint[] {
-  const key = section === "free" ? "kouman" : section;
+  const key = section === "free" || section === "maru" ? "kouman" : section;
   return SECTION_SHAPE.presets[key].map(([x, y]) => ({ x, y }));
 }
 
@@ -239,8 +253,8 @@ export function cleanPoints(points: readonly SectionPoint[]): SectionPoint[] {
 export function buildShank(p: ShankParams, cut?: SeatCut, opts: { notchStepMm?: number; rail?: Rail | null; seats?: readonly ShankSeat[]; gap?: BandGap | null } = {}): ShankResult {
   const section = p.section ?? "kouman";
   const w = p.widthMm ?? GUIDES.shank.widthMm;
-  // 角の断面は、厚みを決めていなければ幅と同じ（四角）
-  const t = p.thicknessMm ?? (section === "kaku" ? w : GUIDES.shank.thicknessMm);
+  // 角の断面と丸線は、厚みを決めていなければ幅と同じ（四角・まん丸）
+  const t = p.thicknessMm ?? (section === "kaku" || section === "maru" ? w : GUIDES.shank.thicknessMm);
   const metal = p.metal ?? "k18y";
   const dIn = innerDiameterMm(p.gou);
   const r = dIn / 2;
@@ -270,7 +284,9 @@ export function buildShank(p: ShankParams, cut?: SeatCut, opts: { notchStepMm?: 
   const section2: [number, number][] = [];
   const xR = outer[0][0];
   const xL = outer[outer.length - 1][0];
-  for (let i = 0; i < FLAT; i++) section2.push([xL + ((xR - xL) * i) / FLAT, r]);
+  // 内側の平らな所（丸線にはない）
+  const flat = xR - xL > 1e-9 ? FLAT : 0;
+  for (let i = 0; i < flat; i++) section2.push([xL + ((xR - xL) * i) / flat, r]);
   for (const [xi, eta] of outerRows.slice(0, -1)) section2.push([xi, r + t * eta]);
   // 断面の点ごとに、指のまわりを 1 周する輪
   const rings: V3[][] = section2.map(([xi, rho], i) =>
@@ -279,7 +295,7 @@ export function buildShank(p: ShankParams, cut?: SeatCut, opts: { notchStepMm?: 
       let y = rho * Math.sin(phi);
       let z = rho * Math.cos(phi);
       // 外側の点だけ削る。指の側（内径の円）より下へは下げない
-      if (i >= FLAT)
+      if (i >= flat)
         for (const wk of active) {
           // その石の座標へ（x 軸のまわりに −φ 回す）。石の真上の側（cos > 0）だけ
           const yl = y * wk.c - z * wk.s;
@@ -365,7 +381,8 @@ function openBand(
   const sec: [number, number][] = [];
   const xR = outer[0][0];
   const xL = outer[outer.length - 1][0];
-  for (let i = 0; i < FLAT; i++) sec.push([xL + ((xR - xL) * i) / FLAT, r]);
+  const flat = xR - xL > 1e-9 ? FLAT : 0;
+  for (let i = 0; i < flat; i++) sec.push([xL + ((xR - xL) * i) / flat, r]);
   for (const [xi, eta] of outer.slice(0, -1)) sec.push([xi, r + t * eta]);
   // 断面の点ごとの、端の角度（＋の側の端 φS、−の側の端 φE ＝ 2π ＋ asin(…)）
   const ends = sec.map(([xi, rho]) => {

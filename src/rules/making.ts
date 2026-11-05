@@ -20,6 +20,10 @@ export const MAKING_STEPS = {
   attach: "石座を腕に付ける",
   prong: "座を彫って、石を留める",
   bezel: "石を入れて、覆輪を倒す",
+  harden: "叩いて硬くする",
+  tension_cut: "溝とくぼみを切る",
+  tension_close: "開きを詰める",
+  tension_set: "石を入れる",
   finish: "仕上げ",
 } as const;
 

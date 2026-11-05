@@ -6,7 +6,8 @@ import type { ShankResult } from "../geometry/shank";
 import { findThinSpots, type ThinSpot } from "../geometry/section-thin";
 import { stoneSpaces } from "../geometry/multi";
 import { tipMeasures, type SettingResult } from "../geometry/setting";
-import { GUIDE_NOTE, GUIDES, type Guides, type StonePosition } from "./guides";
+import type { TensionEnd } from "../geometry/tension";
+import { GUIDE_NOTE, GUIDES, type Guides, type MetalId, type StonePosition } from "./guides";
 import { prongMinOverride } from "./ledger";
 
 /** 画面に必ず添える、留まりの注意 */
@@ -44,6 +45,8 @@ export const FIXES = {
   thickerCollar: { label: "下の輪の板を厚くする", effectOnLook: "石座の下の輪が少し太く見える" },
   tallerCollar: { label: "下の輪を高くする", effectOnLook: "石座の下の輪が少し高くなり、腕の端がまるごと輪に当たる" },
   thinnerBand: { label: "腕を薄くする", effectOnLook: "腕が少し細く見え、少し軽くなる" },
+  thickerWire: { label: "腕の線を太くする", effectOnLook: "腕が太く、少し重く見える" },
+  prongInstead: { label: "爪留めにする", effectOnLook: "石のまわりに爪が立ち、腕の両はしは閉じて見える" },
 } as const satisfies Record<string, Omit<FixOption, "id">>;
 
 function fix(...ids: FixId[]): FixOption[] {
@@ -65,7 +68,12 @@ export type CheckId =
   | "stone-space"
   | "metal-space"
   | "collar-wall"
-  | "band-end";
+  | "band-end"
+  | "tension-gap"
+  | "tension-cut"
+  | "tension-lip"
+  | "tension-girdle"
+  | "tension-pit";
 
 /** 問題の場所（画面で赤くする所） */
 export type CheckTarget =
@@ -138,6 +146,8 @@ export function cornerSetCount(s: Pick<SettingResult, "prongs" | "corners">, g: 
 
 export function holdRatio(s: SettingResult, g: Guides = GUIDES): number {
   if (s.style === "bezel") return g.hold.bezel;
+  // テンションは爪の比べでは測れない（ばねと地金の硬さが主役。tensionNotes が注意を出す）
+  if (s.style === "tension") return 0;
   const n = cornerSetCount(s, g) ?? g.hold.standardProngCount;
   return s.prongs.reduce(
     (sum, p) => sum + (p.legs / n) * (p.diameterMm / s.standardProngMm) ** 3 * (s.standardLengthMm / p.lengthMm),
@@ -173,7 +183,7 @@ export function cornerDistances(s: SettingResult): number[] {
 
 /** 指輪をまるごと確かめる。問題がなければ空の一覧 */
 export function checkRing(ring: RingDesign, opts: CheckOptions = {}): Problem[] {
-  const out = [...checkSetting(ring.setting, ring.culetGapMm, opts), ...checkShank(ring.shank, opts), ...checkBandEnds(ring, opts)];
+  const out = [...checkSetting(ring.setting, ring.culetGapMm, opts), ...checkShank(ring.shank, opts), ...checkBandEnds(ring, opts), ...checkTension(ring.setting)];
   // 爪の間が空きすぎの所に、赤い印を出すための縁の点（石の座標）
   const gapPoints = (list: Problem[], outline: readonly Point[]) => {
     for (const p of list) {
@@ -246,6 +256,192 @@ export function checkBandEnds(ring: Pick<RingDesign, "setting" | "transform">, o
     });
   });
   return out;
+}
+
+const endName = (e: TensionEnd) => (e.kind === "pit" ? "角のくぼみ" : "辺の溝");
+const endPoint = (e: TensionEnd, z: number): [number, number, number] => [0, e.planeY, z];
+
+/**
+ * テンション（挟む）：計算で確かな物だけ「作れない」にする。地金が残らない・石の縁が溝に入らない、という形の話。
+ * ばねの強さは形から分からないので合否にしない（tensionNotes が注意を出す）
+ */
+export function checkTension(s: Pick<SettingResult, "tension">): Problem[] {
+  const info = s.tension;
+  if (!info) return [];
+  const out: Problem[] = [];
+  const opts = fix("thickerWire", "prongInstead");
+  if (info.gapMm <= GEOMETRY_MIN_GAP_MM + 1e-9) {
+    out.push({
+      id: "tension-gap",
+      check: "tension-gap",
+      where: "腕の開き",
+      current: "開きが作れない",
+      required: "石の高さが、くぼみと溝の深さより大きい",
+      currentValue: info.gapMm,
+      requiredValue: GEOMETRY_MIN_GAP_MM,
+      reason: "石が小さく、両はしの彫りの深さだけで石の高さを超える",
+      options: fix("prongInstead", "bezel"),
+      target: { kind: "setting" },
+    });
+  }
+  for (const e of info.ends) {
+    const name = endName(e);
+    const height = e.wireTopZ - e.wireBottomZ;
+    const point = endPoint(e, (e.openTopZ + e.openBottomZ) / 2);
+    if (e.openingMm >= height - 1e-9) {
+      out.push({
+        id: `tension-cut:${e.side}`,
+        check: "tension-cut",
+        where: `${name}と腕の太さ`,
+        current: `彫り口 ${mm(e.openingMm)}・腕の高さ ${mm(height)}`,
+        required: "彫り口より腕が太い",
+        currentValue: height,
+        requiredValue: e.openingMm,
+        reason: "腕が細く、彫ると腕の端が上下に分かれて切れる",
+        options: opts,
+        target: { kind: "band-end", point },
+      });
+      continue;
+    }
+    if (e.lipTopMm <= 1e-9 || e.lipBottomMm <= 1e-9) {
+      const top = e.lipTopMm <= e.lipBottomMm;
+      const lip = top ? e.lipTopMm : e.lipBottomMm;
+      out.push({
+        id: `tension-lip:${e.side}`,
+        check: "tension-lip",
+        where: `${name}の${top ? "上" : "下"}`,
+        current: `彫り口が腕の${top ? "上" : "下"}から ${mm(Math.abs(lip))} はみ出す`,
+        required: "彫り口の上と下に地金が残る",
+        currentValue: lip,
+        requiredValue: 0,
+        reason: `${name}の高さが腕に収まらず、${top ? "石を上から押さえる" : "石を下から受ける"}地金が残らない`,
+        options: opts,
+        target: { kind: "band-end", point: endPoint(e, top ? e.wireTopZ : e.wireBottomZ) },
+      });
+    }
+    if (!e.girdleInWire || e.contactWidthMm <= 1e-9) {
+      out.push({
+        id: `tension-girdle:${e.side}`,
+        check: "tension-girdle",
+        where: `石の縁と${name}`,
+        current: "石の縁が腕の高さの外にある",
+        required: "石の縁が腕の高さの中",
+        currentValue: e.contactWidthMm,
+        requiredValue: 0,
+        reason: "石の縁（ガードル）が腕の端に当たらないと、挟めない",
+        options: opts,
+        target: { kind: "band-end", point },
+      });
+    }
+    if (e.kind === "pit" && e.sideWallMm <= 1e-9) {
+      out.push({
+        id: `tension-pit:${e.side}`,
+        check: "tension-pit",
+        where: "角のくぼみの両わき",
+        current: `くぼみの幅 ${mm(e.openWidthMm)}・腕の幅 ${mm(e.contactWidthMm)}`,
+        required: "くぼみの両わきに地金が残る",
+        currentValue: e.sideWallMm,
+        requiredValue: 0,
+        reason: "くぼみが腕の幅より広く、くぼみの両わきに地金が残らない。角が止まらず、石が横にずれる",
+        options: opts,
+        target: { kind: "band-end", point },
+      });
+    }
+  }
+  return out;
+}
+
+/** 形を作るために止める開きの最低（geometry/tension.ts と同じ。これ以下は作れない） */
+const GEOMETRY_MIN_GAP_MM = 0.1;
+
+/**
+ * テンションの注意（合否にしない言葉）。職人の言葉と資料のものだけ。
+ * 数字はすべて GUIDES.tension。「仮」の数字には仮と書く
+ */
+export function tensionNotes(s: Pick<SettingResult, "tension" | "corners">, wireMm: number, g: Guides = GUIDES): string[] {
+  const info = s.tension;
+  if (!info) return [];
+  const t = g.tension;
+  const notes = [
+    `地金は加工硬化した硬い状態が条件です。硬い状態でないと、石が取れます（職人の言葉）。K18・Pt900・シルバーでもできなくはありません。ばねの強さは形からは確かめられません。${GUIDE_NOTE}`,
+    "欠けやすい石（職人の言葉：パライバなど）は、挟む力で欠けることがあります。できないと決まったわけではありません。職人に確かめてください",
+    "あとで号を変えにくい留め方です。先に号を決めます（資料の声）",
+  ];
+  if (info.mode === "edge-edge") notes.push("この石には、くぼみを掘る角が 1 つに決まりません。両はしを溝にしました。角のくぼみがないので、横へのずれを止める物は溝だけです");
+  if (info.mode === "corner-edge" && info.cornerCount === 1) notes.push("尖った形の石は、資料でも意見が分かれます（販売の文だけ）。挟む所は職人が決めます");
+  if (info.mode === "edge-edge" && info.cornerCount === 2) notes.push("尖った形の石は、資料でも意見が分かれます（販売の文だけ）。挟む所は職人が決めます");
+  if (info.liftMm > 0) notes.push(`石の先が指に当たらないよう、腕の両はしを指の丸みから ${mm(info.liftMm)} 持ち上げました（縁を腕の太さの中ほどにするため）`);
+  const thin = info.ends.flatMap((e) => {
+    const list: string[] = [];
+    if (e.lipTopMm > 0 && e.lipTopMm < t.thinLipMm) list.push(`${endName(e)}の上 ${mm(e.lipTopMm)}`);
+    if (e.lipBottomMm > 0 && e.lipBottomMm < t.thinLipMm) list.push(`${endName(e)}の下 ${mm(e.lipBottomMm)}`);
+    if (e.kind === "pit" && e.sideWallMm > 0 && e.sideWallMm < t.thinLipMm) list.push(`${endName(e)}の両わき 約 ${mm(e.sideWallMm)}`);
+    return list;
+  });
+  if (thin.length) notes.push(`彫った所に残る地金が薄い所：${thin.join("、")}（${mm(t.thinLipMm)} より薄い。仮の目安）。職人が見て決めます`);
+  if (info.ends.some((e) => e.depthMm < t.weakGrooveMm + 1e-9)) notes.push(`溝が ${mm(t.weakGrooveMm)} くらいでは抜ける、と職人は言います`);
+  if (wireMm < t.minWireMm) notes.push(`腕の太さ ${mm(wireMm)}：${mm(t.minWireMm)} より細いと弱い、という職人の声が資料にあります（掲示板の 1 人の声）`);
+  return notes;
+}
+
+/**
+ * 開いた輪を、まっすぐ押し開くとき、地金が戻れる範囲（耐力を超えない範囲）で開ける量（mm）。
+ * 切れ目のある輪の曲げ：開く量 δ ＝ 3π F R³ ÷（E I）、いちばん大きい曲げ（開きの反対側）M ＝ 2 F R、σ ＝ M（d ÷ 2）÷ I。
+ * F と I を消すと δ ≒ 3π R² σ ÷（E d）。I が消えるので、断面の形によらず、高さ d で決まる。
+ * 前提：細い輪の近似（R が d より十分大きい。太い輪では内側の曲げが強くなるので、実際は少なめになりやすい）、まっすぐ押し開く（ねじらない）、端の溝は無視。
+ * radiusMm：中心の半径 R。wireMm：線の高さ d。youngGpa：ヤング率 E。proofMpa：耐力 σ
+ */
+export function elasticOpeningMm(radiusMm: number, wireMm: number, youngGpa: number, proofMpa: number): number {
+  return (3 * Math.PI * radiusMm * radiusMm * proofMpa) / (youngGpa * 1000 * wireMm);
+}
+
+export type HardState = "hardened" | "annealed";
+export const HARD_STATE_LABEL: Record<HardState, string> = { hardened: "加工硬化", annealed: "焼きなまし" };
+
+export interface TensionOpening {
+  metal: MetalId;
+  metalName: string;
+  /** 中心の半径 R ＝ 指の半径 ＋ 太さ ÷ 2（mm）と、線の太さ d（mm） */
+  radiusMm: number;
+  wireMm: number;
+  young: { gpa: number; provisional: boolean; basis: string };
+  /** 石を入れるのに要る量（両はしの深さの和。mm）と、その内わけの言葉 */
+  needMm: number;
+  needText: string;
+  states: { state: HardState; label: string; proofMpa: number; provisional: boolean; basis: string; openMm: number; enough: boolean }[];
+  /** 硬い状態で足りるか（この留め方の条件は硬い状態） */
+  enough: boolean;
+}
+
+/** 式の前提（画面の注。elasticOpeningMm のコメントと同じ） */
+export const TENSION_OPENING_NOTE = "開ける量 ≒ 3π × R² × σ ÷（E × d）。細い輪の近似（太い輪では実際は少なめになりやすい）・まっすぐ押し開く・端の溝は無視、という前提の計算です";
+/** 足りないときの言葉 */
+export const TENSION_SHORT_TEXT = "まっすぐ開くだけでは入らない見込み。斜めに入れる・熱で広げるなど、職人が決める";
+
+/**
+ * 参考の計算：地金が戻れる範囲で開ける量と、石を入れるのに要る量を並べる。合否にはしない（確かめの問題には入れない）。
+ * 石にかかる力は出さない（信じられる出典がない）。テンションでなければ null
+ */
+export function tensionOpening(s: Pick<SettingResult, "tension">, sh: Pick<ShankResult, "innerRadiusMm" | "thicknessMm" | "metal">, g: Guides = GUIDES): TensionOpening | null {
+  const info = s.tension;
+  if (!info) return null;
+  const m = g.tension.spring.metals[sh.metal];
+  const radiusMm = sh.innerRadiusMm + sh.thicknessMm / 2;
+  const wireMm = sh.thicknessMm;
+  const needMm = info.ends[0].depthMm + info.ends[1].depthMm;
+  const needText = `${info.ends.map((e) => `${endName(e)} ${e.depthMm.toFixed(2)} mm`).join(" ＋ ")} ＝ ${needMm.toFixed(2)} mm`;
+  const states = (["hardened", "annealed"] as const).map((state) => {
+    const v = m[state];
+    const openMm = elasticOpeningMm(radiusMm, wireMm, m.young.gpa, v.proofMpa);
+    return { state, label: HARD_STATE_LABEL[state], proofMpa: v.proofMpa, provisional: v.provisional, basis: v.basis, openMm, enough: openMm >= needMm };
+  });
+  return { metal: sh.metal, metalName: m.name, radiusMm, wireMm, young: m.young, needMm, needText, states, enough: states[0].enough };
+}
+
+/** 参考の計算を、1 つの文に（Claude の確かめの注に添える） */
+export function tensionOpeningText(o: TensionOpening): string {
+  const open = o.states.map((x) => `${x.label} 約 ${x.openMm.toFixed(2)} mm${x.provisional || o.young.provisional ? "（仮）" : ""}`).join("、");
+  return `参考の計算（合否にしない）：${o.metalName} φ${o.wireMm.toFixed(1)} mm で、地金が戻れる範囲で開ける量は ${open}。石を入れるのに要る量は ${o.needText}。${o.enough ? "" : `${TENSION_SHORT_TEXT}。`}${TENSION_OPENING_NOTE}。${GUIDE_NOTE}`;
 }
 
 /** となりの石・石座の間（石を並べた指輪だけ）。数字は GUIDES.multi（仮の目安） */
@@ -468,6 +664,9 @@ export function checkSetting(s: SettingResult, culetGapMm: number = s.heights.cu
       }
     });
   }
+
+  // テンションは、爪の確かめも留まりの比べもない。形の確かめは checkTension（指とのすき間は上で確かめた）
+  if (s.style === "tension") return out;
 
   // 石の留まり
   const position = opts.position ?? "top";

@@ -163,8 +163,100 @@ export function betweenMeasures(r: RingDesign) {
   };
 }
 
+/**
+ * テンション（挟む）の作り方（職人 石川の言葉 2026-11-05 ＋ 資料 docs/RESEARCH-tension.md の 5 節）。
+ * 数字は形から計算した物と職人の値だけ。硬さ・詰める量・開ける量は、資料にもよい数字がないので「職人が決める」
+ */
+function tensionSteps(o: HowToInput, method: Method): Step[] {
+  const r = o.ring;
+  const sh = r.shank;
+  const info = r.setting.tension!;
+  const line = `${SHANK_SECTION_LABEL[sh.section]} ${sh.section === "maru" ? `ø ${mm(sh.widthMm)}` : `${mm(sh.widthMm)} × ${mm(sh.thicknessMm)}`}`;
+  const head: Spec[] = [
+    { label: "石", value: `${o.longMm.toFixed(2)} × ${o.widthMm.toFixed(2)} × ${o.depthMm.toFixed(2)} mm` },
+    { label: "号", value: `${sh.gou} 号（内径 ${mm(sh.innerDiameterMm)}）` },
+  ];
+  const endSpecs: Spec[] = info.ends.map((e) =>
+    e.kind === "pit"
+      ? { label: "角のくぼみ", value: `石の角の先を ${mm(e.depthMm, 2)} 入れる（底まで ${mm(e.floorMm, 2)}。職人の値）` }
+      : { label: "辺の溝", value: `石の辺を ${mm(e.depthMm, 2)} 入れる（底まで ${mm(e.floorMm, 2)}。${e.straight ? "腕の幅いっぱいに抜けてよい。" : "石の丸みに沿う。"}職人の値）` },
+  );
+  const gap: Spec = { label: "図面の開き", value: `${mm(info.gapMm, 2)}（石が入る寸法。腕の周りの向きの石の長さ ${mm(info.spanMm, 2)} − 両はしの深さ）` };
+  const close: Step = {
+    id: "tension_close",
+    title: "開きを詰める",
+    text: "地金を硬くしながら、腕の開きを詰める。どこまで詰めるか（プリロード）は図面に入れない。職人が決める。",
+    specs: [gap, { label: "詰める量", value: "職人が決める（資料によい数字がない）" }],
+    watch: "硬くなったあとに曲げすぎると割れやすい（資料の声）。",
+  };
+  const set: Step = {
+    id: "tension_set",
+    title: "石を入れる",
+    text: "腕を開いて、石の角をくぼみへ、辺を溝へ入れ、腕を戻す。開け方（心金・くさびなど）と開ける量は職人が決める。",
+    specs: [...endSpecs, { label: "石と指のすき間", value: mm(r.culetGapMm, 2) }],
+    watch: "火を使わない（熱で地金がやわらかくなると、ばねが消える。資料の声）。欠けやすい石は、職人が向くかを確かめる。",
+  };
+  const finish = finishStep([{ label: "地金", value: `${o.metalLabel} ・ 約 ${r.metalWeightG.toFixed(1)} g` }], "ヤスリの跡を消し、全体を磨く。");
+  const lift: Spec[] = info.liftMm > 0 ? [{ label: "両はしの持ち上げ", value: `指の丸みから ${mm(info.liftMm, 2)}（石の先が指に当たらないように。仮の目安）` }] : [];
+  if (method === "cast") {
+    return [
+      ...castSteps({
+        modelSpecs: [...head, { label: "腕", value: line }, gap, ...lift, ...endSpecs],
+        sprueAt: "腕の下（開きの反対側）",
+        metalLabel: o.metalLabel,
+        weightG: r.metalWeightG,
+        alloy: o.alloy ?? null,
+        innerMm: sh.innerDiameterMm,
+        gou: sh.gou,
+      }),
+      {
+        id: "harden",
+        title: "硬くする",
+        text: "鋳造のままでは、地金が硬い状態にならない。硬い状態でないと、石が取れる（職人の言葉）。硬くする方法は職人が決める。",
+        specs: [{ label: "硬さ", value: "職人が決める（形からは確かめられない）" }],
+        watch: "資料には、熱で硬くする合金の例がある（特許の文）。使う地金で試してから。",
+      },
+      close,
+      set,
+      finish,
+    ];
+  }
+  return [
+    {
+      id: "material",
+      title: "丸線を用意する",
+      text: "腕の丸線を、切り口を整える分を足して切る。腕の両はしはロウ付けしないので、継ぎ目はない。",
+      specs: [...head, { label: "腕の線", value: `${line} ・ 長さ 約 ${mm(info.wireLengthMm)}（真ん中の線）` }],
+    },
+    {
+      id: "bend",
+      title: "輪に曲げる",
+      text: "芯金で輪に曲げる。両はしは閉じず、石が入る開きを残す。",
+      specs: [{ label: "内径", value: `${mm(sh.innerDiameterMm)}（${sh.gou} 号）` }, gap, ...lift],
+    },
+    {
+      id: "harden",
+      title: "叩いて硬くする",
+      text: "叩く・打つなどで、地金を硬い状態にする（加工硬化）。硬い状態でないと、石が取れる（職人の言葉）。K18・Pt900・シルバーでもできなくはない（職人の言葉）。",
+      specs: [{ label: "硬さ", value: "職人が決める（形からは確かめられない）" }],
+      watch: "このあと火を入れない。焼きなましの温度まで熱すると、やわらかくなる（資料の声）。",
+    },
+    {
+      id: "tension_cut",
+      title: "溝とくぼみを切る",
+      text: "片方の端に角の先が入るくぼみを、もう片方の端に辺が入る溝を切る。石を当てて確かめながら。溝の高さは、石の縁（ガードル）の厚みに合わせる。",
+      specs: [...endSpecs, { label: "石とのすき間", value: `${mm(info.clearanceMm, 2)}（仮の目安）` }],
+      watch: "資料には、硬くする前に溝を切る例もある。順は職人が決める。",
+    },
+    close,
+    set,
+    finish,
+  ];
+}
+
 function soloSteps(o: HowToInput, method: Method): Step[] {
   const r = o.ring;
+  if (r.setting.tension) return tensionSteps(o, method);
   const bm = betweenMeasures(r);
   const m = measures(o);
   const sh = r.shank;
