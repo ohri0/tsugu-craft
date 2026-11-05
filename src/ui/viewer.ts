@@ -534,19 +534,32 @@ export class Viewer {
     }
   }
 
-  /** 地金だけの形（石のない指輪など）。三角形の並び、mm。いちばん下を床（z ＝ 0）に置く */
-  setMetalMesh(positions: Float32Array, metal: MetalId, kind = "metal") {
+  /**
+   * 地金だけの形（石のない指輪など）。三角形の並び、mm。いちばん下を床（z ＝ 0）に置く。
+   * warn：形ぜんぶを赤く光らせる（作れない所があるとき）。spots：赤い線を回す所（幅の位置 x、指の軸からの距離 rho、軸の高さ z。とがった先など）
+   */
+  setMetalMesh(positions: Float32Array, metal: MetalId, kind = "metal", o: { warn?: boolean; spots?: { x: number; rho: number; z: number }[] } = {}) {
     this.clear();
-    const mat = new THREE.MeshPhysicalMaterial({ color: metalColor(metal), metalness: 1, roughness: METAL_ROUGHNESS, envMapIntensity: 1.0, side: THREE.DoubleSide });
+    const warn = new THREE.MeshPhysicalMaterial({ color: WARN, metalness: 0.35, roughness: 0.3, clearcoat: 0.6, side: THREE.DoubleSide });
+    const mat = o.warn ? warn : new THREE.MeshPhysicalMaterial({ color: metalColor(metal), metalness: 1, roughness: METAL_ROUGHNESS, envMapIntensity: 1.0, side: THREE.DoubleSide });
+    if (o.warn || o.spots?.length) this.warnMat = warn;
     const armMesh = new THREE.Mesh(metalGeometry(positions), mat);
     armMesh.userData.arm = true;
     this.content.add(armMesh);
+    for (const s of o.spots ?? []) {
+      const geo = new THREE.TorusGeometry(s.rho, SPOT_LINE_RADIUS_MM, 12, 180);
+      geo.rotateY(Math.PI / 2);
+      const mark = new THREE.Mesh(geo, warn);
+      mark.position.set(s.x, 0, s.z);
+      this.content.add(mark);
+    }
     this.metalMat = mat;
     this.traceParts = [armMesh.geometry];
     this.traceTint.copy(mat.color);
     this.syncTrace();
     this.applyMode();
-    this.frame(kind, new THREE.Vector3(0.95, -1.15, 0.55));
+    // はじめの向き：輪の穴と、上の面の断面の形が両方見える斜め（穴をよく見せるため、指の軸の向きから見る割合を多くした）
+    this.frame(kind, new THREE.Vector3(1.05, -0.9, 0.62));
     this.updateShadow();
   }
 

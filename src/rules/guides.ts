@@ -147,6 +147,44 @@ export const GUIDES = {
      * - minTipAngleDeg：とがった先の角度の下限（度）。これより鋭い先は、欠けたり曲がったりしやすい。
      */
     spike: { minLocalMm: 0.45, minTipAngleDeg: 60 },
+    /**
+     * 仮の目安：溝やくぼみの底の厚み（内側から底まで）の下限（mm）。溝の底は腕がいちばん薄い。
+     * 資料の「1 mm より薄いと持ちが悪い」（JDMIS、docs/RESEARCH-rules.md の 3）は腕の厚みの話で、それを溝の底に借りた。職人が決める
+     */
+    valleyMinMm: 1.0,
+    /** 内甲丸（内側を丸くする）の、はじめの丸みの深さ（mm。端と真ん中の高さの差）。**仮**：資料に数字はない。作者が見て直す */
+    comfortMm: 0.35,
+    /**
+     * 断面の見本ごとの、はじめの幅と厚み（mm）。**すべて仮**（作者が見て直す）。
+     * 平らに見せる断面は幅広く薄く、丸く見せる断面は幅を狭く厚くする（同じ寸法だと見本が似て見えた。2026-11-05 作者）。
+     * 平打ち 4.0 × 1.5 は、地金の線材の寸法の例（https://www.ottofrei.com/products/flat-ring-sizing-stock-gold-platinum-3in）。
+     * 角と丸線は幅と厚みが同じ
+     */
+    sectionSizes: {
+      kouman: { widthMm: 3, thicknessMm: 1.7 },
+      hirauchi: { widthMm: 4, thicknessMm: 1.5 },
+      kamaboko: { widthMm: 3.5, thicknessMm: 1.6 },
+      hirakouman: { widthMm: 3.5, thicknessMm: 1.5 },
+      kaku: { widthMm: 2.5, thicknessMm: 2.5 },
+      maru: { widthMm: 2.5, thicknessMm: 2.5 },
+      mentori: { widthMm: 4, thicknessMm: 1.6 },
+      yamagata: { widthMm: 4, thicknessMm: 1.8 },
+      vmizo: { widthMm: 4, thicknessMm: 1.8 },
+      dan: { widthMm: 5, thicknessMm: 1.8 },
+      kubomi: { widthMm: 4.5, thicknessMm: 1.8 },
+    },
+    /**
+     * 断面の見本の形の決まり（mm。形を作るための決まりで、職人の目安の数ではない。**仮**：作者が見て直す）。
+     * 幅や厚みを変えても角の大きさが変わらないよう mm で決め、細い断面では ratio までに抑える。
+     * - edgeMm：平打ち・角の角を丸める大きさ（小さく。角が立って見える）。
+     * - chamferMm：面取りの斜めの大きさ。
+     * - ridgeRatio：山形の端の高さ（厚みに対する割合）。
+     * - grooveHalfMm・grooveDepthMm：V 溝の、半分の幅と深さ。
+     * - stepMm・stepTopRatio：段つきの段の高さと、高い所の幅（幅に対する割合）。
+     * - hollowMm：くぼみの深さ。
+     * - limitRatio：上の mm を、細い断面でどこまでに抑えるか（幅か厚みの小さい方に対する割合）。
+     */
+    sectionShape: { edgeMm: 0.25, chamferMm: 0.4, ridgeRatio: 0.55, grooveHalfMm: 0.45, grooveDepthMm: 0.4, stepMm: 0.4, stepTopRatio: 0.55, hollowMm: 0.35, limitRatio: 0.3 },
   },
   /**
    * 石を並べる指輪（三石・横一列）の、となりの石との間。**すべて仮の目安**（出典の数字はまだない。作者が見て直す。2026-11-04）。
