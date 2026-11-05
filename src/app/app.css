@@ -526,6 +526,16 @@ a.back { display: inline-flex; align-items: center; border: 1px solid transparen
 .rule-cards.pub .rc-text { font-size: 13px; }
 .rule-cards.pub .rc-meta a { color: inherit; }
 .pub-sec-h { margin: 22px 0 4px; font-size: 14px; }
+details.public-rules > summary, .removed-rules > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; padding: 0 14px; margin: 16px 0 0; border: 1px solid var(--line-2); border-radius: var(--radius); font-size: 14px; font-weight: 600; color: var(--fg-2); }
+details.public-rules[open] > summary, .removed-rules[open] > summary { margin-bottom: 8px; }
+.removed-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.removed-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+.removed-list b { display: block; font-size: 13px; }
+.removed-list small { font-size: 12px; color: var(--fg-3); }
+.removed-list button { flex: none; min-height: 44px; padding: 0 14px; }
+.ws-switch { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--fg-2); }
+.ws-switch[hidden] { display: none; }
+.ws-switch select { min-height: 36px; padding: 0 8px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--field); color: var(--fg); font-size: 14px; }
 /* 技：ほかの技の帳面 */
 .tech-rules { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
 /* ---- 技の頁：どの技も同じ形（見出し → ① 作り方 → ② 職人の決まり → ③ Claude から質問）。帳面と同じ札の見た目 ---- */

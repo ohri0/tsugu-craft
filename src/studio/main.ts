@@ -1279,6 +1279,7 @@ function workshopBarHtml(): string {
   return `<section class="ws-bar"><label><span>使う帳面</span><select class="ws-pick">${opts.join("")}<option value="__new">＋ 工房の帳面を作る</option></select></label>
     <div class="ws-new" hidden><input class="ws-name" type="text" placeholder="工房の名前（例：工房 B）"><button type="button" class="primary ws-make">作る</button></div>
     ${ws.list.length ? `<button type="button" class="ghost-d ws-cmp">同じ指輪を、帳面ごとに比べる</button>` : `<p class="hint">工房ごとに決まりはちがいます。工房の帳面を作ると、同じ指輪をそれぞれの決まりで確かめられます。</p>`}
+    ${ws.list.length && !filming() ? `<a class="link ws-edit" href="app.html#ledger">この帳面の決まりを見る・直す →</a>` : ""}
     <div class="ws-table"></div></section>`;
 }
 function switchLedger(id: string) {

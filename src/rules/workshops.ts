@@ -35,6 +35,13 @@ export function removeWorkshop(ws: Workshops, id: string): Workshops {
   return { active: ws.active === id ? MAIN : ws.active, list };
 }
 
+/** 工房の帳面の名前を変える（帳面の呼び名 owner も同じに）。空の名前では変えない */
+export function renameWorkshop(ws: Workshops, id: string, name: string): Workshops {
+  const clean = name.trim();
+  if (!clean) return ws;
+  return { ...ws, list: ws.list.map((w) => (w.id === id ? { ...w, name: clean, ledger: { ...w.ledger, owner: clean } } : w)) };
+}
+
 /** 使っている帳面（main なら mainLedger） */
 export function activeLedger(ws: Workshops, mainLedger: Ledger): Ledger {
   return ws.active === MAIN ? mainLedger : (ws.list.find((w) => w.id === ws.active)?.ledger ?? mainLedger);
