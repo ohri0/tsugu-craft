@@ -3,7 +3,7 @@ import { bandHowTo, bandInnerDiameter, bandMesh, checkBand, type Band } from "..
 
 const base: Band = { gou: 12, kind: "kouman", top: { width: 4, thickness: 1.6 }, bottom: { width: 4, thickness: 1.6 }, density: 15.5, metalLabel: "K18" };
 
-describe("石のない指輪", () => {
+describe("地金のみの指輪", () => {
   it("目安の内側なら、作れない所はない", () => {
     expect(checkBand(base)).toEqual([]);
   });

@@ -1,5 +1,5 @@
 // 継ぐ：デザインを、職人の判断で「作れる形」にする。
-// 生む。  石の写真・希望の言葉 →（デザインの絵から組むのは、まだ絵のとおりの形にならないので画面から外した。2026-11-03） Claude が指輪を組み、作れるか確かめ、直す（作業の記録が見える）。
+// 作る。 石の写真・希望の言葉 →（デザインの絵から組むのは、まだ絵のとおりの形にならないので画面から外した。2026-11-03） Claude が指輪を組み、作れるか確かめ、直す（作業の記録が見える）。
 // 整える。作れない所が赤く光り、誰のどの決まりかと、見た目への影響つきの直し方が出る。人も同じつまみで直せる。
 // 渡す。  職人への指示書・原寸の型紙・3D データ。
 // 帳面   職人が声で決まりを足すと、その場で確かめが変わる。
@@ -16,8 +16,8 @@ import { outlineIndexAtT, type JoinStyle, type SettingResult } from "../geometry
 import { nameShape } from "../geometry/shape";
 import { runClaude, type LogEntry } from "../claude/loop";
 import { cannotFrom, hasJapanese, plainWords, ruleTitles, toolLogLine, withoutCannot, type RuleTitles, type StoneWords } from "../claude/words";
-import { designPrompt, keepPrompt } from "../claude/prompt";
-import { TOOLS, type ProposeRuleInput, type ProposeRuleResult, type ToolHost, type Metal } from "../claude/tools";
+import { STONE_FREE_NOTE, STONE_KEEP_NOTE, designPrompt, gouNote, keepPrompt } from "../claude/prompt";
+import { TOOLS, type ChooseStoneInput, type ChooseStoneResult, type ProposeRuleInput, type ProposeRuleResult, type ToolHost, type Metal } from "../claude/tools";
 import type { ClaudeContentBlockParam } from "../claude/wire";
 import { patternSvg } from "../pattern/sheet";
 import { rulePlans } from "../ui/design";
@@ -34,18 +34,20 @@ import { toStl } from "../cad/solid";
 import { buildStone } from "../geometry/stone";
 import { LAYOUT_LABEL, METAL_LABEL, RingSession, SLOT_SHAPE_LABEL, STONE_LONG_RANGE, bandFixInput, carryDesign, fitStoneDepth, fitStoneLong, reliefFixInput, stationFrom, tuneProngMm, underLedger, type Built, type SlotShape } from "./session";
 import { bindShankLine, sectionBinding, shankLineHtml } from "./shank-line";
+import { renderRingShape, ringSectionWord, type RingShapeHost } from "./ring-shape";
 import { howToMake, placeText, type Method } from "./howto";
 import { sheetHtml } from "./sheet";
 import { whyHtml } from "./why";
 import { SORT_TIPS, parseTips, tipsFor, tipsPrompt, type Tip } from "./tips";
-import { PRESETS, presetOutline, type StonePreset } from "./presets";
+import { PRESETS, presetOutline, sizedPreset, type StonePreset } from "./presets";
+import { DesignHistory, generationTools, isTextField, keepGou, makeHost, undoKey } from "./make-run";
 import { drawingPage, type DrawingView, DRAWING_CSS } from "./drawing";
-import { loadWorks, newWorkId, removeWork, saveWork, updateWork, worksBookHtml, type WorkRecord } from "./works";
+import { loadWorks, newWorkId, removeSampleWorks, removeWork, saveWork, updateWork, worksBookHtml, type WorkRecord } from "./works";
 import { glossOf, markTerms, stepCard } from "./cards";
 import { NOTE, type AlloyId } from "./process";
 import type { Step } from "./howto";
 import { MAKE_BAND, SECTION_LABEL, SECTION_LIST, applyDraft, bandCutMesh, bandHowTo, bandInnerDiameter, bandMesh, bandPrompt, bandSpecRows, checkBand, defaultBand, normalizeBand, parseBand, pickSection, sectionWord, sizeWord, specOf, thinSpotsOf, type Band, type BandDraft, type BandProblem } from "./band";
-import { bandTarget, renderBandPanel, type BandPanelHost } from "./band-panel";
+import { BAND_GOU_RANGE, bandTarget, renderBandPanel, type BandPanelHost } from "./band-panel";
 import { sectionLoop, sectionPath, type PresetKind, type SectionSpec } from "../cad/section";
 import { effectiveGuides } from "../rules/ledger";
 import { BAND_THIN_STEP_MM, COLLAR_STEP_MM, WIRE_STEP_MM, metalIdOf, nextGrip } from "./session";
@@ -65,9 +67,9 @@ import { clearDesign, introSeen, loadDesign, loadImportedPhotoUrl, loadPhotoUrl,
 
 type Mode = "make" | "refine" | "hand" | "works";
 const MODES: { id: Mode; word: string; key: string; sub: string }[] = [
-  { id: "make", word: "生む", key: "1", sub: "石と言葉から形を組む" },
+  { id: "make", word: "作る", key: "1", sub: "石と言葉から形を組む" },
   { id: "refine", word: "確かめる", key: "2", sub: "作れるか" },
-  { id: "hand", word: "作る", key: "3", sub: "鋳造・鍛造の手順" },
+  { id: "hand", word: "手順", key: "3", sub: "鋳造・鍛造の手順" },
   { id: "works", word: "記録", key: "4", sub: "作った物ごとに残す" },
 ];
 // 線だけの小さな絵（自作）
@@ -79,10 +81,14 @@ const ICON = {
   grid: `<svg viewBox="0 0 20 20"><path d="M3 7h14M3 13h14M7 3v14M13 3v14"/></svg>`,
   dims: `<svg viewBox="0 0 20 20"><path d="M3 14 14 3l3 3L6 17z"/><path d="M6.5 10.5l1.5 1.5M9 8l1.5 1.5M11.5 5.5 13 7"/></svg>`,
   fit: `<svg viewBox="0 0 20 20"><path d="M3 7V3h4M13 3h4v4M17 13v4h-4M7 17H3v-4"/></svg>`,
+  undo: `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 4 3.5 8l4 4"/><path d="M3.5 8H12a4.5 4.5 0 0 1 0 9H9"/></svg>`,
+  redo: `<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 4l4 4-4 4"/><path d="M16.5 8H8a4.5 4.5 0 0 0 0 9h3"/></svg>`,
   solitaire: `<svg viewBox="0 0 24 24"><circle cx="12" cy="15" r="6.5"/><path d="M9 6.5h6l-3 3.5z"/><path d="M8.5 6.5 10 4h4l1.5 2.5"/></svg>`,
   band: `<svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="8" ry="8"/><ellipse cx="12" cy="12" rx="5.6" ry="5.6"/></svg>`,
   pendant: `<svg viewBox="0 0 24 24"><path d="M5 3c2 4 4.5 6 7 6s5-2 7-6"/><circle cx="12" cy="15" r="5"/><circle cx="12" cy="15" r="3"/></svg>`,
 };
+const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
+const UNDO_KEYS = isMac ? { undo: "⌘Z", redo: "⇧⌘Z" } : { undo: "Ctrl+Z", redo: "Ctrl+Shift+Z" };
 const SAMPLE = { url: "stones/triangle.jpg", longMm: 8.88, depthMm: 4.24, label: "作者の石（淡い青の三角）" };
 
 interface Stone {
@@ -101,7 +107,7 @@ let stoneKey: string | null = null;
 /** 取り込んだ石（写真から読んだ石）。よくある形を押しても残り、いつでも戻れる（作者の声 2026-11-05） */
 let imported: Stone | null = null;
 /**
- * 石の形の札の中身（生むと確かめるの、同じ部品）。よくある形のあとに、取り込んだ石。
+ * 石の形の札の中身（作ると確かめるの、同じ部品）。よくある形のあとに、取り込んだ石。
  * 自分の写真を入れたら、はじめの石にも戻れる。撮影の絵は前のまま（取り込んだ石の札を出さない）
  */
 function stoneButtonsHtml(): string {
@@ -115,9 +121,10 @@ function stoneButtonsHtml(): string {
 function renderStoneButtons() {
   document.querySelectorAll<HTMLElement>(".presets").forEach((el) => (el.innerHTML = stoneButtonsHtml()));
 }
+/** 一粒石の指輪の号の範囲（手で変えるつまみと、生成の欄で同じ） */
+const RING_GOU_RANGE = { min: 5, max: 25 };
 let sketch: { dataUrl: string; base64: string; media: "image/jpeg" | "image/png" } | null = null;
 let session: RingSession | null = null;
-let undoClaude: (() => boolean) | null = null;
 
 // 字・押す所・色の直し（pro.css の html.fit）。撮影では付けない（動画の絵を前のままにする）
 document.documentElement.classList.toggle("fit", !filming());
@@ -126,7 +133,7 @@ const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
 <div class="pro" data-mode="make">
   <header class="tb">
-    <div class="tb-l"><a class="brand" href="./"><span class="logo">継</span>継ぐ</a><span class="doc"><span class="word-name">新しい作品</span></span></div>
+    <div class="tb-l"><a class="brand" href="./"><span class="logo">継</span>継ぐ</a><span class="doc"><span class="word-name">新しい作品</span></span>${filming() ? "" : `<div class="undo-redo" role="group" aria-label="戻す・進む"><button type="button" class="btn quiet act-undo" disabled aria-label="戻す" title="戻す（${UNDO_KEYS.undo}）">${ICON.undo}<span class="ur-word">戻す</span></button><button type="button" class="btn quiet act-redo" disabled aria-label="進む" title="進む（${UNDO_KEYS.redo}）">${ICON.redo}<span class="ur-word">進む</span></button></div>`}</div>
     <nav class="tabs" aria-label="場面">${MODES.map((m) => `<button type="button" data-mode="${m.id}" title="${m.sub}（${m.key}）">${m.word}<span class="k">${m.key}</span></button>`).join("")}</nav>
     <div class="tb-r"><nav class="places hide-sm" aria-label="ほかの場所"><a href="app.html#ledger" title="職人の決まりと、Claude からの質問">帳面</a><a href="app.html#learn" title="次の人が、職人の決まりに聞いて学ぶ">学ぶ</a><a href="app.html#waza" title="彫金・金工の技と、途切れた技を組み立て直す">技</a></nav><button type="button" class="btn quiet act-present">見せる</button><button type="button" class="btn quiet act-why">なぜ継ぐ</button><button type="button" class="btn act-sheet hide-sm">図面・指示書</button><button type="button" class="btn primary act-stl">STL</button>${filming() ? "" : `<button type="button" class="btn quiet act-more" aria-label="ほかの場所" aria-expanded="false">≡</button><nav class="more-menu" hidden aria-label="ほかの場所"><a href="app.html#ledger">帳面</a><a href="app.html#learn">学ぶ</a><a href="app.html#waza">技</a><button type="button" class="more-sheet">図面・指示書を印刷</button></nav>`}</div>
   </header>
@@ -145,6 +152,7 @@ app.innerHTML = `
     <svg class="gizmo" viewBox="0 0 60 60" aria-hidden="true"></svg>
     <div class="vp-tl"><b class="vp-view">斜め</b><div class="disp" role="group" aria-label="表示">${(["wire", "shaded", "render", "draw"] as const).map((d) => `<button type="button" data-disp="${d}" aria-pressed="${d === "render"}">${{ wire: "ワイヤー", shaded: "シェード", render: "レンダー", draw: "図面" }[d]}</button>`).join("")}</div></div>
     <button type="button" class="verdict-chip" hidden></button>
+    <button type="button" class="gen-swap" hidden></button>
     <div class="fix-pop" hidden></div>
     <div class="intro-stage" hidden><div class="intro-frame"><canvas class="intro-photo"></canvas><svg class="intro-line" preserveAspectRatio="none"></svg></div><p class="intro-cap"></p></div>
   </section>
@@ -155,7 +163,7 @@ app.innerHTML = `
       <section class="sec"><h4>種類</h4>
         <div class="kinds">
           <button type="button" data-kind="solitaire" aria-pressed="true">${ICON.solitaire}<span><b>一粒石の指輪</b><small>石の写真から</small></span></button>
-          <button type="button" data-kind="band" aria-pressed="false">${ICON.band}<span><b>甲丸・平打ちの指輪</b><small>石なし</small></span></button>
+          <button type="button" data-kind="band" aria-pressed="false">${ICON.band}<span><b>地金のみの指輪</b><small>断面の形から</small></span></button>
         </div>
       </section>
       <section class="sec band-only" hidden><h4>形</h4><div class="band-ctrl"></div></section>
@@ -174,10 +182,11 @@ app.innerHTML = `
         <div class="presets" role="group" aria-label="石の形">${stoneButtonsHtml()}</div>
         <div class="fields"><label class="field">長辺<span class="in"><input type="number" step="0.01" min="${STONE_LONG_RANGE.min}" max="${STONE_LONG_RANGE.max}" class="in-long" inputmode="decimal"><i>mm</i></span></label><label class="field">深さ<span class="in"><input type="number" step="0.01" class="in-depth" inputmode="decimal"><i>mm</i></span></label></div>
       </section>
+      ${filming() ? "" : `<section class="sec solitaire-only"><h4>腕の形</h4><div class="ring-shape"></div></section>`}
       <section class="sec"><h4>Claude の作業</h4>
         <div class="wish-slot"></div>
         <p class="make-note" hidden></p>
-        <ol class="worklog"><li class="note">下の欄に希望を書いて「生む」。Claude が組み、作れるか確かめて直します。</li></ol>
+        <ol class="worklog"><li class="note">下の欄に希望を書いて「生成」。Claude が組み、作れるか確かめて直します。</li></ol>
         <div class="cannot-note" hidden><p></p><button type="button" class="cn-close" aria-label="まだできないことの札を閉じる">×</button></div>
         ${filming() ? "" : `<button type="button" class="next-btn make-next">作れるか確かめる・手で変える →</button>`}
         <button type="button" class="link reset-design">はじめの設計に戻す</button>
@@ -188,7 +197,13 @@ app.innerHTML = `
     <div class="pane works-panel" hidden></div>
   </aside>
 
-  <div class="cmd-wrap"><form class="prompt command"><span class="cmd-label">希望</span><input type="text" class="wish" placeholder="例：華奢に。毎日つける。石を大きく見せたい" aria-label="希望"><kbd>⏎</kbd><button type="submit">生む</button></form></div>
+  <div class="cmd-wrap">${filming() ? "" : `<div class="make-opts">
+      <div class="gen-stone solitaire-only" role="radiogroup" aria-label="石"><span class="sp-label">石</span>
+        <label><input type="radio" name="stone-pick" value="keep" checked><span><b>今の石を使う</b><small class="sp-now">—</small></span></label>
+        <label><input type="radio" name="stone-pick" value="free"><span><b>石もおまかせ</b><small>形も大きさも Claude が選ぶ</small></span></label>
+      </div>
+      <label class="gou-pick"><span>号</span><select class="gen-gou" aria-label="指輪の号"></select></label>
+    </div>`}<form class="prompt command"><span class="cmd-label">希望</span><input type="text" class="wish" placeholder="例：華奢に。毎日つける。石を大きく見せたい" aria-label="希望"><kbd>⏎</kbd><button type="submit">生成</button></form></div>
   <footer class="sb"><p class="make-status"></p><dl class="specs"></dl></footer>
 </div>`;
 const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySelector<T>(s)!;
@@ -218,7 +233,7 @@ let showDims = true;
 // スマホは画面が小さく、札が指輪にかぶる。人がまだ選んでいなければ、内径と石の札を隠して始める（▾ で出せる）
 const hiddenDims = new Set<string>(JSON.parse(localStorage.getItem("tsugu.hiddenDims") ?? (!filming() && matchMedia("(max-width: 760px)").matches ? `["inner","stone"]` : "[]")));
 const DIM_NAMES: [string, string][] = [["inner", "内径"], ["stone", "石の大きさ"], ["culet", "石の先〜指（石のいちばん下から指まで）"], ["height", "指から上（指から石座のいちばん上まで）"], ["gap", "腕の開き（テンション）"]];
-/** 石のない指輪の寸法の名前 */
+/** 地金のみの指輪の寸法の名前 */
 const BAND_DIM_NAMES: [string, string][] = [["inner", "内径"], ["b-width", "幅"], ["b-thick", "厚み"], ["b-under", "手のひら側の幅と厚み"]];
 /** 見せ場の間は寸法を出さない（最後に 1 本ずつ出す） */
 let holdDims = false;
@@ -228,7 +243,7 @@ let headBox: { min: [number, number, number]; max: [number, number, number] } | 
 function dimsAvoid(): { avoid: Rect[]; bounds: Rect } {
   const svg = $(".dims").getBoundingClientRect();
   const avoid: Rect[] = [];
-  for (const sel of [".vp-tl", ".verdict-chip", ".tools", ".gizmo"]) {
+  for (const sel of [".vp-tl", ".verdict-chip", ".gen-swap", ".tools", ".gizmo"]) {
     const el = document.querySelector<HTMLElement>(sel);
     if (!el || el.hidden || el.offsetParent === null) continue;
     const r = el.getBoundingClientRect();
@@ -317,7 +332,7 @@ function ringDims(b: Built): Dim[] {
 }
 /** 手で描いた形の寸法は 0.01 mm まで、ほかは 0.1 mm まで */
 const dimNum = (v: number) => (Math.abs(v * 10 - Math.round(v * 10)) < 1e-6 ? v.toFixed(1) : v.toFixed(2));
-/** 石のない指輪の寸法：内径・上の幅と厚み。上と下で太さを変えていれば下も */
+/** 地金のみの指輪の寸法：内径・上の幅と厚み。上と下で太さを変えていれば下も */
 function bandDims(positions: Float32Array, probs: BandProblem[]): Dim[] {
   let zmin = Infinity;
   for (let i = 2; i < positions.length; i += 3) zmin = Math.min(zmin, positions[i]);
@@ -414,7 +429,6 @@ async function loadStone(img: ImageData, label: string, longMm: number, depthMm:
   const prev = session?.snapshot();
   if (prev && compare) prev.prongMm = compare.prongMm;
   compare = null;
-  undoClaude = null;
   session = newSession(measured, depthMm);
   // 最初は、決まりごとから作った案（Claude なしでも形が出る）
   const plan = rulePlans(session.stone, corners)[0];
@@ -847,8 +861,13 @@ function drawThumb() {
   g.stroke();
 }
 
-/** よくある形：白い紙の上の写真のように描いて、写真と同じ読み取りに通す */
+/** よくある形を選ぶ（人が札を押したとき） */
 async function loadPreset(p: StonePreset) {
+  await placePreset(p);
+  setStatus(`${p.name}（${p.longMm} × ${p.widthMm} mm、深さは例）。ノギスの値があれば、長辺と深さを直してください。`);
+}
+/** よくある形：白い紙の上の写真のように描いて、写真と同じ読み取りに通す（人の札と、Claude の choose_stone が同じ関数を使う） */
+async function placePreset(p: StonePreset) {
   const W = 720;
   const k = 260 / p.longMm;
   const c = document.createElement("canvas");
@@ -867,7 +886,6 @@ async function loadPreset(p: StonePreset) {
   g.fill();
   // 撮影は前の名前のまま（台本の絵がそろうように）
   await loadStone(g.getImageData(0, 0, W, W), `${p.name}の石`, p.longMm, p.depthMm, { intro: false, shapeName: filming() ? undefined : p.name, key: p.id });
-  setStatus(`${p.name}（${p.longMm} × ${p.widthMm} mm、深さは例）。ノギスの値があれば、長辺と深さを直してください。`);
 }
 /** 取り込んだ石へ戻す（読んだ輪郭と、直した長辺・深さのまま） */
 async function useImported() {
@@ -876,7 +894,7 @@ async function useImported() {
   await loadStone(s.photo, s.label, s.longMm, s.depthMm, { intro: false, shapeName: s.shapeName, key: "imported", extraction: s.extraction });
   setStatus(`取り込んだ石に戻しました（${s.shapeName}・${s.measured.longMm.toFixed(2)} × ${s.measured.widthMm.toFixed(2)} mm）。`);
 }
-// 石の形の札は、生むと確かめるの同じ部品。描き直しても効くように、ここ 1 か所で受ける
+// 石の形の札は、作ると確かめるの同じ部品。描き直しても効くように、ここ 1 か所で受ける
 document.addEventListener("click", (e) => {
   const b = (e.target as HTMLElement | null)?.closest?.<HTMLButtonElement>(".presets button");
   if (!b) return;
@@ -968,7 +986,7 @@ document.querySelector<HTMLInputElement>(".sketch-file")?.addEventListener("chan
   const dataUrl = c.toDataURL("image/jpeg", 0.85);
   sketch = { dataUrl, base64: dataUrl.split(",")[1], media: "image/jpeg" };
   $(".sketch-thumb").innerHTML = `<img alt="" src="${dataUrl}">`;
-  $(".sketch-sub").textContent = "「生む」で Claude が絵を読みます（合言葉が要ります）";
+  $(".sketch-sub").textContent = "「生成」で Claude が絵を読みます（合言葉が要ります）";
 });
 
 // ---- 組めたら：3D・数字・赤い所 ----
@@ -991,6 +1009,8 @@ function panelKeyOf(b: Built): string {
 function onBuilt(b: Built, _why: string, refined = false) {
   if (tuning || !stone || kind !== "solitaire") return;
   keepDesignSoon();
+  historySoon();
+  renderMakeOpts();
   // 細かい形への作り直しは、確かめの結果が同じなら欄を描き直さない。
   // 押して離すまでの間に欄が作り直されると、ボタンが消えて押した事にならなかった（続けて押すと効かない。2026-11-05 点検）。
   // 比べている間は地金の重さを欄に出すので、描き直す
@@ -1011,7 +1031,7 @@ function onBuilt(b: Built, _why: string, refined = false) {
     ["石", `${stone.shapeName} ・ ${stone.measured.longMm.toFixed(2)} × ${stone.measured.widthMm.toFixed(2)} × ${stone.depthMm.toFixed(2)} mm`],
     ...(r.stones.length > 1 ? ([["石の並び", `${layoutName()} ・ ${r.stones.length} 石（${r.stones.map((x) => x.params.longMm.toFixed(1)).join(" ・ ")} mm）`]] as [string, string][]) : []),
     ["留め方", st.tension ? tensionWord(st) : st.style === "bezel" ? `覆輪 ・ 壁 ${st.bezel?.wallMm.toFixed(2)} mm` : `爪 ${st.prongs.length}${st.prongs.some((p) => p.isV) ? `（V 字 ${st.prongs.filter((p) => p.isV).length}）` : ""} ・ ø ${st.prongs[0]?.diameterMm.toFixed(2)} mm`],
-    ["号 ・ 腕", `${s.gou} 号 ・ ${SHANK_SECTION_LABEL[r.shank.section]} ${shankSizeWords(r.shank)}`],
+    ["号 ・ 腕", `${s.gou} 号 ・ ${ringSectionWord(s, r.shank.widthMm, r.shank.thicknessMm)} ${shankSizeWords(r.shank)}`],
     ["石と指のすき間", `${r.culetGapMm.toFixed(2)} mm`],
     ["地金", `${METAL_LABEL[s.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g`],
   ];
@@ -1028,6 +1048,7 @@ function onBuilt(b: Built, _why: string, refined = false) {
   if (presentOn) renderPresent();
   if (!sameKey) renderFixPop();
   if (holdPanel) return;
+  if (!sameKey && !$(".make-panel").hidden) renderRingShapeNow();
   if (!sameKey && !$(".studio-refine").hidden) renderCheck();
   if (!$(".build-panel").hidden) renderBuild();
   if (!sameKey) markBadControls();
@@ -1057,7 +1078,8 @@ function setMode(m: Mode) {
   if (m !== "refine") ruleVoice?.stop();
   const w = MODES.find((x) => x.id === m)!;
   $(".vp-mode").textContent = w.word;
-  $(".word-sub").textContent = m === "make" && kind === "band" ? "断面と言葉から形を組む" : w.sub;
+  // 記録の説明は、欄の中の 1 行だけにする
+  $(".word-sub").textContent = m === "make" && kind === "band" ? "断面と言葉から形を組む" : m === "works" ? "" : w.sub;
   document.querySelectorAll<HTMLButtonElement>(".tabs [data-mode]").forEach((b) => b.setAttribute("aria-current", String(b.dataset.mode === m)));
   $(".make-panel").hidden = m !== "make";
   $(".studio-refine").hidden = m !== "refine";
@@ -1066,7 +1088,7 @@ function setMode(m: Mode) {
   if (m === "works") renderWorks();
   $(".pro").setAttribute("data-mode", m);
   keepDesignSoon();
-  // 生むの画面でも、自動では回さない（2026-11-05 作者：勝手に回るのはいや。回すのは人がドラッグしたときだけ）
+  // 作るの画面でも、自動では回さない（2026-11-05 作者：勝手に回るのはいや。回すのは人がドラッグしたときだけ）
   viewer.setAutoRotate(false);
   viewer.setLift(0);
   requestAnimationFrame(fitInsets);
@@ -1075,6 +1097,7 @@ function setMode(m: Mode) {
   if (m === "refine") renderCheck();
   if (m === "hand") renderBuild();
   if (m === "make" && kind === "band") renderBandPanel($(".band-ctrl"), bandHost);
+  if (m === "make" && kind === "solitaire") renderRingShapeNow();
 }
 document.querySelectorAll<HTMLButtonElement>(".tabs [data-mode]").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode as Mode)));
 const VIEW_NAME = { angle: "斜め", top: "上", side: "横", front: "正面" } as const;
@@ -1231,7 +1254,7 @@ document.addEventListener("keydown", (e) => {
   const m = MODES.find((x) => x.key === e.key);
   if (m) setMode(m.id);
 });
-// 上のボタンは、場面を変えずに書き出す（押すと「作る」へ移っていた）
+// 上のボタンは、場面を変えずに書き出す（押すと「手順」へ移っていた）
 $(".act-sheet").addEventListener("click", () => printSheet());
 $(".act-stl").addEventListener("click", () => exportStl());
 // スマホの上の帯のメニュー（帳面・学ぶ・技へ。図面・指示書も）
@@ -1252,7 +1275,7 @@ $(".act-stl").addEventListener("click", () => exportStl());
   }
 }
 
-// ---- 生む。：Claude が組んで、確かめて、直す ----
+// ---- 生成。：Claude が組んで、確かめて、直す ----
 function logLine(e: LogEntry) {
   // 道具の合間のメモが英語だけで届いたときは、出さない
   if (e.kind === "note" && !hasJapanese(e.text)) return;
@@ -1303,13 +1326,18 @@ async function make() {
   const wish = $<HTMLInputElement>(".wish").value.trim();
   const pass = store.password() || (await askPassword(true));
   if (!pass) {
-    setStatus("生むには Claude が要ります。合言葉がないので、希望の言葉は使えません。形は今の案（決まりごとから作った案）のままです。", { links: [{ label: "手で変える →", run: toManual }] });
+    setStatus("生成には Claude が要ります。合言葉がないので、希望の言葉は使えません。形は今の案（決まりごとから作った案）のままです。", { links: [{ label: "手で変える →", run: toManual }] });
     return;
   }
   making = true;
+  const mark = historyBegin();
+  const free = stoneIsFree();
+  const gou = session.state.gou;
+  let chosen = false;
   $(".worklog").innerHTML = "";
+  showCannot("");
   setStatus("Claude が組んで、作れるか確かめています…", { busy: true });
-  const content: ClaudeContentBlockParam[] = [{ type: "text", text: `${stoneText()}\n${wish ? `希望：${wish}` : "希望：特になし（ふつうの普段使いの一粒石の指輪）"}` }];
+  const content: ClaudeContentBlockParam[] = [{ type: "text", text: `${stoneText()}\n${wish ? `希望：${wish}` : "希望：特になし（ふつうの普段使いの一粒石の指輪）"}\n${free ? STONE_FREE_NOTE : STONE_KEEP_NOTE}\n${gouNote(gou)}` }];
   if (sketch) {
     content.push({ type: "text", text: "デザイナーの絵：この雰囲気に近づけてください。絵から分かることと分からないことを分けて書いてください。" });
     content.push({ type: "image", source: { type: "base64", media_type: sketch.media, data: sketch.base64 } });
@@ -1318,23 +1346,31 @@ async function make() {
     type: "text",
     text:
       "この石で指輪を組み、check で確かめ、作れない所があれば直してください。\n" +
-      "この道具で変えられるのは、石座（留め方・爪の本数と太さと位置・高さ・向き・腕への付け方）と腕（断面の線・場所ごとの幅と厚みと断面・腕の流れ・面に彫る模様・号・地金）です。雰囲気の言葉は、腕の断面と線にも訳してください。\n" +
+      `この道具で変えられるのは、${free ? "石（よくある形と大きさ）と、" : ""}石座（留め方・爪の本数と太さと位置・高さ・向き・腕への付け方）と腕（断面の線・場所ごとの幅と厚みと断面・腕の流れ・面に彫る模様・地金）です。` + "雰囲気の言葉は、腕の断面と線にも訳してください。\n" +
       "希望や絵のうち、これで表せないこと（穴を開ける透かし、決まった 6 つのほかの模様、立体の飾り、石の数を増やす など）は、できたふりをせず、「まだできないこと：」の行に正直に短く書いてください。この行には、希望や絵で求められたのに形にできなかったことだけを書きます（帳面の決まりで気づいたことは「残っていること」へ）。すべて表せたときは「まだできないこと：なし」と書いてください。\n" +
       "最後の返事は、次の 4 行だけにしてください。前置き・見出し・箇条書きは書きません。1 行は 100 字ほどまで。\n" +
       "やったこと：…\n確かめたこと：…\n残っていること：…\nまだできないこと：…",
   });
   const r = await runClaude({
-    host: session,
+    host: makeHost(() => session!, {
+      gou,
+      chooseStone: free
+        ? (input) => {
+            chosen = true;
+            return chooseStoneTool(input);
+          }
+        : undefined,
+    }),
     messages: [{ role: "user", content }],
     system: designPrompt(store.ledger()),
-    tools: TOOLS.filter((t) => ["set_setting", "set_shank", "check", "look"].includes(t.name)),
+    tools: generationTools(free),
     password: pass,
     speed: "fast",
     maxTurns: 8,
     onLog: logLine,
   });
   making = false;
-  undoClaude = r.undo;
+  historyEnd(mark, true);
   if (r.offline || (r.error && !r.log.length)) {
     if (r.error?.code === "wrong_password") resetPassword();
     setStatus(`Claude につながりませんでした${r.error?.message ? `（${r.error.message}）` : ""}。決まりごとから作った案を出しています。`);
@@ -1342,11 +1378,221 @@ async function make() {
   }
   // 表せなかった希望を、目立つ所に出す（できたふりをさせない）
   showCannot(cannotFrom(r.finalText, titlesNow()));
-  setStatus(r.remaining !== undefined ? `今日あと ${r.remaining} 回` : "", {
-    links: [
-      { label: "確かめる →", run: () => setMode("refine") },
-      { label: "元に戻す", run: () => setStatus(undoClaude?.() ? "Claude の作業を戻しました。" : "戻せませんでした（石を変えた後か、Claude がまだ形を変えていません）。") },
-    ],
+  const chosenWords = chosen && stone ? `石は Claude が選びました（${stone.shapeName} ${stone.measured.longMm.toFixed(2)} × ${stone.measured.widthMm.toFixed(2)} mm、深さは例）。${imported ? "取り込んだ石は「取り込んだ石」のボタンで戻せます。" : ""}` : "";
+  setStatus(`${chosenWords}${r.remaining !== undefined ? `今日あと ${r.remaining} 回` : ""}`, { links: [{ label: "確かめる →", run: () => setMode("refine") }] });
+}
+/** 石もおまかせ：Claude が選んだよくある形を、人が札を押したときと同じ関数で入れる。腕・地金・号は引き継ぐ */
+async function chooseStoneTool(input: ChooseStoneInput): Promise<ChooseStoneResult> {
+  const p = sizedPreset(input.shape, input.long_mm);
+  await placePreset(p);
+  const m = stone!.measured;
+  return {
+    shape_name: p.name,
+    long_mm: Number(m.longMm.toFixed(2)),
+    width_mm: Number(m.widthMm.toFixed(2)),
+    depth_mm: p.depthMm,
+    stone: stoneText(),
+    note: "幅と深さは形の例の比から出した値で、測った値ではありません。爪の本数と位置と太さは新しい石で決め直しました。",
+  };
+}
+/** 一粒石の指輪の腕の形の欄（地金のみの指輪と同じ部品。撮影では欄がない） */
+const ringShapeHost: RingShapeHost = {
+  state: () => session!.state,
+  size: () => {
+    const sh = session!.built!.ring.shank;
+    return { widthMm: sh.widthMm, thicknessMm: sh.thicknessMm };
+  },
+  set: (input) => {
+    holdPanel = false;
+    session!.setShank({ ...input, reason: "手で" });
+  },
+  live: (widthMm, thicknessMm) => {
+    holdPanel = true;
+    const cur = session!.built!;
+    viewer.updateShank(rebuildShank(cur.ring, { ...cur.ring.params.shank, widthMm, thicknessMm }), cur.problems);
+  },
+  bindEditor: bindRingSectionEditor,
+};
+function renderRingShapeNow() {
+  const box = document.querySelector<HTMLElement>(".ring-shape");
+  if (box && session?.built && kind === "solitaire") renderRingShape(box, ringShapeHost);
+}
+/** 石の選択の欄が「石もおまかせ」か（撮影では欄がないので、今の石のまま） */
+function stoneIsFree(): boolean {
+  return document.querySelector<HTMLInputElement>('.gen-stone input[value="free"]')?.checked === true;
+}
+/** 号の欄で選べる範囲（手で変えるつまみと同じ） */
+const gouRange = () => (kind === "band" ? BAND_GOU_RANGE : RING_GOU_RANGE);
+/** 石と号の欄を、今の設計に合わせる */
+function renderMakeOpts() {
+  const now = document.querySelector<HTMLElement>(".sp-now");
+  if (now && stone) now.textContent = `${stone.shapeName} ${stone.measured.longMm.toFixed(2)} × ${stone.measured.widthMm.toFixed(2)} mm`;
+  const sel = document.querySelector<HTMLSelectElement>(".gen-gou");
+  if (!sel || (kind === "solitaire" && !session)) return;
+  const cur = kind === "band" ? band.gou : session!.state.gou;
+  const { min, max } = gouRange();
+  // 開いた記録の号が、選べる範囲の外のこともある
+  const lo = Math.min(min, cur);
+  const hi = Math.max(max, cur);
+  const key = `${lo}-${hi}`;
+  if (sel.dataset.range !== key) {
+    sel.dataset.range = key;
+    sel.innerHTML = Array.from({ length: hi - lo + 1 }, (_, i) => `<option value="${lo + i}">${lo + i} 号</option>`).join("");
+  }
+  sel.value = String(cur);
+}
+document.querySelector<HTMLSelectElement>(".gen-gou")?.addEventListener("change", (e) => {
+  const v = Number((e.target as HTMLSelectElement).value);
+  if (kind === "band") bandHost.change({ ...band, gou: v });
+  else session?.setShank({ gou: v, reason: "手で" });
+});
+
+// ---- 戻す・進む（生成の前に戻す も同じ線の上を動く）。撮影では動かさない ----
+interface DesignSnap {
+  kind: Kind;
+  stone: Stone;
+  stoneKey: string | null;
+  imported: Stone | null;
+  /** 組み直すのに使った石（同じなら設計の場を作り直さない） */
+  params: RingSession["stone"];
+  state: RingSession["state"];
+  band: Band;
+  bandMetal: Metal;
+}
+const historyOn = !filming();
+const hist = new DesignHistory<DesignSnap>();
+let histTimer = 0;
+let histHold = false;
+/** 石は大きさのつまみで中身が書きかわるので、写しを取る */
+function captureDesign(): DesignSnap | null {
+  if (!stone || !session) return null;
+  const state = session.snapshot();
+  // 比べている間の爪の太さではなく、職人の決まりで組んだときの太さを覚える
+  if (compare) state.prongMm = compare.prongMm;
+  return { kind, stone: { ...stone }, stoneKey, imported: imported && { ...imported }, params: session.stone, state, band: structuredClone(band), bandMetal };
+}
+const designKey = (s: DesignSnap) => JSON.stringify([s.kind, s.stone.label, s.stone.shapeName, s.stone.measured.longMm, s.stone.measured.widthMm, s.stone.depthMm, s.state, s.band, s.bandMetal]);
+function historyCommit() {
+  clearTimeout(histTimer);
+  histTimer = 0;
+  if (!historyOn || histHold) return;
+  const s = captureDesign();
+  if (!s) return;
+  hist.commit(s, designKey(s));
+  renderHistory();
+}
+/** 形が変わったら、少し待って覚える（つまみを動かしている間は 1 つにまとめる。断面を描いている間は待つ） */
+function historySoon() {
+  if (!historyOn || histHold) return;
+  clearTimeout(histTimer);
+  histTimer = window.setTimeout(() => (holdPanel ? historySoon() : historyCommit()), 400);
+}
+/** Claude の作業の間は覚えず、終わったら 1 つにまとめる */
+function historyBegin(): number {
+  historyCommit();
+  histHold = true;
+  renderHistory();
+  return hist.mark();
+}
+function historyEnd(mark: number, generated: boolean) {
+  histHold = false;
+  historyCommit();
+  if (generated) hist.endGeneration(mark);
+  renderHistory();
+}
+function renderHistory() {
+  const undo = document.querySelector<HTMLButtonElement>(".act-undo");
+  const redo = document.querySelector<HTMLButtonElement>(".act-redo");
+  if (undo) undo.disabled = making || !hist.canUndo;
+  if (redo) redo.disabled = making || !hist.canRedo;
+  const pill = $(".gen-swap");
+  const label = making ? null : hist.generationLabel;
+  pill.hidden = !label;
+  pill.textContent = label ?? "";
+}
+/** 覚えた設計へ移る（形も石も、そのまま） */
+function applyDesign(s: DesignSnap) {
+  stopIntro();
+  clearTimeout(histTimer);
+  histTimer = 0;
+  compare = null;
+  stone = { ...s.stone };
+  stoneKey = s.stoneKey;
+  imported = s.stoneKey === "imported" ? stone : s.imported && { ...s.imported };
+  keptPhoto = null;
+  keptImportedPhoto = null;
+  $<HTMLInputElement>(".in-long").value = String(Number(stone.longMm.toFixed(2)));
+  $<HTMLInputElement>(".in-depth").value = String(Number(stone.depthMm.toFixed(2)));
+  $(".stone-sub").textContent = `${stone.shapeName}・${stone.measured.longMm.toFixed(2)} × ${stone.measured.widthMm.toFixed(2)} mm`;
+  drawThumb();
+  renderStoneButtons();
+  if (!session || session.stone !== s.params) {
+    session = newSession(stone.measured, stone.depthMm);
+    s.params = session.stone;
+  }
+  session.state = structuredClone(s.state);
+  band = structuredClone(s.band);
+  bandMetal = s.bandMetal;
+  // 見比べられるように、カメラを動かさない
+  clearTimeout(keepCamTimer);
+  viewer.keepCamera = true;
+  if (s.kind !== kind) setKind(s.kind);
+  else if (kind === "band") showBand();
+  else session.build("戻す・進む");
+  keepCamTimer = window.setTimeout(() => (viewer.keepCamera = false), 2500);
+  // 組み直した状態を、この場所の覚えにする（あとで「変わった」と数えて、進む先を消さないように）
+  clearTimeout(histTimer);
+  histTimer = 0;
+  const now = captureDesign();
+  if (now) hist.replaceCurrent(now, designKey(now));
+}
+function stepHistory(dir: "undo" | "redo") {
+  if (making) return;
+  historyCommit();
+  const s = dir === "undo" ? hist.undo() : hist.redo();
+  if (s) applyDesign(s);
+  renderHistory();
+}
+document.querySelector(".act-undo")?.addEventListener("click", () => stepHistory("undo"));
+document.querySelector(".act-redo")?.addEventListener("click", () => stepHistory("redo"));
+$(".gen-swap").addEventListener("click", () => {
+  if (making) return;
+  historyCommit();
+  const before = hist.generationLabel === "生成の前に戻す";
+  const s = hist.toggleGeneration();
+  if (!s) return;
+  applyDesign(s);
+  renderHistory();
+  setStatus(before ? "生成の前に戻しました。もう一度押すと、生成のあとに戻ります。" : "生成のあとに戻しました。");
+});
+if (historyOn) {
+  /** 字を打ったばかりの欄（その間は、字の取り消しのまま） */
+  const typed = new WeakSet<EventTarget>();
+  /** 断面の編集の中を最後に押したか（その間は ⌘Z を断面の編集へ） */
+  let inSection = false;
+  document.addEventListener("input", (e) => {
+    const t = e.target as HTMLInputElement | null;
+    if (!t) return;
+    // 字を全部取り消したら、次の ⌘Z は設計へ（ブラウザの「閉じたタブを開く」へ行かないように）
+    if ((e as InputEvent).inputType === "historyUndo" && !t.value) typed.delete(t);
+    else typed.add(t);
+  });
+  document.addEventListener("focusout", (e) => e.target && typed.delete(e.target));
+  document.addEventListener("pointerdown", (e) => (inSection = !!(e.target as HTMLElement).closest?.(".sec-edit")), true);
+  document.addEventListener("keydown", (e) => {
+    const act = undoKey(e);
+    if (!act) return;
+    const el = e.target as HTMLElement & { type?: string };
+    if (isTextField(el) && typed.has(el)) return;
+    // 戻すものがないときも、ブラウザの「閉じたタブを開く」へ行かせない
+    e.preventDefault();
+    const why = document.querySelector<HTMLElement>(".why");
+    if (document.querySelector("dialog[open]") || (why && !why.hidden)) return;
+    if (inSection) {
+      const b = document.querySelector<HTMLButtonElement>(`.sec-edit ${act === "undo" ? ".se-undo" : ".se-redo"}`);
+      if (b && !b.disabled && b.offsetParent) return b.click();
+    }
+    stepHistory(act);
   });
 }
 
@@ -1825,7 +2071,7 @@ function tensionCardHtml(b: Built): string {
   </section>`;
 }
 function gouSlider(gou: number): SliderSpec {
-  return { cls: "r-gou", label: "号", min: 5, max: 25, step: 1, value: gou, unit: "号" };
+  return { cls: "r-gou", label: "号", min: RING_GOU_RANGE.min, max: RING_GOU_RANGE.max, step: 1, value: gou, unit: "号" };
 }
 /** 新しい決まりで確かめ直した知らせ。n：今の作れない所の数 */
 function ruleFlashHtml(n: number): string {
@@ -1895,7 +2141,7 @@ function renderCheck() {
         ${kind === "solitaire" ? sliderHtml(stoneSlider()) : ""}
         ${sliderHtml(gouSlider(s.gou))}
       </div>
-      ${pick("腕の断面", s.shankSection ?? "kouman", [...(s.style === "tension" || s.shankSection === "maru" ? [["maru", SHANK_SECTION_LABEL.maru] as [ShankSection, string]] : []), ...SHANK_SECTIONS.map((k) => [k, SHANK_SECTION_LABEL[k]] as [ShankSection, string]), ...(s.shankSection === "free" ? [["free", SHANK_SECTION_LABEL.free] as [ShankSection, string]] : [])])}
+      ${pick("腕の断面", s.shankSection ?? "kouman", [...(s.style === "tension" || s.shankSection === "maru" ? [["maru", SHANK_SECTION_LABEL.maru] as [ShankSection, string]] : []), ...SHANK_SECTIONS.map((k) => [k, SHANK_SECTION_LABEL[k]] as [ShankSection, string]), ...(s.shankSection === "free" ? [["free", ringSectionWord(s, b.ring.shank.widthMm, b.ring.shank.thicknessMm)] as [ShankSection, string]] : [])])}
       ${s.style === "tension" ? "" : sectionEditorHtml()}
       ${shankLineHtml(s)}
     </details>
@@ -1983,7 +2229,14 @@ function renderCheck() {
   );
   // 腕の線：肩と下の幅・厚み・断面
   bindShankLine(box, session!, renderCheck);
+  bindRingSectionEditor(box);
+  box.querySelector(".to-build")!.addEventListener("click", () => setMode("hand"));
+}
+/** 腕の断面を描く画面をつなぐ（確かめるの欄と、作るの腕の形の欄で同じ） */
+function bindRingSectionEditor(box: HTMLElement) {
   // 腕の断面：点を動かしている間は 3D の腕だけ変え（パネルは描き直さない）、離したときに確かめ直す
+  const b = session!.built!;
+  const s = session!.state;
   const sh = b.ring.shank;
   const place = s.style !== "tension" ? sectionBinding(s) : null;
   // 図で描く相手が肩や下のとき：動かしている間も離したときも、その場所の断面だけを変える
@@ -2022,7 +2275,6 @@ function renderCheck() {
       else session!.setShank({ section_curve: sec.curve, ...dims, reason: "断面を手で描いた" });
     },
   );
-  box.querySelector(".to-build")!.addEventListener("click", () => setMode("hand"));
 }
 /**
  * 石を並べる欄を画面に出すか。2026-11-04：三石だけ、並び方を直したので出す（一粒と三石だけ）。
@@ -2631,7 +2883,7 @@ function acceptRule(p: ProposeRuleInput, _said: string): string {
     session.state.prongMm = undefined;
     tuneProngs();
   }
-  // 石のない指輪を見ている間は、石のある形を作り直さない（作り直すと 3D が入れ替わる）。一粒石の指輪に戻るときに作り直す
+  // 地金のみの指輪を見ている間は、石のある形を作り直さない（作り直すと 3D が入れ替わる）。一粒石の指輪に戻るときに作り直す
   const after = isBand ? bandProblems().length : session ? session.build("帳面が変わった").problems.length : 0;
   lastRule.after = !isBand && session?.built ? grouped(session.built).length : after;
   if (isBand) showBand(true);
@@ -2718,7 +2970,7 @@ function rulesSectionHtml(): string {
   const making = all.filter((r) => !isCheckRule(r));
   const where = (r: Rule) => stepsOfRule(r).map((s) => MAKING_STEPS[s]).join("・");
   return `<section class="sec rules-sec"><h4>職人の決まり<small>確かめに効く ${mine.length} 件</small></h4>
-    <p class="hint">話すと、Claude が決まりの案にします。数字で確かめられる決まりは、「これでいい」を押すとその場で確かめ直します。手の動かし方などの決まりは、作るの工程に入ります。</p>
+    <p class="hint">話すと、Claude が決まりの案にします。数字で確かめられる決まりは、「これでいい」を押すとその場で確かめ直します。手の動かし方などの決まりは、手順の工程に入ります。</p>
     <textarea rows="2" class="ar-text" placeholder="${kind === "band" ? "例：平打ちなら、腕の厚みは最低 1.5 mm" : "例：この大きさの石なら、爪は最低 0.7 mm、基本は 0.8〜1 mm"}">${esc(ruleDraft)}</textarea>
     <div class="row"><button type="button" class="ghost-d ar-mic">話す</button><button type="button" class="primary ar-go">決まりにする</button></div>
     <div class="ar-proposal"></div>
@@ -2735,15 +2987,15 @@ function rulesSectionHtml(): string {
       .reverse()
       .map((r) => `<li><b>${esc(r.title)}</b>${r.param && r.value !== undefined && r.param !== "hold.cornerSet" ? `<span class="v">${r.value} ${esc(PARAMS[r.param].unit)}</span>` : ""}${r.quote ? `<small>「${esc(r.quote)}」</small>` : ""}<small>${esc(name)} ・ ${esc(r.date)}</small><span class="voice-row">${voices.has(r.id) ? `<button type="button" class="link voice-play" data-rid="${esc(r.id)}">▶ 声</button>` : ""}<button type="button" class="link voice-rec${stopRec && recFor === r.id ? " on" : ""}" data-rid="${esc(r.id)}">${stopRec && recFor === r.id ? `■ 止める（${MAX_SECONDS} 秒まで）` : voices.has(r.id) ? "録り直す" : "● 理由を声で残す"}</button></span></li>`)
       .join("")}</ul>` : `<p class="hint">確かめに効く職人の決まりは、まだありません（いまは公開の目安で確かめています）。</p>`}
-    ${loadWorks().some((w) => w.design) ? "" : `<p class="hint no-works">記録に作品がないので、決まりを足しても「これまでの作品」は確かめ直せません。<button type="button" class="link add-samples">見本の作品を入れて試す</button></p>`}
-    ${making.length ? `<details class="more making-rules"><summary>作り方の決まり ${making.length} 件（作るの工程に出ます）</summary><ul class="rules-mini">${making
+    ${loadWorks().some((w) => w.design) ? "" : filming() ? `<p class="hint no-works">記録に作品がないので、決まりを足しても「これまでの作品」は確かめ直せません。<button type="button" class="link add-samples">見本の作品を入れて試す</button></p>` : `<p class="hint no-works">設計を記録に残すと、新しい決まりで確かめ直せます。</p>`}
+    ${making.length ? `<details class="more making-rules"><summary>作り方の決まり ${making.length} 件（手順の工程に出ます）</summary><ul class="rules-mini">${making
       .slice()
       .reverse()
       .map((r) => `<li><b>${esc(r.title)}</b><small class="where">${where(r) ? `工程：${esc(where(r))}` : "工程なし"}</small><small>${esc(name)} ・ ${esc(r.date)}</small></li>`)
       .join("")}</ul></details>` : ""}
   </section>`;
 }
-/** 作るの工程の中に出す、職人の作り方の決まり */
+/** 手順の工程の中に出す、職人の作り方の決まり */
 function makingRulesHtml(stepId: string | undefined): string {
   if (!stepId) return "";
   const rules = makingRulesFor(activeRules(store.ledger()), stepId);
@@ -2826,7 +3078,7 @@ function recheckWorks(rule: { by: string; quote: string }) {
   }
   return works.length ? { rule: rule.quote, by: rule.by, total: works.length, rows } : null;
 }
-/** 石のない指輪の記録を、直し方のボタンと同じ直し方で直す（断面を描き直す直し方は、職人に残す） */
+/** 地金のみの指輪の記録を、直し方のボタンと同じ直し方で直す（断面を描き直す直し方は、職人に残す） */
 function fixPastBand(row: PastRow, by: string, rule: string) {
   const d = row.work.bandDesign!;
   let b = normalizeBand(d.band);
@@ -3024,6 +3276,7 @@ async function fixWithClaude() {
     return;
   }
   making = true;
+  const mark = historyBegin();
   fixLog = [{ text: "Claude が、帳面の決まりに合うように直しています…", cls: "note" }];
   renderCheck();
   const r = await runClaude({
@@ -3047,6 +3300,7 @@ async function fixWithClaude() {
     },
   });
   making = false;
+  historyEnd(mark, false);
   if (r.offline || (r.error && !r.log.length)) {
     if (r.error?.code === "wrong_password") resetPassword();
     fixLog.push({ text: `Claude につながりませんでした。${r.error?.message ?? ""}`, cls: "ng" });
@@ -3063,7 +3317,7 @@ function toast(t: string) {
   setTimeout(() => el.remove(), 3200);
 }
 
-// ---- 石のない指輪（甲丸・平打ち ほか） ----
+// ---- 地金のみの指輪（甲丸・平打ち ほか） ----
 type Kind = "solitaire" | "band";
 let kind: Kind = "solitaire";
 let bandMetal: Metal = "k18yg";
@@ -3122,6 +3376,8 @@ function withWholeBand<T>(f: () => T): T {
 /** live：つまみや点を動かしている間（パネルは描き直さない。描き直すと、指で押さえている物が消える） */
 function showBand(live = false) {
   keepDesignSoon();
+  historySoon();
+  renderMakeOpts();
   const m = bandMesh(band);
   bandPositions = m.positions;
   bandWeight = m.weightG;
@@ -3150,7 +3406,7 @@ function showBand(live = false) {
   if (!$(".studio-refine").hidden) renderBandCheck();
   if (!$(".build-panel").hidden) renderBandBuild();
 }
-/** スマホの石のない指輪では、希望の欄を「Claude の作業」の中へ（下にいつも出ていると、欄がせまくなって断面の下の設定が見えなかった。2026-11-05 作者） */
+/** スマホの地金のみの指輪では、希望の欄を「Claude の作業」の中へ（下にいつも出ていると、欄がせまくなって断面の下の設定が見えなかった。2026-11-05 作者） */
 const phoneWidth = matchMedia("(max-width: 820px)");
 function placeWish() {
   const wrap = $(".cmd-wrap");
@@ -3172,7 +3428,7 @@ function setKind(k: Kind) {
   placeWish();
   $<HTMLInputElement>(".wish").placeholder = WISH_EXAMPLE[k];
   if ($(".pro").getAttribute("data-mode") === "make") $(".word-sub").textContent = k === "band" ? "断面と言葉から形を組む" : MODES[0].sub;
-  $(".worklog").innerHTML = `<li class="note">${k === "band" ? "希望（例：細めで、手のひら側を薄く）を書いて「生む」。上の「形」で、断面も数字も手で変えられます。" : "下の行に希望を書いて「生む」を押すと、Claude が組み、作れるか確かめて直します。"}</li>`;
+  $(".worklog").innerHTML = `<li class="note">${k === "band" ? "希望（例：細めで、手のひら側を薄く）を書いて「生成」。上の「形」で、断面も数字も手で変えられます。" : "下の行に希望を書いて「生成」を押すと、Claude が組み、作れるか確かめて直します。"}</li>`;
   if (k === "band") showBand();
   else if (session) session.build("一粒石の指輪に戻る");
   if (k !== "band" && !$(".studio-refine").hidden) renderCheck();
@@ -3193,7 +3449,7 @@ function fixBand(p: BandProblem) {
   band = p.fix.apply(band);
   showBand();
 }
-/** 作れない所を押すと出る窓（一粒石の指輪と同じ窓。Claude で直すは、石のない指輪にはまだない） */
+/** 作れない所を押すと出る窓（一粒石の指輪と同じ窓。Claude で直すは、地金のみの指輪にはまだない） */
 function renderBandFixPop() {
   const pop = $(".fix-pop");
   if (pop.hidden || kind !== "band") return;
@@ -3284,22 +3540,26 @@ async function makeBand() {
   const wish = $<HTMLInputElement>(".wish").value.trim();
   const pass = store.password() || (await askPassword(true));
   if (!pass) {
-    setStatus("生むには Claude が要ります。合言葉がなくても、「形」の見本や数字を変えて手で作れます。", { links: [{ label: "手で変える →", run: toManual }] });
+    setStatus("生成には Claude が要ります。合言葉がなくても、「形」の見本や数字を変えて手で作れます。", { links: [{ label: "手で変える →", run: toManual }] });
     return;
   }
   making = true;
+  const mark = historyBegin();
   setStatus("Claude が形を考えています…", { busy: true });
-  const r = await callTool<BandDraft>({ system: bandPrompt(), user: wish || "ふつうの普段使いの指輪", tool: MAKE_BAND, parse: parseBand, password: pass, speed: "fast" });
+  const gou = band.gou;
+  const r = await callTool<BandDraft>({ system: bandPrompt(), user: `号：${gou} 号\n${wish || "ふつうの普段使いの指輪"}`, tool: MAKE_BAND, parse: parseBand, password: pass, speed: "fast" });
   making = false;
   if (!r.ok) {
+    historyEnd(mark, true);
     if (r.code === "wrong_password") resetPassword();
     setStatus(r.error);
     return;
   }
-  const d = r.value;
+  const d = keepGou(r.value, gou);
   band = applyDraft(band, d);
   setBandMetal(d.metal);
   showBand();
+  historyEnd(mark, true);
   $(".worklog").innerHTML = `<li class="wl-tool set_shank">${esc(`${sectionWord(band)}・${sizeWord(band)}・${d.gou} 号・${METAL_LABEL[d.metal]}`)}</li><li class="note">${esc(d.reason)}</li>`;
   showCannot(d.cannotDo);
   setStatus(r.remaining !== undefined ? `今日あと ${r.remaining} 回` : "", { links: [{ label: "確かめる →", run: () => setMode("refine") }] });
@@ -3649,7 +3909,7 @@ function openSaveWork(slot: HTMLElement, data: WorkData) {
     slot.querySelector(".to-works")?.addEventListener("click", () => setMode("works"));
   });
 }
-/** 見本の作品を記録に入れる（よくある形の石から組んだ設計。職人の作品ではないと、名前と言葉で示す） */
+/** 見本の作品を記録に入れる（動画を撮るときだけ。画面からは外した 2026-11-05 作者。よくある形の石から組んだ設計で、職人の作品ではないと、名前と言葉で示す） */
 function addSampleWorks(): number {
   let n = 0;
   const have = new Set(loadWorks().filter(isSample).map((w) => w.title));
@@ -3722,7 +3982,6 @@ function openWork(w: WorkRecord) {
     };
     keptPhoto = null;
     compare = null;
-    undoClaude = null;
     stoneKey = null;
     renderStoneButtons();
     $<HTMLInputElement>(".in-long").value = String(Number(st.longMm.toFixed(2)));
@@ -3739,28 +3998,27 @@ function openWork(w: WorkRecord) {
   $(".studio-refine").scrollTop = 0;
   toast(`開きました：${w.title}`);
 }
+/** 記録：自分で残した指輪の一覧。1 つの作品は小さな絵・名前・開くボタン。名前を押すと細かい事が出る */
 function renderWorks() {
   const box = $(".works-panel");
   const works = loadWorks();
   box.innerHTML = `
-    <section class="works-head"><b>${works.length} 作品</b><small>作るたびに、形・作れるか・作り方・ひとことが残ります。</small></section>
-    ${works.length ? `<button type="button" class="primary w-print">記録の帳面を印刷</button>` : `<p class="tech-what">まだ記録がありません。「作る」の下の「この作品の記録を残す」から残せます。</p><p class="tech-what">試すだけなら、よくある形の石から継ぐが組んだ見本の作品を入れられます（職人の作品ではありません）。</p><button type="button" class="next-btn w-samples">見本の作品を ${SAMPLE_DESIGNS.length} つ入れる</button>`}
-    ${works.some(isSample) ? `<button type="button" class="ghost-d w-unsample">見本の作品を消す</button>` : ""}
-    <ul class="works-list">${works
+    <p class="works-line">${works.length ? "残した指輪です。開くと続きを作れます。" : "設計を残すと、ここに並びます。あとで開いて続きを作れます"}</p>
+    <button type="button" class="primary w-keep">今の設計を残す →</button>
+    ${works.length ? `<ul class="works-list">${works
       .map(
-        (w) => `<li><img alt="" src="${w.image}"><div><b>${esc(w.title)}</b><small>${esc(w.date)}${w.maker ? ` ・ ${esc(w.maker)}` : ""} ・ ${esc(w.methodLabel)}</small>${w.note ? (isSample(w) ? `<p class="sample-note">${esc(w.note)}</p>` : `<p>「${esc(w.note)}」</p>`) : ""}${(w.revisions ?? []).map((r) => `<p class="rev">${esc(r.by)}の決まりで直した：${esc(r.change)}</p>`).join("")}<span class="${w.problems.length ? "ng" : "ok"}">${w.problems.length ? "作れない所あり" : "作れる形"}</span>${!filming() && (w.design || w.bandDesign) ? `<button type="button" class="link w-open" data-id="${w.id}">この形を開く →</button>` : ""}</div><button type="button" class="w-del" data-id="${w.id}" aria-label="消す">×</button></li>`,
+        (w) => `<li><img alt="" src="${w.image}"><details class="w-more"><summary>${esc(w.title)}</summary><small>${esc(w.date)}${w.maker ? ` ・ ${esc(w.maker)}` : ""} ・ ${esc(w.methodLabel)}</small>${w.note ? `<p>「${esc(w.note)}」</p>` : ""}${(w.revisions ?? []).map((r) => `<p class="rev">${esc(r.by)}の決まりで直した：${esc(r.change)}</p>`).join("")}<span class="${w.problems.length ? "ng" : "ok"}">${w.problems.length ? "作れない所あり" : "作れる形"}</span></details>${w.design || w.bandDesign ? `<button type="button" class="ghost-d w-open" data-id="${esc(w.id)}">開く</button>` : "<span></span>"}<button type="button" class="w-del" data-id="${esc(w.id)}" aria-label="この記録を消す">×</button></li>`,
       )
-      .join("")}</ul>
+      .join("")}</ul><button type="button" class="ghost-d w-print">記録の帳面を印刷</button>` : ""}
     <nav class="places-sm" aria-label="ほかの場所"><small>ほかの場所</small><a href="app.html#ledger">帳面<span>職人の決まりと、Claude からの質問</span></a><a href="app.html#learn">学ぶ<span>次の人が、職人の決まりに聞く</span></a><a href="app.html#waza">技<span>彫金・金工の技と、途切れた技を組み立て直す</span></a></nav>`;
   box.querySelector(".w-print")?.addEventListener("click", () => openPrint(worksBookHtml(fillDrawings(loadWorks()), today())));
-  box.querySelector(".w-samples")?.addEventListener("click", () => {
-    addSampleWorks();
-    renderWorks();
-  });
-  box.querySelector(".w-unsample")?.addEventListener("click", () => {
-    if (!askConfirm("見本の作品を、全部消しますか？")) return;
-    for (const w of loadWorks()) if (isSample(w)) removeWork(w.id);
-    renderWorks();
+  // 残す欄は「手順」の下にある。そこまで連れて行って、欄を開く
+  box.querySelector(".w-keep")!.addEventListener("click", () => {
+    setMode("hand");
+    const save = document.querySelector<HTMLButtonElement>(".build-panel .p-save");
+    if (!save) return;
+    save.click();
+    requestAnimationFrame(() => document.querySelector(".build-panel .save-work")?.scrollIntoView({ behavior: "smooth", block: "center" }));
   });
   box.querySelectorAll<HTMLButtonElement>(".w-open").forEach((b) =>
     b.addEventListener("click", () => {
@@ -3810,6 +4068,8 @@ if (new URLSearchParams(location.search).has("rec")) {
   w.__propose = (p) => propose($(".ar-proposal"), p, masterName(store.ledger()));
 }
 
+// 前に入れた見本の作品は消す（職人が残した作品は消さない）。撮影は見本を使うので、そのまま
+if (!filming()) removeSampleWorks();
 setMode("make");
 void restoreDesign()
   .catch(() => false)

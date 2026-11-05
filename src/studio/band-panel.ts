@@ -1,4 +1,4 @@
-// 石のない指輪の「形」の欄：断面の見本（絵つき）・上と下・内甲丸・切って見る・断面を描く画面・寸法・地金。
+// 地金のみの指輪の「形」の欄：断面の見本（絵つき）・上と下・内甲丸・切って見る・断面を描く画面・寸法・地金。
 // 断面を描く画面は、石のある指輪の腕と同じ部品（section-edit.ts）。設計を変える計算は band.ts、ここは画面だけ。
 import { SECTION_LABEL, SECTION_LIST, bandCurve, innerLimit, sectionInfo, sectionLoop, sectionPath, type PresetKind } from "../cad/section";
 // 断面の見本・内甲丸の言葉と、はじめの寸法の出どころは cad/section.ts と rules/guides.ts に書いた
@@ -8,6 +8,9 @@ import { checkBand, curveOf, drawSection, endOf, kindOf, pickSection, setInner, 
 import { bindSectionEditor, sectionEditorHtml, startShape, type SectionShape } from "./section-edit";
 import { METAL_LABEL } from "./session";
 import { bindSlider, sliderHtml, type SliderSpec } from "./slider";
+
+/** 地金のみの指輪の号の範囲（手で変えるつまみと、生成の欄で同じ） */
+export const BAND_GOU_RANGE = { min: 3, max: 30 };
 
 export interface BandPanelHost {
   band(): Band;
@@ -55,6 +58,26 @@ function freeThumb(b: Band, e: BandEndName): string {
   return `<svg class="bs-thumb" viewBox="${-w / 2} ${0.2 - h} ${w} ${h}" aria-hidden="true"><path d="${sectionPath(loop)}"/></svg>`;
 }
 
+/** 断面の見本の札（地金のみの指輪と、一粒石の指輪の腕で同じ部品）。cur：押してある札。freeIcon：手で描くの札の絵（なければペン） */
+export function sectionGridHtml(cur: string, freeIcon: string = PEN_ICON): string {
+  return `<div class="bs-grid" role="group" aria-label="断面の見本">${SECTION_LIST.map((s) => `<button type="button" data-sec="${s.id}" aria-pressed="${cur === s.id}" title="${s.plain}">${thumb(s.id)}<span>${s.label}</span></button>`).join("")}<button type="button" data-sec="free" aria-pressed="${cur === "free"}" title="断面を指やマウスでなぞって描く">${freeIcon}<span>手で描く</span></button></div>`;
+}
+
+/** 見本の札を押したとき。手で描く：断面の画面を「自由に描く」にして、そこまで動かす（線を描くまで形は変わらない） */
+export function bindSectionGrid(box: HTMLElement, pick: (k: PresetKind) => void, beforeDraw?: () => void): void {
+  box.querySelectorAll<HTMLButtonElement>("[data-sec]").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      if (btn.dataset.sec === "free") {
+        beforeDraw?.();
+        box.querySelector<HTMLButtonElement>('.se-mode[data-mode="draw"]')?.click();
+        box.querySelector(".sec-edit")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+      pick(btn.dataset.sec as PresetKind);
+    }),
+  );
+}
+
 function pickRow(name: string, attr: string, cur: string, list: [string, string][]): string {
   return `<div class="pick"><span>${name}</span><div>${list.map(([v, l]) => `<button type="button" data-${attr}="${v}" aria-pressed="${v === cur}">${l}</button>`).join("")}</div></div>`;
 }
@@ -91,11 +114,11 @@ export function renderBandPanel(box: HTMLElement, host: BandPanelHost): void {
     sizeOf("top", "b-t", "上の");
     sizeOf("bottom", "b-b", "下の");
   } else sizeOf("top", "b-", "");
-  const gou: SliderSpec = { cls: "b-gou", label: "号", min: 3, max: 30, step: 1, value: b.gou, unit: "号" };
+  const gou: SliderSpec = { cls: "b-gou", label: "号", min: BAND_GOU_RANGE.min, max: BAND_GOU_RANGE.max, step: 1, value: b.gou, unit: "号" };
   const innerSlider: SliderSpec | null = inner > 0 && !isRound && lim >= 0.1 ? { cls: "b-in", label: "内側の丸み", min: 0.05, max: Math.floor(lim * 20) / 20, step: 0.05, value: Math.round(inner * 20) / 20, unit: "mm" } : null;
 
   box.innerHTML = `
-    <div class="bs-grid" role="group" aria-label="断面の見本">${SECTION_LIST.map((s) => `<button type="button" data-sec="${s.id}" aria-pressed="${k === s.id}" title="${s.plain}">${thumb(s.id)}<span>${s.label}</span></button>`).join("")}<button type="button" data-sec="free" aria-pressed="${k === "free"}" title="断面を指やマウスでなぞって描く">${k === "free" ? freeThumb(b, e) : PEN_ICON}<span>手で描く</span></button></div>
+    ${sectionGridHtml(k, k === "free" ? freeThumb(b, e) : undefined)}
     <p class="bs-note"><b>${SECTION_LABEL[k]}</b>${note}<small>はじめの寸法は仮の目安・最後は職人が決める</small></p>
     ${pickRow("上と下", "split", b.split ? "1" : "0", [["0", "ひと周り同じ"], ["1", "上と下で変える"]])}
     ${b.split ? pickRow("直す所", "end", e, [["top", "上（見える側）"], ["bottom", "下（手のひら側）"]]) : ""}
@@ -106,17 +129,7 @@ export function renderBandPanel(box: HTMLElement, host: BandPanelHost): void {
     <div class="sliders">${[gou, ...size].map(sliderHtml).join("")}</div>
     ${pickRow("地金", "metal", host.metal(), (["k18yg", "pt900", "k18wg", "k18pg", "sv925"] as Metal[]).map((m) => [m, METAL_LABEL[m]] as [string, string]))}`;
 
-  box.querySelectorAll<HTMLButtonElement>("[data-sec]").forEach((btn) =>
-    btn.addEventListener("click", () => {
-      // 手で描く：断面の画面を「自由に描く」にして、そこまで動かす（線を描くまで形は変わらない）
-      if (btn.dataset.sec === "free") {
-        box.querySelector<HTMLButtonElement>('.se-mode[data-mode="draw"]')?.click();
-        box.querySelector(".sec-edit")?.scrollIntoView({ behavior: "smooth", block: "center" });
-        return;
-      }
-      host.change(pickSection(host.band(), btn.dataset.sec as PresetKind, bandTarget(host.band())));
-    }),
-  );
+  bindSectionGrid(box, (kind) => host.change(pickSection(host.band(), kind, bandTarget(host.band()))));
   box.querySelectorAll<HTMLButtonElement>("[data-split]").forEach((btn) => btn.addEventListener("click", () => host.change(setSplit(host.band(), btn.dataset.split === "1"))));
   box.querySelectorAll<HTMLButtonElement>("[data-end]").forEach((btn) =>
     btn.addEventListener("click", () => {
@@ -134,7 +147,7 @@ export function renderBandPanel(box: HTMLElement, host: BandPanelHost): void {
   box.querySelectorAll<HTMLButtonElement>("[data-metal]").forEach((btn) => btn.addEventListener("click", () => host.setMetal(btn.dataset.metal as Metal)));
   box.querySelector(".bs-cut")!.addEventListener("click", () => host.setCut(!host.cut()));
 
-  // 石のない指輪は形が軽いので、つまみを動かしている間も形を変える
+  // 地金のみの指輪は形が軽いので、つまみを動かしている間も形を変える
   bindSlider(
     box,
     gou,

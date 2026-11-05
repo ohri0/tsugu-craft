@@ -12,6 +12,7 @@ import { FIXES, checkRing, cornerDistances, holdRatio, tensionInsert, tensionNot
 import { springForClaude, springIdOf, tensionCautions, tensionSpring } from "../rules/tension-calc";
 import { GUIDES, requiredHold, stoneSizeMm, type Guides, type HeightOption, type MetalId, type StonePosition } from "../rules/guides";
 import { effectiveGuides, prongMinOverride, ruleForCheck, type Ledger, type Rule } from "../rules/ledger";
+import { INPUT_BOUNDS } from "../claude/tools";
 import type {
   CheckResult,
   FixOption,
@@ -198,8 +199,8 @@ export function underLedger(stone: StoneParams, state: RingState, ledger: Ledger
   return s.build("帳面ごとに比べる");
 }
 
-/** 石の長辺の欄で入れられる範囲（mm。石の大きさのつまみと同じ） */
-export const STONE_LONG_RANGE = { min: 3, max: 14 } as const;
+/** 石の長辺の欄で入れられる範囲（mm。石の大きさのつまみと、Claude の choose_stone と同じ） */
+export const STONE_LONG_RANGE = { min: INPUT_BOUNDS.stone_long_mm[0], max: INPUT_BOUNDS.stone_long_mm[1] } as const;
 
 /** 長辺の欄に打った数を、範囲に収める。数でなければ今の値のまま。fixed ＝ 打った数のままではなくなった */
 export function fitStoneLong(raw: number, current: number): { mm: number; fixed: boolean } {

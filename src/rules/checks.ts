@@ -584,7 +584,7 @@ export function outlinePointAtT(outline: readonly Point[], t: number): Point {
 }
 
 /**
- * 腕の厚みと幅（石のない指輪と同じ目安：guides.ts の band）。断面がどの形でも、いちばん厚い所の厚みと、いちばん細い所の幅で比べる
+ * 腕の厚みと幅（地金のみの指輪と同じ目安：guides.ts の band）。断面がどの形でも、いちばん厚い所の厚みと、いちばん細い所の幅で比べる
  */
 export function checkShank(sh: Pick<ShankResult, "thicknessMm" | "widthMm"> & { minWidthMm?: number; minThicknessMm?: number; outlineMm?: [number, number][]; along?: ShankResult["along"]; relief?: ShankResult["relief"] }, opts: CheckOptions = {}): Problem[] {
   const g: Guides = opts.guides ?? GUIDES;

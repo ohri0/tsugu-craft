@@ -21,6 +21,14 @@ export const PRESETS: StonePreset[] = [
   { id: "marquise", name: "マーキス", longMm: 10, widthMm: 5, depthMm: 3.2 },
 ];
 
+/** よくある形を、長辺に合わせて大きさだけ変える（幅と深さは例の比のまま） */
+export function sizedPreset(id: string, longMm: number): StonePreset {
+  const p = PRESETS.find((x) => x.id === id) ?? PRESETS[0];
+  const k = longMm / p.longMm;
+  const mm = (v: number) => Number(v.toFixed(2));
+  return { ...p, longMm: mm(longMm), widthMm: mm(p.widthMm * k), depthMm: mm(p.depthMm * k) };
+}
+
 /** 輪郭（mm、中心が原点、長辺が x）。反時計回り */
 export function presetOutline(p: StonePreset, n = 128): Point[] {
   const a = p.longMm / 2;

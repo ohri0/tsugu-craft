@@ -1,4 +1,4 @@
-// 石のない指輪の断面：見本・内甲丸・上と下で変える・手で描く。どれも閉じた 1 つの形で、内径は号の値のまま
+// 地金のみの指輪の断面：見本・内甲丸・上と下で変える・手で描く。どれも閉じた 1 つの形で、内径は号の値のまま
 import { describe, expect, it } from "vitest";
 import { SECTION_LIST, bandCurve, innerArc, innerLimit, sectionLoop, thinOutline, valleyOf, type PresetKind } from "../src/cad/section";
 import { earClip, meshVolume, openEdges, toStl, type LoopPt } from "../src/cad/solid";

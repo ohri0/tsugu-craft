@@ -31,7 +31,7 @@ export interface WorkRecord {
   tips?: Tip[];
   /** 組み直せる設計（一粒石の指輪）。新しい決まりで確かめ直すのに使う */
   design?: { stone: StoneParams; state: RingState; look?: { color: { r: number; g: number; b: number }; colorless: boolean } };
-  /** 組み直せる設計（甲丸・平打ちの指輪）。「この形を開く」に使う */
+  /** 組み直せる設計（地金のみの指輪）。「この形を開く」に使う */
   bandDesign?: { band: Band; metal: Metal };
   /** 図面（drawingPage の HTML。正面・側面・上面と寸法）。古い記録にはない */
   drawing?: string;
@@ -79,6 +79,18 @@ export function saveWork(w: WorkRecord): boolean {
 export function removeWork(id: string): void {
   try {
     localStorage.setItem(STORE, JSON.stringify(loadWorks().filter((w) => w.id !== id)));
+  } catch {
+    // 消せなくても画面は動く
+  }
+}
+
+/** 前の版で入れた見本の作品を消す（名前も作った人も見本の物だけ。職人が名前の欄に「見本」と書いた作品は消さない） */
+export function removeSampleWorks(): void {
+  const all = loadWorks();
+  const left = all.filter((w) => !(w.maker === "見本" && w.title.startsWith("見本：")));
+  if (left.length === all.length) return;
+  try {
+    localStorage.setItem(STORE, JSON.stringify(left));
   } catch {
     // 消せなくても画面は動く
   }

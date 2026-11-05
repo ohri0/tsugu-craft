@@ -208,6 +208,9 @@ async function dispatch<S>(host: ToolHost<S>, call: ParsedToolCall): Promise<unk
     case "set_stones":
       if (!host.setStones) return { layout: "solo", stones: [], note: "この画面では石を並べられません（一粒のまま）" };
       return host.setStones(call.input);
+    case "choose_stone":
+      // host.chooseStone がないときは、runTool が先に断っている
+      return host.chooseStone!(call.input);
   }
 }
 
@@ -266,9 +269,12 @@ export async function runClaude<S>(opts: LoopOptions<S>): Promise<LoopResult> {
       return errorResult(block.id, text);
     };
 
+    // 渡していない道具は、呼ばれても動かさない（「今の石を使う」で石が変わらないように）
+    if (opts.tools && !opts.tools.some((t) => t.name === block.name)) return fail("この作業では、この道具は使えません");
     const parsed = parseToolCall(block.name, block.input);
     if (!parsed.ok) return fail(parsed.error);
     const call = parsed.call;
+    if (call.name === "choose_stone" && !host.chooseStone) return fail("今の石を使う約束なので、石の形と大きさは変えられません");
     if (call.name === "check") {
       if (checks >= maxChecks) {
         return fail(`確かめは 1 回の作業で ${maxChecks} 回までです。ここで止めて、残っている問題は「残っていること」としてまとめてください。`);
