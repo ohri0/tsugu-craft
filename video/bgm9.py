@@ -14,6 +14,7 @@
 #   python -I bgm9.py --plan A --from 100 --to 130  好きな所だけ
 #   python -I bgm9.py --plan A --notes              和音の並び・音の高さの確かめだけ（音は作らない）
 #   --icloud を足すと、m4a を作者の iCloud の「継ぐ動画/音楽」へ写す
+#   案 D・E は今のところ本体の試聴だけ（--preview）。全長は作者が選んでから作る
 # 台本が変わったら、下の SECTIONS と END の秒だけ変える。小節の数と速さは、そこから決まる（1 小節の長さを少し変えて、区切りに小節の頭を合わせる）。
 
 import argparse
@@ -218,8 +219,9 @@ def bell(f, fc, gain_db, width_oct=1.0):
     return 10.0 ** (gain_db * np.exp(-0.5 * x * x) / 20)
 
 
-def filt(x, fn, rate=R):
-    """x は (n,) か (n, 2)。fn(f) が大きさ"""
+def filt(x, fn, rate=None):
+    """x は (n,) か (n, 2)。fn(f) が大きさ。rate を省くと、計算の細かさ R"""
+    rate = rate or R
     if x.ndim == 2:
         return np.stack([filt(x[:, c], fn, rate) for c in range(x.shape[1])], 1)
     n = len(x)
@@ -332,11 +334,11 @@ def note_time(dur_s, tail):
     return np.arange(n, dtype=np.float64) / R, n
 
 
-def felt_piano(m, v, dur_s, rng, pan=0.0, mute=1.0):
+def felt_piano(m, v, dur_s, rng, pan=0.0, mute=1.0, top=6500.0, sub=0.0, click=0.0, rel_s=None, spread_lr=0.45):
     """フェルトの弱音ピアノ。弦を少しずつずらして鳴らす（うなりが自然に出る）。
     高い倍音ほど早く消え、消え方は 2 段（はじめ速く、あとゆっくり）。強く弾くほど明るい。"""
     f0 = hz(m) * cents(rng.normal(0, 0.5))
-    rel = 0.32 + 0.20 * np.clip((60 - m) / 24, 0, 1)
+    rel = rel_s if rel_s else 0.32 + 0.20 * np.clip((60 - m) / 24, 0, 1)
     tail = 0.9
     t, n = note_time(dur_s, tail)
     v = float(np.clip(v, 0.03, 1.0))
@@ -355,7 +357,7 @@ def felt_piano(m, v, dur_s, rng, pan=0.0, mute=1.0):
         offs = (0.0,)
     gl, gr = math.cos((pan + 1) * math.pi / 4) * 1.4142, math.sin((pan + 1) * math.pi / 4) * 1.4142
     ns = len(offs)
-    spread = np.linspace(-0.45, 0.45, ns) if ns > 1 else np.zeros(1)
+    spread = np.linspace(-spread_lr, spread_lr, ns) if ns > 1 else np.zeros(1)
     L = np.zeros(n, F32)
     Rr = np.zeros(n, F32)
     a1 = None
@@ -366,7 +368,7 @@ def felt_piano(m, v, dur_s, rng, pan=0.0, mute=1.0):
         damp[i_rel:] = np.exp(-tr / rel).astype(F32)
     for k in range(1, 64):
         fk = k * f0 * math.sqrt(1 + B * k * k)
-        if fk > 6500 or fk > 0.42 * R:
+        if fk > top or fk > 0.42 * R:
             break
         # 打つ位置で抜ける倍音・やわらかいフェルト（高い所が落ちる）・胴は低い音を出しにくい
         a = (abs(math.sin(math.pi * k * p)) ** 0.75 + 0.03) * k ** -0.6 / (1 + (fk / fc) ** 1.9) * (fk / (fk + 75.0)) ** 1.3
@@ -396,6 +398,13 @@ def felt_piano(m, v, dur_s, rng, pan=0.0, mute=1.0):
     knock = knock * ee / (np.abs(knock).max() + 1e-9) * (0.018 + 0.05 * v)
     out = np.stack([L * damp, Rr * damp], 1).astype(np.float64)
     out[:nt] += np.stack([knock * gl, knock * gr], 1)
+    if click:  # ひとりで鳴らす時：打った瞬間のごく小さな明るい音（近さ）
+        ck = filt(rng.standard_normal(nt), lambda f: hp(f, 1800, 1) * lp(f, 9000, 1))
+        ck = ck / (np.abs(ck).max() + 1e-9) * np.exp(-t[:nt] / 0.004) * raised(t[:nt], 0.001) * (0.003 + 0.016 * v) * click
+        out[:nt] += np.stack([ck * gl, ck * gr], 1)
+    if sub:  # 低い音の下を少し支える（ピアノの胴は、いちばん低い音を出しにくい）
+        y = sub * (0.18 + 0.82 * v) * osc(f0, t) * (0.75 * np.exp(-t / 2.2) + 0.25 * np.exp(-t / 6.0)) * raised(t, 0.012)
+        out += (y * damp)[:, None]
     tail_n = int(0.1 * R)
     out[-tail_n:] *= np.linspace(1, 0, tail_n)[:, None]
     return out * (0.14 + 0.86 * v) * 1.1
@@ -1495,8 +1504,377 @@ def plan_c():
     return s
 
 
-PLANS = {"A": plan_a, "B": plan_b, "C": plan_c}
-PLAN_INFO = {"A": "温かい和音と低音", "B": "ピアノとやわらかな脈", "C": "広がる音の層"}
+# ================================================================ 案 D・案 E（作者の声：A〜C はフリー BGM のよう。安っぽい。プロっぽくない）
+# 作りを変える：和音の上に旋律を乗せない。1 つの短い音型が主役で、下で深い低音だけが動く（同じ音型の意味が、低音で変わる）。
+# 音は 4 種類まで：音型・低音・小さな刻み・空気。ふだんは乾いて近く、区切りの音だけ遠くへ響かせる。8 小節ごとに、足す・抜く・一瞬止まる。
+def dry_wood(m, v, dur_s, rng, pan=0.0):
+    """近くで鳴る、短く乾いた木のはじき音。高い倍音ほど早く消える。はじいた瞬間に音が少し高い。爪があたる音と、胴の小さな音"""
+    f0 = hz(m) * cents(rng.normal(0, 0.4))
+    v = float(np.clip(v, 0.03, 1.0))
+    t, n = note_time(dur_s, 0.45)
+    T = 0.46 * 2 ** (-(m - 69) / 20) * (0.85 + 0.3 * v)
+    p = 0.18 * rng.uniform(0.96, 1.04)
+    tilt = 0.72 + 0.5 * (1 - v)
+    td = 0.016
+    tw = t + (cents(rng.uniform(7, 11)) - 1) * td * (1 - np.exp(-t / td))
+    L, Rr = np.zeros(n, F32), np.zeros(n, F32)
+    gl, gr = math.cos((pan + 1) * math.pi / 4) * 1.4142, math.sin((pan + 1) * math.pi / 4) * 1.4142
+    for k in range(1, 48):
+        fk = k * f0 * math.sqrt(1 + 3.0e-4 * k * k)
+        if fk > 15000 or fk > 0.45 * R:
+            break
+        a = (abs(math.sin(math.pi * k * p)) ** 0.6 + 0.05) / k ** tilt / (1 + (fk / 6500) ** 2)
+        a *= float(bell(np.array([fk]), 260, 3.0, 0.9)[0] * bell(np.array([fk]), 760, 2.0, 0.8)[0]) * rng.uniform(0.94, 1.06)
+        tau = T / (1 + 0.6 * (k - 1) ** 0.9)
+        x1 = osc(fk, tw, rng.uniform(0, 0.02)) * np.exp(-t / tau).astype(F32)
+        x2 = osc(fk * cents(rng.uniform(0.3, 0.9)), tw, rng.uniform(0, 0.02)) * np.exp(-t / (tau * 1.7)).astype(F32)
+        L += a * (0.82 * x1 + 0.34 * x2)
+        Rr += a * (0.82 * x1 - 0.10 * x2)
+    out = np.stack([L * gl, Rr * gr], 1).astype(np.float64)
+    nt = min(n, int(0.02 * R))
+    nail = filt(rng.standard_normal(nt), lambda f: hp(f, 1300, 2) * lp(f, 11000, 1))
+    nail = nail / (np.abs(nail).max() + 1e-9) * np.exp(-t[:nt] / 0.0028) * (0.02 + 0.055 * v)
+    thup = filt(rng.standard_normal(nt), lambda f: bell(f, 240, 8, 0.8) * lp(f, 700, 2) * hp(f, 90, 2))
+    thup = thup / (np.abs(thup).max() + 1e-9) * np.exp(-t[:nt] / 0.006) * (0.03 + 0.07 * v)
+    out[:nt] += (nail + thup)[:, None]
+    env = raised(t, 0.0009 + 0.0009 * (1 - v))
+    i_rel = int(dur_s * R)
+    if i_rel < n:
+        env[i_rel:] *= np.exp(-(t[i_rel:] - dur_s) / 0.07)
+    env[-int(0.02 * R):] *= np.linspace(1, 0, int(0.02 * R))
+    out *= env[:, None]
+    return out / (np.abs(out).max() + 1e-9) * (0.2 + 0.8 * v)
+
+
+def clean_pluck(m, v, dur_s, rng, pan=0.0):
+    """澄んだはじき音。はじめは倍音が高くまであり、高い倍音から順に、すぐ閉じていく。左右で少しずらす"""
+    f0 = hz(m) * cents(rng.normal(0, 0.3))
+    v = float(np.clip(v, 0.03, 1.0))
+    t, n = note_time(dur_s, 0.5)
+    T = 0.62 * 2 ** (-(m - 72) / 22) * (0.85 + 0.3 * v)
+    close = 0.85 + 0.7 * (1 - v)  # 弱いほど早く閉じる
+    out = np.zeros((n, 2))
+    gl, gr = math.cos((pan + 1) * math.pi / 4) * 1.4142, math.sin((pan + 1) * math.pi / 4) * 1.4142
+    for c, det in enumerate((-2.2, 2.2)):
+        x = np.zeros(n, F32)
+        for k in range(1, 40):
+            fk = k * f0 * cents(det)
+            if fk > 15000 or fk > 0.45 * R:
+                break
+            a = rng.uniform(0.95, 1.05) / k ** 1.0 / (1 + (fk / 9000) ** 2)
+            x += a * osc(fk, t, rng.uniform(0, 0.03)) * np.exp(-t / (T / (1 + close * (k - 1)))).astype(F32)
+        out[:, c] = x
+    env = raised(t, 0.0012 + 0.001 * (1 - v))
+    i_rel = int(dur_s * R)
+    if i_rel < n:
+        env[i_rel:] *= np.exp(-(t[i_rel:] - dur_s) / 0.08)
+    env[-int(0.02 * R):] *= np.linspace(1, 0, int(0.02 * R))
+    out *= env[:, None]
+    out[:, 0] *= gl
+    out[:, 1] *= gr
+    return out / (np.abs(out).max() + 1e-9) * (0.2 + 0.8 * v)
+
+
+def deep_bass(m, v, dur_s, rng, **_):
+    """深く、線のきれいな低音。頭だけ倍音が咲いて消える。スマホでも分かるよう、上の倍音を少しだけ残す"""
+    f = hz(m) * cents(rng.normal(0, 0.8))
+    v = float(np.clip(v, 0.03, 1.0))
+    t, n = note_time(dur_s, 0.2)
+    fm = 1 + (cents(rng.uniform(14, 22)) - 1) * np.exp(-t / 0.028)
+    ph = np.cumsum(f * fm) / R
+    x = np.sin(TWO_PI * (ph - np.floor(ph)))
+    for k, a, tau, keep in ((2, 0.32, 0.30, 0.15), (3, 0.20, 0.20, 0.09), (4, 0.14, 0.14, 0.06), (5, 0.11, 0.10, 0.04), (6, 0.09, 0.08, 0.03), (8, 0.08, 0.07, 0.02), (10, 0.06, 0.05, 0.012), (12, 0.05, 0.04, 0.008)):
+        if f * k < 1400:
+            x = x + ((a - keep) * np.exp(-t / tau) + keep) * np.sin(TWO_PI * ((ph * k) % 1.0) + 0.3 * k)
+    x = np.tanh(1.05 * x) / np.tanh(1.05)
+    env = raised(t, 0.004) * (0.8 * np.exp(-t / 1.8) + 0.2)
+    i_rel = int(dur_s * R)
+    if i_rel < n:
+        env[i_rel:] *= np.exp(-(t[i_rel:] - dur_s) / 0.05)
+    env[-int(0.02 * R):] *= np.linspace(1, 0, int(0.02 * R))
+    x = x * env * (0.25 + 0.75 * v)
+    return np.stack([x, x], 1)
+
+
+def tiny_tick(m, v, dur_s, rng, pan=0.0):
+    """打つ音はこれ 1 種類：小さく精密な、高い帯の一瞬の音（声より上。7 kHz あたり）。打つたびに少し違う"""
+    n = int(0.05 * R)
+    t = np.arange(n) / R
+    fc = rng.uniform(7000, 8300)
+    common = rng.standard_normal(n)
+    out = np.zeros((n, 2))
+    for c in range(2):
+        nz = 0.85 * common + 0.5 * rng.standard_normal(n)
+        out[:, c] = filt(nz, lambda f: bell(f, fc, 8, 0.8) * hp(f, 4300, 3) * lp(f, 15000, 2))
+    metal = sum(a * np.sin(TWO_PI * fq * rng.uniform(0.99, 1.01) * t + rng.uniform(0, 6)) for fq, a in ((6100, 0.5), (8700, 0.35), (11900, 0.25)) if fq < 0.45 * R)
+    out += (metal * np.exp(-t / 0.0035))[:, None] * np.abs(out).max() * 0.5
+    out *= ((0.85 * np.exp(-t / 0.0028) + 0.15 * np.exp(-t / 0.014)) * raised(t, 0.00025))[:, None]
+    out[-int(0.01 * R):] *= np.linspace(1, 0, int(0.01 * R))[:, None]
+    gl, gr = math.cos((pan + 1) * math.pi / 4) * 1.4142, math.sin((pan + 1) * math.pi / 4) * 1.4142
+    out[:, 0] *= gl
+    out[:, 1] *= gr
+    return out / (np.abs(out).max() + 1e-9) * (0.25 + 0.75 * v)
+
+
+INSTR.update({"wood": dry_wood, "clean": clean_pluck, "deep": deep_bass, "tick": tiny_tick})
+TIMBRES["air2"] = dict(bw=90, bwk=0.9, tilt=0.45, fc=(6000, 12000), order=1.5, form=[], fmax=16000)
+PREVIEW_ONLY = {"D", "E", "D2"}  # 全長は、作者が選んでから作る
+
+
+def small_song(name, seed, bpm, mul, inst, room, hall, delay_beats, master_cfg, wet=1.0):
+    """D・E に共通の下ごしらえ：乾いた音型のバスと、区切りだけ遠くへ響かせるバス"""
+    s = Song(name, seed, bpm, multiple={"main": mul}, swing=0.5)
+    s.pad_cfg["air"] = dict(timbre="air2", att=1.6, rel=0.35, width=1.0, bright=lambda t: np.full_like(t, 0.6))
+    s.mix = dict(
+        bus={inst: dict(plate=room), "throw": dict(dry=0.0, hall=0.8, delay=0.65), "deep": dict(), "tick": dict(plate=0.06), "air": dict(hall=0.12)},
+        eq={
+            inst: lambda f: hp(f, 110, 2) * bell(f, 2300, -3.5, 0.9) * lp(f, 17000, 1),
+            "throw": lambda f: hp(f, 250, 2) * bell(f, 2300, -4, 0.9) * lp(f, 9000, 1),
+            "deep": lambda f: hp(f, 28, 2) * lp(f, 1800, 1),
+            "tick": lambda f: np.ones_like(f),
+            "air": lambda f: hp(f, 5200, 2) * lp(f, 15000, 2),
+        },
+        hall=hall,
+        plate=(0.28, 0.32, 0.22, 0.003),
+        delay_beats=delay_beats,
+        delay_fb=0.34,
+        wet=wet,
+        wet_hi=13000,
+        master=master_cfg,
+    )
+    return s
+
+
+def plan_d():
+    """案 D：木の音型と深い低音。音型 A E D A（5 度上がり、順に下り、4 度下りる。3 度のない開いた音）。下で低音だけが F・G・B♭・C・D と動く"""
+    s = small_song("D", 904, 96, 4, "wood", 0.15, (2.2, 2.6, 1.8, 0.03), 0.75, dict(drive=0.3, fade_in=0.04, leveler=False))
+    d = s.tm.sec["main"]
+    b0, nb = d["b0"], d["bars"]
+    F1, G1, BB1, C2, D2 = 29, 31, 34, 36, 38
+    MOTIF = [(0, 69, 0.74), (3, 76, 0.54), (6, 74, 0.62), (10, 69, 0.46)]
+
+    def motif(bar, vm=1.0, last=None, cut=4, throw=None, up=0.0):
+        for j, (st, m, v) in enumerate(MOTIF[:cut]):
+            mm = last if (last is not None and j == 3) else m
+            bt = b0 + bar * 4 + st / 4
+            s.note("wood", "wood", bt, 0.85, mm, v * vm * s.rng.uniform(0.97, 1.03), jit_ms=0.6)
+            if up:
+                s.note("wood", "wood", bt + 0.004, 0.7, mm + 12, v * vm * up * s.rng.uniform(0.95, 1.05), jit_ms=0.6, pan=0.25 if j % 2 else -0.25)
+            if throw == j:
+                s.note("wood", "throw", bt, 0.85, mm, v * vm, jit_ms=0.0)
+
+    def bass(bar, st, beats, m, v=0.95):
+        s.note("deep", "deep", b0 + bar * 4 + st / 4, beats, m, v, jit_ms=0.5)
+
+    def ticks(bar, pat, g=1.0, until=16):
+        for st, v in pat:
+            if st < until:
+                s.note("tick", "tick", b0 + bar * 4 + st / 4, 0.1, 96, v * g * s.rng.uniform(0.92, 1.08), jit_ms=0.4, pan=0.12 if st % 8 else -0.08)
+
+    PAT = [(4, 0.72), (8, 0.42), (12, 0.82), (14, 0.34)]
+    PAT2 = [(4, 0.72), (8, 0.42), (12, 0.82), (15, 0.3)]
+    PAT3 = [(2, 0.26), (4, 0.74), (8, 0.46), (10, 0.24), (12, 0.86), (14, 0.36)]
+    for bar in range(nb):
+        blk, i = bar // 8, bar % 8
+        if blk == 0:  # 音型だけ → 深い低音が入る
+            motif(bar, 0.9 + 0.03 * i, throw=3 if i == 7 else None)
+            if i == 4:
+                bass(bar, 0, 3.6, F1)
+            if i == 5:
+                bass(bar, 14, 0.45, G1, 0.58)
+            if i == 6:
+                bass(bar, 0, 3.6, G1)
+            if i == 7:
+                bass(bar, 14, 0.45, BB1, 0.58)
+        elif blk == 1:  # 刻みを足す → 抜く → 一瞬止まる
+            if i <= 3:
+                motif(bar, 1.0)
+                ticks(bar, PAT if i % 2 == 0 else PAT2)
+                if i == 0:
+                    bass(bar, 0, 3.6, BB1)
+                if i == 1:
+                    bass(bar, 14, 0.45, C2, 0.58)
+                if i == 2:
+                    bass(bar, 0, 3.6, C2)
+            elif i == 4:  # 低音を抜く。最後の音だけ遠くへ
+                motif(bar, 0.95, throw=3)
+                ticks(bar, PAT)
+            elif i == 5:  # 音型も抜く。刻みと、遠くの響きだけ
+                ticks(bar, PAT2, 0.85)
+            elif i == 6:
+                motif(bar, 1.0)
+                ticks(bar, PAT)
+                bass(bar, 0, 3.2, F1)
+            else:  # 2 音で切り、止まる
+                motif(bar, 1.05, cut=2, throw=1)
+                ticks(bar, PAT, until=5)
+        elif blk == 2:  # 戻る。1 オクターブ上を薄く重ね、空気が入る
+            motif(bar, 1.02, up=0.3, last=67 if i >= 4 else None, throw=3 if i == 7 else None)
+            ticks(bar, PAT3 if i % 2 else PAT)
+            root = {0: D2, 2: BB1, 4: C2, 6: F1}.get(i)
+            if root is not None:
+                bass(bar, 0, 3.6, root)
+            nxt = {1: BB1, 3: C2, 5: F1}.get(i)
+            if nxt is not None:
+                bass(bar, 14, 0.45, nxt, 0.58)
+        else:  # 終わりへ：また音型と低音だけ
+            if i % 2 == 0 or i < 4:
+                motif(bar, 0.92 - 0.03 * i)
+            root = {0: BB1, 2: C2, 4: F1}.get(i)
+            if root is not None:
+                bass(bar, 0, 5.5, root, 0.8)
+    # 空気：刻みの間と、戻ってから
+    bt = lambda bar: b0 + bar * 4  # noqa: E731
+    for m_ in (88, 93):
+        s.pad("air", bt(8), bt(12), m_, 0.55)
+        s.pad("air", bt(16), bt(24), m_, 1.0)
+    s.auto("wood", [(0, -10)])
+    s.auto("throw", [(0, -13)])
+    s.auto("deep", [(0, -10.5)])
+    s.auto("tick", [(0, -23)])
+    s.auto("air", [(0, -35)])
+    return s
+
+
+def plan_e():
+    """案 E：澄んだ音型と細かな刻み。音型 F F C G（短短長長）。低音は D♭・E♭・B♭・A♭ で、音型の色がリディアの明るさに変わる。低音は遅れて入る"""
+    s = small_song("E", 905, 102, 2, "clean", 0.12, (1.9, 2.2, 1.6, 0.024), 0.75, dict(drive=0.3, fade_in=0.04, leveler=False))
+    d = s.tm.sec["main"]
+    b0, nb = d["b0"], d["bars"]
+    AB1, BB1, DB2, EB2 = 32, 34, 37, 39
+    MOTIF = [(0, 77, 0.66), (2, 77, 0.44), (6, 72, 0.58), (10, 79, 0.52)]
+
+    def motif(bar, vm=1.0, last=None, cut=4, throw=None, low=0.0):
+        for j, (st, m, v) in enumerate(MOTIF[:cut]):
+            mm = last if (last is not None and j == 3) else m
+            bt = b0 + bar * 4 + st / 4
+            s.note("clean", "clean", bt, 0.6, mm, v * vm * s.rng.uniform(0.97, 1.03), jit_ms=0.5)
+            if low:
+                s.note("clean", "clean", bt, 0.6, mm - 12, v * vm * low * s.rng.uniform(0.95, 1.05), jit_ms=0.5)
+            if throw == j:
+                s.note("clean", "throw", bt, 0.6, mm, v * vm, jit_ms=0.0)
+
+    def bass(bar, st, beats, m, v=0.95):
+        s.note("deep", "deep", b0 + bar * 4 + st / 4, beats, m, v, jit_ms=0.5)
+
+    def ticks(bar, pat, g=1.0, until=16):
+        for st, v in pat:
+            if st < until:
+                s.note("tick", "tick", b0 + bar * 4 + st / 4, 0.1, 96, v * g * s.rng.uniform(0.92, 1.08), jit_ms=0.4, pan=0.14 if st % 4 else -0.1)
+
+    PAT = [(4, 0.7), (8, 0.46), (11, 0.3), (14, 0.74)]
+    PAT2 = [(4, 0.7), (8, 0.46), (12, 0.58), (14, 0.34), (15, 0.26)]
+
+    def groove(bar, root, full=False, v=0.95):
+        bass(bar, 0, 1.6, root, v)
+        if full:
+            bass(bar, 7, 0.4, root, v * 0.6)
+        bass(bar, 12, 0.75, root, v * 0.7)
+
+    for bar in range(nb):
+        blk, i = bar // 8, bar % 8
+        if blk == 0:  # 音型だけ → 刻みを足す（低音はまだ）
+            motif(bar, 0.9 + 0.025 * i, throw=3 if i == 7 else None)
+            if i >= 4:
+                ticks(bar, PAT if i % 2 == 0 else PAT2, 0.6 + 0.08 * (i - 4))
+        elif blk == 1:  # 深い低音が入る → 音型を抜く → 一瞬止まる
+            if i <= 3:
+                motif(bar, 1.0)
+                ticks(bar, PAT if i % 2 == 0 else PAT2)
+                groove(bar, DB2 if i < 2 else EB2)
+            elif i <= 5:  # 音型を抜く。低音と刻みだけ
+                ticks(bar, PAT if i % 2 == 0 else PAT2)
+                groove(bar, BB1, full=True, v=0.9)
+            elif i == 6:
+                motif(bar, 1.0)
+                ticks(bar, PAT)
+                groove(bar, AB1)
+            else:  # 3 音で切り、止まる
+                motif(bar, 1.05, cut=3, throw=2)
+                ticks(bar, PAT, until=5)
+                bass(bar, 0, 1.3, AB1, 0.85)
+        elif blk == 2:  # 戻る。1 オクターブ下を重ね、空気が入る
+            motif(bar, 1.0, low=0.45, last=80 if i in (3, 7) else None, throw=3 if i == 7 else None)
+            ticks(bar, PAT2 if i % 2 else PAT)
+            groove(bar, {0: DB2, 1: DB2, 2: EB2, 3: EB2, 4: BB1, 5: BB1, 6: AB1, 7: EB2}[i], full=True)
+        else:  # 終わりへ
+            if i < 4 or i % 2 == 0:
+                motif(bar, 0.92 - 0.03 * i)
+            if i <= 5:
+                bass(bar, 0, 2.5, {0: DB2, 1: DB2, 2: BB1, 3: BB1}.get(i, AB1), 0.8)
+    bt = lambda bar: b0 + bar * 4  # noqa: E731
+    for m_ in (89, 94):
+        s.pad("air", bt(12), bt(15), m_, 0.6)
+        s.pad("air", bt(16), bt(24), m_, 1.0)
+    s.auto("clean", [(0, -11)])
+    s.auto("throw", [(0, -13)])
+    s.auto("deep", [(0, -11)])
+    s.auto("tick", [(0, -23)])
+    s.auto("air", [(0, -35)])
+    return s
+
+
+def plan_d2():
+    """案 D2（作者の声：ミニマルで、静かな間のあるピアノ。声が乗るので音は少なく）。
+    案 D の音型 A E D A をゆっくりピアノで置き、長い余韻と間を聞かせる。4 小節に 1 回だけ。下の低い 1 音で色が変わる。
+    止まって暗いだけにしないよう、音型の最初の音（A3）を、布をかけたようにごく弱く毎拍くり返して、前へ進める。"""
+    s = Song("D2", 906, 96, multiple={"main": 4}, swing=0.5)
+    d = s.tm.sec["main"]
+    b0, nb = d["b0"], d["bars"]
+    MOTIF = [(0, 69, 0.50), (6, 76, 0.40), (12, 74, 0.44), (20, 69, 0.34)]  # 16 分の位置・音・強さ
+    # 4 小節ごとの低音（なし → F → B♭ → G → D ...）。解決させない。同じ音型が、低音で明るくも遠くもなる
+    ROOTS = [None, (29, 41), (34, 46), (31, 43), (38, 50), (34, 46), (36, 48), (29, 41)]
+
+    def pan_of(m):
+        return float(np.clip((m - 62) / 70, -0.22, 0.22))
+
+    def hit(bt, m, v, beats=14.0, mute=1.25, bus="piano", sub=0.0):
+        s.note("piano", bus, bt, beats, m, v, late_ms=0, jit_ms=5, pan=pan_of(m), mute=mute, top=11000.0, click=1.0, sub=sub, spread_lr=0.2)
+
+    for idx, bar in enumerate(range(0, nb, 4)):
+        bt = b0 + bar * 4
+        cut = 3 if idx % 4 == 3 else 4  # 4 回に 1 回は、最後の音を鳴らさない（間が残る）
+        for j, (st, m, v) in enumerate(MOTIF[:cut]):
+            hit(bt + st / 4, m, v * s.rng.uniform(0.96, 1.04))
+            if idx % 4 == 0 and idx > 0:  # 8 小節の区切りを過ぎて戻る時は、1 オクターブ上を薄く重ねる
+                hit(bt + st / 4 + 0.004, m + 12, v * 0.34)
+        root = ROOTS[idx % len(ROOTS)]
+        if root is not None:
+            hit(bt, root[0], 0.40, mute=0.9, bus="pianolow", sub=0.75)
+            hit(bt + 0.01, root[1], 0.16, mute=0.9, bus="pianolow")
+        # 間に 1 音だけ置く
+        if idx % 8 == 1:
+            hit(bt + 8 + 1, 60, 0.20)  # C4
+        if idx % 8 == 2:
+            hit(bt + 8, 81, 0.20)  # A5
+    # ごく弱い脈：布をかけたような短い A3。最初の 2 小節と、8 小節の組の終わりの 2 小節は休む
+    for bar in range(nb):
+        i16 = bar % 16
+        if bar < 2 or i16 in (14, 15):
+            continue
+        g = 0.55 + 0.2 * (bar - 2) if bar < 4 else 1.0
+        for q, pv in enumerate((1.0, 0.62, 0.82, 0.62)):
+            s.note("piano", "pulse", b0 + bar * 4 + q, 0.35, 57, 0.17 * g * pv * s.rng.uniform(0.9, 1.1), jit_ms=4, mute=0.55, rel_s=0.09)
+    s.auto("piano", [(0, -8)])
+    s.auto("pianolow", [(0, -7)])
+    s.auto("pulse", [(0, -19)])
+    s.mix = dict(
+        bus=dict(piano=dict(hall=0.24, plate=0.10, body=0.25), pianolow=dict(hall=0.14, plate=0.06, body=0.3), pulse=dict(hall=0.02, plate=0.04)),
+        eq=dict(
+            piano=lambda f: hp(f, 60, 2) * bell(f, 1700, -6.5, 1.2) * lp(f, 14000, 1),  # 声の帯を空ける
+            pianolow=lambda f: hp(f, 28, 2) * lp(f, 5000, 1),
+            pulse=lambda f: hp(f, 90, 2) * lp(f, 5000, 1),
+        ),
+        hall=(3.6, 4.2, 2.6, 0.03),
+        plate=(0.5, 0.6, 0.4, 0.006),
+        wet_hi=12000,
+        master=dict(drive=0.25, fade_in=0.04, leveler=False),
+    )
+    return s
+
+
+PLANS = {"A": plan_a, "B": plan_b, "C": plan_c, "D": plan_d, "E": plan_e, "D2": plan_d2}
+PLAN_INFO = {"A": "温かい和音と低音", "B": "ピアノとやわらかな脈", "C": "広がる音の層", "D": "木の音型と深い低音", "E": "澄んだ音型と細かな刻み", "D2": "ピアノと間"}
 
 
 # ================================================================ 音にする
@@ -1820,7 +2198,7 @@ def render(song, t_from, t_to, verbose=True):
         hall_in += dl * 0.5
         dry += dl * 0.8
     wet = convolve(hall_in, ir_h) + convolve(plate_in, ir_p)
-    wet = filt(wet, lambda f: hp(f, 190, 2) * lp(f, 8500, 2) * bell(f, 420, -1.5, 0.8))
+    wet = filt(wet, lambda f: hp(f, 190, 2) * lp(f, mx.get("wet_hi", 8500), 2) * bell(f, 420, -1.5, 0.8))
     mix = dry + wet * mx.get("wet", 1.0)
     if verbose:
         print(f"  残響と混ぜ：{time.time() - st:.1f} 秒")
@@ -1828,23 +2206,28 @@ def render(song, t_from, t_to, verbose=True):
     return mix, t0
 
 
-def master(mix, t0, t_from, t_to, lufs_target=TARGET_LUFS, fade_edges=False):
+def master(mix, t0, t_from, t_to, lufs_target=TARGET_LUFS, fade_edges=False, cfg=None):
     st = time.time()
+    cfg = cfg or {}
     x = upsample2(mix)
     del mix
     # 穏やかな飽和（低い音がある時に、上の倍音が少しだけ増える。暖かさ）
-    drive = 0.55 / (np.abs(x).max() + 1e-9)
+    drive = cfg.get("drive", 0.55) / (np.abs(x).max() + 1e-9)
     y = np.tanh(x * drive) / drive
     # 音色の仕上げ：声の帯を空ける（1〜4 kHz）。高い所はなだらかに落とす
-    y = filt(y, lambda f: hp(f, 27, 2) * bell(f, 850, 3.0, 0.7) * bell(f, 2200, -3.0, 0.7) * lp(f, 11000, 2), SR)
+    if "leveler" in cfg:  # 乾いた音の案：声の帯を少しだけ空け、上は閉じない
+        y = filt(y, lambda f: hp(f, 27, 2) * bell(f, 2200, -2.0, 0.8), SR)
+    else:
+        y = filt(y, lambda f: hp(f, 27, 2) * bell(f, 850, 3.0, 0.7) * bell(f, 2200, -3.0, 0.7) * lp(f, 11000, 2), SR)
     # 低い所は真ん中に（電話やひとつのスピーカーでも低音が消えない）。上は少し広げる
     mid = y.mean(1)
     side = (y[:, 0] - y[:, 1]) / 2
     side = filt(side, lambda f: hp(f, 140, 3) * (1 + 0.12 * (f > 400)), SR)
     y = np.stack([mid + side, mid - side], 1)
     # ゆるいコンプ
-    pre = y * db(-8)
-    y = leveler(pre, -16.0, 1.35) * db(8)
+    if cfg.get("leveler", True):
+        pre = y * db(-8)
+        y = leveler(pre, -16.0, 1.35) * db(8)
     a = int(round((t_from - t0) * SR))
     b = min(len(y), int(round((t_to - t0) * SR)))
     y = y[a:b]
@@ -1853,7 +2236,7 @@ def master(mix, t0, t_from, t_to, lufs_target=TARGET_LUFS, fade_edges=False):
         y *= db(lufs_target - l_)
         y, gr = limiter(y)
     if fade_edges:
-        fi = int(1.2 * SR)
+        fi = max(1, int(cfg.get("fade_in", 1.2) * SR))
         fo = int(2.5 * SR)
         y[:fi] *= (np.linspace(0, 1, fi) ** 1.5)[:, None]
         y[-fo:] *= (np.linspace(1, 0, fo) ** 1.5)[:, None]
@@ -1936,6 +2319,7 @@ def print_notes(song):
 
 
 def main():
+    global R
     ap = argparse.ArgumentParser()
     ap.add_argument("--plan", default="A")
     ap.add_argument("--preview", action="store_true", help="本体の頭から 45 秒だけ")
@@ -1946,13 +2330,17 @@ def main():
     ap.add_argument("--no-m4a", action="store_true")
     ap.add_argument("--icloud", action="store_true", help="m4a を作者の iCloud の 音楽 フォルダへ写す")
     args = ap.parse_args()
+    if args.plan in PREVIEW_ONLY:
+        R = SR  # 小さな刻みに 10 kHz より上を使う
+        if not (args.preview or args.notes or args.t_from is not None):
+            sys.exit(f"案 {args.plan} は、まだ本体の試聴だけです（--preview）。全長は作者が選んでから作ります")
     song = PLANS[args.plan]()
     if args.notes:
         print_notes(song)
         return
     info = PLAN_INFO.get(args.plan, "")
     if args.preview:
-        t_from = song.at("main") - 1.0  # 拾い上げの音が聞こえるよう、少し前から
+        t_from = song.at("main") - (0.25 if args.plan in PREVIEW_ONLY else 1.0)  # 拾い上げの音が聞こえるよう、少し前から
         t_to = t_from + 45.0
         fname = f"継ぐ_音楽9_案{args.plan}_{info}_試聴45秒"
     elif args.t_from is not None or args.t_to is not None:
@@ -1965,7 +2353,7 @@ def main():
     wav_path = args.out or os.path.join(OUT_DIR, fname + ".wav")
     st = time.time()
     mix, t0 = render(song, t_from, t_to)
-    y = master(mix, t0, t_from, t_to, fade_edges=args.preview or args.t_from is not None)
+    y = master(mix, t0, t_from, t_to, fade_edges=args.preview or args.t_from is not None, cfg=song.mix.get("master"))
     write_wav(wav_path, y)
     l_ = lufs_of(y)
     tp = 20 * math.log10(true_peak_env(y).max() + 1e-12)
