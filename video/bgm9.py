@@ -15,6 +15,7 @@
 #   python -I bgm9.py --plan A --notes              和音の並び・音の高さの確かめだけ（音は作らない）
 #   --icloud を足すと、m4a を作者の iCloud の「継ぐ動画/音楽」へ写す
 #   案 D・E は今のところ本体の試聴だけ（--preview）。全長は作者が選んでから作る
+#   案 D3 は D2 の全長（最終案 9 の仮の曲）。--sections 区切り.json で章の秒に合わせる（video/final9.py が作る）
 # 台本が変わったら、下の SECTIONS と END の秒だけ変える。小節の数と速さは、そこから決まる（1 小節の長さを少し変えて、区切りに小節の頭を合わせる）。
 
 import argparse
@@ -1873,8 +1874,109 @@ def plan_d2():
     return s
 
 
-PLANS = {"A": plan_a, "B": plan_b, "C": plan_c, "D": plan_d, "E": plan_e, "D2": plan_d2}
-PLAN_INFO = {"A": "温かい和音と低音", "B": "ピアノとやわらかな脈", "C": "広がる音の層", "D": "木の音型と深い低音", "E": "澄んだ音型と細かな刻み", "D2": "ピアノと間"}
+def plan_d3():
+    """案 D2 の全長（最終案 9 の仮の曲。作者が曲を選ぶまで）。音型 A E D A をゆっくりピアノで置き、声の邪魔をしない。
+    段は章に対応する：intro 序（低い 1 音と音型だけ）／ main 残す・渡す 1・渡す 2（D2 の脈あり）／ thin 次の時代へ（脈なし。最後の音が抜ける）／
+    gap 途絶えても（ほとんど消える）／ build 復元（脈が戻り、少しずつ積み上がる）／ peak 山は 1 回だけ（1 オクターブ上を薄く重ねる）／ end 結（最後の音だけ長く）。
+    映像とは大きな区切りだけが合う。字や効果音を音に合わせない"""
+    s = Song("D3", 906, 96, multiple={"main": 4, "thin": 4, "build": 2, "peak": 2}, rit={"end": (0.5, 0.3)})
+    MOTIF = [(0, 69, 0.50), (6, 76, 0.40), (12, 74, 0.44), (20, 69, 0.34)]  # 16 分の位置・音・強さ
+    ROOTS = [None, (29, 41), (34, 46), (31, 43), (38, 50), (34, 46), (36, 48), (29, 41)]
+
+    def pan_of(m):
+        return float(np.clip((m - 62) / 70, -0.22, 0.22))
+
+    def hit(bt, m, v, beats=14.0, mute=1.25, bus="piano", sub=0.0):
+        s.note("piano", bus, bt, beats, m, v, late_ms=0, jit_ms=5, pan=pan_of(m), mute=mute, top=11000.0, click=1.0, sub=sub, spread_lr=0.2)
+
+    def phrase(bt, idx, level=1.0, cut=4, octave=0.0, root=True):
+        for j, (st, m, v) in enumerate(MOTIF[:cut]):
+            hit(bt + st / 4, m, v * level * s.rng.uniform(0.96, 1.04))
+            if octave > 0:
+                hit(bt + st / 4 + 0.004, m + 12, v * level * octave)
+        r = ROOTS[idx % len(ROOTS)]
+        if root and r is not None:
+            hit(bt, r[0], 0.40 * level, mute=0.9, bus="pianolow", sub=0.75)
+            hit(bt + 0.01, r[1], 0.16 * level, mute=0.9, bus="pianolow")
+
+    def pulse(bt0, bars, g0=1.0, g1=1.0, skip=lambda bar: False):
+        for bar in range(bars):
+            if skip(bar):
+                continue
+            g = g0 + (g1 - g0) * (bar / max(1, bars - 1))
+            for q, pv in enumerate((1.0, 0.62, 0.82, 0.62)):
+                s.note("piano", "pulse", bt0 + bar * 4 + q, 0.35, 57, 0.17 * g * pv * s.rng.uniform(0.9, 1.1), jit_ms=4, mute=0.55, rel_s=0.09)
+
+    # 序：低い 1 音から。音型は 1 度か 2 度だけ
+    d = s.sec("intro")
+    b0, nb = d["b0"], d["bars"]
+    hit(b0 + 1, 29, 0.42, beats=20.0, mute=0.9, bus="pianolow", sub=0.8)
+    hit(b0 + 1.01, 41, 0.15, beats=20.0, mute=0.9, bus="pianolow")
+    phrase(b0 + 8, 0, level=0.82, root=False)
+    if nb >= 8:
+        phrase(b0 + 8 + 16 + (nb - 8) * 2, 1, level=0.86)
+    # 本体：D2 と同じ。4 小節に 1 回、下の低い 1 音で色が変わる。ごく弱い脈
+    d = s.sec("main")
+    b0, nb = d["b0"], d["bars"]
+    for idx, bar in enumerate(range(0, nb, 4)):
+        bt = b0 + bar * 4
+        phrase(bt, idx + 2, cut=3 if idx % 4 == 3 else 4, octave=0.34 if (idx % 4 == 0 and idx > 0) else 0.0)
+        if idx % 8 == 1:
+            hit(bt + 9, 60, 0.20)
+        if idx % 8 == 2:
+            hit(bt + 8, 81, 0.20)
+    pulse(b0, nb, skip=lambda bar: bar < 2 or bar % 16 in (14, 15))
+    # 次の時代へ：脈を抜く。最後の音が帰ってこない
+    d = s.sec("thin")
+    b0, nb = d["b0"], d["bars"]
+    for idx, bar in enumerate(range(0, nb, 4)):
+        last = bar + 4 >= nb
+        phrase(b0 + bar * 4, idx + 4, level=0.8, cut=3 if last else 4, root=not last)
+    # 途絶えても：ほとんど消える。残りの響きと 1 音だけ
+    d = s.sec("gap")
+    hit(d["b0"] + 2, 69, 0.20, beats=10.0)
+    # 復元：脈が戻り、1 音ずつ足していく
+    d = s.sec("build")
+    b0, nb = d["b0"], d["bars"]
+    steps = max(1, nb // 4)
+    for idx, bar in enumerate(range(0, nb, 4)):
+        u = idx / max(1, steps - 1)
+        phrase(b0 + bar * 4, idx + 1, level=0.72 + 0.26 * u, cut=2 + min(2, idx), octave=0.16 * u, root=idx > 0)
+    pulse(b0 + 8 if nb > 2 else b0, max(0, nb - 2), g0=0.5, g1=1.0)
+    # 山：1 回だけ。品よく
+    d = s.sec("peak")
+    b0, nb = d["b0"], d["bars"]
+    for idx, bar in enumerate(range(0, nb, 4)):
+        phrase(b0 + bar * 4, 1 + idx * 3, level=1.05, octave=0.36)
+    pulse(b0, nb, g0=1.0, g1=0.55)
+    # 結：最後の音だけ長く
+    d = s.sec("end")
+    b0 = d["b0"]
+    for st, m, v in MOTIF[:3]:
+        hit(b0 + st / 4, m, v * 0.9)
+    hit(b0 + MOTIF[3][0] / 4, 69, 0.36, beats=24.0)
+    hit(b0, 29, 0.40, beats=28.0, mute=0.9, bus="pianolow", sub=0.8)
+    hit(b0 + 0.01, 41, 0.16, beats=28.0, mute=0.9, bus="pianolow")
+    s.auto("piano", [(0, -8)])
+    s.auto("pianolow", [(0, -7)])
+    s.auto("pulse", [(0, -19)])
+    s.mix = dict(
+        bus=dict(piano=dict(hall=0.24, plate=0.10, body=0.25), pianolow=dict(hall=0.14, plate=0.06, body=0.3), pulse=dict(hall=0.02, plate=0.04)),
+        eq=dict(
+            piano=lambda f: hp(f, 60, 2) * bell(f, 1700, -6.5, 1.2) * lp(f, 14000, 1),  # 声の帯を空ける
+            pianolow=lambda f: hp(f, 28, 2) * lp(f, 5000, 1),
+            pulse=lambda f: hp(f, 90, 2) * lp(f, 5000, 1),
+        ),
+        hall=(3.6, 4.2, 2.6, 0.03),
+        plate=(0.5, 0.6, 0.4, 0.006),
+        wet_hi=12000,
+        master=dict(drive=0.25, fade_in=0.04, leveler=False),
+    )
+    return s
+
+
+PLANS = {"A": plan_a, "B": plan_b, "C": plan_c, "D": plan_d, "E": plan_e, "D2": plan_d2, "D3": plan_d3}
+PLAN_INFO = {"A": "温かい和音と低音", "B": "ピアノとやわらかな脈", "C": "広がる音の層", "D": "木の音型と深い低音", "E": "澄んだ音型と細かな刻み", "D2": "ピアノと間", "D3": "ピアノと間の全長"}
 
 
 # ================================================================ 音にする
@@ -2329,7 +2431,18 @@ def main():
     ap.add_argument("--notes", action="store_true")
     ap.add_argument("--no-m4a", action="store_true")
     ap.add_argument("--icloud", action="store_true", help="m4a を作者の iCloud の 音楽 フォルダへ写す")
+    ap.add_argument("--sections", default=None, help="場面の区切りの秒を書いた JSON（{\"sections\": [[名前, 秒], ...], \"end\": 秒}）。なければ上の SECTIONS")
     args = ap.parse_args()
+    if args.sections:
+        global SECTIONS, END
+        import json as _json
+
+        with open(args.sections, encoding="utf8") as _f:
+            _d = _json.load(_f)
+        SECTIONS = [(str(n), float(t)) for n, t in _d["sections"]]
+        END = float(_d["end"])
+    if args.plan == "D3":
+        R = SR
     if args.plan in PREVIEW_ONLY:
         R = SR  # 小さな刻みに 10 kHz より上を使う
         if not (args.preview or args.notes or args.t_from is not None):

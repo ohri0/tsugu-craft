@@ -16,6 +16,9 @@ const tap = (p, sel) => p.evaluate((s) => document.querySelector(s).click(), sel
   await p.goto(`${BASE}/studio.html?nointro&rec`, { waitUntil: 'load' });
   await p.waitForFunction(() => window.__studio && window.__studio.session && window.__studio.session.built, null, { timeout: 60000 });
   await p.waitForTimeout(2500);
+  // 見せる指輪と同じ腕（平打ち 2.0 × 1.4 mm）にしてから図面を出す
+  await p.evaluate(() => window.__studio.session.setShank({ section: 'hirauchi', width_mm: 2.0, thickness_mm: 1.4, reason: '撮る' }));
+  await p.waitForTimeout(2500);
   await tap(p, '.tabs [data-mode="hand"]');
   await p.waitForTimeout(2000);
   await tap(p, '.disp [data-disp="draw"]');

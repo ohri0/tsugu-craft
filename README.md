@@ -198,7 +198,7 @@ Claude Desktop に足す（設定の「開発者」→ 設定ファイル `claud
 | [misaki](https://github.com/hexgrad/misaki)・[unidic-lite](https://github.com/polm/unidic-lite) | 仮の声のための日本語の読み方 | Apache-2.0・MIT（辞書は UniDic の BSD） |
 | [pyopenjtalk](https://github.com/r9y9/pyopenjtalk) | 前の仮の動画の確かめ用の声（`video/tts.py`） | MIT |
 | [FontTools](https://github.com/fonttools/fonttools)・[Brotli](https://github.com/google/brotli) | 入口のページの字から、使う字だけを抜き出す（`scripts/lp-font.py`）。配らない | MIT |
-| [しっぽり明朝](https://github.com/google/fonts/tree/main/ofl/shipporimincho)（Shippori Mincho）・[Noto Serif JP](https://github.com/google/fonts/tree/main/ofl/notoserifjp)・[Noto Sans JP](https://github.com/google/fonts/tree/main/ofl/notosansjp) | 新しい見た目の見本の字（`video/look9.py`）。字のファイルは `video/work/fonts/` に置くだけで、リポジトリにもアプリにも入れない | SIL OFL 1.1 |
+| [しっぽり明朝](https://github.com/google/fonts/tree/main/ofl/shipporimincho)（Shippori Mincho）・[Noto Serif JP](https://github.com/google/fonts/tree/main/ofl/notoserifjp)・[Noto Sans JP](https://github.com/google/fonts/tree/main/ofl/notosansjp) | 新しい見た目の見本の字（`video/look9.py`）と、最終案 9 のデモ動画の字（`video/reel9.py`）。字のファイルは `video/work/fonts/` に置くだけで、リポジトリにもアプリにも入れない | SIL OFL 1.1 |
 
 - 音楽と効果音は、すべて自作（`video/bgm*.py`・`video/sfx.py` が音を計算で作る）。外の曲や効果音の素材は使っていない。
 - アプリの画面の字は、使う人の端末にもとからある字（ヒラギノ・游ゴシックなど）を名前で呼ぶだけ。**入口のページと「なぜ継ぐ」の見出しだけは、しっぽり明朝（SIL OFL 1.1、Copyright 2021 The Shippori Mincho Project Authors）から使う字を抜き出した `public/fonts/shippori-mincho-sub.woff2` を配る**（作り方は `scripts/lp-font.py`、ライセンスの全文は `public/fonts/OFL.txt`。この字に予約された名前はない）。今の動画の字は、作者の Mac にもとからあるヒラギノ角ゴシック・ヒラギノ明朝。新しい見た目の見本（`video/look9.py`）は、上の表の OFL の字を使う。
@@ -220,6 +220,13 @@ Claude Desktop に足す（設定の「開発者」→ 設定ファイル `claud
 | `public/heritage/naiku-1953.jpg`（1953 年の内宮の空からの写真） | 本田照夫 撮影、[Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Ise_Shrine_Naiku_1953-8-26_cropped.jpg) | パブリックドメイン |
 | `public/lp/*.webp`（入口のページと README の写真。それぞれ半分の幅の `-sm` つき） | 継ぐの画面を撮ったもの（`scripts/lp-shots.cjs`） | このリポジトリの作品の一部 |
 | `samples/triangle_closeup_2026-11-02.jpg`・`public/stones/triangle.jpg`（同じ写真） | 作者が撮った石の写真（撮影情報は消してある） | このリポジトリの作品の一部 |
+
+動画の素材（最終案 9。`video/work/footage/` に置くだけで、リポジトリにもアプリにも入れない）：
+
+| 素材 | 出典 | 利用条件 |
+| --- | --- | --- |
+| `raw/anneal.mov`（炎で焼きなます手元）・`raw/file_hands.mov`（ヤスリの手元） | 作者が撮った映像 | このリポジトリの作品の一部 |
+| `kari_kebori.mov`（**仮**の手本の映像。金属を彫る手元。作者の映像が来たら外す） | 「Gravieren von Zinngeschirr」Gabriel Simons / LVR-Institut für Landeskunde und Regionalgeschichte、Wikimedia Commons。切り抜いて色を変えた（画面にも出典と変更を書く）。西洋の錫の皿を彫る手元で、毛彫りではないので、動画で毛彫りとは言わない | CC BY 3.0 |
 
 ## 見本の動画
 
