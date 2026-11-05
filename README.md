@@ -191,9 +191,10 @@ Claude Desktop に足す（設定の「開発者」→ 設定ファイル `claud
 | [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M)・[kokoro-onnx](https://github.com/thewh1teagle/kokoro-onnx)・[soundfile](https://github.com/bastibe/python-soundfile) | **仮の声だけ**（作者の声が届くまでの機械の声、`video/tts_kokoro.py`）。重みと声はリポジトリに入れない。作者の声に替えたら使わない | Apache-2.0（重み）・MIT・BSD-3-Clause |
 | [misaki](https://github.com/hexgrad/misaki)・[unidic-lite](https://github.com/polm/unidic-lite) | 仮の声のための日本語の読み方 | Apache-2.0・MIT（辞書は UniDic の BSD） |
 | [pyopenjtalk](https://github.com/r9y9/pyopenjtalk) | 前の仮の動画の確かめ用の声（`video/tts.py`） | MIT |
+| [しっぽり明朝](https://github.com/google/fonts/tree/main/ofl/shipporimincho)（Shippori Mincho）・[Noto Serif JP](https://github.com/google/fonts/tree/main/ofl/notoserifjp)・[Noto Sans JP](https://github.com/google/fonts/tree/main/ofl/notosansjp) | 新しい見た目の見本の字（`video/look9.py`）。字のファイルは `video/work/fonts/` に置くだけで、リポジトリにもアプリにも入れない | SIL OFL 1.1 |
 
 - 音楽と効果音は、すべて自作（`video/bgm*.py`・`video/sfx.py` が音を計算で作る）。外の曲や効果音の素材は使っていない。
-- 字は、使う人の端末にもとからある字（ヒラギノ・游ゴシックなど）を名前で呼ぶだけ。字のファイルは配らない。動画の字も、作者の Mac にもとからあるヒラギノ角ゴシック・ヒラギノ明朝。
+- 字は、使う人の端末にもとからある字（ヒラギノ・游ゴシックなど）を名前で呼ぶだけ。字のファイルは配らない。今の動画の字も、作者の Mac にもとからあるヒラギノ角ゴシック・ヒラギノ明朝。新しい見た目の見本（`video/look9.py`）は、上の表の OFL の字を使う。
 
 画像：
 
