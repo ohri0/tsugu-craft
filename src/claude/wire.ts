@@ -23,6 +23,9 @@ export const PASSWORD_HEADER = "x-tsugu-password";
 /** 今日あと何回呼べるか（返事に付ける） */
 export const REMAINING_HEADER = "x-tsugu-remaining";
 
+/** 指示（system）の文字数の上限。関数が断る長さ（画面の指示がこれを超えないことを、テストで見張る） */
+export const SYSTEM_MAX_CHARS = 40_000;
+
 /** 画面から関数へ送る中身 */
 export interface ClaudeRequestBody {
   messages: ClaudeMessageParam[];

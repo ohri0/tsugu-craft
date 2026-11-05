@@ -11,6 +11,7 @@ import { isAllowedToolName } from "../src/claude/tools.js";
 import {
   PASSWORD_HEADER,
   REMAINING_HEADER,
+  SYSTEM_MAX_CHARS,
   type ClaudeErrorBody,
   type ClaudeErrorCode,
   type ClaudeMessage,
@@ -44,7 +45,7 @@ const REQUEST_SETTINGS = {
 const LIMITS = {
   bodyBytes: 4_000_000,
   messages: 80,
-  systemChars: 40_000,
+  systemChars: SYSTEM_MAX_CHARS,
   tools: 8,
   /** Claude を待つ時間（ミリ秒）と、やり直しの回数 */
   timeoutMs: 200_000,

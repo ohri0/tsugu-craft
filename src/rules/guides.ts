@@ -185,6 +185,13 @@ export const GUIDES = {
      * - limitRatio：上の mm を、細い断面でどこまでに抑えるか（幅か厚みの小さい方に対する割合）。
      */
     sectionShape: { edgeMm: 0.25, chamferMm: 0.4, ridgeRatio: 0.55, grooveHalfMm: 0.45, grooveDepthMm: 0.4, stepMm: 0.4, stepTopRatio: 0.55, hollowMm: 0.35, limitRatio: 0.3 },
+    /**
+     * 腕の彫りの目安。**すべて仮**（出典の数字なし。作者が見て直す）。
+     * - depthMm：深さの既定。
+     * - keepMm：彫った所の下に、いつも残す地金。薄い所では彫りを浅くする（断面の局所の薄さ minLocalMm と同じ値を借りた）。
+     * - minUnderMm：彫る場所の、いちばん厚い所から彫りの深さを引いて残る厚み。公開の目安「1 mm より薄い腕は持ちが悪い」を借りた。
+     */
+    relief: { depthMm: 0.25, keepMm: 0.45, minUnderMm: 1.0 },
   },
   /**
    * 石を並べる指輪（三石・横一列）の、となりの石との間。**すべて仮の目安**（出典の数字はまだない。作者が見て直す。2026-11-04）。

@@ -11,6 +11,9 @@ import { HOLD_NOTE, holdRatio } from "../src/rules/checks";
 import { GUIDE_NOTE, GUIDES, type HeightOption, type MetalId } from "../src/rules/guides";
 import { activeRules, addRule, effectiveGuides, ledgerText, PARAMS, sourceLabel, type Ledger, type ParamId, type Rule } from "../src/rules/ledger";
 import { build, DEFAULT_DESIGN, type Design } from "../src/ui/design";
+import { sectionCurveProblem, SECTION_INPUT } from "../src/geometry/section-input";
+import { INPUT_BOUNDS } from "../src/claude/tools";
+import type { ShankStation } from "../src/geometry/shank";
 import { readLedger, REPO_ROOT, writeLedger } from "./ledger-file";
 import { readyStone, STONE_PRESETS } from "./stone-input";
 
@@ -53,6 +56,22 @@ const stoneShape = z
   })
   .describe("石。ガードル＝石の縁、キューレット＝石の一番下");
 
+/** 断面の線の点（画面の中の Claude の set_shank と同じ書き方。確かめも同じ関数） */
+const sectionCurvePoints = z
+  .array(z.object({ x: z.number(), y: z.number() }))
+  .describe(
+    `断面の線の制御点（なめらかな線は点の内側を通る）。指の側はいつも平らで、外側の線だけを書く。x は幅の位置（−1〜1）、y は高さ（0 が指の側、1 がいちばん厚い所）。右の端の内側（y ＝ 0）→ 上 → 左の端の内側（y ＝ 0）の順に ${SECTION_INPUT.minPoints}〜${SECTION_INPUT.maxPoints} 個。同じ点を 3 回続けると、そこで線が折れる（稜線）`,
+  );
+
+const stationShape = z.object({
+  at_deg: z.number().min(INPUT_BOUNDS.at_deg[0]).max(INPUT_BOUNDS.at_deg[1]).describe("いちばん上から指のまわりに測った角度（度）。90 が指の真横、180 がいちばん下"),
+  width_mm: z.number().min(INPUT_BOUNDS.width_mm[0]).max(INPUT_BOUNDS.width_mm[1]).describe("この場所の幅（mm）"),
+  thickness_mm: z.number().min(INPUT_BOUNDS.thickness_mm[0]).max(INPUT_BOUNDS.thickness_mm[1]).describe("この場所の厚み（mm）"),
+  section: z.enum(["kouman", "hirauchi", "hangouman", "kaku"]).optional().describe("この場所の断面（省くと、ひとつ上の場所と同じ）"),
+  section_curve: sectionCurvePoints.optional().describe("この場所の断面の線（section より先に使う）"),
+  sway_mm: z.number().min(INPUT_BOUNDS.sway_mm[0]).max(INPUT_BOUNDS.sway_mm[1]).optional().describe("腕を指の向きへ寄せる量（mm）。片方の肩が指先へ寄ると、もう片方は付け根へ寄る。いちばん下では 0"),
+});
+
 const designShape = z
   .object({
     style: z.enum(["prong", "bezel"]).optional().describe("留め方：prong＝爪、bezel＝覆輪（縁をぐるりと金属の壁で包む）"),
@@ -74,12 +93,29 @@ const designShape = z
       .enum(["kouman", "hirauchi", "hangouman", "kaku"])
       .optional()
       .describe("腕の断面：kouman＝甲丸（既定）、hirauchi＝平打ち、hangouman＝半甲丸、kaku＝角（厚みを書かなければ幅と同じ）"),
-    shank_width_mm: z.number().min(1).max(10).optional().describe(`腕の幅（mm）。省略で ${GUIDES.shank.widthMm} mm`),
+    shank_section_curve: sectionCurvePoints.optional().describe("腕の断面の線（自由な形。shank_section より先に使う）。いちばん上（石座のそば）の断面"),
+    shank_stations: z
+      .array(stationShape)
+      .max(INPUT_BOUNDS.stations[1])
+      .optional()
+      .describe("腕の場所ごとの形（角度の小さい順。左右は同じ）。石座のそばの形は shank_width_mm・shank_thickness_mm・断面で決まり、ここにはそれより下の場所を書く。間はなめらかにつながる"),
+    shank_relief: z
+      .object({
+        pattern: z.enum(["arch", "diamond", "wave", "beads", "lines", "leaf"]).describe("模様：arch＝先の尖ったアーチの列、diamond＝菱の格子、wave＝波の線、beads＝粒のくぼみ、lines＝横の筋、leaf＝葉とつる"),
+        count: z.number().int().min(INPUT_BOUNDS.relief_count[0]).max(INPUT_BOUNDS.relief_count[1]).optional().describe("片側の腕に並べる数。省くと 4"),
+        depth_mm: z.number().min(INPUT_BOUNDS.relief_depth[0]).max(INPUT_BOUNDS.relief_depth[1]).optional().describe(`深さ（mm）。省くと ${GUIDES.band.relief.depthMm} mm`),
+        from_deg: z.number().min(INPUT_BOUNDS.relief_deg[0]).max(INPUT_BOUNDS.relief_deg[1]).optional().describe("彫り始める角度（度）。省くと 25"),
+        to_deg: z.number().min(INPUT_BOUNDS.relief_deg[0]).max(INPUT_BOUNDS.relief_deg[1]).optional().describe("彫り終わる角度（度）。省くと 100"),
+        columns: z.number().int().min(INPUT_BOUNDS.relief_columns[0]).max(INPUT_BOUNDS.relief_columns[1]).optional().describe("幅の向きに並べる数。省くと 1"),
+      })
+      .optional()
+      .describe("腕の外の面に彫る浅い模様（穴は開かない）"),
+    shank_width_mm: z.number().min(1).max(10).optional().describe(`腕の幅（mm）。いちばん上（石座のそば）の幅。省略で ${GUIDES.shank.widthMm} mm`),
     join: z
       .enum(["on", "between"])
       .optional()
       .describe("石座と腕の付け方（爪留めだけ）：on＝腕の上にのせる（腕の上に溝を入れてのせ、ロウ付け。既定）、between＝腕の間に挟む（腕の上を切り、腕の両端の間に、板を丸めた下の輪をはさんでロウ付け。職人の言う基本の作り方）"),
-    shank_thickness_mm: z.number().min(0.5).max(5).optional().describe(`腕の厚み（mm）。省略で ${GUIDES.shank.thicknessMm} mm（角は幅と同じ）`),
+    shank_thickness_mm: z.number().min(0.5).max(5).optional().describe(`腕の厚み（mm）。いちばん上（石座のそば）の厚み。省略で ${GUIDES.shank.thicknessMm} mm（角は幅と同じ）`),
   })
   .optional()
   .describe("指輪の設計。省略した所は、爪・自動の本数・標準の太さ・標準の高さ・縦・K18 イエロー・11 号・上・甲丸の腕");
@@ -218,11 +254,35 @@ export function proposeRule(ctx: ToolContext, input: ProposeRuleInput) {
   };
 }
 
+/** 道具の入力の、腕の場所ごとの形 → 形の処理の形。壊れた線・順がちがう場所は、分かる言葉で断る */
+function stationsFrom(list: NonNullable<NonNullable<CheckRingInput["design"]>["shank_stations"]>): ShankStation[] {
+  let prev = 0;
+  return list.map((st) => {
+    if (st.at_deg <= prev) throw new Error(`腕の場所は、角度の小さい順に書いてください（${prev}° の次が ${st.at_deg}°）`);
+    prev = st.at_deg;
+    if (st.at_deg >= 180 && st.sway_mm) throw new Error("いちばん下（180°）では、腕を指の向きへ寄せられません（sway_mm は 0）");
+    const problem = st.section_curve ? sectionCurveProblem(st.section_curve) : null;
+    if (problem) throw new Error(`${st.at_deg}° の場所の${problem}`);
+    return {
+      atDeg: st.at_deg,
+      widthMm: st.width_mm,
+      thicknessMm: st.thickness_mm,
+      ...(st.section ? { section: st.section } : {}),
+      ...(st.section_curve ? { section: "free" as const, curve: { points: st.section_curve } } : {}),
+      ...(st.sway_mm ? { swayMm: st.sway_mm } : {}),
+    };
+  });
+}
+
 export function checkRingTool(ctx: ToolContext, input: CheckRingInput) {
   const parsed = z.object(checkRingShape).parse(input);
   const ledger = readLedger(ctx.ledgerPath);
   const stone = readyStone(parsed.stone);
   const d = parsed.design ?? {};
+  if (d.shank_section_curve) {
+    const problem = sectionCurveProblem(d.shank_section_curve);
+    if (problem) throw new Error(problem);
+  }
   const design: Design = {
     style: d.style ?? DEFAULT_DESIGN.style,
     prongCount: d.prong_count ?? DEFAULT_DESIGN.prongCount,
@@ -233,7 +293,10 @@ export function checkRingTool(ctx: ToolContext, input: CheckRingInput) {
     gou: d.gou ?? DEFAULT_DESIGN.gou,
     position: d.position ?? DEFAULT_DESIGN.position,
     vCorners: d.v_corners,
-    section: d.shank_section,
+    section: d.shank_section_curve ? "free" : d.shank_section,
+    sectionCurve: d.shank_section_curve ? { points: d.shank_section_curve } : undefined,
+    stations: d.shank_stations?.length ? stationsFrom(d.shank_stations) : undefined,
+    relief: d.shank_relief ? { kind: d.shank_relief.pattern, count: d.shank_relief.count ?? 4, depthMm: d.shank_relief.depth_mm ?? GUIDES.band.relief.depthMm, fromDeg: d.shank_relief.from_deg ?? 25, toDeg: d.shank_relief.to_deg ?? 100, columns: d.shank_relief.columns } : undefined,
     shankWidthMm: d.shank_width_mm,
     shankThicknessMm: d.shank_thickness_mm,
     join: d.join,
@@ -266,7 +329,12 @@ export function checkRingTool(ctx: ToolContext, input: CheckRingInput) {
       metal: metalName(design.metal),
       gou: design.gou,
       position: design.position,
-      shank: { section: ring.shank.section, width_mm: round(ring.shank.widthMm), thickness_mm: round(ring.shank.thicknessMm) },
+      shank: {
+        section: ring.shank.section,
+        width_mm: round(ring.shank.widthMm),
+        thickness_mm: round(ring.shank.thicknessMm),
+        ...(ring.shank.along ? { min_width_mm: round(ring.shank.minWidthMm ?? ring.shank.widthMm), min_thickness_mm: round(ring.shank.minThicknessMm ?? ring.shank.thicknessMm) } : {}),
+      },
     },
     culet_gap_mm: round(ring.culetGapMm),
     metal_weight_g: round(ring.metalWeightG),

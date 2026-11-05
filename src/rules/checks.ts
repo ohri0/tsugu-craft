@@ -40,6 +40,7 @@ export const FIXES = {
   thickerBand: { label: "腕を厚くする", effectOnLook: "指に当たる所が少し厚く、少し重くなる" },
   widerBand: { label: "腕の幅を広げる", effectOnLook: "腕が少し太く見える" },
   bluntTip: { label: "断面を直す（赤い所へ）", effectOnLook: "とがった線が少しやわらかく見える" },
+  shallowerRelief: { label: "彫りを浅くする", effectOnLook: "模様が少し控えめに見える" },
   spreadStones: { label: "石の間を広げる", effectOnLook: "石と石の間に地金が少し見え、並びが少し長くなる" },
   smallerStones: { label: "横の石を小さくする", effectOnLook: "真ん中の石が引き立ち、横の石は控えめになる" },
   thickerCollar: { label: "下の輪の板を厚くする", effectOnLook: "石座の下の輪が少し太く見える" },
@@ -65,6 +66,7 @@ export type CheckId =
   | "band-thin"
   | "band-narrow"
   | "band-spike"
+  | "band-relief"
   | "stone-space"
   | "metal-space"
   | "collar-wall"
@@ -494,16 +496,18 @@ export function outlinePointAtT(outline: readonly Point[], t: number): Point {
 /**
  * 腕の厚みと幅（石のない指輪と同じ目安：guides.ts の band）。断面がどの形でも、いちばん厚い所の厚みと、いちばん細い所の幅で比べる
  */
-export function checkShank(sh: Pick<ShankResult, "thicknessMm" | "widthMm"> & { minWidthMm?: number; minThicknessMm?: number; outlineMm?: [number, number][] }, opts: CheckOptions = {}): Problem[] {
+export function checkShank(sh: Pick<ShankResult, "thicknessMm" | "widthMm"> & { minWidthMm?: number; minThicknessMm?: number; outlineMm?: [number, number][]; along?: ShankResult["along"]; relief?: ShankResult["relief"] }, opts: CheckOptions = {}): Problem[] {
   const g: Guides = opts.guides ?? GUIDES;
   const out: Problem[] = [];
   const t = sh.minThicknessMm ?? sh.thicknessMm;
   const w = sh.minWidthMm ?? sh.widthMm;
+  // 腕の場所ごとの形では、いちばん薄い・細い場所で比べる
+  const place = sh.along ? "いちばん薄い場所の、" : "";
   if (t < g.band.minThicknessMm - 1e-9) {
     out.push({
       id: "band-thin",
       check: "band-thin",
-      where: "腕の厚み（いちばん厚い所）",
+      where: `腕の厚み（${place}いちばん厚い所）`,
       current: mm(t),
       required: `${mm(g.band.minThicknessMm)} 以上（目安）`,
       currentValue: t,
@@ -517,7 +521,7 @@ export function checkShank(sh: Pick<ShankResult, "thicknessMm" | "widthMm"> & { 
     out.push({
       id: "band-narrow",
       check: "band-narrow",
-      where: "腕の幅",
+      where: sh.along ? "腕の幅（いちばん細い場所）" : "腕の幅",
       current: mm(w),
       required: `${mm(g.band.minWidthMm)} 以上（目安）`,
       currentValue: w,
@@ -527,10 +531,45 @@ export function checkShank(sh: Pick<ShankResult, "thicknessMm" | "widthMm"> & { 
       target: { kind: "shank" },
     });
   }
-  if (sh.outlineMm?.length) {
+  if (sh.outlineMm?.length && !sh.along) {
     sectionSpots(sh.outlineMm.map(([x, y]) => ({ x, y })), g).forEach((sp, i) => out.push(spikeProblem(sp, i, g)));
   }
+  // 腕の彫り：彫る場所の、いちばん厚い所から彫りの深さを引いて、どれだけ残るか
+  if (sh.relief && sh.relief.peakUnderMm < g.band.relief.minUnderMm - 1e-9) {
+    out.push({
+      id: "band-relief",
+      check: "band-relief",
+      where: "腕の彫りの下の地金",
+      current: `残り ${mm(sh.relief.peakUnderMm)}`,
+      required: `${mm(g.band.relief.minUnderMm)} 以上（仮の目安）`,
+      currentValue: sh.relief.peakUnderMm,
+      requiredValue: g.band.relief.minUnderMm,
+      reason: `彫った所の下が薄いと、腕が曲がりやすい（1 mm より薄い腕は持ちが悪い、という公開の目安を借りた。${GUIDE_NOTE}）`,
+      options: fix("shallowerRelief", "thickerBand"),
+      target: { kind: "shank" },
+    });
+  }
+  // 腕の場所ごとの形：場所ごとに断面を見る。同じ薄い所が続くときは、最初の場所だけ知らせる
+  if (sh.along) {
+    let n = 0;
+    const seen = new Set<string>();
+    for (const st of sh.along) {
+      for (const sp of sectionSpots(st.outlineMm.map(([x, y]) => ({ x, y })), g)) {
+        const key = `${sp.kind}:${Math.round((sp.at.x / Math.max(st.widthMm, 0.1)) * 5)}:${Math.round((sp.at.y / Math.max(st.thicknessMm, 0.1)) * 5)}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(spikeProblem(sp, n++, g, placeWord(st.atDeg)));
+      }
+    }
+  }
   return out;
+}
+
+/** 腕の場所の、ふつうの言葉（いちばん上からの角度で） */
+export function placeWord(atDeg: number): string {
+  if (atDeg < 45) return "石座のそば";
+  if (atDeg < 120) return "肩";
+  return "腕の下の方";
 }
 
 /** 腕の断面の、局所的に薄い所（とがり・ヒレ・ナイフのような縁）。数字は guides.ts の band.spike（仮の目安） */
@@ -541,13 +580,13 @@ export function sectionSpots(outlineMm: readonly { x: number; y: number }[], g: 
 /** 尖りすぎの言葉（画面と確かめで同じ） */
 export const SPIKE_TEXT = "尖りすぎ：この先が薄く、欠けたり曲がったりしやすい";
 
-function spikeProblem(sp: ThinSpot, i: number, g: Guides): Problem {
+function spikeProblem(sp: ThinSpot, i: number, g: Guides, place?: string): Problem {
   const s = g.band.spike;
   const tip = sp.kind === "tip" || sp.angleDeg < s.minTipAngleDeg;
   return {
     id: `band-spike:${i}`,
     check: "band-spike",
-    where: `腕の断面の${tip ? "とがった先" : "薄いヒレ"}（幅の ${sp.at.x >= 0 ? "右" : "左"} ${Math.abs(sp.at.x).toFixed(2)} mm・高さ ${sp.at.y.toFixed(2)} mm）`,
+    where: `${place ? `${place}の` : ""}腕の断面の${tip ? "とがった先" : "薄いヒレ"}（幅の ${sp.at.x >= 0 ? "右" : "左"} ${Math.abs(sp.at.x).toFixed(2)} mm・高さ ${sp.at.y.toFixed(2)} mm）`,
     current: tip ? `先の角度 ${sp.angleDeg.toFixed(0)}°・厚み ${mm(sp.thicknessMm)}` : `厚み ${mm(sp.thicknessMm)}`,
     required: tip ? `先の角度 ${s.minTipAngleDeg}° 以上（仮の目安）` : `${mm(s.minLocalMm)} 以上（仮の目安）`,
     currentValue: tip ? sp.angleDeg : sp.thicknessMm,

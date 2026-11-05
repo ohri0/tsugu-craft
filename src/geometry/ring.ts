@@ -337,7 +337,9 @@ function tensionRing(p: RingParams): RingDesign {
  * 腕は石ごとに、その石の真下をザグり、下の輪の座を作る（buildShank の seats）。ロウの丸みも石ごと。
  * 一粒の指輪の肩（石座の足を受ける広い所）は、石を並べるときは作らない（腕はどこも同じ幅）
  */
-function buildMulti(p: RingParams): RingDesign {
+function buildMulti(p0: RingParams): RingDesign {
+  // 石を並べた指輪の腕は、どこも同じ形（場所ごとの形は使わない。ザグりと座が腕のあちこちに来るため）
+  const p: RingParams = { ...p0, shank: { ...p0.shank, stations: undefined, relief: undefined } };
   const plain = buildShank(p.shank);
   const outerR = plain.outerRadiusMm;
   const wantSolder = p.solder ?? (p.setting.solid === true && p.setting.solidQuality !== "preview");
@@ -460,13 +462,15 @@ export function placePoint(t: RingTransform, x: number, y: number, z: number): [
  * 腕だけを作り直す（石と石座はそのまま）。断面の点を動かしている間に、3D の腕だけをすぐ変えるため。
  * 肩（石座の足を受ける広い所）は、今の石座から buildRing と同じように決める。ザグりも同じ球のビットで削り、石座の座も作る（動かしている間は、削る所の格子を粗くして速くする。ロウの丸みは指を離したときに作る）
  */
-export function rebuildShank(ring: RingDesign, shank: ShankParams): ShankResult {
-  if (ring.setting.style === "tension") return buildTensionBand(shank, ring.params.stone, { culetGapMm: ring.params.setting.culetGapMm, ...ring.params.tension }).shank;
+export function rebuildShank(ring: RingDesign, shank0: ShankParams): ShankResult {
+  if (ring.setting.style === "tension") return buildTensionBand(shank0, ring.params.stone, { culetGapMm: ring.params.setting.culetGapMm, ...ring.params.tension }).shank;
+  // 動かしている間は、彫りを作らない（格子が細かく、指の動きに遅れる）。指を離したら入る
+  const shank: ShankParams = { ...shank0, relief: undefined };
   const collar = collarInRing(ring.setting, ring.transform);
   if (collar) return buildShank({ ...shank, head: undefined }, undefined, { gap: { outline: collar.outer } });
   if (ring.stones.length > 1 || ring.stones[0]?.phi) {
     const seats = ring.stones.map((st, i) => ({ phi: st.phi, cut: i === 0 ? ring.seatCut : st.seatCut, rail: st.rail }));
-    return buildShank({ ...shank, head: undefined }, undefined, { notchStepMm: BALL_CUT.dragStepMm, seats });
+    return buildShank({ ...shank, head: undefined, stations: undefined, relief: undefined }, undefined, { notchStepMm: BALL_CUT.dragStepMm, seats });
   }
   const opts = { notchStepMm: BALL_CUT.dragStepMm, rail: railInRing(ring.setting, ring.transform) };
   if (ring.setting.normals) return buildShank(shank, ring.seatCut, opts);

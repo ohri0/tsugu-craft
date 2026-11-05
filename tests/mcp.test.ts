@@ -108,6 +108,27 @@ describe("check_ring", () => {
     const thin = checkRingTool(ctx, { stone: triangle, design: { shank_thickness_mm: 1.0, shank_width_mm: 1.5 } });
     expect(thin.problems.map((p) => p.id)).toEqual(expect.arrayContaining(["band-thin", "band-narrow"]));
   });
+  it("腕の断面の線と場所ごとの形も、画面の Claude と同じ書き方で。壊れた線は分かる言葉で断る", () => {
+    const ridge = [{ x: 1, y: 0 }, { x: 1, y: 0.35 }, { x: 0.5, y: 0.55 }, { x: 0, y: 1 }, { x: 0, y: 1 }, { x: 0, y: 1 }, { x: -0.5, y: 0.55 }, { x: -1, y: 0.35 }, { x: -1, y: 0 }];
+    const r = checkRingTool(ctx, {
+      stone: triangle,
+      design: {
+        shank_section_curve: ridge,
+        shank_width_mm: 2.8,
+        shank_thickness_mm: 2,
+        shank_stations: [
+          { at_deg: 70, width_mm: 2.2, thickness_mm: 1.6, section_curve: ridge },
+          { at_deg: 180, width_mm: 1.8, thickness_mm: 1.3, section: "kouman" },
+        ],
+      },
+    });
+    expect(r.design.shank.section).toBe("free");
+    expect(r.design.shank.min_width_mm).toBeCloseTo(1.8, 2);
+    expect(r.design.shank.min_thickness_mm).toBeCloseTo(1.3, 2);
+    expect(() => checkRingTool(ctx, { stone: triangle, design: { shank_section_curve: [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }] } })).toThrow("5〜40 個");
+    expect(() => checkRingTool(ctx, { stone: triangle, design: { shank_stations: [{ at_deg: 120, width_mm: 2, thickness_mm: 1.5 }, { at_deg: 60, width_mm: 2, thickness_mm: 1.5 }] } })).toThrow("角度の小さい順");
+    expect(() => checkRingTool(ctx, { stone: triangle, design: { shank_stations: [{ at_deg: 180, width_mm: 2, thickness_mm: 1.5, sway_mm: 1 }] } })).toThrow("寄せられません");
+  });
   it("三角の石は V 字の爪 3 つで、すき間と地金の重さも返す", () => {
     const r = checkRingTool(ctx, { stone: triangle });
     expect(r.ok).toBe(true);
