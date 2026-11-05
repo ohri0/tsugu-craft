@@ -143,6 +143,12 @@ describe("Claude への指示", () => {
     const head = SYSTEM_PROMPT.slice(0, SYSTEM_PROMPT.indexOf("<jeweler_guides>"));
     for (const word of ["ゴシック", "アール・デコ", "和風", "和の"]) expect(head).not.toContain(word);
   });
+  it("線の性格が強い言葉では、控えめにまとめず、確かめのルールの内側で大胆に使ってよいと書いてある。重さと着けやすさも数字で書く", () => {
+    expect(SYSTEM_PROMPT).toContain("控えめにまとめません");
+    expect(SYSTEM_PROMPT).toContain("確かめのルールの内側");
+    expect(SYSTEM_PROMPT).toContain("culet_gap_mm");
+    expect(SYSTEM_PROMPT).toContain("重さと着けやすさ");
+  });
   it("理由だけの呼び出しは断る（形が変わったと思って先へ進まないように）", () => {
     const r = parseToolCall("set_shank", { reason: "細くした" });
     expect(r.ok).toBe(false);

@@ -35,6 +35,7 @@ const NAMES: Record<string, string> = {
   thickness_mm: "厚み",
   prong_mm: "爪の太さ",
   prong_tip: "爪の形",
+  culet_gap_mm: "石の先と指のすき間",
   prong_count: "爪の本数",
   prong_positions: "爪の位置",
   v_corners: "角の V 字の爪",

@@ -124,6 +124,8 @@ export interface SetSettingInput {
   join?: Join;
   /** 爪の先の形（爪留めだけ）。round＝丸い爪、oni＝尖り爪 */
   prong_tip?: ProngTipChoice;
+  /** 石の一番下（先）と指のすき間（mm）。腕の厚みより小さいと、石が腕に沈む */
+  culet_gap_mm?: number;
   /** テンションの挟む向き（テンションだけ） */
   tension_grip?: TensionGripChoice;
   reason: string;
@@ -395,6 +397,7 @@ export const INPUT_BOUNDS = {
   relief_deg: [15, 180],
   relief_columns: [1, 3],
   stone_long_mm: [3, 14],
+  culet_gap_mm: [GUIDES.height.minFingerGapMm, 6],
 } as const;
 
 // ---- 道具の定義（Claude に見せる説明つき） ----
@@ -467,6 +470,10 @@ export const TOOLS: ClaudeTool[] = [
             "尖った角を V 字の爪で包むか。今は形の出来が足りないので、true にしても V 字にならず、丸い爪を角に立てる普通の爪留めになる（結果の note で知らせる）",
         },
         height: { type: "string", enum: ["low", "standard", "high"], description: `石座の高さ。${heightText}` },
+        culet_gap_mm: {
+          type: "number",
+          description: `石の一番下（先）と指のすき間（mm、${range("culet_gap_mm", " mm")}）。height より細かく決める。腕の厚みより小さくすると、石が腕に沈み、腕の上を石の形に自動で削る（ザグり）。腕を厚くして join を on にしたときに、石を腕の間に収めて一体に見せる。石の下に残る地金も腕なので、1 mm くらいは残す（腕の厚みの公開の目安を借りた。最後は職人が決める）`,
+        },
         orientation: {
           type: "string",
           enum: ["along", "across"],
@@ -769,6 +776,7 @@ const BOUND_OF: Record<string, keyof typeof INPUT_BOUNDS> = {
   spread_mm: "spread_mm",
   at_deg: "at_deg",
   sway_mm: "sway_mm",
+  culet_gap_mm: "culet_gap_mm",
   long_mm: "stone_long_mm",
 };
 

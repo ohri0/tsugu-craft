@@ -32,7 +32,7 @@ import { bindVoice } from "../app/voice";
 import { bookLabel, bookTitle, masterName, sourceName } from "../app/master";
 import { toStl } from "../cad/solid";
 import { buildStone } from "../geometry/stone";
-import { LAYOUT_LABEL, METAL_LABEL, RingSession, SLOT_SHAPE_LABEL, STONE_LONG_RANGE, bandFixInput, carryDesign, fitStoneDepth, fitStoneLong, reliefFixInput, stationFrom, tuneProngMm, underLedger, type Built, type SlotShape } from "./session";
+import { LAYOUT_LABEL, METAL_LABEL, RingSession, type RingState, SLOT_SHAPE_LABEL, STONE_LONG_RANGE, bandFixInput, carryDesign, fitStoneDepth, fitStoneLong, reliefFixInput, stationFrom, tuneProngMm, underLedger, type Built, type SlotShape } from "./session";
 import { bindShankLine, sectionBinding, shankLineHtml } from "./shank-line";
 import bandShowcase from "../lp/band-showcase.json" with { type: "json" };
 import { renderRingShape, ringSectionWord, type RingShapeHost } from "./ring-shape";
@@ -4171,6 +4171,8 @@ void restoreDesign()
   .catch(() => false)
   .then(async (back) => {
     if (!back) await loadSample();
+    const gothicId = new URLSearchParams(location.search).get("gothic");
+    if (gothicId) await openShowcaseGothic(gothicId, new URLSearchParams(location.search).has("fine"));
     // 帳面の「計算を見る」から来たとき：確かめるの札を開く
     if (location.hash === "#tension" && session) {
       if (session.state.style !== "tension") session.setSetting({ style: "tension", reason: "帳面の計算を見る" });
@@ -4191,6 +4193,21 @@ function openShowcaseBand(b: Band, cut = false) {
 const showcaseId = new URLSearchParams(location.search).get("band");
 const showcase = (bandShowcase.shapes as unknown as { id: string; band: Band; cut?: string }[]).find((x) => x.id === showcaseId);
 if (showcase) openShowcaseBand(showcase.band, !!showcase.cut);
+/** 見本のゴシックを開く（?gothic=<id>。数字は src/lp/gothic-showcase.json。大きく写す絵の細かい網目は &fine=1 のときだけ） */
+async function openShowcaseGothic(id: string, fine: boolean) {
+  const { default: data } = await import("../lp/gothic-showcase.json");
+  const d = (data as unknown as Record<string, { stone?: string; stoneLongMm?: number; stoneDepthMm?: number; state?: Partial<RingState> } | undefined>)[id];
+  const preset = PRESETS.find((p) => p.id === d?.stone);
+  if (!d?.state || !preset) return;
+  await loadPreset(preset);
+  if (d.stoneLongMm && stone) await loadStone(stone.photo, stone.label, d.stoneLongMm, d.stoneDepthMm ?? stone.depthMm, { same: { shape: true, size: false } });
+  if (!session) return;
+  const state = structuredClone(d.state);
+  if (state.shankRelief && !fine) delete state.shankRelief.fine;
+  session.state = { ...session.state, ...state };
+  session.build("見本を開く");
+  session.flush();
+}
 /** 入口のページの手順の札（public/lp/make-steps.json）を作る所：scripts/lp-shots.cjs の steps が読む */
 function makeCards(m: Method) {
   if (!session?.built) return [];

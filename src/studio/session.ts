@@ -616,6 +616,7 @@ export class RingSession implements ToolHost<RingState> {
       s.height = input.height;
       s.culetGapMm = undefined;
     }
+    if (input.culet_gap_mm !== undefined) s.culetGapMm = input.culet_gap_mm;
     if (input.orientation) {
       s.orientation = input.orientation;
       s.orientationSet = true;
