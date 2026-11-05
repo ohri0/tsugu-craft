@@ -879,7 +879,8 @@ dialog.sheet input:focus { border-color: var(--accent); }
 html.fit { --fg-2: #b8b8be; --fg-3: #9e9ea4; --accent: #0a6fdc; }
 html.fit :is(.primary, .btn.primary):hover { background: #1a7fe8; }
 html.fit .fp-fix { color: var(--accent-2); border-color: var(--accent-2); }
-html.fit .sec > h4 small, html.fit .why .why-note { font-size: 12px; }
+html.fit .sec > h4 small, html.fit .fix-pop small, html.fit .p-head small { font-size: 12px; }
+html.fit .why-note { font-size: 12px !important; }
 html.fit .pr-tabs button, html.fit .pk, html.fit .pr-opt button { color: #c4c4ca; }
 html.fit .pr-tabs button[aria-pressed="true"], html.fit .pr-tabs button[aria-current="true"] { color: #fff; }
 /* 12 px より小さかった字 */
@@ -973,7 +974,7 @@ html.fit .ask-nudge small { font-size: 12px; }
   html.fit .verdict-chip { min-height: 44px; font-size: 13px; }
   html.fit .tools { gap: 0; }
   html.fit .tools hr { display: none; }
-  html.fit .tool { width: 44px; height: 44px; }
+  html.fit .tool, html.fit .tool.t-dims-more { width: 44px; height: 44px; }
   html.fit .act-more { min-width: 44px; font-size: 18px; }
   html.fit .p-act details > summary { min-width: 44px; }
   html.fit .pr-tabs button { min-width: 44px; }
