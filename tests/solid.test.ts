@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { SECTION_PRESETS, meshVolume, openEdges, plateSolid, ringSolid, signedDistance, smoothClosed, toStl } from "../src/cad/solid";
+import { bandCurve, matchLoops } from "../src/cad/section";
+import { bandSolid, meshVolume, openEdges, plateSolid, signedDistance, smoothClosed, toStl } from "../src/cad/solid";
 
 const square = [
   { x: -10, y: -10 },
@@ -36,11 +37,10 @@ describe("板もの：すき間のない形", () => {
 });
 
 describe("指輪：断面を回した形", () => {
-  const spec = { innerDiameter: 16.6, top: SECTION_PRESETS.kouman(6, 1.6), bottom: SECTION_PRESETS.kouman(4, 1.4), blendDeg: 120, around: 96, across: 12 };
+  const [top, bottom] = matchLoops({ curve: bandCurve("kouman", 6, 1.6), widthMm: 6, thicknessMm: 1.6, innerMm: 0 }, { curve: bandCurve("kouman", 4, 1.4), widthMm: 4, thicknessMm: 1.4, innerMm: 0 });
+  const spec = { innerDiameter: 16.6, top, bottom, blendDeg: 120, around: 96 };
   it("体積は正で、おおよそ 円周 × 断面", () => {
-    const r = ringSolid(spec);
-    const tris = new Float32Array(r.indices.length * 3);
-    r.indices.forEach((v, i) => tris.set(r.positions.subarray(v * 3, v * 3 + 3), i * 3));
+    const tris = bandSolid(spec);
     const v = meshVolume(tris);
     expect(v).toBeGreaterThan(0);
     // 断面およそ 4〜6 × 1.4〜1.6 の 0.6〜0.9 倍 × 内まわり 52 mm
@@ -49,8 +49,8 @@ describe("指輪：断面を回した形", () => {
     expect(openEdges(tris)).toBe(0);
   });
   it("STL にすると、三角形の数ぶんの大きさになる", () => {
-    const r = ringSolid(spec);
-    const buf = toStl(r.positions, r.indices);
-    expect(buf.byteLength).toBe(84 + (r.indices.length / 3) * 50);
+    const tris = bandSolid(spec);
+    const buf = toStl(tris);
+    expect(buf.byteLength).toBe(84 + (tris.length / 9) * 50);
   });
 });

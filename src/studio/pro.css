@@ -1011,6 +1011,49 @@ html.fit .ask-nudge small { font-size: 12px; }
   /* ほかの場所のメニュー */
   html.fit .act-more { display: inline-flex; }
 }
+/*
+  スマホの縦の配置（2026-11-05 作者の iPhone の写真から）。撮影（?rec・?nointro）では html.fit がないので、動画の絵は前のまま。
+  - 道具の帯：前は画面の高さの計算で置いていて、ボタンを 44 px にした分（と Safari の vh のずれ）だけ下の欄にかぶっていた。
+    3D の所（grid-area: vp）を入れ物にして、いつもその下の端に置く。
+  - 高さは svh（Safari の帯が出ている時の本当の高さ）で。vh だと 3D の所が大きくなりすぎ、下の欄がせまくなった。
+  - 種類は 2 つ横に並べる（縦に並べると、形の設定が 150 px 下へ押された）。
+*/
+@media (max-width: 820px) {
+  html.fit .pro { grid-template-rows: 44px minmax(220px, 42vh) 1fr auto 52px; grid-template-rows: 44px minmax(220px, 42svh) 1fr auto 52px; }
+  html.fit .pro:not([data-mode="make"]) { grid-template-rows: 44px minmax(200px, 38vh) 1fr 0 52px; grid-template-rows: 44px minmax(200px, 38svh) 1fr 0 52px; }
+  html.fit .pro .tools, html.fit .pro:not([data-mode="make"]) .tools { grid-area: vp; top: auto; bottom: 6px; left: 8px; right: auto; width: max-content; height: max-content; }
+  html.fit .kinds { grid-template-columns: 1fr 1fr; gap: 6px; }
+  html.fit .kinds button { grid-template-columns: 24px 1fr; gap: 6px; min-height: 52px; padding: 4px 6px; border-color: var(--line); }
+  html.fit .kinds b { font-size: 13px; line-height: 1.25; }
+  /* 細いスマホ（320 〜 375 px）でも道具の帯が横に収まるように */
+  html.fit .tool, html.fit .tool.t-dims-more { width: min(44px, calc((100vw - 22px) / 8)); }
+}
+/* 細いスマホ：表示の切り替えと「作れます」の札が重ならないように */
+@media (max-width: 380px) {
+  html.fit .disp button { padding: 0 4px; }
+}
+/* 石のない指輪の希望の欄は、スマホでは「Claude の作業」の中に入る（下にいつも出ていると、欄がせまくなり、断面の下の設定が隠れた） */
+.wish-slot .cmd-wrap { padding: 0 0 8px; background: none; border: 0; }
+
+/* 石のない指輪：断面の見本（本当の断面の絵つき） */
+.bs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(70px, 1fr)); gap: 6px; }
+.bs-grid button { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; padding: 6px 2px 5px; border: 1px solid var(--line); border-radius: 8px; background: var(--field); color: var(--fg-2); font-size: 12px; line-height: 1.2; touch-action: manipulation; }
+.bs-grid button:hover { color: var(--fg); border-color: var(--line-2); }
+.bs-grid button[aria-pressed="true"] { background: var(--accent-weak); border-color: rgba(10, 132, 255, 0.6); color: var(--fg); }
+.bs-thumb { display: block; width: 100%; height: 30px; }
+.bs-thumb path { fill: rgba(222, 190, 120, 0.3); stroke: #e3c27a; stroke-width: 0.1; stroke-linejoin: round; }
+.bs-grid button[aria-pressed="true"] .bs-thumb path { fill: rgba(222, 190, 120, 0.65); }
+.bs-pen path { fill: none !important; stroke-dasharray: 0.22 0.14; stroke-linecap: round; }
+.bs-note { margin: 8px 0 4px; font-size: 12px; line-height: 1.55; color: var(--fg-2); }
+.bs-note b { margin-right: 8px; color: var(--fg); font-weight: 600; }
+.bs-note small { display: block; color: var(--fg-3); font-size: 12px; }
+.bs-cut { display: block; width: 100%; min-height: 34px; margin: 8px 0; border: 1px solid var(--line-2); border-radius: 6px; background: var(--field); color: var(--fg); font-size: 12px; font-weight: 600; touch-action: manipulation; }
+.bs-cut:hover { border-color: var(--fg-3); }
+.bs-cut[aria-pressed="true"] { background: var(--accent-weak); border-color: rgba(10, 132, 255, 0.6); }
+@media (pointer: coarse), (max-width: 820px) {
+  html.fit .bs-grid button { min-height: 60px; }
+  html.fit .bs-cut { min-height: 44px; font-size: 13px; }
+}
 /* スマホの上の帯：帳面・学ぶ・技・図面へ（設計の画面に入り口がなく、記録の下まで行かないと移れなかった） */
 .act-more { display: none; }
 .more-menu { position: fixed; z-index: 55; right: 8px; top: 48px; min-width: 220px; display: grid; padding: 6px; border: 1px solid var(--line-2); border-radius: 10px; background: var(--panel-2); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5); }

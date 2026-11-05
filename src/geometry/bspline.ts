@@ -104,15 +104,20 @@ export function sampleCurve(pts: readonly P2[], u: readonly number[], perSpan = 
  * 前に残した点からの向きの変わりが maxTurnDeg を超える手前、または maxLen より離れる手前で点を残す（曲がる所ほど点が多い）
  */
 export function adaptiveSample(pts: readonly P2[], u: readonly number[], maxTurnDeg = 3, maxLen = 0.08): P2[] {
-  const dense = sampleCurve(pts, u, 96).map((s) => s.p);
-  const out: P2[] = [dense[0]];
+  return adaptiveParams(pts, u, maxTurnDeg, maxLen).map((s) => s.p);
+}
+
+/** adaptiveSample の点と、その t（線の上の位置）。2 本の線の点を同じ所でそろえるときに使う */
+export function adaptiveParams(pts: readonly P2[], u: readonly number[], maxTurnDeg = 3, maxLen = 0.08): { p: P2; t: number }[] {
+  const dense = sampleCurve(pts, u, 96);
+  const out = [dense[0]];
   const cosMax = Math.cos((maxTurnDeg * Math.PI) / 180);
-  let last = dense[0];
+  let last = dense[0].p;
   // 前に残した点での線の向き（細かい線分の向き）
-  const dirAt = (i: number) => ({ x: dense[i + 1].x - dense[i].x, y: dense[i + 1].y - dense[i].y });
+  const dirAt = (i: number) => ({ x: dense[i + 1].p.x - dense[i].p.x, y: dense[i + 1].p.y - dense[i].p.y });
   let dir = dirAt(0);
   for (let i = 1; i < dense.length - 1; i++) {
-    const next = dense[i + 1];
+    const next = dense[i + 1].p;
     // 次の点での線の向きが、前に残した点での向きから曲がりすぎるか、次の点が遠すぎるなら、いまの点を残す
     const b = dirAt(i);
     const la = Math.hypot(dir.x, dir.y);
@@ -121,7 +126,7 @@ export function adaptiveSample(pts: readonly P2[], u: readonly number[], maxTurn
     if (turned || Math.hypot(next.x - last.x, next.y - last.y) > maxLen) {
       dir = dirAt(i);
       out.push(dense[i]);
-      last = dense[i];
+      last = dense[i].p;
     }
   }
   out.push(dense[dense.length - 1]);

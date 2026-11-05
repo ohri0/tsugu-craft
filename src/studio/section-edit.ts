@@ -21,7 +21,8 @@ import {
   type P2,
 } from "../geometry/bspline";
 import { curveFromHalf, curveKnots, normalizeCurve, presetCurve, type SectionCurve, type SectionPoint, type ShankSection } from "../geometry/shank";
-import { GUIDES } from "../rules/guides";
+import { innerArc } from "../cad/section";
+import { GUIDES, type Guides } from "../rules/guides";
 import { SPIKE_TEXT, sectionSpots } from "../rules/checks";
 
 /** 描く所の広さ（mm）：幅 ±X、厚み yMin〜yMax。点はこの中でだけ動く */
@@ -79,9 +80,15 @@ export function shapeOf(ec: EditCurve): SectionShape {
 }
 
 const mirrorIndex = (ec: EditCurve, i: number) => ec.pts.length - 1 - i;
-const clampX = (x: number) => Math.min(VIEW.x, Math.max(-VIEW.x, x));
-const clampY = (y: number) => Math.min(VIEW.yMax, Math.max(0, y));
+const clampX = (x: number, max: number = VIEW.x) => Math.min(max, Math.max(-max, x));
+const clampY = (y: number, max: number = VIEW.yMax) => Math.min(max, Math.max(0, y));
 const snap01 = (v: number) => Math.round(v * 10) / 10;
+
+/** 点が動ける広さ（mm）。なければ腕の断面の広さ（VIEW）。石のない指輪は幅が広いので、広くする */
+export interface EditLimits {
+  maxX?: number;
+  maxY?: number;
+}
 
 /** 幅と厚みが、形を作れる大きさか */
 function okSize(ec: EditCurve): boolean {
@@ -94,11 +101,11 @@ function okSize(ec: EditCurve): boolean {
  * 左右対称なら、反対側の点もいっしょに動く（真ん中の点は上下だけ）。0.1 mm にそろえるなら、位置を 0.1 mm の格子に合わせる。
  * 細すぎる・薄すぎる形になるときは動かさない
  */
-export function movePoint(ec: EditCurve, i: number, x: number, y: number, o: { sym: boolean; snap: boolean }): EditCurve {
+export function movePoint(ec: EditCurve, i: number, x: number, y: number, o: { sym: boolean; snap: boolean } & EditLimits): EditCurve {
   const n = ec.pts.length;
   if (i < 0 || i >= n) return ec;
-  let px = clampX(o.snap ? snap01(x) : x);
-  let py = clampY(o.snap ? snap01(y) : y);
+  let px = clampX(o.snap ? snap01(x) : x, o.maxX);
+  let py = clampY(o.snap ? snap01(y) : y, o.maxY);
   const j = mirrorIndex(ec, i);
   if (i === 0 || i === n - 1) py = 0;
   if (o.sym && i === j) px = 0;
@@ -223,8 +230,8 @@ const fitOpts = (forceCorners: number[] = []) => ({ tol: FIT.tolMm, maxPerPart: 
  * - 端が内側の線から浮いていれば、そこからまっすぐ下ろす（指の側は平ら）。
  * 短すぎる線は使わない（null）
  */
-export function fitStroke(stroke: readonly P2[], o: { sym: boolean }): EditCurve | null {
-  let s = stroke.filter((p, i) => i === 0 || Math.hypot(p.x - stroke[i - 1].x, p.y - stroke[i - 1].y) > 1e-4).map((p) => ({ x: clampX(p.x), y: clampY(p.y) }));
+export function fitStroke(stroke: readonly P2[], o: { sym: boolean } & EditLimits): EditCurve | null {
+  let s = stroke.filter((p, i) => i === 0 || Math.hypot(p.x - stroke[i - 1].x, p.y - stroke[i - 1].y) > 1e-4).map((p) => ({ x: clampX(p.x, o.maxX), y: clampY(p.y, o.maxY) }));
   if (s.length < 5) return null;
   const xs = s.map((p) => p.x);
   const xMin = Math.min(...xs);
@@ -261,7 +268,7 @@ export function fitStroke(stroke: readonly P2[], o: { sym: boolean }): EditCurve
     const d = dropToFloor(s, true, true);
     r = fitPolyline(d.line, fitOpts(d.corners));
   }
-  r.pts = r.pts.map((p, i) => ({ x: clampX(p.x), y: i === 0 || i === r.pts.length - 1 ? 0 : clampY(p.y) }));
+  r.pts = r.pts.map((p, i) => ({ x: clampX(p.x, o.maxX), y: i === 0 || i === r.pts.length - 1 ? 0 : clampY(p.y, o.maxY) }));
   return okSize(r) ? { pts: r.pts, knots: r.knots } : null;
 }
 
@@ -326,7 +333,20 @@ interface Memo {
   /** さっき描いた線（mm）。できた線と見比べられるよう、うすく残す。次に触ると消える */
   lastStroke: P2[] | null;
 }
-let memo: Memo | null = null;
+/** 断面ごとの覚え（石のある指輪の腕と、石のない指輪の上と下は、別々に戻す） */
+const memos = new Map<string, Memo>();
+
+/** 断面の画面の使い分け。石のある指輪の腕は、何も渡さない */
+export interface SectionEditorOptions extends EditLimits {
+  /** 覚え（元に戻す・やり直す）の名前 */
+  key?: string;
+  /** 内甲丸の丸みの深さ（mm）。内の線を弧で描き、指の線は真ん中に当たる。ここでは動かさない（石のない指輪の「内側」で変える） */
+  innerMm?: number;
+  /** リセットで戻す形。section を free 以外にして返す（onCommit で、リセットだと分かるように） */
+  reset?: () => SectionShape;
+  /** 赤くする目安（なければ公開の目安） */
+  guides?: Guides;
+}
 
 /** 同じ形か（幅と厚みは 0.01 mm、そろえた点は 0.005 までの差を同じと見る） */
 export function sameShape(a: SectionShape, b: SectionShape): boolean {
@@ -350,8 +370,8 @@ interface View {
 const ASPECT = 1.9;
 
 /** 形の大きさに合わせた見る広さ（小さい形は大きく見せる。広さは画面を作り直すときだけ変える：動かしている間は変えない） */
-export function viewFor(widthMm: number, thicknessMm: number): View {
-  const x = Math.min(VIEW.x, Math.max(1.8, widthMm / 2 + 0.9, ((thicknessMm + 1.1) * ASPECT) / 2));
+export function viewFor(widthMm: number, thicknessMm: number, maxX: number = VIEW.x): View {
+  const x = Math.min(maxX, Math.max(1.8, widthMm / 2 + 0.9, ((thicknessMm + 1.1) * ASPECT) / 2));
   const h = (2 * x) / ASPECT;
   const yMin = -Math.min(0.6, Math.max(0.42, h * 0.16));
   return { x, yMin, yMax: yMin + h };
@@ -408,14 +428,16 @@ export function sectionEditorHtml(): string {
     </div>
     <svg viewBox="${viewBox(v)}" preserveAspectRatio="xMidYMid meet" aria-label="腕の断面。下が指の側">
       <g class="se-back">${gridSvg(v)}</g>
-      <path class="se-shape"/>
+      <path class="se-shape se-work"/>
       <line class="se-finger se-finger-top" x1="${f3(-v.x)}" y1="0" x2="${f3(v.x)}" y2="0"/>
-      <g class="se-dims"></g>
-      <polyline class="se-poly"/>
-      <g class="se-ghosts"></g>
-      <g class="se-handles"></g>
-      <polyline class="se-stroke"/>
-      <g class="se-spots"></g>
+      <g class="se-work">
+        <g class="se-dims"></g>
+        <polyline class="se-poly"/>
+        <g class="se-ghosts"></g>
+        <g class="se-handles"></g>
+        <polyline class="se-stroke"/>
+        <g class="se-spots"></g>
+      </g>
     </svg>
     <div class="se-read"><span class="se-w"></span><span class="se-t"></span><span class="se-n"></span><small class="se-hint"></small></div>
   </div>`;
@@ -426,14 +448,18 @@ export function sectionEditorHtml(): string {
  * onLive は点を動かしている間（1 こまに 1 回まで）、onCommit は形が決まったとき（指やマウスを離した・点を足した など）。
  * リセットのときは、決まった断面（section が free でない形）を onCommit に渡す
  */
-export function bindSectionEditor(box: HTMLElement, start: SectionShape, onLive: (s: SectionShape) => void, onCommit: (s: SectionShape) => void): void {
+export function bindSectionEditor(box: HTMLElement, start: SectionShape, onLive: (s: SectionShape) => void, onCommit: (s: SectionShape) => void, opts: SectionEditorOptions = {}): void {
   const root = box.querySelector<HTMLElement>(".sec-edit");
   if (!root) return;
   const svg = root.querySelector("svg")!;
 
   const startEc = startCurveOfShape(start);
-  if (!memo) memo = { cur: startEc, past: [], future: [], mode: "move", sym: true, snap: false, preset: "kouman", shape: start, lastStroke: null };
-  else if (!sameShape(memo.shape, start)) {
+  const memoKey = opts.key ?? "ring";
+  let memo = memos.get(memoKey);
+  if (!memo) {
+    memo = { cur: startEc, past: [], future: [], mode: "move", sym: true, snap: false, preset: "kouman", shape: start, lastStroke: null };
+    memos.set(memoKey, memo);
+  } else if (!sameShape(memo.shape, start)) {
     // 画面の外で形が変わった（決まった断面を選んだ・Claude が直した など）。前の形は「元に戻す」で戻れる
     memo.past.push(memo.cur);
     memo.future = [];
@@ -444,18 +470,23 @@ export function bindSectionEditor(box: HTMLElement, start: SectionShape, onLive:
   if (start.section !== "free") memo.preset = start.section;
   const M = memo;
   let ec = M.cur;
+  // 内甲丸：外の線の端は、指の円から内側の丸みの分だけ上がる。方眼はいつも指の円が 0
+  const lift = opts.innerMm ?? 0;
+  const limits: EditLimits = { maxX: opts.maxX, maxY: opts.maxY };
   // 見る広さは、いまの形に合わせる（動かしている間は変えない）
   const m0 = measure(ec);
-  const view = viewFor(m0.widthMm, m0.thicknessMm);
+  const view = viewFor(m0.widthMm, m0.thicknessMm + lift, opts.maxX);
   svg.setAttribute("viewBox", viewBox(view));
   root.querySelector(".se-back")!.innerHTML = gridSvg(view);
+  if (lift) root.querySelectorAll(".se-work").forEach((el) => el.setAttribute("transform", `translate(0 ${f3(-lift)})`));
   const fl = root.querySelector(".se-finger-top")!;
   fl.setAttribute("x1", f3(-view.x));
   fl.setAttribute("x2", f3(view.x));
   // 点の大きさ（mm）：見る広さに合わせ、画面の上でいつも同じくらいの大きさに。指で触る画面は少し大きく
   const coarse = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
   const R = { hit: f3(view.x * 0.11), dot: f3(view.x * (coarse ? 0.036 : 0.03)), ghost: f3(view.x * 0.024), spot: f3(view.x * 0.028) };
-  const g = GUIDES.band;
+  const guides = opts.guides ?? GUIDES;
+  const g = guides.band;
   const q = <T extends Element>(sel: string) => root.querySelector<T>(sel)!;
 
   let drag: { i: number; id: number; before: EditCurve } | null = null;
@@ -467,7 +498,8 @@ export function bindSectionEditor(box: HTMLElement, start: SectionShape, onLive:
     M.cur = next;
     ec = next;
     const out = preset ? { ...shapeOf(next), section: preset } : shapeOf(next);
-    M.shape = roundShape(out);
+    // 渡すリセットの形は、今の設計としてはいつも free の線（次に開くときに「形が変わった」と数えない）
+    M.shape = roundShape(opts.reset ? shapeOf(next) : out);
     draw();
     onCommit(out);
   };
@@ -483,7 +515,9 @@ export function bindSectionEditor(box: HTMLElement, start: SectionShape, onLive:
   const draw = () => {
     const n = ec.pts.length;
     const line = outlineMm(ec);
-    const d = `M${line.map((p) => `${f3(p.x)},${f3(sy(p.y))}`).join("L")}Z`;
+    // 内甲丸の内の線（左の端 → 右の端）
+    const arc = lift ? innerArc(line[line.length - 1].x, line[0].x, lift) : [];
+    const d = `M${[...line, ...arc.slice(1, -1)].map((p) => `${f3(p.x)},${f3(sy(p.y))}`).join("L")}Z`;
     q(".se-shape").setAttribute("d", d);
     q(".se-poly").setAttribute("points", ec.pts.map((p) => `${f3(p.x)},${f3(sy(p.y))}`).join(" "));
     const isMain = (i: number) => !M.sym || i <= mirrorIndex(ec, i);
@@ -501,26 +535,29 @@ export function bindSectionEditor(box: HTMLElement, start: SectionShape, onLive:
       xMin = Math.min(xMin, p.x);
       xMax = Math.max(xMax, p.x);
     }
+    // 厚みは、指の円（内甲丸なら内の線の真ん中）から測る
+    const total = m.thicknessMm + lift;
     const wBad = m.widthMm < g.minWidthMm - 1e-9;
-    const tBad = m.thicknessMm < g.minThicknessMm - 1e-9;
-    const yW = Math.min(view.yMax - 0.12, m.thicknessMm + 0.24);
+    const tBad = total < g.minThicknessMm - 1e-9;
+    const yW = Math.min(view.yMax - lift - 0.12, m.thicknessMm + 0.24);
     q(".se-dims").innerHTML =
       `<line x1="${f3(xMin)}" y1="${f3(sy(yW))}" x2="${f3(xMax)}" y2="${f3(sy(yW))}"/><line x1="${f3(xMin)}" y1="${f3(sy(yW - 0.08))}" x2="${f3(xMin)}" y2="${f3(sy(yW + 0.08))}"/><line x1="${f3(xMax)}" y1="${f3(sy(yW - 0.08))}" x2="${f3(xMax)}" y2="${f3(sy(yW + 0.08))}"/>` +
       `<text class="${wBad ? "bad" : ""}" x="${f3((xMin + xMax) / 2)}" y="${f3(sy(yW) - 0.07)}" text-anchor="middle">${m.widthMm.toFixed(2)}</text>` +
-      `<line x1="${f3(xMax + 0.25)}" y1="${f3(sy(0))}" x2="${f3(xMax + 0.25)}" y2="${f3(sy(m.thicknessMm))}"/><line x1="${f3(xMax + 0.17)}" y1="${f3(sy(m.thicknessMm))}" x2="${f3(xMax + 0.33)}" y2="${f3(sy(m.thicknessMm))}"/>` +
-      `<text class="${tBad ? "bad" : ""}" x="${f3(xMax + 0.33)}" y="${f3(sy(m.thicknessMm / 2) + 0.07)}">${m.thicknessMm.toFixed(2)}</text>`;
+      `<line x1="${f3(xMax + 0.25)}" y1="${f3(sy(-lift))}" x2="${f3(xMax + 0.25)}" y2="${f3(sy(m.thicknessMm))}"/><line x1="${f3(xMax + 0.17)}" y1="${f3(sy(m.thicknessMm))}" x2="${f3(xMax + 0.33)}" y2="${f3(sy(m.thicknessMm))}"/>` +
+      `<text class="${tBad ? "bad" : ""}" x="${f3(xMax + 0.33)}" y="${f3(sy((m.thicknessMm - lift) / 2) + 0.07)}">${total.toFixed(2)}</text>`;
     const wEl = q<HTMLElement>(".se-w");
     const tEl = q<HTMLElement>(".se-t");
     wEl.textContent = `幅 ${m.widthMm.toFixed(2)} mm`;
-    tEl.textContent = `厚み ${m.thicknessMm.toFixed(2)} mm`;
+    tEl.textContent = `厚み ${total.toFixed(2)} mm`;
     q<HTMLElement>(".se-n").textContent = `点 ${n}`;
     wEl.classList.toggle("bad", wBad);
     tEl.classList.toggle("bad", tBad);
     wEl.title = wBad ? `${g.minWidthMm} mm より細い（目安・最後は職人が決める）` : "";
     tEl.title = tBad ? `${g.minThicknessMm} mm より薄い（目安・最後は職人が決める）` : "";
     root.classList.toggle("bad", wBad || tBad);
-    // 局所的に薄い所（とがり・ヒレ）：その所だけを赤く（腕ぜんぶは赤くしない）
-    const spots = sectionSpots(line);
+    // 局所的に薄い所（とがり・ヒレ）：その所だけを赤く（腕ぜんぶは赤くしない）。内甲丸は、内の線の真ん中から 1 周する線で確かめる
+    const mid = Math.floor(arc.length / 2);
+    const spots = sectionSpots(lift ? [...arc.slice(mid), ...line.slice(1, -1), ...arc.slice(0, mid + 1)] : line, guides);
     q(".se-spots").innerHTML = spots
       .map(
         (sp) =>
@@ -547,7 +584,8 @@ export function bindSectionEditor(box: HTMLElement, start: SectionShape, onLive:
       spots.length ? `赤い所は${SPIKE_TEXT}（仮の目安：厚み ${sp.minLocalMm} mm・先の角度 ${sp.minTipAngleDeg}°。最後は職人が決める）` : "",
       wBad || tBad ? `赤い数字は目安（幅 ${g.minWidthMm} mm・厚み ${g.minThicknessMm} mm）より小さい。最後は職人が決める` : "",
     ].filter(Boolean);
-    q<HTMLElement>(".se-hint").textContent = `${hint}。${notes.length ? notes.join("。") : "下の線が指の側（いつも平ら）"}`;
+    const fingerNote = lift ? "下の丸い線が指の側（内甲丸）" : opts.innerMm === undefined ? "下の線が指の側（いつも平ら）" : "下の線が指の側";
+    q<HTMLElement>(".se-hint").textContent = `${hint}。${notes.length ? notes.join("。") : fingerNote}`;
   };
   draw();
 
@@ -584,6 +622,10 @@ export function bindSectionEditor(box: HTMLElement, start: SectionShape, onLive:
     jump(next);
   });
   q(".se-reset").addEventListener("click", () => {
+    if (opts.reset) {
+      const r = opts.reset();
+      return commit(startCurve("free", r.curve, undefined, r.widthMm, r.thicknessMm), r.section === "free" ? undefined : r.section);
+    }
     // 形だけでなく、太さも はじめの値に戻す（3.06 × 3.12 のままだった）
     commit(startCurve(M.preset, undefined, undefined, GUIDES.shank.widthMm, GUIDES.shank.thicknessMm), M.preset);
   });
@@ -593,7 +635,7 @@ export function bindSectionEditor(box: HTMLElement, start: SectionShape, onLive:
     const m = svg.getScreenCTM();
     if (!m) return { x: 0, y: 0 };
     const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse());
-    return { x: p.x, y: sy(p.y) };
+    return { x: p.x, y: sy(p.y) - lift };
   };
   /** 画面の px を mm に（指の太さで押せる広さ） */
   const pxToMm = (px: number) => px / Math.max(1e-6, svg.getScreenCTM()?.a ?? 40);
@@ -657,7 +699,7 @@ export function bindSectionEditor(box: HTMLElement, start: SectionShape, onLive:
   svg.addEventListener("pointermove", (e) => {
     if (drag && e.pointerId === drag.id) {
       const p = toMm(e);
-      ec = movePoint(ec, drag.i, p.x, p.y, { sym: M.sym, snap: M.snap });
+      ec = movePoint(ec, drag.i, p.x, p.y, { sym: M.sym, snap: M.snap, ...limits });
       M.cur = ec;
       draw();
       root.querySelector(`.se-h[data-i="${drag.i}"]`)?.classList.add("on");
@@ -680,7 +722,7 @@ export function bindSectionEditor(box: HTMLElement, start: SectionShape, onLive:
       const pts = stroke.pts;
       stroke = null;
       q(".se-stroke").setAttribute("points", "");
-      const next = fitStroke(pts, { sym: M.sym });
+      const next = fitStroke(pts, { sym: M.sym, ...limits });
       M.lastStroke = next ? pts : null;
       if (next) commit(next);
       else q<HTMLElement>(".se-hint").textContent = "線が短すぎました。断面の外側を、端から端までなぞってください";
@@ -708,5 +750,5 @@ export function startShape(section: ShankSection, curve: SectionCurve | undefine
 
 /** テスト用：画面の覚えを消す */
 export function resetSectionEditorMemo(): void {
-  memo = null;
+  memos.clear();
 }
