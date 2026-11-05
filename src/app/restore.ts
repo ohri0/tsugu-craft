@@ -1,8 +1,10 @@
-// 自分の技を組み立て直す（本番）：作り方の途切れた、答えのない技に使う。#waza/restore（一覧）・#waza/restore/<記録の id>。
-// 手がかりを職人が入れる → Claude が工程の案と、分かっていない所・次に確かめることを出す → 職人が工程ごとに試した結果を残す →
-// 結果も手がかりに加えて、もう一度組み立て直す（前の案との違いが分かる）→ 確かめた工程だけ、職人が「この技の決まり」にする。
-// この技の決まりは、この記録の中だけに持つ（書き出しにも入る）。指輪の帳面には入れないので、指輪の設計の確かめと学ぶの答えには混ざらない。
-// 答え合わせはない。画面のどこでも「案」として出し、確かな作り方だと言わない。力試し（答えの分かっている木目金）は src/app/rebuild.ts。
+// 途切れた技（#waza/restore・#waza/restore/<記録の id>）：作り方の途切れた、答えのない技に使う。
+// 読まなくても 3 秒で分かる形（2026-11-05 作者の声）。流れは 3 つだけ：① 分かることを入れる → ② Claude が作り方の案を出す → ③ 試して、結果を入れる。
+// 目立つボタンは常に 1 つ（次に押すもの。src/rebuild/restore.ts の nextAct）。番号や専門の言葉は画面に出さない（記録の中では C1・T1 を使う）。
+// 答え合わせはない。案は案として出し、確かな作り方だと言わない。確かめた手順だけ、職人が「この技の決まり」にする
+// （この記録の中だけに持ち、書き出しに入る。指輪の帳面には入れないので、指輪の設計の確かめと学ぶの答えには混ざらない）。
+// 案を出すときは、手がかりと一緒に、この工房の職人の帳面も渡す（オフにもできる）。帳面は読むだけ。根拠が帳面なら、案に「職人の帳面から」と出す。
+// 答えの分かっている技で試す頁は src/app/rebuild.ts（手がかりだけで、帳面は渡さない）。
 import "./restore.css";
 import { parseToolCall, TOOLS, type ProposeRuleInput } from "../claude/tools";
 import {
@@ -11,39 +13,46 @@ import {
   applyPlan,
   CHECK_KINDS,
   CLUE_KIND_IDS,
-  CLUE_KINDS,
   clueRefs,
-  freshSince,
+  firstView,
   knownClueIds,
+  namesOf,
   newProject,
+  nextAct,
+  nextUntried,
   parseRestoreFile,
   pastResults,
+  plainWords,
   planDiff,
-  projectCounts,
+  previousPlan,
   removeClue,
   removeTechRule,
   renameProject,
   resultFor,
   setResult,
   sourceText,
+  stageOf,
   TEXT_LIMITS,
   toFile,
   usableResults,
+  withoutMark,
   type ClueKind,
   type Outcome,
   type PhotoFile,
   type PlanStep,
   type RestorePlan,
   type RestoreProject,
-  type StepChange,
+  type Stage,
 } from "../rebuild/restore";
-import { OUTCOME_LABEL, PHOTO_SEND, photosToSend, restoreContent, restorePrompt, ruleRequest, techRulePrompt } from "../rebuild/restore-prompt";
+import { bookText } from "../rebuild/book";
+import { PHOTO_SEND, photosToSend, restoreContent, restorePrompt, ruleRequest, techRulePrompt } from "../rebuild/restore-prompt";
 import { parseRestoration, PROPOSE_RESTORATION } from "../rebuild/restore-tools";
 import { callTool } from "../rebuild/run";
 import { askConfirm } from "./confirm";
 import { flash } from "./interview";
 import { masterName } from "./master";
 import { askPassword, resetPassword } from "./password";
+import { workshopBook } from "./restore-book";
 import {
   blobToBase64,
   getPhoto,
@@ -60,19 +69,26 @@ import {
   shrinkPhoto,
 } from "./restore-store";
 import { esc, store, today } from "./store";
-import { bindVoice, canListen } from "./voice";
+import { bindVoice } from "./voice";
 
-const NOTE = `<p class="rs-note"><b>案・試して確かめる</b>ここに出る工程は Claude の案です。確かな作り方ではありません。最後は職人が試して決めます。</p>`;
-const MIC = `<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-2.1A7 7 0 0 0 19 12h-2Z" fill="currentColor"/></svg>`;
-const OUTCOMES: Outcome[] = ["ok", "ng", "pending"];
-const OUT_CLS: Record<Outcome, string> = { ok: "ok", ng: "miss", pending: "" };
-const CHANGE: Record<StepChange, { label: string; cls: string }> = {
-  same: { label: "そのまま", cls: "same" },
-  changed: { label: "変わった", cls: "part" },
-  new: { label: "新しい", cls: "new" },
+const FLOW: { n: Stage; label: string }[] = [
+  { n: 1, label: "分かることを入れる" },
+  { n: 2, label: "Claude が作り方の案を出す" },
+  { n: 3, label: "試して、結果を入れる" },
+];
+/** 一覧の札に出す、次にすること */
+const NEXT_WORD: Record<Stage, string> = { 1: "次：分かることを入れる", 2: "次：Claude に案を出してもらう", 3: "次：試して、結果を入れる" };
+const KIND_UI: Record<ClueKind, { label: string; example: string }> = {
+  object: { label: "残った品物", example: "例：ふたの表に、霜のような白いまだらがある" },
+  record: { label: "古い記録", example: "例：古い本に「灰をかけて火にあぶる」と書いてある" },
+  material: { label: "金属・道具", example: "例：銀に銅が混ざっているようだ" },
+  opinion: { label: "職人の見立て", example: "例：熱してから洗ったのではないか" },
 };
-const dots = (n: number) => "●".repeat(n) + "○".repeat(3 - n);
-const trialSummary = (outcome: Outcome | undefined, note: string) => (outcome ? `試した結果：${OUTCOME_LABEL[outcome]}${note ? "（言葉あり）" : ""}` : "試した結果を書く");
+const OUTCOMES: Outcome[] = ["ok", "ng", "pending"];
+const OUT_UI: Record<Outcome, string> = { ok: "うまくいった", ng: "だめだった", pending: "まだ" };
+const SURE: Record<number, string> = { 1: "推測", 2: "たぶん", 3: "入れたこととよく合う" };
+const MIC = `<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-2.1A7 7 0 0 0 19 12h-2Z" fill="currentColor"/></svg>`;
+const MIC_BUTTON = (cls: string) => `<button type="button" class="mic mic-big ${cls}" aria-label="話して書く">${MIC}<span>話す</span></button>`;
 
 /** Claude に案を頼んでいる最中の記録（戻って開き直しても、2 度頼まないように） */
 const inFlight = new Set<string>();
@@ -86,9 +102,6 @@ export function mountRestore(root: HTMLElement, sub: string, opts: { onBack: () 
   if (sub) mountProject(root, sub);
   else mountList(root, opts);
 }
-
-/** 一覧と本番の頁で使う、力試しへの札 */
-const TO_TRIAL = `<a class="rs-cross" href="#waza/rebuild"><span><b>力試し（木目金）</b><small>答えの分かっている技で、Claude がどこまで届くか測る試し。本番の前に、どのくらい当てになるかを見られます</small></span><span class="bt-go" aria-hidden="true">›</span></a>`;
 
 // ---- 読み込み ----
 
@@ -111,7 +124,7 @@ async function bringIn(raw: unknown): Promise<{ ok: true; project: RestoreProjec
       await putPhoto(project.id, c.id, small.blob);
       clues[i] = { ...c, photo: { w: small.w, h: small.h, bytes: small.blob.size } };
     } catch {
-      warnings.push(`${c.id} の写真を残せませんでした。`);
+      warnings.push(`「${c.title}」の写真を残せませんでした。`);
     }
   }
   project = { ...project, clues };
@@ -119,85 +132,83 @@ async function bringIn(raw: unknown): Promise<{ ok: true; project: RestoreProjec
   return saved.ok ? { ok: true, project, warnings } : { ok: false, error: saved.error };
 }
 
+/** ファイルを読み込む欄を結びつける（一覧と、技の「記録」で同じ） */
+function wireImport(input: HTMLInputElement, say: (t: string) => void) {
+  input.addEventListener("change", async () => {
+    const file = input.files?.[0];
+    input.value = "";
+    if (!file) return;
+    say("読み込んでいます…");
+    let raw: unknown;
+    try {
+      raw = JSON.parse(await file.text());
+    } catch {
+      return say("このファイルは読めませんでした。「ファイルに書き出す」で作ったファイルを選んでください。");
+    }
+    const r = await bringIn(raw);
+    if (!r.ok) return say(r.error);
+    flash(`読み込みました：${r.project.name}${r.warnings.length ? `（${r.warnings.join(" ")}）` : ""}`);
+    location.hash = `#waza/restore/${r.project.id}`;
+  });
+}
+
 // ---- 一覧 ----
 
 function mountList(root: HTMLElement, opts: { onBack: () => void }) {
   const projects = listProjects();
   root.innerHTML = `
-  <section class="view rs tp">
-    <button type="button" class="back">← 技を選ぶ</button>
-    <header class="tp-head">
-      <span class="bt-mark" aria-hidden="true">再</span>
-      <div class="tp-hb">
-        <h2>自分の技を組み立て直す</h2>
-        <p class="lead">作り方の途切れた、答えのない技に使います。残った品物や古い記録などの手がかりを入れると、Claude が工程の案を作ります。職人が試して確かめ、確かになった工程だけを、この技の決まりにします。</p>
-      </div>
-    </header>
-    ${NOTE}
-    <form class="rs-new">
-      <label>技の名前<input class="rs-new-name" maxlength="${TEXT_LIMITS.name}" placeholder="例：家に残った鍔の色つけ" autocomplete="off"></label>
-      <button type="submit" class="primary">始める</button>
-    </form>
-    <p class="small rs-list-st" role="status"></p>
+  <section class="view rs">
+    <button type="button" class="rs-back">← 技を選ぶ</button>
+    <h2 class="rs-title">途切れた技</h2>
+    <p class="rs-lead">分かることを入れると、Claude が作り方の案を出します。</p>
+    <div class="rs-start">
+      <button type="button" class="primary rs-big rs-new-open">途切れた技を入れる</button>
+      <form class="rs-new" hidden>
+        <label>技の名前<input class="rs-new-name" maxlength="${TEXT_LIMITS.name}" placeholder="例：家に残った鍔の色つけ" autocomplete="off"></label>
+        <button type="submit" class="primary rs-big">始める</button>
+      </form>
+    </div>
+    <p class="rs-msg" role="status"></p>
     ${
       projects.length
-        ? `<h3 class="pub-sec-h">組み立て中の技 <small>${projects.length}</small></h3>
-    <ul class="big-techs rs-list">${projects
-      .map((p) => {
-        const n = projectCounts(p);
-        return `<li><a class="big-tech" href="#waza/restore/${esc(p.id)}">
-        <span class="bt-body"><b>${esc(p.name)}</b><small>手がかり ${n.clues} ・ ${n.plans ? `案 ${n.plans}` : "案はまだ"}${n.ok + n.ng ? ` ・ 試した結果 うまくいった ${n.ok}・いかなかった ${n.ng}` : ""}${n.rules ? ` ・ 決まり ${n.rules}` : ""}</small><span class="bt-meta">${esc(p.updated)}</span></span>
-        <span class="bt-go" aria-hidden="true">›</span>
-      </a></li>`;
-      })
-      .join("")}</ul>`
-        : `<div class="empty-card rs-empty"><p>まだ技がありません。上に名前を入れて始めます。</p></div>`
+        ? `<ul class="rs-cards">${projects
+            .map(
+              (p) => `<li><a class="rs-card" href="#waza/restore/${esc(p.id)}">
+          <b>${esc(p.name)}${p.sample ? `<span class="rs-card-tag">作り話の例</span>` : ""}</b>
+          <small>${NEXT_WORD[stageOf(p)]}</small>
+          <span class="rs-go-mark" aria-hidden="true">›</span>
+        </a></li>`,
+            )
+            .join("")}</ul>`
+        : ""
     }
-    <div class="rs-io">
-      <label class="ghost btnlike rs-import">記録のファイルを読み込む<input type="file" accept=".json,application/json" hidden></label>
-      <button type="button" class="ghost rs-sample">見本を開く（架空の技）</button>
-    </div>
-    <p class="small muted">記録はこのブラウザの中に残ります。ほかの人には見えません。ブラウザの記録を消すと消えるので、大事な記録はファイルに書き出してください。</p>
-    <h3 class="pub-sec-h">答えの分かっている技で試す</h3>
-    ${TO_TRIAL}
+    <div class="rs-quiet"><button type="button" class="linklike rs-sample">例を見る</button></div>
+    ${
+      projects.length
+        ? `<details class="rs-fold"><summary>記録</summary><div class="rs-fold-body"><div class="rs-file-acts"><label class="ghost btnlike rs-import">ファイルを読み込む<input type="file" accept=".json,application/json" hidden></label></div></div></details>`
+        : ""
+    }
   </section>`;
   const $ = <T extends HTMLElement = HTMLElement>(s: string) => root.querySelector<T>(s)!;
-  const st = (t: string) => ($(".rs-list-st").textContent = t);
-  $(".back").addEventListener("click", opts.onBack);
+  const say = (t: string) => ($(".rs-msg").textContent = t);
+  $(".rs-back").addEventListener("click", opts.onBack);
+  $(".rs-new-open").addEventListener("click", () => {
+    $(".rs-new-open").hidden = true;
+    $(".rs-new").hidden = false;
+    $(".rs-new-name").focus();
+  });
   $<HTMLFormElement>(".rs-new").addEventListener("submit", (e) => {
     e.preventDefault();
-    const name = $<HTMLInputElement>(".rs-new-name").value.trim();
-    if (!name) {
-      st("技の名前を入れてください。あとで変えられます。");
-      $(".rs-new-name").focus();
-      return;
-    }
-    const p = newProject(newProjectId(), name, today());
+    const p = newProject(newProjectId(), $<HTMLInputElement>(".rs-new-name").value.trim() || "名前のない技", today());
     const saved = saveProject(p);
-    if (!saved.ok) return void st(saved.error);
+    if (!saved.ok) return void say(saved.error);
     // 手で集めた記録なので、ブラウザが勝手に片付けないよう頼む（断られても動く）
     void navigator.storage?.persist?.().catch(() => undefined);
     location.hash = `#waza/restore/${p.id}`;
   });
-  $<HTMLInputElement>(".rs-import input").addEventListener("change", async (e) => {
-    const input = e.target as HTMLInputElement;
-    const file = input.files?.[0];
-    input.value = "";
-    if (!file) return;
-    st("読み込んでいます…");
-    let raw: unknown;
-    try {
-      raw = JSON.parse(await file.text());
-    } catch {
-      return void st("このファイルは読めませんでした。「記録を書き出す」で作ったファイルを選んでください。");
-    }
-    const r = await bringIn(raw);
-    if (!r.ok) return void st(r.error);
-    flash(`読み込みました：${r.project.name}${r.warnings.length ? `（${r.warnings.join(" ")}）` : ""}`);
-    location.hash = `#waza/restore/${r.project.id}`;
-  });
+  const input = root.querySelector<HTMLInputElement>(".rs-import input");
+  if (input) wireImport(input, say);
   $(".rs-sample").addEventListener("click", async () => {
-    st("見本を読み込んでいます…");
     try {
       const raw = (await import("../../research/restore/sample.json")).default as unknown;
       const id = (raw as { project?: { id?: string } }).project?.id;
@@ -207,10 +218,10 @@ function mountList(root: HTMLElement, opts: { onBack: () => void }) {
         return;
       }
       const r = await bringIn(raw);
-      if (!r.ok) return void st(r.error);
+      if (!r.ok) return void say(r.error);
       location.hash = `#waza/restore/${r.project.id}`;
     } catch {
-      st("見本を読み込めませんでした。");
+      say("例を読み込めませんでした。");
     }
   });
 }
@@ -220,22 +231,22 @@ function mountList(root: HTMLElement, opts: { onBack: () => void }) {
 function mountProject(root: HTMLElement, id: string) {
   const loaded = loadProject(id);
   if (!loaded) {
-    root.innerHTML = `<section class="view rs tp"><button type="button" class="back">← 自分の技の一覧</button><div class="empty-card"><p>この記録は、このブラウザにありません。消したか、別のブラウザで作った記録です。</p></div></section>`;
-    root.querySelector(".back")!.addEventListener("click", () => (location.hash = "#waza/restore"));
+    root.innerHTML = `<section class="view rs"><button type="button" class="rs-back">← 途切れた技の一覧</button><p class="rs-empty">この記録は、このブラウザにありません。</p></section>`;
+    root.querySelector(".rs-back")!.addEventListener("click", () => (location.hash = "#waza/restore"));
     return;
   }
   let project = loaded;
+  /** 見ている所（流れの 3 つのどれか） */
+  let view: Stage = firstView(project);
   /** 見ている案（null ならいちばん新しい案） */
   let viewing: number | null = null;
   let saveError = "";
   /** 残せなかった写真。この画面を開いている間だけ、ここに持つ */
   const unsaved = new Map<string, Blob>();
   const urls = new Map<string, string>();
-  /** 足す前の写真 */
+  /** 入れる前の写真 */
   let pending: { blob: Blob; w: number; h: number; url: string } | null = null;
   let kind: ClueKind = "object";
-  /** 開いている「試した結果」の欄（描き直しても閉じないように） */
-  const openTrials = new Set<string>();
 
   releasePhotos = () => {
     urls.forEach((u) => URL.revokeObjectURL(u));
@@ -243,75 +254,75 @@ function mountProject(root: HTMLElement, id: string) {
   };
 
   root.innerHTML = `
-  <section class="view rs tp">
-    <button type="button" class="back">← 自分の技の一覧</button>
-    <header class="tp-head">
-      <span class="bt-mark" aria-hidden="true">再</span>
-      <div class="tp-hb">
-        <div class="keep-name rs-name"><h2></h2><button type="button" class="linklike rs-rename">名前を変える</button></div>
-        <p class="lead rs-counts"></p>
-      </div>
-    </header>
-    ${NOTE}
+  <section class="view rs">
+    <button type="button" class="rs-back">← 途切れた技の一覧</button>
+    <div class="rs-head"><h2 class="rs-title"></h2><span class="rs-example" hidden>これは作り話の例です</span></div>
     <div class="rs-save" role="status" aria-live="polite"></div>
-    <nav class="tp-toc" aria-label="この頁の中">
-      <a href="#" data-to="rs-clues"><span>1</span>手がかり</a><a href="#" data-to="rs-plan"><span>2</span>工程の案</a><a href="#" data-to="rs-next"><span>3</span>確かめる</a><a href="#" data-to="rs-rules"><span>4</span>決まり</a><a href="#" data-to="rs-file"><span>5</span>記録</a>
-    </nav>
+    <ol class="rs-flow" aria-label="流れ">${FLOW.map((f) => `<li><button type="button" data-view="${f.n}"><span class="rs-flow-n" aria-hidden="true">${f.n}</span><span>${f.label}</span></button></li>`).join("")}</ol>
+    <div class="rs-next">
+      <button type="button" class="primary rs-big rs-next-go"></button>
+      <p class="rs-next-note"></p>
+      <p class="rs-status" role="status" aria-live="polite"></p>
+    </div>
 
-    <section class="tp-block" id="rs-clues">
-      <h3><span class="tp-n">1</span>手がかり <small class="rs-clue-n"></small></h3>
-      <p class="small muted">分かることを 1 つずつ足します。足すたびに、このブラウザに残ります。合言葉がなくても貯められます。</p>
-      <details class="tp-more rs-add-box"><summary>手がかりを足す</summary>
+    <div class="rs-panel" data-panel="1">
       <form class="rs-add answer-box" novalidate>
-        <div class="rs-kinds" role="radiogroup" aria-label="手がかりの種類">${CLUE_KIND_IDS.map((k) => `<button type="button" role="radio" aria-checked="${k === kind}" data-k="${k}">${CLUE_KINDS[k].label}</button>`).join("")}</div>
-        <div class="ans-line"><textarea class="rs-text" rows="3" maxlength="${TEXT_LIMITS.text}" aria-label="手がかりの文"></textarea><button type="button" class="mic mic-big rs-mic" aria-label="話して書く">${MIC}<span>話す</span></button></div>
-        <label class="rs-field">見出し（なくてもよい）<input class="rs-title" maxlength="${TEXT_LIMITS.title}" autocomplete="off"></label>
-        <label class="rs-field">どこで見たか（なくてもよい）<input class="rs-source" maxlength="${TEXT_LIMITS.source}" autocomplete="off" placeholder="本の名前、持ち主、聞いた人など"></label>
-        <div class="row rs-add-row">
+        <div class="rs-kinds" role="radiogroup" aria-label="何について">${CLUE_KIND_IDS.map((k) => `<button type="button" role="radio" aria-checked="${k === kind}" data-k="${k}">${KIND_UI[k].label}</button>`).join("")}</div>
+        <div class="ans-line"><textarea class="rs-text" rows="3" maxlength="${TEXT_LIMITS.text}" aria-label="分かること"></textarea>${MIC_BUTTON("rs-mic")}</div>
+        <div class="rs-add-row">
           <label class="ghost btnlike rs-pick">写真をつける<input type="file" accept="image/*" hidden></label>
           <span class="rs-pending" hidden><img alt="つける写真"><button type="button" class="linklike rs-unpick">写真を外す</button></span>
-          <button type="submit" class="primary rs-add-go">手がかりを足す</button>
         </div>
-        <p class="small rs-add-st" role="status"></p>
+        <details class="rs-more rs-add-more"><summary>題名・どこで見たかを書く</summary>
+          <div class="rs-fold-body">
+            <label class="rs-field">題名<input class="rs-title-in" maxlength="${TEXT_LIMITS.title}" autocomplete="off"></label>
+            <label class="rs-field">どこで見たか<input class="rs-source" maxlength="${TEXT_LIMITS.source}" autocomplete="off" placeholder="本の名前、持ち主、聞いた人など"></label>
+          </div>
+        </details>
+        <button type="submit" class="primary rs-big rs-add-go">入れる</button>
+        <p class="rs-add-st" role="status"></p>
       </form>
-      </details>
-      <details class="tp-more rs-clue-box"><summary>手がかりの一覧 <span class="rs-clue-sum"></span></summary><ol class="rs-clues"></ol></details>
-    </section>
+      <label class="rs-book">
+        <input type="checkbox" class="rs-book-on">
+        <span class="rs-book-text"><b>職人の帳面も渡す</b><small class="rs-book-n"></small></span>
+      </label>
+      <ul class="rs-facts"></ul>
+    </div>
+    <div class="rs-panel" data-panel="2"></div>
+    <div class="rs-panel" data-panel="3"></div>
 
-    <section class="tp-block" id="rs-plan">
-      <h3><span class="tp-n">2</span>工程の案 <small class="rs-plan-n"></small></h3>
-      <div class="actions rs-go-box">
-        <button type="button" class="primary go rs-go"></button>
-        <button type="button" class="ghost rs-pw" hidden>合言葉を入れる</button>
+    <details class="rs-fold rs-rules-box" hidden>
+      <summary>この技の決まり <span class="rs-rule-n"></span></summary>
+      <div class="rs-fold-body">
+        <p class="rs-file-note">この技の中だけに残ります。指輪の設計の確かめや、学ぶ人への答えには使いません。</p>
+        <ul class="rule-cards rs-rules"></ul>
       </div>
-      <p class="small rs-status" role="status" aria-live="polite"></p>
-      <div class="rs-go-notes"></div>
-      <div class="rs-plan-body"></div>
-    </section>
-
-    <section class="tp-block" id="rs-next">
-      <h3><span class="tp-n">3</span>分かっていない所と、次に確かめること</h3>
-      <div class="rs-next-body"></div>
-    </section>
-
-    <section class="tp-block" id="rs-rules">
-      <h3><span class="tp-n">4</span>この技の決まり <small class="rs-rule-n"></small></h3>
-      <p class="small muted">職人が試して確かめた工程だけが入ります。この記録の中だけに残り、書き出しにも入ります。指輪の設計の確かめや、学ぶ人への答えには使いません。</p>
-      <ul class="rule-cards rs-rules"></ul>
-    </section>
-
-    <section class="tp-block" id="rs-file">
-      <h3><span class="tp-n">5</span>記録</h3>
-      <p class="small muted">手がかり・案・試した結果・この技の決まりは、このブラウザの中に残ります。ブラウザの記録を消すと消えるので、大事な記録はファイルに書き出して、手元に置いてください。書き出したファイルは、ほかのブラウザでも読み込めます。</p>
-      <div class="acts rs-file-acts">
-        <button type="button" class="act rs-export"><b>記録を書き出す</b><small>写真も入ったファイルになります</small></button>
-        <button type="button" class="act rs-delete"><b>この技の記録を消す</b><small>手がかり・案・試した結果・決まり・写真が、全部なくなります</small></button>
+    </details>
+    <details class="rs-fold rs-file">
+      <summary>記録</summary>
+      <div class="rs-fold-body">
+        <p class="rs-file-note">記録はこのブラウザの中にあります。大事なものは、ファイルに書き出してください。</p>
+        <div class="rs-file-acts">
+          <button type="button" class="ghost rs-export">ファイルに書き出す</button>
+          <label class="ghost btnlike rs-import">ファイルを読み込む<input type="file" accept=".json,application/json" hidden></label>
+          <button type="button" class="ghost rs-rename-open">名前を変える</button>
+          <form class="rs-rename" hidden><input aria-label="技の名前" maxlength="${TEXT_LIMITS.name}"><button type="submit" class="ghost">決める</button></form>
+          <button type="button" class="ghost rs-danger-btn rs-delete">この技を消す</button>
+        </div>
+        <p class="rs-add-st rs-file-st" role="status"></p>
       </div>
-    </section>
+    </details>
   </section>`;
 
-  const view = root.querySelector<HTMLElement>(".view.rs")!;
-  const $ = <T extends HTMLElement = HTMLElement>(s: string) => view.querySelector<T>(s)!;
+  const viewEl = root.querySelector<HTMLElement>(".view.rs")!;
+  const $ = <T extends HTMLElement = HTMLElement>(s: string) => viewEl.querySelector<T>(s)!;
+  const panel = (n: Stage) => $(`[data-panel="${n}"]`);
+  /** 例の印を外す（例のときだけ。ふつうの記録の文は変えない） */
+  const unmark = (s: string) => (project.sample ? withoutMark(s) : s);
+  /** Claude の文：番号を名前に、言葉をふつうに */
+  const says = (s: string, plan?: RestorePlan) => esc(plainWords(unmark(s), namesOf(project, plan)));
+  /** 職人が入れた文 */
+  const own = (s: string) => esc(unmark(s));
 
   // ---- 保存 ----
 
@@ -325,19 +336,67 @@ function mountProject(root: HTMLElement, id: string) {
   function paintSave() {
     const box = $(".rs-save");
     const lines: string[] = [];
-    if (saveError) lines.push(`${saveError} 今の中身は、この画面を閉じると消えます。写真や手がかりを減らすか、記録を書き出して残してください。`);
-    if (unsaved.size) lines.push(`写真 ${unsaved.size} 枚を残せませんでした（${[...unsaved.keys()].join("・")}）。写真が大きいか、ブラウザの置き場が足りません。この画面を閉じると、この写真は消えます。記録を書き出すと、写真もファイルに残せます。`);
-    box.innerHTML = lines.length ? `<div class="rs-save-bad">${lines.map((l) => `<p>${esc(l)}</p>`).join("")}<button type="button" class="ghost rs-export-now">記録を書き出す</button></div>` : "";
+    if (saveError) lines.push(`${saveError} この画面を閉じると消えます。`);
+    if (unsaved.size) lines.push(`写真 ${unsaved.size} 枚を残せませんでした（写真が大きいか、ブラウザの置き場が足りません）。この画面を閉じると消えます。`);
+    box.innerHTML = lines.length ? `<div class="rs-save-bad">${lines.map((l) => `<p>${esc(l)}</p>`).join("")}<button type="button" class="ghost rs-export-now">ファイルに書き出す</button></div>` : "";
     box.querySelector(".rs-export-now")?.addEventListener("click", () => void exportFile());
   }
 
-  // ---- 見出し ----
+  // ---- 流れと、次に押すボタン ----
 
-  function paintHead() {
-    $("h2").textContent = project.name;
-    const n = projectCounts(project);
-    const tried = n.ok + n.ng;
-    $(".rs-counts").textContent = `手がかり ${n.clues} ・ ${n.plans ? `案 ${n.plans}` : "案はまだ"}${tried ? ` ・ 試した結果 うまくいった ${n.ok}・いかなかった ${n.ng}` : ""}${n.rules ? ` ・ 決まり ${n.rules}` : ""}`;
+  function paintFlow() {
+    const done: Record<Stage, boolean> = { 1: project.clues.length > 0, 2: project.plans.length > 0, 3: usableResults(project).length > 0 };
+    viewEl.querySelectorAll<HTMLButtonElement>(".rs-flow [data-view]").forEach((b) => {
+      const n = Number(b.dataset.view) as Stage;
+      const current = n === view;
+      if (current) b.setAttribute("aria-current", "step");
+      else b.removeAttribute("aria-current");
+      b.parentElement!.classList.toggle("is-done", done[n] && !current);
+      b.querySelector(".rs-flow-n")!.textContent = done[n] && !current ? "✓" : String(n);
+    });
+  }
+
+  function paintNext() {
+    const btn = $<HTMLButtonElement>(".rs-next-go");
+    const note = $(".rs-next-note");
+    const addBtn = $(".rs-add-go");
+    const typing = view === 1 && (!!$<HTMLTextAreaElement>(".rs-text").value.trim() || !!pending);
+    // ① で書いている間と、まだ何も入れていないときは「入れる」が目立つ
+    addBtn.className = typing || !project.clues.length ? "primary rs-big rs-add-go" : "ghost rs-big is-quiet rs-add-go";
+    btn.className = typing ? "ghost rs-big is-quiet rs-next-go" : "primary rs-big rs-next-go";
+    if (inFlight.has(project.id)) {
+      btn.hidden = false;
+      btn.disabled = true;
+      btn.textContent = "Claude が考えています…";
+      note.textContent = "1〜2 分かかります。";
+      return;
+    }
+    const act = nextAct(project, view);
+    btn.hidden = act.do === "none";
+    btn.disabled = false;
+    if (act.do === "none") {
+      note.textContent = "";
+      return;
+    }
+    btn.textContent = act.label;
+    const { left } = photosToSend(project.clues);
+    note.textContent = act.do === "plan" ? `1〜2 分かかります。書いたことと写真${project.useBook && workshopBook().rules.length ? "、職人の帳面" : ""}を Claude に送ります。${left.length ? `写真は多くて ${PHOTO_SEND.count} 枚まで渡します。` : ""}` : "";
+  }
+
+  function setStatus(msg: string, opts: { bad?: boolean; working?: boolean } = {}) {
+    const box = $(".rs-status");
+    box.classList.toggle("is-bad", !!opts.bad);
+    if (opts.working) box.innerHTML = `<span class="thinking inline"><span></span><span></span><span></span></span>`;
+    else box.textContent = msg;
+  }
+
+  function show(v: Stage, scroll = false) {
+    view = v;
+    for (const n of [1, 2, 3] as Stage[]) panel(n).hidden = n !== v;
+    setStatus("");
+    paintFlow();
+    paintNext();
+    if (scroll) $(".rs-flow").scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   // ---- 写真 ----
@@ -357,44 +416,46 @@ function mountProject(root: HTMLElement, id: string) {
   }
 
   async function fillThumbs() {
-    for (const btn of view.querySelectorAll<HTMLButtonElement>(".rs-photo[data-photo]")) {
+    for (const btn of viewEl.querySelectorAll<HTMLButtonElement>(".rs-photo[data-photo]")) {
       const url = await photoUrl(btn.dataset.photo!);
       if (!btn.isConnected) continue;
       if (url) {
         btn.querySelector("img")!.src = url;
       } else {
         const gone = document.createElement("p");
-        gone.className = "small muted";
+        gone.className = "rs-file-note";
         gone.textContent = "写真は、このブラウザに残っていません。";
         btn.replaceWith(gone);
       }
     }
   }
 
-  // ---- 手がかり ----
+  // ---- ① 分かることを入れる ----
 
-  function paintClues() {
-    $(".rs-clue-n").textContent = `${project.clues.length} 個${usableResults(project).length ? ` ＋ 試した結果 ${usableResults(project).length}` : ""}`;
-    $(".rs-clue-sum").textContent = $(".rs-clue-n").textContent;
-    $(".rs-clue-box").hidden = !project.clues.length && !usableResults(project).length;
-    const clues = project.clues.map(
-      // 見出しを書かなかった手がかりは、見出しが本文の頭と同じなので出さない
-      (c) => `<li class="rs-clue" id="rs-clue-${esc(c.id)}">
-        <p class="rs-clue-head"><b class="rs-cid">${esc(c.id)}</b><span class="tag">${esc(CLUE_KINDS[c.kind].label)}</span>${c.text.startsWith(c.title.replace(/…$/, "")) ? "" : `<span class="rs-clue-title">${esc(c.title)}</span>`}</p>
-        ${c.text ? `<p class="rs-clue-text">${esc(c.text)}</p>` : ""}
-        ${c.photo ? `<button type="button" class="rs-photo" data-photo="${esc(c.id)}" aria-label="${esc(c.id)} の写真を大きくする"><img alt="${esc(c.id)} の写真"></button>` : ""}
-        <p class="rs-clue-meta"><span>${c.source ? `どこで見たか：${esc(c.source)} ・ ` : ""}${esc(c.date)}</span><button type="button" class="linklike rc-del" data-del="${esc(c.id)}">消す</button></p>
+  /** 職人の帳面も渡すか（読むだけ。ここで帳面は書き換えない） */
+  function paintBook() {
+    const { rules, total } = workshopBook();
+    const check = $<HTMLInputElement>(".rs-book-on");
+    check.disabled = !total;
+    check.checked = !!total && project.useBook;
+    $(".rs-book").classList.toggle("is-off", !check.checked);
+    $(".rs-book-n").textContent = total ? `職人の決まり ${total}${rules.length < total ? `（新しい ${rules.length} を渡します）` : ""}` : "職人の決まりは、まだありません";
+  }
+
+  function paintFacts() {
+    const list = $(".rs-facts");
+    list.hidden = !project.clues.length;
+    list.innerHTML = project.clues
+      .map(
+        // 題名を書かなかったものは、題名が文の頭と同じなので出さない
+        (c) => `<li class="rs-fact" data-fact="${esc(c.id)}">
+        ${c.text.startsWith(c.title.replace(/…$/, "")) ? "" : `<p class="rs-fact-title">${own(c.title)}</p>`}
+        ${c.text ? `<p class="rs-fact-text">${own(c.text)}</p>` : ""}
+        ${c.photo ? `<button type="button" class="rs-photo" data-photo="${esc(c.id)}" aria-label="写真を大きくする"><img alt="つけた写真"></button>` : ""}
+        <p class="rs-fact-foot"><span>${KIND_UI[c.kind].label}${c.source ? ` ・ ${own(c.source)}` : ""}</span><button type="button" class="linklike" data-del="${esc(c.id)}">消す</button></p>
       </li>`,
-    );
-    const results = usableResults(project).map(
-      (r) => `<li class="rs-clue rs-clue-t" id="rs-clue-${esc(r.id)}">
-        <p class="rs-clue-head"><b class="rs-cid">${esc(r.id)}</b><span class="verdict ${OUT_CLS[r.outcome]}">${OUTCOME_LABEL[r.outcome]}</span><span class="rs-clue-title">案 ${r.planVersion} の工程「${esc(r.stepTitle)}」</span></p>
-        ${r.note ? `<p class="rs-clue-text">${esc(r.note)}</p>` : ""}
-        <p class="rs-clue-meta"><span>試した結果は、そのまま手がかりに入ります ・ ${esc(r.date)}</span></p>
-      </li>`,
-    );
-    const list = $(".rs-clues");
-    list.innerHTML = [...clues, ...results].join("");
+      )
+      .join("");
     list.querySelectorAll<HTMLButtonElement>("[data-del]").forEach((b) => b.addEventListener("click", () => void dropClue(b.dataset.del!)));
     list.querySelectorAll<HTMLButtonElement>(".rs-photo").forEach((b) => b.addEventListener("click", () => b.classList.toggle("big")));
     void fillThumbs();
@@ -403,7 +464,7 @@ function mountProject(root: HTMLElement, id: string) {
   async function dropClue(clueId: string) {
     const c = project.clues.find((x) => x.id === clueId);
     if (!c) return;
-    if (!askConfirm(`手がかり ${c.id}「${c.title}」を消しますか？${c.photo ? "\n写真も消えます。" : ""}\nこれまでの案はそのまま残ります。次に組み立て直すときは渡しません。\n消すと戻せません。`)) return;
+    if (!askConfirm(`「${c.title}」を消しますか？${c.photo ? "\n写真も消えます。" : ""}\n消すと戻せません。`)) return;
     commit(removeClue(project, clueId, today()));
     unsaved.delete(clueId);
     const u = urls.get(clueId);
@@ -416,30 +477,25 @@ function mountProject(root: HTMLElement, id: string) {
 
   function clueForm() {
     const field = $<HTMLTextAreaElement>(".rs-text");
-    const title = $<HTMLInputElement>(".rs-title");
+    const title = $<HTMLInputElement>(".rs-title-in");
     const source = $<HTMLInputElement>(".rs-source");
     const st = (t: string) => ($(".rs-add-st").textContent = t);
-    const placeholder = () => {
-      field.placeholder = `${CLUE_KINDS[kind].hint}${canListen() ? "（話しても書けます）" : ""}`;
-    };
     const paintKinds = () => {
-      view.querySelectorAll<HTMLButtonElement>(".rs-kinds [data-k]").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.k === kind)));
-      placeholder();
+      viewEl.querySelectorAll<HTMLButtonElement>(".rs-kinds [data-k]").forEach((b) => b.setAttribute("aria-checked", String(b.dataset.k === kind)));
+      field.placeholder = KIND_UI[kind].example;
     };
     const draft = () => saveDraft(project.id, { kind, title: title.value, text: field.value, source: source.value });
     // 読み直しても、書きかけの文が消えないように
     const saved = loadDraft(project.id);
-    // 案ができるまでは開いておく。案ができたら、たたんで案を近くに（書きかけがあれば開く）
-    $<HTMLDetailsElement>(".rs-add-box").open = !project.plans.length || !!saved;
-    $<HTMLDetailsElement>(".rs-clue-box").open = !project.plans.length;
     if (saved) {
       if (CLUE_KIND_IDS.includes(saved.kind as ClueKind)) kind = saved.kind as ClueKind;
       field.value = saved.text;
       title.value = saved.title;
       source.value = saved.source;
+      if (saved.title || saved.source) $<HTMLDetailsElement>(".rs-add-more").open = true;
     }
     paintKinds();
-    view.querySelectorAll<HTMLButtonElement>(".rs-kinds [data-k]").forEach((b) =>
+    viewEl.querySelectorAll<HTMLButtonElement>(".rs-kinds [data-k]").forEach((b) =>
       b.addEventListener("click", () => {
         kind = b.dataset.k as ClueKind;
         paintKinds();
@@ -447,6 +503,7 @@ function mountProject(root: HTMLElement, id: string) {
       }),
     );
     for (const el of [field, title, source]) el.addEventListener("input", draft);
+    field.addEventListener("input", paintNext);
     const voice = bindVoice($<HTMLButtonElement>(".rs-mic"), field, { onError: st });
 
     const showPending = () => {
@@ -454,6 +511,7 @@ function mountProject(root: HTMLElement, id: string) {
       box.hidden = !pending;
       if (pending) box.querySelector("img")!.src = pending.url;
       $(".rs-pick").hidden = !!pending;
+      paintNext();
     };
     $<HTMLInputElement>(".rs-pick input").addEventListener("change", async (e) => {
       const input = e.target as HTMLInputElement;
@@ -482,7 +540,7 @@ function mountProject(root: HTMLElement, id: string) {
       const photo = pending;
       const r = addClue(project, { kind, title: title.value, text: field.value, source: source.value, photo: photo ? { w: photo.w, h: photo.h, bytes: photo.blob.size } : undefined }, today());
       if ("error" in r) {
-        st(r.error);
+        st("文を書くか、写真をつけてください。");
         field.focus();
         return;
       }
@@ -493,61 +551,33 @@ function mountProject(root: HTMLElement, id: string) {
       saveDraft(project.id, null);
       pending = null;
       showPending();
-      st(saveError ? "" : `${r.clue.id} を足しました。`);
-      $<HTMLDetailsElement>(".rs-clue-box").open = true;
+      st(saveError ? "" : "入れました。");
       if (photo) {
         urls.set(r.clue.id, photo.url);
         try {
           await putPhoto(project.id, r.clue.id, photo.blob);
         } catch {
           unsaved.set(r.clue.id, photo.blob);
-          st(`${r.clue.id} を足しましたが、写真は残せませんでした。`);
+          st("入れましたが、写真は残せませんでした。");
           paintSave();
         }
       }
-      paintHead();
-      paintClues();
-      paintGo();
+      paintAll();
     });
   }
 
   // ---- Claude に頼む ----
 
-  function setStatus(msg: string, working = false) {
-    const box = $(".rs-status");
-    if (working) box.innerHTML = `<span class="thinking inline"><span></span><span></span><span></span></span> ${esc(msg)}`;
-    else box.textContent = msg;
-  }
-
-  function paintGo() {
-    const go = $<HTMLButtonElement>(".rs-go");
-    const last = project.plans.at(-1);
-    const fresh = freshSince(project);
-    const busy = inFlight.has(project.id);
-    const extras = [fresh.results ? `試した結果 ${fresh.results}` : "", fresh.clues ? `新しい手がかり ${fresh.clues}` : ""].filter(Boolean).join("・");
-    go.textContent = !last ? `Claude に案を作ってもらう（手がかり ${project.clues.length}）` : extras ? `もう一度組み立て直す（${extras} を加えて）` : "もう一度組み立て直す";
-    go.disabled = busy || !project.clues.length;
-    const hasPass = !!store.password();
-    $(".rs-pw").hidden = hasPass;
-    const notes: string[] = [];
-    if (!project.clues.length) notes.push("手がかりを 1 つ足すと、Claude に案を頼めます。");
-    else if (project.clues.length < 3 && !last) notes.push("手がかりが少ないうちは、推し量りが多くなります。");
-    if (!hasPass) notes.push("案を作るには Claude が要ります。合言葉を入れると使えます。手がかりを貯めることは、合言葉なしでできます。");
-    const { left } = photosToSend(project.clues);
-    if (left.length) notes.push(`写真が多いので、${left.join("・")} の写真は渡しません（多くて ${PHOTO_SEND.count} 枚まで）。`);
-    if (project.clues.length) notes.push(`案を作るときは、手がかりの文と写真（小さくして）を Claude に送ります。1〜2 分かかります。${last ? "前の案は消えずに残ります。" : ""}`);
-    $(".rs-go-notes").innerHTML = notes.map((n) => `<p class="small muted">${esc(n)}</p>`).join("");
-    if (busy) setStatus("Claude が手がかりを読んで、案を作っています（1〜2 分かかります）…", true);
-  }
-
   async function build() {
     if (inFlight.has(project.id) || !project.clues.length) return;
+    setStatus("");
     const pass = store.password() || (await askPassword(true));
-    paintGo();
-    if (!pass) return setStatus("案を作るには Claude が要ります。合言葉を入れてください。手がかりは、このまま残っています。");
+    if (!pass) return setStatus("案を出すには、合言葉が要ります。入れたことは、このまま残っています。", { bad: true });
     const base = project;
+    const book = base.useBook ? workshopBook().rules : [];
     inFlight.add(base.id);
-    paintGo();
+    paintNext();
+    setStatus("", { working: true });
     const { send, left } = photosToSend(base.clues);
     const photos: { id: string; media: string; data: string }[] = [];
     const missing: string[] = [];
@@ -558,38 +588,32 @@ function mountProject(root: HTMLElement, id: string) {
     }
     const prev = base.plans.at(-1);
     const r = await callTool({
-      system: restorePrompt(),
-      user: restoreContent(base, photos),
+      system: restorePrompt({ book: book.length > 0 }),
+      user: restoreContent(base, photos, book),
       tool: PROPOSE_RESTORATION,
-      parse: (x) => parseRestoration(x, { ids: knownClueIds(base), prev }),
+      parse: (x) => parseRestoration(x, { ids: knownClueIds(base), bookIds: book.map((b) => b.id), prev }),
       password: pass,
     });
     inFlight.delete(base.id);
     if (!r.ok) {
       if (r.code === "wrong_password") resetPassword();
-      if (view.isConnected) {
-        paintGo();
-        setStatus(`${r.error}${r.code === "wrong_password" ? " もう一度入れてください。" : ""} 手がかりは、このまま残っています。`);
+      if (viewEl.isConnected) {
+        paintNext();
+        setStatus(`${r.error} 入れたことは、このまま残っています。`, { bad: true });
       }
       return;
     }
-    const warnings = [
-      ...(r.warnings ?? []),
-      ...(left.length ? [`写真が多いので、${left.join("・")} の写真は渡しませんでした。`] : []),
-      ...(missing.length ? [`${missing.join("・")} の写真は、このブラウザに残っていないので渡しませんでした。`] : []),
-    ];
-    // 待っている間に足した手がかりは消さない（渡したものだけを、この案の控えにする）
-    const current = view.isConnected ? project : (loadProject(base.id) ?? base);
-    const next = applyPlan(current, r.value, { date: today(), sent: clueRefs(base), photosSent: photos.map((x) => x.id), sources: sourceText(base), warnings });
-    if (view.isConnected) {
+    const warnings = [...(r.warnings ?? []), ...(left.length ? [`写真が多いので、渡していない写真があります。`] : []), ...(missing.length ? [`このブラウザに残っていない写真は、渡していません。`] : [])];
+    // 待っている間に入れたことは消さない（渡したものだけを、この案の控えにする）
+    const current = viewEl.isConnected ? project : (loadProject(base.id) ?? base);
+    // 帳面の数字は職人の言葉なので、「入れたことにない数字」としない
+    const next = applyPlan(current, r.value, { date: today(), sent: clueRefs(base), photosSent: photos.map((x) => x.id), bookOn: base.useBook, book: book.map((b) => ({ id: b.id, title: b.title })), sources: `${sourceText(base)}\n${bookText(book)}`, warnings });
+    if (viewEl.isConnected) {
       commit(next);
       viewing = null;
-      openTrials.clear();
-      $<HTMLDetailsElement>(".rs-add-box").open = false;
-      $<HTMLDetailsElement>(".rs-clue-box").open = false;
       paintAll();
-      setStatus(`案 ${next.plans.at(-1)!.version} を作りました。これは案です。試して、結果を工程ごとに残してください。${r.remaining !== undefined ? `今日あと ${r.remaining} 回。` : ""}`);
-      $("#rs-plan").scrollIntoView({ behavior: "smooth", block: "start" });
+      show(2, true);
+      setStatus("案ができました。");
     } else {
       const saved = saveProject(next);
       if (!saved.ok) flash(saved.error);
@@ -597,93 +621,130 @@ function mountProject(root: HTMLElement, id: string) {
     }
   }
 
-  // ---- 案 ----
+  // ---- ② Claude が作り方の案を出す ----
 
   const viewedPlan = (): RestorePlan | undefined => (viewing === null ? project.plans.at(-1) : (project.plans.find((v) => v.version === viewing) ?? project.plans.at(-1)));
 
-  /** 根拠の番号のボタン。消した手がかりにはそう書く */
-  function chip(clueId: string, plan: RestorePlan): string {
-    const ref = plan.clues.find((c) => c.id === clueId);
-    const alive = project.clues.some((c) => c.id === clueId) || usableResults(project).some((t) => t.id === clueId);
-    return `<button type="button" class="cid${alive ? "" : " gone"}" data-cid="${esc(clueId)}" title="${esc(alive ? (ref?.title ?? "") : `消した手がかり：${ref?.title ?? ""}`)}">${esc(clueId)}</button>`;
+  /** もとにしたものの名前を並べる。消したものにはそう書く */
+  function fromNames(ids: readonly string[]): string {
+    const names = namesOf(project);
+    const alive = new Set(knownClueIds(project));
+    return ids.map((x) => esc(unmark(names.get(x) ?? (x[0] === "T" ? "試した結果" : "入れたこと"))) + (alive.has(x) ? "" : "（消した）")).join("・");
   }
 
-  function stepInner(plan: RestorePlan, s: PlanStep, i: number, latest: boolean): string {
+  function stepCard(plan: RestorePlan, s: PlanStep, i: number): string {
     const found = resultFor(project, plan, s);
     const outcome: Outcome = found?.result.outcome ?? "pending";
-    const tested = outcome !== "pending";
-    const chg = plan.version > 1 ? CHANGE[s.change] : null;
-    const prevPlan = project.plans[project.plans.indexOf(plan) - 1];
+    const prevPlan = previousPlan(project, plan);
     const prevStep = s.prevStep ? prevPlan?.steps[s.prevStep - 1] : undefined;
-    const prevText = prevStep ? `<details><summary>前の案（案 ${prevPlan?.version} の工程 ${s.prevStep}）の文</summary><p><b>${esc(prevStep.title)}</b></p><p>${esc(prevStep.detail)}</p></details>` : "";
-    const past = pastResults(project, plan, s).filter((r) => !(found?.carried && r.id === found.result.id));
-    const kept = project.rules.find((r) => r.stepKey === s.key);
-    const own = found && !found.carried ? found.result.note : "";
-    return `
-      <span class="n">${i + 1}</span>
-      <div class="sbody">
-        <p class="stitle">${esc(s.title)}${tested ? `<span class="verdict ${OUT_CLS[outcome]}">${OUTCOME_LABEL[outcome]}</span>` : `<span class="tag warn">案</span>`}${chg ? `<span class="verdict ${chg.cls}">${chg.label}</span>` : ""}</p>
-        <p class="sdetail">${esc(s.detail)}</p>
+    const differs = prevStep && (prevStep.title !== s.title || prevStep.detail !== s.detail);
+    const more = [
+      s.uncertain ? `<p>まだ分からないこと：${says(s.uncertain, plan)}</p>` : "",
+      s.changeNote ? `<p>変えたわけ：${says(s.changeNote, plan)}</p>` : "",
+      `<p>どのくらい確かか：${SURE[s.confidence]}</p>`,
+      differs && prevStep ? `<p>前の案の文${s.change === "same" ? "（Claude は「そのまま」としましたが、文は少しちがいます）" : ""}：${says(prevStep.title, prevPlan)}。${says(prevStep.detail, prevPlan)}</p>` : "",
+    ].join("");
+    return `<li class="rs-step">
+      <span class="rs-num" aria-hidden="true">${i + 1}</span>
+      <div class="rs-step-body">
+        <h4>${says(s.title, plan)}${outcome !== "pending" ? `<span class="rs-pill ${outcome}">${OUT_UI[outcome]}</span>` : ""}${plan.version > 1 && s.change === "changed" ? `<span class="rs-pill changed">変わった</span>` : ""}${plan.version > 1 && s.change === "new" ? `<span class="rs-pill new">新しい</span>` : ""}</h4>
+        <p class="rs-step-text">${says(s.detail, plan)}</p>
         ${
-          s.change === "changed" && (s.changeNote || prevStep)
-            ? `<div class="rs-change"><p>${s.changeNote ? esc(s.changeNote) : "前の案から変わりました。"}</p>${prevText}</div>`
-            : s.change === "same" && prevStep && (prevStep.title !== s.title || prevStep.detail !== s.detail)
-              ? `<div class="rs-change rs-change-soft"><p>Claude は「そのまま」としましたが、文は少しちがいます。</p>${prevText}</div>`
-              : ""
+          s.basis === "prior"
+            ? `<p class="rs-from is-prior">もとにしたもの：Claude がもともと知っていること（入れたこと${plan.bookOn ? "や帳面" : ""}には書かれていません）</p>`
+            : `${s.clue_ids.length ? `<p class="rs-from">もとにしたもの：${fromNames(s.clue_ids)}</p>` : ""}${s.book_ids?.length ? `<p class="rs-from rs-from-book"><span class="rs-pill book">職人の帳面から</span>${s.book_ids.map((b) => esc(plan.book.find((x) => x.id === b)?.title ?? "")).filter(Boolean).join("・")}</p>` : ""}`
         }
-        <p class="smeta">${s.basis === "prior" ? `<span class="tag warn">手がかりなし ・ もともとの知識から</span>` : `根拠 ${s.clue_ids.map((x) => chip(x, plan)).join("")}`}<span class="conf" title="確からしさ">確からしさ ${dots(s.confidence)}</span></p>
-        ${s.uncertain ? `<p class="sunsure">まだ分からない：${esc(s.uncertain)}</p>` : ""}
-        ${s.caution ? `<p class="rs-caution"><b>危ない所</b>${esc(s.caution)}</p>` : ""}
-        ${s.unsourced?.length ? `<p class="rs-unsourced">手がかりにない数字：${esc(s.unsourced.join("・"))}（試すまで使わないでください）</p>` : ""}
-        ${past.map((r) => `<p class="rs-past">案 ${r.planVersion} で試した結果：<span class="verdict ${OUT_CLS[r.outcome]}">${OUTCOME_LABEL[r.outcome]}</span>${r.note ? `「${esc(r.note)}」` : ""}</p>`).join("")}
-        ${found?.carried ? `<p class="rs-past">案 ${found.result.planVersion} で試した結果を引き継いでいます：<span class="verdict ${OUT_CLS[outcome]}">${OUTCOME_LABEL[outcome]}</span>${found.result.note ? `「${esc(found.result.note)}」` : ""}</p>` : ""}
-        ${
-          latest
-            ? `<details class="rs-trial"${openTrials.has(s.key) ? " open" : ""}>
-          <summary>${trialSummary(found?.result.outcome, own)}</summary>
-          <div class="rs-out" role="radiogroup" aria-label="試した結果">${OUTCOMES.map((o) => `<button type="button" role="radio" aria-checked="${o === outcome}" data-o="${o}" class="o-${o}">${OUTCOME_LABEL[o]}</button>`).join("")}</div>
-          <div class="answer-box"><div class="ans-line"><textarea class="rs-note-field" rows="2" maxlength="${TEXT_LIMITS.note}" placeholder="試して分かったこと（職人の言葉で）" aria-label="試して分かったこと">${esc(own)}</textarea><button type="button" class="mic mic-big rs-note-mic" aria-label="話して書く">${MIC}<span>話す</span></button></div></div>
-          <p class="small rs-trial-st" role="status"></p>
-        </details>`
-            : found && !found.carried
-              ? `<p class="rs-past">試した結果：<span class="verdict ${OUT_CLS[outcome]}">${OUTCOME_LABEL[outcome]}</span>${own ? `「${esc(own)}」` : ""}</p>`
-              : ""
-        }
-        ${
-          kept
-            ? `<p class="small rs-kept">この技の決まりに入れました：<b>${esc(kept.title)}</b>（${esc(kept.date)}） <a href="#rs-rules" class="rs-to-rules">決まりを見る</a></p>`
-            : latest && outcome === "ok"
-              ? `<button type="button" class="ghost rs-to-rule">確かめた工程を、この技の決まりにする</button>`
-              : ""
-        }
-        <p class="small rs-rule-st" role="status"></p>
-        <div class="proposal-slot"></div>
-      </div>`;
+        ${s.caution ? `<p class="rs-danger"><b>危ない所</b>${says(s.caution, plan)}</p>` : ""}
+        ${s.unsourced?.length ? `<p class="rs-unsourced">入れたことにない数字：${esc(s.unsourced.join("・"))}（試すまで使わないでください）</p>` : ""}
+        <details class="rs-more"><summary>くわしく</summary>${more}</details>
+      </div>
+    </li>`;
   }
 
-  function wireStep(li: HTMLElement, plan: RestorePlan, s: PlanStep, i: number) {
-    const field = li.querySelector<HTMLTextAreaElement>(".rs-note-field");
-    const details = li.querySelector<HTMLDetailsElement>(".rs-trial");
-    if (!field || !details) return;
-    details.addEventListener("toggle", () => {
-      if (details.open) openTrials.add(s.key);
-      else openTrials.delete(s.key);
+  function paintPlan() {
+    const box = panel(2);
+    const plan = viewedPlan();
+    if (!plan) {
+      box.innerHTML = `<p class="rs-empty">まだ案はありません。</p>`;
+      return;
+    }
+    const last = project.plans.at(-1)!;
+    const latest = plan === last;
+    const diff = planDiff(plan);
+    const notes = plan.notes.filter((n) => /言い切り|写真/.test(n));
+    box.innerHTML = `
+      ${latest ? `<p class="rs-soft">これは案です。確かな作り方ではありません。試して確かめてください。</p>` : `<p class="rs-soft">前の案です。<button type="button" class="linklike rs-to-latest">今の案に戻る</button></p>`}
+      <p class="rs-sum">${says(plan.summary, plan)}</p>
+      ${notes.map((n) => `<p class="rs-unsourced">${says(n, plan)}</p>`).join("")}
+      <ol class="rs-steps">${plan.steps.map((s, i) => stepCard(plan, s, i)).join("")}</ol>
+      ${
+        project.plans.length > 1
+          ? `<details class="rs-fold"><summary>前の案とのちがい</summary><div class="rs-fold-body">
+        ${diff ? `<p class="rs-counts"><span class="rs-pill changed">変わった ${diff.changed}</span><span class="rs-pill new">新しい ${diff.added}</span><span class="rs-pill ng">やめた ${diff.dropped}</span><span class="rs-pill">そのまま ${diff.same}</span></p>` : ""}
+        ${plan.changes ? `<p>${says(plan.changes, plan)}</p>` : ""}
+        ${plan.dropped.length ? `<ul class="rs-plain">${plan.dropped.map((d) => `<li>やめた手順：${says(d.title, plan)}${d.why ? `<small>${says(d.why, plan)}</small>` : ""}</li>`).join("")}</ul>` : ""}
+        <div class="rs-file-acts">${project.plans
+          .slice()
+          .reverse()
+          .map((v) => `<button type="button" class="ghost" data-v="${v.version}"${v === plan ? " disabled" : ""}>${project.plans.indexOf(v) + 1} 回目の案${v === last ? "（今）" : ""}を見る</button>`)
+          .join("")}</div>
+      </div></details>`
+          : ""
+      }`;
+    box.querySelectorAll<HTMLButtonElement>("[data-v]").forEach((b) =>
+      b.addEventListener("click", () => {
+        viewing = Number(b.dataset.v);
+        paintPlan();
+        $(".rs-flow").scrollIntoView({ behavior: "smooth", block: "start" });
+      }),
+    );
+    box.querySelector(".rs-to-latest")?.addEventListener("click", () => {
+      viewing = null;
+      paintPlan();
     });
-    const st = (t: string) => (li.querySelector(".rs-trial-st")!.textContent = t);
-    const refreshAround = () => {
-      paintHead();
-      paintClues();
-      paintGo();
-    };
+  }
+
+  // ---- ③ 試して、結果を入れる ----
+
+  function checkLine(c: RestorePlan["nextChecks"][number], plan: RestorePlan): string {
+    return `${says(c.what, plan)}${c.why ? `<small>${says(c.why, plan)}</small>` : ""}${c.caution ? `<small class="rs-danger"><b>危ない所</b>${says(c.caution, plan)}</small>` : ""}`;
+  }
+
+  function tryInner(plan: RestorePlan, s: PlanStep, i: number, isNext: boolean): string {
+    const found = resultFor(project, plan, s);
+    const outcome: Outcome = found?.result.outcome ?? "pending";
+    const note = found && !found.carried ? found.result.note : "";
+    const past = pastResults(project, plan, s);
+    const kept = project.rules.find((r) => r.stepKey === s.key);
+    return `
+      ${isNext ? `<span class="rs-try-next">次はこれ</span>` : ""}
+      <h4>${i + 1}. ${says(s.title, plan)}</h4>
+      <div class="rs-out" role="radiogroup" aria-label="結果">${OUTCOMES.map((o) => `<button type="button" role="radio" aria-checked="${o === outcome}" data-o="${o}" class="o-${o}">${OUT_UI[o]}</button>`).join("")}</div>
+      <div class="rs-note-box answer-box"${outcome !== "pending" || note ? "" : " hidden"}><div class="ans-line"><textarea class="rs-note-field" rows="2" maxlength="${TEXT_LIMITS.note}" placeholder="どうでしたか？（書かなくてもよい）" aria-label="どうでしたか">${own(note)}</textarea>${MIC_BUTTON("rs-note-mic")}</div></div>
+      <p class="rs-try-st" role="status"></p>
+      ${past.map((r) => `<p class="rs-past">前の案で：<span class="rs-pill ${r.outcome}">${OUT_UI[r.outcome]}</span>${r.note ? ` ${own(r.note)}` : ""}</p>`).join("")}
+      ${
+        kept
+          ? `<p class="rs-kept">決まりに残しました：${esc(kept.title)} <a href="#" class="rs-to-rules">見る</a></p>`
+          : outcome === "ok"
+            ? `<button type="button" class="ghost rs-to-rule">決まりとして残す</button>`
+            : ""
+      }
+      <p class="rs-rule-st" role="status"></p>
+      <div class="proposal-slot"></div>`;
+  }
+
+  function wireTry(li: HTMLElement, plan: RestorePlan, s: PlanStep) {
+    const field = li.querySelector<HTMLTextAreaElement>(".rs-note-field")!;
+    const st = (t: string) => (li.querySelector(".rs-try-st")!.textContent = t);
     let timer: ReturnType<typeof setTimeout> | undefined;
     const saveNote = () => {
       clearTimeout(timer);
       timer = undefined;
       const outcome = resultFor(project, plan, s)?.result.outcome ?? "pending";
       commit(setResult(project, plan, s, { outcome, note: field.value }, today()));
-      st(saveError ? "" : "残しました。");
-      details.querySelector("summary")!.textContent = trialSummary(resultFor(project, plan, s)?.result.outcome, field.value.trim());
-      refreshAround();
+      paintFlow();
+      paintNext();
     };
     field.addEventListener("input", () => {
       clearTimeout(timer);
@@ -696,154 +757,103 @@ function mountProject(root: HTMLElement, id: string) {
       b.addEventListener("click", () => {
         clearTimeout(timer);
         timer = undefined;
-        openTrials.add(s.key);
         commit(setResult(project, plan, s, { outcome: b.dataset.o as Outcome, note: field.value }, today()));
-        paintStep(li, plan, s, i);
-        li.querySelector<HTMLElement>(`.rs-out [data-o="${b.dataset.o}"]`)?.focus();
-        li.querySelector(".rs-trial-st")!.textContent = saveError ? "" : "残しました。";
-        refreshAround();
-      }),
-    );
-    bindVoice(li.querySelector<HTMLButtonElement>(".rs-note-mic")!, field, { onError: st });
-    li.querySelector(".rs-to-rule")?.addEventListener("click", () => void makeRule(li, plan, s, i));
-  }
-
-  function paintStep(li: HTMLElement, plan: RestorePlan, s: PlanStep, i: number) {
-    li.className = s.basis === "prior" ? "prior" : "";
-    li.innerHTML = stepInner(plan, s, i, plan === project.plans.at(-1));
-    wireStep(li, plan, s, i);
-  }
-
-  function paintPlan() {
-    const body = $(".rs-plan-body");
-    const plan = viewedPlan();
-    const n = $(".rs-plan-n");
-    if (!plan) {
-      n.textContent = "";
-      body.innerHTML = "";
-      return;
-    }
-    const last = project.plans.at(-1)!;
-    const latest = plan === last;
-    n.textContent = `案 ${plan.version} ・ ${plan.date}`;
-    const diff = planDiff(plan);
-    body.innerHTML = `
-      ${
-        project.plans.length > 1
-          ? `<div class="rs-versions" role="group" aria-label="案を選ぶ">${project.plans
-              .map((v) => `<button type="button" class="ghost" aria-pressed="${v === plan}" data-v="${v.version}">案 ${v.version}${v === last ? "（いま）" : ""}</button>`)
-              .join("")}</div>`
-          : ""
-      }
-      ${latest ? "" : `<p class="rs-old">前の案です。いまの案は案 ${last.version} です。試した結果は、いまの案の工程に書きます。</p>`}
-      ${
-        diff
-          ? `<div class="rs-diff"><h4>案 ${project.plans[project.plans.indexOf(plan) - 1]?.version} からの違い</h4>
-          <p class="rs-diff-n"><span class="verdict part">変わった ${diff.changed}</span><span class="verdict new">新しい ${diff.added}</span><span class="verdict miss">やめた ${diff.dropped}</span><span class="verdict same">そのまま ${diff.same}</span></p>
-          ${plan.changes ? `<p class="rs-diff-text">${esc(plan.changes)}</p>` : ""}</div>`
-          : ""
-      }
-      <p class="hsum">${esc(plan.summary)}</p>
-      <ol class="steps-h tp-check rs-steps">${plan.steps.map(() => "<li></li>").join("")}</ol>
-      ${
-        plan.dropped.length
-          ? `<div class="missed"><h4>この案でやめた工程</h4><ul>${plan.dropped.map((d) => `<li><b>${esc(d.title)}</b><span>${d.why ? esc(d.why) : "Claude は理由を書きませんでした。"}</span></li>`).join("")}</ul></div>`
-          : ""
-      }
-      <p class="small muted rs-sent">この案に渡した手がかり：${plan.clues.map((c) => esc(c.id)).join("・") || "なし"}${plan.photosSent.length ? ` ・ 写真 ${plan.photosSent.map(esc).join("・")}` : ""}</p>
-      ${
-        plan.notes.length
-          ? `<details class="rs-notes"><summary>受け取るときに気づいたこと ${plan.notes.length}</summary><ul>${plan.notes.map((x) => `<li>${esc(x)}</li>`).join("")}</ul></details>`
-          : ""
-      }`;
-    body.querySelectorAll<HTMLButtonElement>(".rs-versions [data-v]").forEach((b) =>
-      b.addEventListener("click", () => {
-        viewing = Number(b.dataset.v);
-        paintPlan();
+        paintTries(plan);
+        paintFlow();
         paintNext();
       }),
     );
-    body.querySelectorAll<HTMLElement>(".rs-steps > li").forEach((li, i) => paintStep(li, plan, plan.steps[i], i));
+    bindVoice(li.querySelector<HTMLButtonElement>(".rs-note-mic")!, field, { onError: st });
+    li.querySelector(".rs-to-rule")?.addEventListener("click", () => void makeRule(li, plan, s));
+    li.querySelector(".rs-to-rules")?.addEventListener("click", (e) => {
+      e.preventDefault();
+      const box = $<HTMLDetailsElement>(".rs-rules-box");
+      box.open = true;
+      box.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   }
 
-  function paintNext() {
-    const body = $(".rs-next-body");
-    const plan = viewedPlan();
+  function paintTries(plan: RestorePlan) {
+    const list = panel(3).querySelector<HTMLElement>(".rs-tries");
+    if (!list) return;
+    const next = nextUntried(project, plan);
+    list.innerHTML = plan.steps.map(() => "<li></li>").join("");
+    list.querySelectorAll<HTMLElement>(":scope > li").forEach((li, i) => {
+      li.className = `rs-try${i === next ? " is-next" : ""}`;
+      li.innerHTML = tryInner(plan, plan.steps[i], i, i === next);
+      wireTry(li, plan, plan.steps[i]);
+    });
+  }
+
+  function paintTry() {
+    const box = panel(3);
+    const plan = project.plans.at(-1);
     if (!plan) {
-      body.innerHTML = `<p class="small muted">案ができると、ここに、まだ分かっていない所と、次に確かめるとよい試作や調べが、順に出ます。</p>`;
+      box.innerHTML = `<p class="rs-empty">案が出ると、ここで結果を入れられます。</p>`;
       return;
     }
-    const ref = (n: number) => (n ? `<small class="rs-ref">工程 ${n}</small>` : "");
-    body.innerHTML = `
-      <p class="small muted">答え合わせはありません。ここに出た順に確かめて、結果を工程の欄に残してください（案 ${plan.version}）。</p>
-      <div class="trials rs-order"><h4>分かっていない所（大事な順）</h4>
-        <ol>${plan.unknowns.map((u) => `<li><b>${esc(u.what)}</b>${u.why ? `<span>${esc(u.why)}</span>` : ""}${ref(u.step)}</li>`).join("")}</ol></div>
-      <div class="trials rs-order"><h4>次に確かめるとよいこと（先にやる順）</h4>
-        <ol>${plan.nextChecks
-          .map(
-            (c) => `<li><b><span class="tag">${CHECK_KINDS[c.kind]}</span> ${esc(c.what)}</b>${c.why ? `<span>${esc(c.why)}</span>` : ""}${c.caution ? `<span class="rs-caution"><b>危ない所</b>${esc(c.caution)}</span>` : ""}${c.unsourced?.length ? `<span class="rs-unsourced">手がかりにない数字：${esc(c.unsourced.join("・"))}</span>` : ""}${ref(c.step)}</li>`,
-          )
-          .join("")}</ol></div>`;
+    const [first, ...rest] = plan.nextChecks;
+    box.innerHTML = `
+      ${
+        first
+          ? `<section class="rs-sec"><h3>まず、これをやってみる</h3>
+        <div class="rs-first"><b>${says(first.what, plan)}</b>${first.why ? `<p>${says(first.why, plan)}</p>` : ""}${first.caution ? `<p class="rs-danger"><b>危ない所</b>${says(first.caution, plan)}</p>` : ""}</div>
+        ${rest.length ? `<details class="rs-fold"><summary>ほかにやってみること ${rest.length}</summary><div class="rs-fold-body"><ol>${rest.map((c) => `<li>${CHECK_KINDS[c.kind]}：${checkLine(c, plan)}</li>`).join("")}</ol></div></details>` : ""}
+      </section>`
+          : ""
+      }
+      <section class="rs-sec"><h3>手順ごとに、結果を入れる</h3><ul class="rs-tries"></ul></section>
+      ${plan.unknowns.length ? `<details class="rs-fold"><summary>まだ分かっていないこと ${plan.unknowns.length}</summary><div class="rs-fold-body"><ol>${plan.unknowns.map((u) => `<li>${says(u.what, plan)}${u.why ? `<small>${says(u.why, plan)}</small>` : ""}</li>`).join("")}</ol></div></details>` : ""}`;
+    paintTries(plan);
   }
 
+  // ---- この技の決まり（帳面の聞き取りと同じ手順：案 → 職人が直す → 確かめの窓 → 足す。入れる先は、この記録の中だけ） ----
+
   function paintRules() {
-    $(".rs-rule-n").textContent = project.rules.length ? `${project.rules.length} 個` : "";
+    const box = $(".rs-rules-box");
+    box.hidden = !project.rules.length;
+    $(".rs-rule-n").textContent = project.rules.length ? String(project.rules.length) : "";
     const list = $(".rs-rules");
-    list.innerHTML = project.rules.length
-      ? project.rules
-          .map(
-            (r) => `<li class="rule-card">
-        <p class="rc-title">${esc(r.title)}</p>
-        <p class="rc-text">${esc(r.text)}</p>
-        ${r.reason ? `<p class="small muted">なぜ：${esc(r.reason)}</p>` : ""}
-        ${r.quote ? `<blockquote>「${esc(r.quote)}」</blockquote>` : ""}
-        <p class="rc-meta"><span>職人：${esc(r.by)} ・ ${esc(r.date)} ・ 案 ${r.planVersion} の工程「${esc(r.stepTitle)}」から</span><button type="button" class="linklike rc-del" data-del-rule="${esc(r.id)}">消す</button></p>
+    list.innerHTML = project.rules
+      .map(
+        (r) => `<li class="rule-card">
+        <p class="rc-title">${own(r.title)}</p>
+        <p class="rc-text">${own(r.text)}</p>
+        ${r.reason ? `<p class="rs-rule-why">なぜ：${own(r.reason)}</p>` : ""}
+        ${r.quote ? `<blockquote>「${own(r.quote)}」</blockquote>` : ""}
+        <p class="rc-meta"><span>${esc(r.by)} ・ 「${says(r.stepTitle)}」を試して</span><button type="button" class="linklike rc-del" data-del-rule="${esc(r.id)}">消す</button></p>
       </li>`,
-          )
-          .join("")
-      : `<li class="empty-card"><p>まだありません。試して「うまくいった」工程を、職人の言葉から決まりにできます。</p></li>`;
+      )
+      .join("");
     list.querySelectorAll<HTMLButtonElement>("[data-del-rule]").forEach((b) =>
       b.addEventListener("click", () => {
         const r = project.rules.find((x) => x.id === b.dataset.delRule);
-        if (!r || !askConfirm(`この技の決まりを消しますか？\n「${r.title}」\n工程の結果は残ります。消すと戻せません。`)) return;
+        if (!r || !askConfirm(`この技の決まりを消しますか？\n「${r.title}」\n消すと戻せません。`)) return;
         commit(removeTechRule(project, r.id, today()));
         paintAll();
       }),
     );
   }
 
-  function paintAll() {
-    paintHead();
-    paintClues();
-    paintGo();
-    paintPlan();
-    paintNext();
-    paintRules();
-  }
-
-  // ---- この技の決まりへ（帳面の聞き取りと同じ手順：案 → 職人が直す → 確かめの窓 → 足す。入れる先は、この記録の中だけ） ----
-
-  async function makeRule(li: HTMLElement, plan: RestorePlan, s: PlanStep, i: number) {
+  async function makeRule(li: HTMLElement, plan: RestorePlan, s: PlanStep) {
     const found = resultFor(project, plan, s);
     const st = (t: string) => (li.querySelector(".rs-rule-st")!.textContent = t);
     const said = found?.result.note.trim() ?? "";
     if (!said) {
-      openTrials.add(s.key);
-      li.querySelector<HTMLDetailsElement>(".rs-trial")!.open = true;
       li.querySelector<HTMLTextAreaElement>(".rs-note-field")!.focus();
-      return st("決まりにするには、試して分かったことを、職人の言葉で残してください。");
+      return st("決まりにするには、どうだったかを言葉で書いてください。");
     }
     // 帳面から読むのは職人の名前だけ。帳面の中身は Claude に渡さない
     const name = masterName(store.ledger());
     const slot = li.querySelector<HTMLElement>(".proposal-slot")!;
     const direct = (why: string) => {
       st(why);
-      showProposal(li, plan, s, i, { title: s.title, text: said, reason: "（理由はまだ聞いていない）", quote: said });
+      showProposal(li, plan, s, { title: s.title, text: said, reason: "（理由はまだ聞いていない）", quote: said });
     };
     slot.innerHTML = "";
     const pass = store.password() || (await askPassword(true));
-    if (!pass) return direct("合言葉がないので、職人の言葉をそのまま案にしました。直してから足せます。");
-    st("Claude が決まりの案にまとめています…");
+    if (!pass) return direct("書いた言葉をそのまま案にしました。直してから残せます。");
+    st("Claude がまとめています…");
     const r = await callTool<ProposeRuleInput>({
       system: techRulePrompt(project, name),
       user: ruleRequest(s.title, s.detail, name, said),
@@ -858,35 +868,33 @@ function mountProject(root: HTMLElement, id: string) {
     if (!li.isConnected) return;
     if (!r.ok) {
       if (r.code === "wrong_password") resetPassword();
-      return direct(`Claude につながらないので、職人の言葉をそのまま案にしました。（${r.error}）`);
+      return direct("Claude につながらないので、書いた言葉をそのまま案にしました。");
     }
     st("");
-    showProposal(li, plan, s, i, r.value);
+    showProposal(li, plan, s, r.value);
   }
 
-  /** 決まりの案を見せる。職人が「これでいい」を押して、確かめの窓で OK したときだけ、この技の決まりに入る */
-  function showProposal(li: HTMLElement, plan: RestorePlan, s: PlanStep, i: number, p: ProposeRuleInput) {
+  /** 決まりの案を見せる。職人が「残す」を押して、確かめの窓で OK したときだけ、この技の決まりに入る */
+  function showProposal(li: HTMLElement, plan: RestorePlan, s: PlanStep, p: ProposeRuleInput) {
     const slot = li.querySelector<HTMLElement>(".proposal-slot")!;
     slot.innerHTML = `<div class="proposal">
-      <p class="small">決まりの案です。直してから足せます。</p>
-      <label>短い名前<input data-p="title" value="${esc(p.title)}"></label>
-      <label>決まり<textarea data-p="text" rows="2">${esc(p.text)}</textarea></label>
-      <label>なぜ<textarea data-p="reason" rows="2">${esc(p.reason)}</textarea></label>
-      ${p.quote ? `<blockquote>「${esc(p.quote)}」</blockquote>` : ""}
-      <div class="row"><button type="button" class="primary" data-a="ok">これでいい</button><button type="button" class="ghost" data-a="no">いらない</button></div>
+      <p>決まりの案です。直してから残せます。</p>
+      <label>短い名前<input data-p="title" value="${own(p.title)}"></label>
+      <label>決まり<textarea data-p="text" rows="2">${own(p.text)}</textarea></label>
+      <label>なぜ<textarea data-p="reason" rows="2">${own(p.reason)}</textarea></label>
+      <div class="row"><button type="button" class="primary" data-a="ok">残す</button><button type="button" class="ghost" data-a="no">いらない</button></div>
     </div>`;
     const read = (k: string) => slot.querySelector<HTMLInputElement>(`[data-p="${k}"]`)!.value.trim();
-    slot.querySelector('[data-a="no"]')!.addEventListener("click", () => (slot.innerHTML = `<p class="small">見送りました。</p>`));
+    slot.querySelector('[data-a="no"]')!.addEventListener("click", () => (slot.innerHTML = ""));
     slot.querySelector('[data-a="ok"]')!.addEventListener("click", () => {
       const title = read("title");
       const text = read("text");
       if (!title || !text) return void (li.querySelector(".rs-rule-st")!.textContent = "短い名前と決まりは、空にできません。");
-      if (!askConfirm("この決まりを、この技の決まりに入れますか？\nこの記録の中だけに残ります。指輪の設計の確かめや、学ぶ人への答えには使いません。")) return;
+      if (!askConfirm("この決まりを、この技の決まりとして残しますか？\nこの技の中だけに残ります。指輪の設計の確かめや、学ぶ人への答えには使いません。")) return;
       commit(addTechRule(project, plan, s, { title, text, reason: read("reason"), quote: p.quote, by: masterName(store.ledger()) }, today()));
-      paintStep(li, plan, s, i);
-      paintHead();
+      paintTries(plan);
       paintRules();
-      flash(`この技の決まりに入れました：${title}`);
+      flash(`決まりに残しました：${title}`);
     });
   }
 
@@ -905,56 +913,58 @@ function mountProject(root: HTMLElement, id: string) {
     a.download = `組み立て直し_${project.name.replace(/[\\/:*?"<>|\s]+/g, "_")}_${today()}.json`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    flash("記録を書き出しました。");
+    flash("ファイルに書き出しました。");
+  }
+
+  function paintAll() {
+    $("h2").textContent = project.name;
+    $(".rs-example").hidden = !project.sample;
+    paintBook();
+    paintFacts();
+    paintPlan();
+    paintTry();
+    paintRules();
+    paintFlow();
+    paintNext();
   }
 
   // ---- はじめの結びつけ ----
 
-  $(".back").addEventListener("click", () => (location.hash = "#waza/restore"));
-  view.querySelectorAll<HTMLAnchorElement>(".tp-toc a").forEach((a) =>
-    a.addEventListener("click", (e) => {
-      e.preventDefault();
-      view.querySelector(`#${a.dataset.to}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }),
-  );
-  $(".rs-rename").addEventListener("click", () => {
-    const head = $(".rs-name");
-    if (head.querySelector(".rename-form")) return;
-    head.insertAdjacentHTML("beforeend", `<form class="rename-form"><input value="${esc(project.name)}" aria-label="技の名前" maxlength="${TEXT_LIMITS.name}"><button type="submit" class="primary">決める</button></form>`);
-    const form = head.querySelector<HTMLFormElement>(".rename-form")!;
-    const input = form.querySelector("input")!;
-    input.select();
-    form.addEventListener("submit", (e) => {
-      e.preventDefault();
-      commit(renameProject(project, input.value, today()));
-      form.remove();
-      paintHead();
-    });
-  });
-  $(".rs-go").addEventListener("click", () => void build());
-  $(".rs-pw").addEventListener("click", async () => {
-    await askPassword(true);
-    paintGo();
-  });
-  // 根拠の番号を押すと、その手がかりへ
-  $(".rs-plan-body").addEventListener("click", (e) => {
-    if ((e.target as HTMLElement).closest(".rs-to-rules")) {
-      e.preventDefault();
-      $("#rs-rules").scrollIntoView({ behavior: "smooth", block: "start" });
-      return;
+  $(".rs-back").addEventListener("click", () => (location.hash = "#waza/restore"));
+  viewEl.querySelectorAll<HTMLButtonElement>(".rs-flow [data-view]").forEach((b) => b.addEventListener("click", () => show(Number(b.dataset.view) as Stage)));
+  $(".rs-next-go").addEventListener("click", () => {
+    const act = nextAct(project, view);
+    if (act.do === "plan") {
+      void build();
+    } else if (act.do === "view" && act.view) {
+      show(act.view, true);
     }
-    const b = (e.target as HTMLElement).closest<HTMLButtonElement>(".cid");
-    if (!b) return;
-    const li = view.querySelector<HTMLElement>(`#rs-clue-${CSS.escape(b.dataset.cid!)}`);
-    if (!li) return flash("この手がかりは、もう消してあります。");
-    $<HTMLDetailsElement>(".rs-clue-box").open = true;
-    li.scrollIntoView({ behavior: "smooth", block: "center" });
-    li.classList.add("flash");
-    setTimeout(() => li.classList.remove("flash"), 1600);
+  });
+  $<HTMLInputElement>(".rs-book-on").addEventListener("change", (e) => {
+    commit({ ...project, useBook: (e.target as HTMLInputElement).checked, updated: today() });
+    paintBook();
+    paintNext();
   });
   $(".rs-export").addEventListener("click", () => void exportFile());
+  wireImport($<HTMLInputElement>(".rs-import input"), (t) => ($(".rs-file-st").textContent = t));
+  $(".rs-rename-open").addEventListener("click", () => {
+    const form = $<HTMLFormElement>(".rs-rename");
+    form.hidden = false;
+    $(".rs-rename-open").hidden = true;
+    const input = form.querySelector("input")!;
+    input.value = project.name;
+    input.select();
+  });
+  $<HTMLFormElement>(".rs-rename").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const form = $<HTMLFormElement>(".rs-rename");
+    commit(renameProject(project, form.querySelector("input")!.value, today()));
+    form.hidden = true;
+    $(".rs-rename-open").hidden = false;
+    $("h2").textContent = project.name;
+  });
   $(".rs-delete").addEventListener("click", async () => {
-    if (!askConfirm(`「${project.name}」の記録を消しますか？\n手がかり・案・試した結果・決まり・写真が全部なくなります。消すと戻せません。\n（書き出したファイルがあれば、あとで読み込めます）`)) return;
+    if (!askConfirm(`「${project.name}」を消しますか？\n入れたこと・案・結果・決まり・写真が全部なくなります。消すと戻せません。`)) return;
     const pid = project.id;
     const photos = project.clues.filter((c) => c.photo).map((c) => c.id);
     removeProject(pid);
@@ -962,22 +972,19 @@ function mountProject(root: HTMLElement, id: string) {
     flash(`消しました：${project.name}`);
     location.hash = "#waza/restore";
   });
-  // 合言葉を、上の帯のボタンから入れたときも、案内を合わせる
-  const onPassword = () => {
-    if (!view.isConnected) return window.removeEventListener("tsugu:password", onPassword);
-    paintGo();
-  };
-  window.addEventListener("tsugu:password", onPassword);
   // 開き直した画面にも、待っていた案を届ける
   watchers.set(project.id, () => {
-    if (!view.isConnected) return;
+    if (!viewEl.isConnected) return;
     project = loadProject(project.id) ?? project;
     viewing = null;
     paintAll();
-    setStatus("案ができました。これは案です。試して、結果を工程ごとに残してください。");
+    show(2);
+    setStatus("案ができました。");
   });
 
   clueForm();
   paintAll();
   paintSave();
+  show(view);
+  if (inFlight.has(project.id)) setStatus("", { working: true });
 }

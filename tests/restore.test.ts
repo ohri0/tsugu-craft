@@ -7,6 +7,14 @@ import {
   addClue,
   addTechRule,
   applyPlan,
+  firstView,
+  namesOf,
+  nextAct,
+  nextUntried,
+  plainWords,
+  previousPlan,
+  stageOf,
+  withoutMark,
   clueRefs,
   freshSince,
   isAssertive,
@@ -29,6 +37,7 @@ import {
 } from "../src/rebuild/restore";
 import { clueText, PHOTO_SEND, photosToSend, restoreContent, restorePrompt, ruleRequest, techRulePrompt } from "../src/rebuild/restore-prompt";
 import { parseRestoration, PROPOSE_RESTORATION } from "../src/rebuild/restore-tools";
+import { BOOK_LIMITS, bookText, readBook } from "../src/rebuild/book";
 
 const DAY = "2026-11-05";
 
@@ -408,15 +417,278 @@ describe("書き出しと読み込み", () => {
     expect(readProject(raw)!.name).toBe(raw.name);
   });
 
-  it("見本は、架空の技だと分かる記録で、読み込める", () => {
+  it("例は、作り話だと分かる印のある記録で、読み込める", () => {
     const raw = JSON.parse(readFileSync(new URL("../research/restore/sample.json", import.meta.url), "utf8"));
     const r = parseRestoreFile(raw);
     if (!r.ok) throw new Error(r.error);
-    expect(r.project.name).toContain("架空");
+    expect(r.project.sample).toBe(true);
+    expect(r.project.name).toBe("霜目の小箱");
     expect(r.warnings).toEqual([]);
     for (const c of r.project.clues) expect(c.text).toContain("架空");
     for (const t of r.project.results) expect(t.note).toContain("架空");
     expect(r.project.rules).toEqual([]);
+  });
+});
+
+describe("画面の流れ（次に押す 1 つのボタン）", () => {
+  it("分かることがなければ、まず入れる。あれば Claude に頼む", () => {
+    const empty = newProject("r", "技", DAY);
+    expect(stageOf(empty)).toBe(1);
+    expect(firstView(empty)).toBe(1);
+    expect(nextAct(empty, 1)).toEqual({ do: "none" }); // 入れる欄が目立つので、上のボタンは出さない
+    expect(nextAct(empty, 3)).toMatchObject({ do: "view", view: 1 });
+    const p = withClues();
+    expect(stageOf(p)).toBe(2);
+    expect(firstView(p)).toBe(1);
+    expect(nextAct(p, 1)).toEqual({ do: "plan", label: "Claude に案を出してもらう" });
+  });
+
+  it("案ができたら案を見せ、次は試す。結果を入れたら、出し直す", () => {
+    let p = withPlan();
+    expect(stageOf(p)).toBe(3);
+    expect(firstView(p)).toBe(2);
+    expect(nextAct(p, 1)).toMatchObject({ do: "view", view: 2 });
+    expect(nextAct(p, 2)).toMatchObject({ do: "view", view: 3, label: "次へ：試して、結果を入れる" });
+    expect(nextAct(p, 3)).toEqual({ do: "none" }); // 結果を待つ。目立つのは、次の工程の結果のボタン
+    const plan = p.plans[0];
+    expect(nextUntried(p, plan)).toBe(0);
+    p = setResult(p, plan, plan.steps[0], { outcome: "ng", note: "だめ" }, DAY);
+    expect(nextUntried(p, plan)).toBe(1);
+    for (const view of [1, 2, 3] as const) expect(nextAct(p, view)).toEqual({ do: "plan", label: "結果を入れて、案を出し直す" });
+  });
+
+  it("新しく入れた・消したときも、出し直す", () => {
+    const p = withPlan();
+    const r = addClue(p, { kind: "opinion", text: "新しい見立て" }, DAY);
+    if ("error" in r) throw new Error(r.error);
+    expect(nextAct(r.project, 2)).toEqual({ do: "plan", label: "入れたことを足して、案を出し直す" });
+    expect(nextAct(removeClue(p, "C1", DAY), 2)).toMatchObject({ do: "plan" });
+  });
+
+  it("前の案をたどれる", () => {
+    let p = withPlan();
+    expect(previousPlan(p, p.plans[0])).toBeUndefined();
+    p = applyPlan(p, parsed(goodInput({ steps: [step({ prev_step: 1, change: "same" })] }), p), { date: DAY, sent: clueRefs(p), photosSent: [], sources: sourceText(p) });
+    expect(previousPlan(p, p.plans[1])).toBe(p.plans[0]);
+  });
+});
+
+describe("人に見せる言葉", () => {
+  it("Claude の文の番号を名前に直す。範囲はまとめる。無い番号も見せない", () => {
+    let p = withPlan();
+    const plan = p.plans[0];
+    p = setResult(p, plan, plan.steps[2], { outcome: "ng", note: "黒い" }, DAY);
+    const names = namesOf(p);
+    expect(plainWords("C2 に灰とある。", names)).toBe("「蔵の覚え書き」に灰とある。");
+    expect(plainWords("T1 で黒くなった（C1、T1〜T3）。", names)).toBe("「火であぶる」の結果で黒くなった（「表の模様」、試した結果）。");
+    expect(plainWords("C9 と T9 から", names)).toBe("入れたことと試した結果から");
+    expect(plainWords("工程 3 は手がかりにない", names)).toBe("手順 3 は入れたことにない");
+    // ふつうの文の英数字は変えない
+    expect(plainWords("K18 と Pt900、CT スキャン", names)).toBe("K18 と Pt900、CT スキャン");
+  });
+
+  it("消した手がかりの名前も、案の控えから出す", () => {
+    const p = removeClue(withPlan(), "C1", DAY);
+    expect(namesOf(p).get("C1")).toBe("表の模様");
+  });
+
+  it("例の中の【架空】の印は、画面では外す", () => {
+    expect(withoutMark("【架空】灰を洗う")).toBe("灰を洗う");
+    expect(withoutMark("灰を洗う")).toBe("灰を洗う");
+    expect(withoutMark("架空の持ち主の話")).toBe("持ち主の話");
+  });
+
+  it("Claude に、職人が読む文へ番号を書かないよう頼む", () => {
+    expect(restorePrompt()).toContain("職人が読む文");
+  });
+});
+
+describe("職人の帳面を渡す", () => {
+  const craftsman = (id: string, title: string, date = DAY, extra: Record<string, unknown> = {}) => ({ id, title, text: `${title}の本文`, reason: "理由は渡さない", quote: `${title}の言葉`, source: { kind: "craftsman", name: "石川" }, date, ...extra });
+  const pub = { id: "pub", title: "資料の決まり", text: "資料", reason: "r", source: { kind: "public", title: "本" }, date: DAY };
+  const ring = { rules: [craftsman("a", "爪の太さ"), pub, craftsman("old", "前の決まり"), craftsman("new", "新しい決まり", DAY, { replaces: "old" })] } as never;
+
+  it("職人の決まりだけを、題と本文と言葉で。置き換えた古い決まりと、公開の資料は渡さない", () => {
+    const book = readBook([{ craft: "指輪の石留め", ledger: ring }]);
+    expect(book.total).toBe(2);
+    expect(book.rules).toEqual([
+      { id: "B1", craft: "指輪の石留め", title: "爪の太さ", text: "爪の太さの本文", quote: "爪の太さの言葉" },
+      { id: "B2", craft: "指輪の石留め", title: "新しい決まり", text: "新しい決まりの本文", quote: "新しい決まりの言葉" },
+    ]);
+    const text = bookText(book.rules);
+    expect(text).toContain("B1 ［指輪の石留め］爪の太さ");
+    expect(text).toContain("職人の言葉：爪の太さの言葉");
+    expect(text).not.toContain("理由は渡さない");
+    expect(text).not.toContain("資料の決まり");
+  });
+
+  it("多いときは、新しい決まりから上限まで。数は全部を数える", () => {
+    const many = Array.from({ length: BOOK_LIMITS.rules + 5 }, (_, i) => craftsman(`r${i}`, `決まり${i}`, i < 5 ? "2026-01-01" : "2026-11-05"));
+    const book = readBook([{ craft: "指輪", ledger: { rules: many } as never }]);
+    expect(book.total).toBe(BOOK_LIMITS.rules + 5);
+    expect(book.rules).toHaveLength(BOOK_LIMITS.rules);
+    expect(book.rules[0].title).toBe("決まり5"); // 古い 5 つが外れる
+    expect(book.rules.at(-1)!.id).toBe(`B${BOOK_LIMITS.rules}`);
+    const long = readBook([{ craft: "指輪", ledger: { rules: Array.from({ length: 50 }, (_, i) => craftsman(`l${i}`, `長い${i}`, DAY, { text: "あ".repeat(1000) })) } as never }]);
+    expect(long.rules.length).toBeLessThan(50);
+    expect(bookText(long.rules).length).toBeLessThan(BOOK_LIMITS.chars + long.rules.length * 40);
+    expect(long.rules[0].text).toHaveLength(BOOK_LIMITS.text);
+  });
+
+  it("案の指示に帳面が入るのは、オンのときだけ", () => {
+    const p = withClues();
+    const book = readBook([{ craft: "指輪の石留め", ledger: ring }]).rules;
+    const on = restorePrompt({ book: true });
+    expect(on).toContain("この工房の職人の判断として読んで");
+    expect(on).toContain("book_ids");
+    expect(on).toContain("帳面にないことを、帳面にあるように言わないで");
+    const onText = JSON.stringify(restoreContent(p, [], book));
+    expect(onText).toContain("<book>");
+    expect(onText).toContain("爪の太さの本文");
+    for (const off of [restorePrompt(), restorePrompt({ book: false })]) {
+      expect(off).not.toContain("帳面");
+      expect(off).not.toContain("<book>");
+      expect(off).not.toContain("book_ids");
+    }
+    for (const offText of [JSON.stringify(restoreContent(p, [])), JSON.stringify(restoreContent(p, [], []))]) {
+      expect(offText).not.toContain("<book>");
+      expect(offText).not.toContain("帳面");
+      expect(offText).not.toContain("爪の太さ");
+    }
+  });
+
+  it("答えの分かっている技で試す指示には、帳面を入れない（手がかりだけ）", async () => {
+    const { TECHNIQUES } = await import("../src/rebuild/material");
+    const { hypothesisPrompt, hypothesisUserMessage, gradePrompt } = await import("../src/rebuild/prompt");
+    const { PROPOSE_PROCESS } = await import("../src/rebuild/tools");
+    const { seedLedger } = await import("../src/rules/ledger");
+    const mokume = TECHNIQUES[0];
+    const words = readBook([{ craft: "指輪の石留め", ledger: seedLedger() as never }]).rules.map((r) => r.title);
+    for (const c of mokume.conditions) {
+      const texts = [hypothesisPrompt(mokume, c), hypothesisUserMessage(mokume, c)];
+      for (const t of texts) {
+        expect(t).not.toContain("<book>");
+        expect(t).not.toContain("帳面");
+        expect(t).not.toContain("book_ids");
+        for (const w of words) expect(t).not.toContain(w);
+      }
+    }
+    expect(gradePrompt(mokume, { steps: [], trials: [], summary: "" })).not.toContain("帳面");
+    expect(JSON.stringify(PROPOSE_PROCESS)).not.toContain("book");
+    // 画面のコードも、帳面を読まない
+    const page = readFileSync(new URL("../src/app/rebuild.ts", import.meta.url), "utf8");
+    for (const name of ["workshopBook", "readBook", "bookText", "setLedger"]) expect(page).not.toContain(name);
+    expect(page).not.toMatch(/\bstore\./);
+  });
+
+  it("Claude の根拠を、手がかりと帳面に分けて受け取る。渡していない番号は外す", () => {
+    const p = withClues();
+    const input = goodInput({
+      steps: [
+        step({ clue_ids: ["C1"], book_ids: ["B1", "B9"] }),
+        step({ clue_ids: [], book_ids: ["B2"] }), // 帳面だけが根拠でも、もともとの知識ではない
+        step({ clue_ids: [], book_ids: ["B9"] }), // 渡していない帳面だけなら、もともとの知識
+        step({ basis: "prior", clue_ids: [], book_ids: ["B1"] }),
+      ],
+    });
+    const r = parseRestoration(input, { ids: knownClueIds(p), bookIds: ["B1", "B2"] });
+    if (!r.ok) throw new Error(r.error);
+    expect(r.value.steps[0]).toMatchObject({ basis: "clues", clue_ids: ["C1"], book_ids: ["B1"] });
+    expect(r.value.steps[1]).toMatchObject({ basis: "clues", clue_ids: [], book_ids: ["B2"] });
+    expect(r.value.steps[2]).toMatchObject({ basis: "prior", clue_ids: [] });
+    expect(r.value.steps[2].book_ids).toBeUndefined();
+    expect(r.value.steps[3].book_ids).toBeUndefined();
+    expect(r.warnings?.some((w) => w.includes("B9"))).toBe(true);
+    // 帳面を渡していないときは、どの番号も受け取らない
+    const off = parseRestoration(goodInput({ steps: [step({ clue_ids: ["C1"], book_ids: ["B1"] })] }), { ids: knownClueIds(p) });
+    if (!off.ok) throw new Error(off.error);
+    expect(off.value.steps[0].book_ids).toBeUndefined();
+    expect(PROPOSE_RESTORATION.input_schema).toBeDefined();
+    expect(JSON.stringify(PROPOSE_RESTORATION)).toContain("book_ids");
+  });
+
+  function withBookPlan() {
+    const p = withClues();
+    const book = [{ id: "B1", title: "爪の太さ" }];
+    const out = parsedWith(goodInput({ steps: [step({ clue_ids: ["C1"], book_ids: ["B1"], detail: "B1 から、0.7 mm と考えられる。" })] }), p, ["B1"]);
+    return applyPlan(p, out, { date: DAY, sent: clueRefs(p), photosSent: [], bookOn: true, book, sources: `${sourceText(p)}\n爪は 0.7 mm` });
+  }
+  function parsedWith(input: unknown, p: RestoreProject, bookIds: string[]) {
+    const r = parseRestoration(input, { ids: knownClueIds(p), bookIds, prev: p.plans.at(-1) });
+    if (!r.ok) throw new Error(r.error);
+    return r.value;
+  }
+
+  it("案に、渡した帳面の控えと根拠が残り、書き出しと読み込みで戻る。帳面の数字は印をつけない", () => {
+    const p = withBookPlan();
+    const plan = p.plans[0];
+    expect(plan.bookOn).toBe(true);
+    expect(plan.book).toEqual([{ id: "B1", title: "爪の太さ" }]);
+    expect(plan.steps[0].book_ids).toEqual(["B1"]);
+    expect(plan.steps[0].unsourced).toBeUndefined();
+    const r = parseRestoreFile(JSON.parse(JSON.stringify(toFile(p, {}, DAY))));
+    if (!r.ok) throw new Error(r.error);
+    expect(r.project).toEqual(p);
+  });
+
+  it("画面の文では、帳面の番号を名前に直す。番号は案ごと", () => {
+    const p = withBookPlan();
+    const plan = p.plans[0];
+    expect(plainWords("B1 から考えた", namesOf(p, plan))).toBe("帳面の「爪の太さ」から考えた");
+    expect(plainWords("B1 から考えた", namesOf(p))).toBe("職人の帳面から考えた");
+    expect(plainWords("B1〜B3 から", namesOf(p, plan))).toBe("職人の帳面から");
+  });
+
+  it("次の案に、前の案の根拠を帳面の題で渡す（番号は案ごとに変わるので）", () => {
+    const p = withBookPlan();
+    const last = JSON.stringify(restoreContent(p, []).at(-1));
+    expect(last).toContain("根拠 C1、帳面の「爪の太さ」");
+    expect(last).not.toContain("B1");
+  });
+
+  it("既定はオン。オフは読み直しても残る。オンとオフを変えたら、案を出し直せる", () => {
+    const fresh = newProject("r", "技", DAY);
+    expect(fresh.useBook).toBe(true);
+    const raw = JSON.parse(JSON.stringify(fresh));
+    expect(readProject({ ...raw, useBook: undefined })!.useBook).toBe(true);
+    expect(readProject({ ...raw, useBook: false })!.useBook).toBe(false);
+    const p = withBookPlan();
+    expect(nextAct(p, 2)).toMatchObject({ do: "view", view: 3 });
+    expect(nextAct({ ...p, useBook: false }, 2)).toEqual({ do: "plan", label: "職人の帳面を外して、案を出し直す" });
+    const base = withClues();
+    const without = applyPlan(base, parsed(goodInput(), base), { date: DAY, sent: clueRefs(base), photosSent: [], bookOn: false, sources: sourceText(base) }); // 帳面なしで作った案
+    expect(nextAct(without, 2)).toEqual({ do: "plan", label: "職人の帳面を加えて、案を出し直す" });
+    expect(nextAct({ ...without, useBook: false }, 2)).toMatchObject({ do: "view", view: 3 });
+  });
+
+  it("帳面を読むだけで、保存を書き換えない。工房の帳面を使っているときは、技の頁の帳面を混ぜない", async () => {
+    const s = fakeStorage();
+    vi.stubGlobal("localStorage", s);
+    try {
+      vi.resetModules();
+      const [{ store }, ledger, { workshopBook }, workshops] = await Promise.all([import("../src/app/store"), import("../src/rules/ledger"), import("../src/app/restore-book"), import("../src/rules/workshops")]);
+      store.setLedger(ledger.addRule(store.ledger(), { title: "指輪の判断", text: "指輪の本文", reason: "r", quote: "指輪の言葉", source: { kind: "craftsman", name: "石川" }, date: DAY }));
+      store.setTechLedger("tsuchime", ledger.addRule(store.techLedger("tsuchime"), { title: "槌目の判断", text: "槌目の本文", reason: "r", source: { kind: "craftsman", name: "石川" }, date: DAY }));
+      const before = new Map(s.map);
+      const ledgerBefore = JSON.stringify(store.ledger());
+      const book = workshopBook();
+      const titles = book.rules.map((r) => r.title);
+      expect(titles).toContain("指輪の判断");
+      expect(titles).toContain("槌目の判断");
+      expect(book.rules.find((r) => r.title === "槌目の判断")!.craft).toBe("槌目（つちめ）");
+      expect(book.rules.every((r) => /^B\d+$/.test(r.id))).toBe(true);
+      // 読んだだけなので、保存も帳面も変わらない
+      expect(new Map(s.map)).toEqual(before);
+      expect(JSON.stringify(store.ledger())).toBe(ledgerBefore);
+      // ほかの工房の帳面を使っているとき
+      store.setWorkshops(workshops.addWorkshop(store.workshops(), "工房 B", store.ledger()));
+      expect(workshopBook().rules.map((r) => r.title)).not.toContain("槌目の判断");
+    } finally {
+      vi.unstubAllGlobals();
+      vi.resetModules();
+    }
+    const read = readFileSync(new URL("../src/app/restore-book.ts", import.meta.url), "utf8");
+    expect(read).not.toMatch(/\.set[A-Z]|addRule|removeRule|editRule/);
   });
 });
 

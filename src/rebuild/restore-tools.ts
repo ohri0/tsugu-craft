@@ -19,7 +19,7 @@ export const PROPOSE_RESTORATION: ClaudeTool = {
   description:
     "答えのない技について、職人が試して確かめるための工程の案を出す。1 回だけ呼ぶ。" +
     `工程は作る順に ${PLAN_STEP_RANGE[0]}〜${PLAN_STEP_RANGE[1]} 個。どの工程にも、根拠にした手がかりの番号を付ける。` +
-    "手がかりからでなく、もともと知っていたことから出た工程は、basis を prior にする。確かな作り方だと言わない。手がかりにない数字を書かない。",
+    "手がかりからも職人の帳面からも出ず、もともと知っていたことから出た工程は、basis を prior にする。確かな作り方だと言わない。手がかりにない数字を書かない。",
   strict: true,
   input_schema: {
     type: "object",
@@ -37,7 +37,12 @@ export const PROPOSE_RESTORATION: ClaudeTool = {
               items: { type: "string" },
               description: "根拠にした手がかりの番号（C で始まる手がかり、T で始まる試した結果）。一覧にある番号だけ。もともとの知識からなら空",
             },
-            basis: { type: "string", enum: ["clues", "prior"], description: "clues＝手がかりから考えた。prior＝手がかりからは出ず、もともと知っていたことから出た" },
+            book_ids: {
+              type: "array",
+              items: { type: "string" },
+              description: "根拠にした職人の帳面の決まりの番号（B で始まる）。手がかりの番号とは分ける。帳面が渡されていない、または使わなかったら空",
+            },
+            basis: { type: "string", enum: ["clues", "prior"], description: "clues＝手がかりや職人の帳面から考えた。prior＝どちらからも出ず、もともと知っていたことから出た" },
             confidence: { type: "integer", enum: [1, 2, 3], description: "確からしさ。1＝推し量り、2＝たぶん、3＝手がかりから強く言える（それでも案であることは変わらない）" },
             uncertain: { type: "string", description: "この工程でまだ分からないこと（温度、時間、順番など）。なければ空の文字" },
             caution: { type: "string", description: "危ない物や作業の注意。なければ空の文字" },
@@ -45,7 +50,7 @@ export const PROPOSE_RESTORATION: ClaudeTool = {
             change: { type: "string", enum: ["same", "changed", "new"], description: "same＝前の案のまま。changed＝前の案から変えた。new＝新しい工程（最初の案はすべて new）" },
             change_note: { type: "string", description: "変えたとき、何をなぜ変えたか（どの手がかりや結果からか）。same や new なら空の文字" },
           },
-          required: ["title", "detail", "clue_ids", "basis", "confidence", "uncertain", "caution", "prev_step", "change", "change_note"],
+          required: ["title", "detail", "clue_ids", "book_ids", "basis", "confidence", "uncertain", "caution", "prev_step", "change", "change_note"],
           additionalProperties: false,
         },
       },
@@ -113,9 +118,10 @@ function stepRef(v: unknown, count: number): number {
  * ids は Claude に渡した手がかりと結果の番号、prev は前の案。
  * 直せる所は直して warnings に残し（案は人が読むので、書き直しの呼び出しを増やさない）、工程や「分かっていない所」が無いときだけ断る。
  */
-export function parseRestoration(input: unknown, ctx: { ids: readonly string[]; prev?: RestorePlan }): Parsed<RestorationOutput> {
+export function parseRestoration(input: unknown, ctx: { ids: readonly string[]; bookIds?: readonly string[]; prev?: RestorePlan }): Parsed<RestorationOutput> {
   if (!isRecord(input)) return { ok: false, error: "入力の形が正しくありません" };
   const known = new Set(ctx.ids);
+  const knownBook = new Set(ctx.bookIds ?? []);
   const prevCount = ctx.prev?.steps.length ?? 0;
   const warnings: string[] = [];
 
@@ -140,12 +146,17 @@ export function parseRestoration(input: unknown, ctx: { ids: readonly string[]; 
     if (!CHANGE_IDS.includes(s.change as StepChange)) return { ok: false, error: `${where}の change は same・changed・new のどれかです` };
 
     let clue_ids = keepKnown(ids, known, where, warnings);
+    // 帳面の番号は、渡した帳面にあるものだけ（帳面にないことを、あるように言わせない）
+    let book_ids = keepKnown(Array.isArray(s.book_ids) ? s.book_ids.filter((x): x is string => typeof x === "string").map((x) => x.trim()) : [], knownBook, where, warnings);
     let basis: Basis = s.basis;
-    if (basis === "clues" && clue_ids.length === 0) {
+    if (basis === "clues" && clue_ids.length === 0 && book_ids.length === 0) {
       warnings.push(`${where}：手がかりの番号が無いので、もともとの知識からとしました`);
       basis = "prior";
     }
-    if (basis === "prior") clue_ids = [];
+    if (basis === "prior") {
+      clue_ids = [];
+      book_ids = [];
+    }
 
     let prev_step = typeof s.prev_step === "number" && Number.isInteger(s.prev_step) ? s.prev_step : 0;
     if (prev_step < 0 || prev_step > prevCount) {
@@ -157,6 +168,7 @@ export function parseRestoration(input: unknown, ctx: { ids: readonly string[]; 
     else if (change === "new") change = "changed";
 
     const step: RestorationOutput["steps"][number] = { title, detail, clue_ids, basis, confidence: c, prev_step, change };
+    if (book_ids.length) step.book_ids = book_ids;
     const uncertain = optional(s.uncertain);
     if (uncertain) step.uncertain = uncertain;
     const caution = optional(s.caution);

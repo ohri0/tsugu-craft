@@ -1,8 +1,9 @@
-// 力試し（#waza/rebuild）：答えの分かっている技（木目金）で、Claude がどこまで届くか測る試し。本番の、答えのない技は src/app/restore.ts。
+// 答えの分かっている技で試す（#waza/rebuild）：木目金で、Claude がどこまで当てられるかを見る。答えのない技は src/app/restore.ts。
 // 途切れた技を、残っている手がかりだけから組み立て直す。答え（本当の作り方）は隠しておき、組み立てたあとで答え合わせをする。
 // Claude は学習のときにこの技を読んでいるかもしれないので、工程ごとに「手がかりから」か「もともとの知識から」かを分けて数える。
 import { TECHNIQUES, cluesFor, type Clue, type Condition, type Technique } from "../rebuild/material";
 import { gradePrompt, gradeUserMessage, hypothesisPrompt, hypothesisUserMessage } from "../rebuild/prompt";
+import { plainWords } from "../rebuild/restore";
 import { callTool } from "../rebuild/run";
 import { scoreLine, tally } from "../rebuild/score";
 import { GRADE_PROCESS, PROPOSE_PROCESS, parseGradeProcess, parseProposeProcess, type Verdict } from "../rebuild/tools";
@@ -92,9 +93,12 @@ export function mountRebuild(root: HTMLElement, opts: { onBack?: () => void } = 
     render();
   }
 
+  /** 画面に出す番号を名前に（撮影のときは前のまま） */
+  const shown = (s: string, clues: Clue[]) => (filming() ? s : plainWords(s, new Map(clues.map((c) => [c.id, c.title] as const))).replace(/入れたこと/g, "手がかり"));
+
   function clueChip(id: string, clues: Clue[]) {
     const c = clues.find((x) => x.id === id);
-    return `<button type="button" class="cid" data-cid="${esc(id)}" title="${esc(c?.title ?? "")}">${esc(id)}</button>`;
+    return `<button type="button" class="cid" data-cid="${esc(id)}" title="${esc(c?.title ?? "")}">${esc(filming() ? id : (c?.title ?? id))}</button>`;
   }
 
   function render() {
@@ -115,8 +119,8 @@ export function mountRebuild(root: HTMLElement, opts: { onBack?: () => void } = 
         .join("")}</div>
 
       <details class="clues">
-        <summary>手がかり <b>${clues.length}</b><span class="clue-peek">${clues.slice(0, 3).map((x) => `${esc(x.id)} ${esc(x.title)}`).join(" ・ ")}${clues.length > 3 ? ` ほか ${clues.length - 3}` : ""}</span></summary>
-        <ol class="clue-list">${clues.map((x) => `<li id="clue-${esc(x.id)}"><b>${esc(x.id)}</b> <span>${esc(x.title)}</span><p>${esc(x.text)}</p></li>`).join("")}</ol>
+        <summary>手がかり <b>${clues.length}</b><span class="clue-peek">${clues.slice(0, 3).map((x) => (filming() ? `${esc(x.id)} ${esc(x.title)}` : esc(x.title))).join(" ・ ")}${clues.length > 3 ? ` ほか ${clues.length - 3}` : ""}</span></summary>
+        <ol class="clue-list">${clues.map((x) => `<li id="clue-${esc(x.id)}">${filming() ? `<b>${esc(x.id)}</b> ` : ""}<span>${esc(x.title)}</span><p>${esc(x.text)}</p></li>`).join("")}</ol>
       </details>
       </section>`;
     // Claude が組み立てる（ボタンは 1 つ。組み立てたあとは答え合わせ）
@@ -141,15 +145,15 @@ export function mountRebuild(root: HTMLElement, opts: { onBack?: () => void } = 
             filming()
               ? `<h2>組み立て直す（${esc(t.name)}）</h2>
           <p class="lead">作り方の残っていない技を、残った手がかりだけから Claude が組み立て、本当の作り方と比べます。</p>`
-              : `<h2>力試し（${esc(t.name)}）</h2>
-          <p class="lead">答えの分かっている技で、Claude がどこまで届くか測る試しです。残った手がかりだけから組み立て、本当の作り方と比べます。</p>`
+              : `<h2>答えの分かっている技で試す（${esc(t.name)}）</h2>
+          <p class="lead">残った手がかりだけから Claude が組み立て、本当の作り方と比べます。</p>`
           }
         </div>
       </header>
       ${
         filming()
           ? ""
-          : `<a class="rs-cross" href="#waza/restore"><span><b>自分の技を組み立て直す（本番）</b><small>答えのない技は、こちらへ。手がかりを入れると Claude が工程の案を作り、職人が試して確かめます</small></span><span class="bt-go" aria-hidden="true">›</span></a>`
+          : `<a class="rs-cross" href="#waza/restore"><span>自分の途切れた技を入れる</span><span aria-hidden="true">›</span></a>`
       }
 
       ${cluePart}${actPart}
@@ -158,7 +162,7 @@ export function mountRebuild(root: HTMLElement, opts: { onBack?: () => void } = 
         h
           ? `<section class="tp-block">
         <h3><span class="tp-n">3</span>${g ? "答え合わせの結果" : "組み立てた作り方"} <small>${esc(run!.date)}${run!.published ? " ・ 公開の記録" : ""}</small></h3>
-        ${sum ? `<div class="score"><b>${sum.covered}<small>/${sum.answerSteps}</small></b><p>${esc(scoreLine(sum))}</p></div>` : ""}
+        ${sum ? `<div class="score"><b>${sum.covered}<small>/${sum.answerSteps}</small></b><p>${esc(filming() ? scoreLine(sum) : scoreLine(sum).replace(/工程/g, "手順"))}</p></div>` : ""}
         <ol class="steps-h tp-check">${h.steps
           .map((s, i) => {
             const gs = g?.steps.find((x) => x.n === i + 1);
@@ -166,25 +170,25 @@ export function mountRebuild(root: HTMLElement, opts: { onBack?: () => void } = 
             return `<li class="${s.basis === "prior" ? "prior" : ""}">
               <span class="n">${i + 1}</span>
               <div class="sbody">
-                <p class="stitle">${esc(s.title)}${v ? `<span class="verdict ${v.cls}">${v.label}</span>` : ""}</p>
-                <p class="sdetail">${esc(s.detail)}</p>
+                <p class="stitle">${esc(shown(s.title, clues))}${v ? `<span class="verdict ${v.cls}">${v.label}</span>` : ""}</p>
+                <p class="sdetail">${esc(shown(s.detail, clues))}</p>
                 <p class="smeta">${s.basis === "prior" ? `<span class="tag warn">手がかりなし ・ もともとの知識から</span>` : `根拠 ${s.clue_ids.map((id) => clueChip(id, clues)).join("")}`}<span class="conf" title="確からしさ">確からしさ ${dots(s.confidence)}</span></p>
-                ${s.uncertain ? `<p class="sunsure">まだ分からない：${esc(s.uncertain)}</p>` : ""}
-                ${gs?.note ? `<p class="gnote">${gs.answer_ids.length ? `<b>${gs.answer_ids.map(esc).join("・")}</b> ` : ""}${esc(gs.note)}</p>` : ""}
+                ${s.uncertain ? `<p class="sunsure">まだ分からない：${esc(shown(s.uncertain, clues))}</p>` : ""}
+                ${gs?.note ? `<p class="gnote">${filming() && gs.answer_ids.length ? `<b>${gs.answer_ids.map(esc).join("・")}</b> ` : ""}${esc(filming() ? gs.note : gs.note.replace(/\b[AMH]\d+\b/g, "本当の手順").replace(/工程/g, "手順"))}</p>` : ""}
               </div>
             </li>`;
           })
           .join("")}</ol>
-        ${h.summary ? `<p class="hsum">${esc(h.summary)}</p>` : ""}
+        ${h.summary ? `<p class="hsum">${esc(shown(h.summary, clues))}</p>` : ""}
         ${
           h.trials.length
-            ? `<div class="trials"><h4>次に職人に試してほしいこと</h4><ul>${h.trials.map((x) => `<li><b>${esc(x.what)}</b><span>${esc(x.why)}</span></li>`).join("")}</ul></div>`
+            ? `<div class="trials"><h4>次に職人に試してほしいこと</h4><ul>${h.trials.map((x) => `<li><b>${esc(shown(x.what, clues))}</b><span>${esc(shown(x.why, clues))}</span></li>`).join("")}</ul></div>`
             : ""
         }
         ${
           g
-            ? `${g.missed.length ? `<div class="missed"><h4>たどり着けなかった本当の工程</h4><ul>${g.missed.map((m) => `<li><b>${esc(m.answer_id)} ${esc(t.answer.find((a) => a.id === m.answer_id)?.title ?? "")}</b><span>${esc(m.note)}</span></li>`).join("")}</ul></div>` : ""}
-               ${g.summary ? `<p class="hsum">${esc(g.summary)}</p>` : ""}`
+            ? `${g.missed.length ? `<div class="missed"><h4>${filming() ? "たどり着けなかった本当の工程" : "たどり着けなかった本当の手順"}</h4><ul>${g.missed.map((m) => `<li><b>${filming() ? `${esc(m.answer_id)} ` : ""}${esc(t.answer.find((a) => a.id === m.answer_id)?.title ?? "")}</b><span>${esc(m.note)}</span></li>`).join("")}</ul></div>` : ""}
+               ${g.summary ? `<p class="hsum">${esc(filming() ? g.summary : g.summary.replace(/\b[AMH]\d+\b/g, "本当の手順").replace(/工程/g, "手順"))}</p>` : ""}`
             : ""
         }
       </section>`
