@@ -148,13 +148,16 @@ const html = `
   </section>
 
   <section class="word" aria-labelledby="word-h">
-    <figure class="word-ring rv">${shot("ring-gothic", 2000, 2400, "言葉から腕の形まで組んだ指輪。稜線の立つ腕に、尖ったアーチの彫りが並び、下へ細くなる。白い地金にマーキスの石", "(max-width: 760px) 100vw, 56vw")}</figure>
+    <div class="word-rings">
+      <figure class="rv">${shot("ring-gothic-heavy", 2000, 2400, "重厚なゴシックの指輪。段のある太い腕に、尖った窓と粒の列の彫り。銀の地金にオーバルの石、尖った爪", "(max-width: 760px) 92vw, 50vw")}<figcaption>重厚 ・ オーバルの石 ・ SV925</figcaption></figure>
+      <figure class="rv">${shot("ring-gothic-slim", 2000, 2400, "細身のゴシックの指輪。稜線の立つ腕に、尖った窓の彫り。白い地金にマーキスの石、尖った爪", "(max-width: 760px) 92vw, 50vw")}<figcaption>細身 ・ マーキスの石 ・ K18 ホワイト</figcaption></figure>
+    </div>
     <div class="word-t">
       <p class="v word-q rv">「ゴシックな感じ」</p>
       <div class="word-b">
         <h2 id="word-h" class="rv">言葉で、<wbr>腕の形まで<wbr>変わる。</h2>
         <p class="rv">残した言葉から、Claude が、次の石の作りを推測します。石は手持ちの写真でも、よくある形からでも選べます。「ゴシックな感じ」と言葉で頼むと、断面の線、場所ごとの太さ、浅い彫りまで組み、職人の決まりで確かめて直します。</p>
-        <p class="note rv">写真は、本物の Claude が組んだ時の断面・細り・彫りと同じ考えの数字で、撮り直したものです。</p>
+        <p class="note rv">写真は、本物の Claude が組んだ時と同じ考えの数字で撮り直したものです（数字は人が整えました）。</p>
       </div>
     </div>
   </section>
@@ -210,10 +213,12 @@ const html = `
       <p class="rv">今まで手間のかかった断面の形も、見本を選ぶか、線を描くだけで作れます。上と下で変えることもできます。</p>
     </div>
     <div class="band-p">
-      <figure class="rv">${shot("band-a", 2000, 2000, "断面が山形の、地金のみの指輪", "(max-width: 760px) 46vw, 30vw")}<figcaption>山形</figcaption></figure>
-      <figure class="rv">${shot("band-b", 2000, 2000, "断面が段つきの、地金のみの指輪", "(max-width: 760px) 46vw, 30vw")}<figcaption>段つき</figcaption></figure>
-      <figure class="band-grid rv">${shot("band-grid", 622, 382, "断面の見本の欄。甲丸、かまぼこ、平甲丸、平打ち、角、丸線、面取り、山形、V 溝、段つき、くぼみ、手で描く", "(max-width: 760px) 92vw, 30vw")}</figure>
+      <figure class="rv">${shot("band-molding", 2000, 2000, "切り口を見せた、地金のみの指輪。上は太いモールディング、下は細い甲丸へ流れる", "(max-width: 760px) 92vw, 46vw")}<figcaption><b>モールディング</b>上は太いモールディング、下は細い甲丸へ流れる</figcaption></figure>
+      <figure class="rv">${shot("band-stairs", 2000, 2000, "切り口を見せた、地金のみの指輪。大きな段が重なる建築の腕。手のひらの側で段が減る", "(max-width: 760px) 92vw, 46vw")}<figcaption><b>段の重なり</b>大きな段が重なる建築の腕。手のひらの側で段が減る</figcaption></figure>
+      <figure class="rv">${shot("band-crossing", 2000, 2000, "切り口を見せた、地金のみの指輪。左右で違う断面。稜線が上は左、下は右へ、腕を渡る", "(max-width: 760px) 92vw, 46vw")}<figcaption><b>渡る稜線</b>左右で違う断面。稜線が上は左、下は右へ、腕を渡る</figcaption></figure>
+      <figure class="rv">${shot("band-twin", 2000, 2000, "切り口を見せた、地金のみの指輪。深い溝で 2 本に見え、手のひらの側で 1 本にまとまる", "(max-width: 760px) 92vw, 46vw")}<figcaption><b>二本の腕</b>深い溝で 2 本に見え、手のひらの側で 1 本にまとまる</figcaption></figure>
     </div>
+    <p class="note band-n rv">切り口を見せています。どれも、アプリの断面の編集で作った形です。</p>
   </section>
 
   ${door(2, "learn", "学ぶ人へ")}

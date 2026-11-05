@@ -2,11 +2,29 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import repo from "../ledger/jewelry.json";
+import bandShowcase from "../src/lp/band-showcase.json";
 import { activeRules, ledgerCounts, type Ledger } from "../src/rules/ledger";
 
 const src = readFileSync(new URL("../src/lp/main.ts", import.meta.url), "utf8");
 
 describe("入口のページ", () => {
+  it("地金のみの見せ場の名前と説明は、見本のデータと同じ。切り口を見せた絵で、断面の編集で作ったと書く", () => {
+    for (const x of bandShowcase.shapes) {
+      expect(src).toContain(`band-${x.id}`);
+      expect(src).toContain(x.name);
+      expect(src).toContain(x.caption);
+      expect(x.cut).toBe("top");
+    }
+    expect(src).toContain("アプリの断面の編集で作った形");
+    expect(src).toContain("切り口を見せています");
+  });
+
+  it("ゴシックの絵は人が数字を整えたと正直に書く", () => {
+    expect(src).toContain("ring-gothic-heavy");
+    expect(src).toContain("ring-gothic-slim");
+    expect(src).toContain("数字は人が整えました");
+  });
+
   it("欄を隠している三石・石を並べる節を書かない", () => {
     expect(src).not.toContain("三石");
     expect(src).not.toContain("石を並べる");
