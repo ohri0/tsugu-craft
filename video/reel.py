@@ -480,6 +480,23 @@ def render_grid(clip, tl):
     return out
 
 
+# ---------------------------------------------------------------- 1 つの窓に、同じ時刻の本物の画面を何か所か切り取って置く（最終案 8：指輪と、爪のつまみの行）
+def render_stack(clip, tl):
+    ow, oh = OUT
+    out = Image.new("RGB", (ow, oh), hexrgb(clip.get("bg", "#000000")))
+    for sub in clip["items"]:
+        sub = dict(sub)
+        sub.setdefault("len", clip["len"])
+        x, y, w, h = sub["area"]
+        OUT[:] = [w, h]
+        try:
+            im = render_story(sub, tl)
+        finally:
+            OUT[:] = [ow, oh]
+        out.paste(im, (x, y))
+    return out
+
+
 # ---------------------------------------------------------------- 作者の素材（あれば）
 def footage_dir(name):
     d = os.path.join(WORK, "footage")
@@ -567,6 +584,8 @@ def render_inner(clip, tl):
         return render_split(clip, tl)
     if k == "grid":
         return render_grid(clip, tl)
+    if k == "stack":
+        return render_stack(clip, tl)
     if k == "black":
         return Image.new("RGB", tuple(OUT), hexrgb(clip.get("bg", "#000000")))
     if k in KINDS3:
@@ -1107,6 +1126,26 @@ def render_flow4(clip, tl):
     return P.out()
 
 
+def render_said8(clip, tl):
+    """最終案 8：職人の言葉 → 決まり の 2 つだけを大きく、ゆっくり（字はどちらも、撮ったときの本物の言葉。作者の声：細かい字を読ませない）"""
+    ow, oh = OUT
+    P = Pad(ow, oh, clip.get("bg", "#000000"))
+    k = clip["k"]
+    x = k.get("x", 60)
+    y = k.get("y", 210)
+    a0 = _ap(tl, k.get("at0", 0), 0.6)
+    P.text(x, y, k["label0"], S3, C3["gray"], a0, "g4", "lm")
+    for i, ln in enumerate(k["said"]):
+        P.text(x, y + 74 + i * 88, ln, H3, C3["white"], a0, "g6", "lm")
+    y2 = y + 74 + len(k["said"]) * 88 + 40
+    a1 = _ap(tl, k.get("at1", 3), 0.6)
+    P.arrow(x + 30, y2, x + 30, y2 + 70, C3["gold"], a1, 4, 18)
+    P.text(x, y2 + 130, k["label1"], S3, C3["gray"], a1, "g4", "lm")
+    for i, ln in enumerate(k["rule"]):
+        P.text(x, y2 + 204 + i * 88, ln, H3, C3["gold"], a1, "g6", "lm")
+    return P.out()
+
+
 def render_term(clip, tl):
     """作った記録（git の履歴）を、端末のような黒い板に。動かさない"""
     ow, oh = OUT
@@ -1246,10 +1285,12 @@ def draw3(base, card, b):
             d.ellipse([px_ - r, py_ - r, px_ + r, py_ + r], fill=col + (int(255 * A * u),))
         im, pad, asc, desc = token_img(card["text"], "g6", card.get("size", S3), card.get("color", C3["white"]))
         ua = ease_out((t - 0.12) / 0.35)
-        place(base, im, lx - pad, ly - asc * 0.62 - pad, 1, ua * A, 0)
+        lx0 = lx - (im.width - 2 * pad) / 2 if card.get("center") else lx
+        place(base, im, lx0 - pad, ly - asc * 0.62 - pad, 1, ua * A, 0)
         if card.get("sub"):
             im2, pad2, asc2, _ = token_img(card["sub"], "g4", S3, C3["gray"])
-            place(base, im2, lx - pad2, ly + card.get("subY", S3 * 1.25) - asc2 * 0.62 - pad2, 1, ua * A, 0)
+            lx1 = lx - (im2.width - 2 * pad2) / 2 if card.get("center") else lx
+            place(base, im2, lx1 - pad2, ly + card.get("subY", S3 * 1.25) - asc2 * 0.62 - pad2, 1, ua * A, 0)
     elif mode == "type3":
         # 打つ字（つかみ：職人の一言）：1 字ずつ出る。打っている所に金色の細い棒（打ち終わったら 1 拍で消える）
         x, y0 = card.get("x", 120), card.get("y", 400)
@@ -1287,7 +1328,7 @@ def draw3(base, card, b):
         place(base, im, x - pad, yb - asc - pad + 10 * (1 - u), 1, u * A, 0)
 
 
-KINDS3 = {"senior5": render_senior5, "flow3": render_flow3, "flow4": render_flow4, "imgs": render_imgs, "term": render_term, "school3": render_school3, "senior3": render_senior3, "check3": render_check3, "stat3": render_stat3}
+KINDS3 = {"said8": render_said8, "senior5": render_senior5, "flow3": render_flow3, "flow4": render_flow4, "imgs": render_imgs, "term": render_term, "school3": render_school3, "senior3": render_senior3, "check3": render_check3, "stat3": render_stat3}
 
 
 def render_clip(clip, tl):

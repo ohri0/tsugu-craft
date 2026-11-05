@@ -1,6 +1,19 @@
 # 動画を組む仕組み
 
-## 最終案 7（2026-11-05。いまの作り方）
+## 最終案 8（2026-11-05。いまの作り方）
+
+最終案 7 の仕組みのまま、作者が最終案 7 を見た声と、作者の映像を入れたもの。台本は `PLAN-final8.md`（いちばん上に今の状況と次のコマンド）、声の 37 行は `../docs/NARRATION-ad.md`。
+
+- 台本：`final_build8.py` → `final8.json`（全部あり 356 拍 ＝ 2:58）／`VARIANT=B` で `final8B.json`（工房なし 2:54）／`VARIANT=C` で `final8C.json`（赤なし 2:52）。
+- 撮る：`capture/story.cjs` の hero8・hero8b・word8・sizes8・ask8m・workshops8・red8・make8m・finished8。first7（最初の版）は撮り直さず、rebuild3・learn4m もそのまま。hero8 は hero7 のカメラ（`story/hero7/camera.json`）を使うので、first7 と腕の輪が重なる。
+  1. `npx vite build --outDir video/work/dist-cap8 --emptyOutDir`、`CAP_DIST=$PWD/video/work/dist-cap8 CAP_PORT=5221 node video/capture/serve.cjs`（撮る相手は `TSUGU_CAP=http://localhost:5221`）、`npx vite --port 5180 --strictPort`（word8・ask8m の本物の Claude）。
+  2. `TSUGU_CAP=http://localhost:5221 node video/capture/story.cjs word8 ask8m hero8 hero8b sizes8 workshops8 red8 make8m finished8`。Claude は word8 に 1 回、ask8m に 2 回。
+- 作者の映像：`work/footage/raw/`（変えない）から `python -I foot8.py` が補正した物を作る。手元 `ring1.mov`（暗部を締める・最後の 0.8 秒で黒へ）と音 `hand_sound.wav`、材料と道具 `parts.mov`（紙のむらとカメラの明るさのゆれを除いて、暗い動画に合わせて光を当て直す）、完成した指輪 `finished.mov`（`raw/finished.mov` があれば同じ補正。ないときは仮の `kari_finished.mov`）。
+- `reel.py` に足した物：`stack`（1 つの窓に、同じ時刻の画面を 2 か所切り取って置く）・`said8`（職人の言葉 → 決まりを大きく）・数字の札を真ん中にそろえる（`center`）。`final.py`：`--plan 8`（名前は全部あり・工房なし・赤なし）・手元の映像の音（`HAND_VOLUME`）。
+- 仮声：`KOKORO_SPEED=1.0 video/work/.venv/bin/python -I video/tts_kokoro.py video/final8.json "" video/work/voice/sim8`。
+- 組む：`TSUGU_OWN_VOICE=$PWD/video/work/voice/sim8 video/work/.venv/bin/python -I video/final.py --plan 8 --jobs 14`（工房なしは `--variant B`、赤なしは `--variant C`）→ `work/vc/継ぐ_デモ_最終案8_全部あり_仮声.mp4`・`_仮声_スマホ.mp4`（1280 × 720・20 MB 以下）。
+
+## 最終案 7（2026-11-05）
 
 最終案 6 の仕組みのまま、場面を減らして 1 つを長くしたもの。台本は `PLAN-final7.md`（いちばん上に今の状況と次のコマンド）、声の 40 行は `../docs/NARRATION-ad.md`。
 

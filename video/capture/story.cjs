@@ -27,7 +27,7 @@ const CURSOR_CSS = `#__cur{position:fixed;left:-60px;top:-60px;width:26px;height
 const ARROW = `<svg width="26" height="30" viewBox="0 0 26 30"><path d="M5 3v20.5l5.2-4.9 3.6 8.2 3.6-1.6-3.6-8.1h7.1z" fill="#fff" stroke="#111" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
 
 // 章ごとの画面の大きさ（なければ 1600×900）。帳面・学ぶ・技は、スマホの幅（480）で撮る（字が大きく読める。作者も iPhone で使う）
-const SIZE = { ledger3m: [480, 900], waza3m: [480, 900], learn3m: [480, 900], learn4m: [480, 900], ledger7m: [480, 900], make7m: [480, 900] };
+const SIZE = { ledger3m: [480, 900], waza3m: [480, 900], learn3m: [480, 900], learn4m: [480, 900], ledger7m: [480, 900], make7m: [480, 900], ask8m: [480, 900], make8m: [480, 1000] };
 async function chapter(name, fn) {
   const D = `${OUT}/${name}/`;
   fs.rmSync(D, { recursive: true, force: true });
@@ -285,6 +285,19 @@ const aimAt = (p, at, D, d, sx = 0, sy = 0) => p.evaluate(({ at, D, d, sx, sy })
 }, { at, D, d, sx, sy });
 const WORD7 = 'この大きさの石なら、爪はだいたい 0.8〜1 ミリ。最低でも 0.7 ミリ。細いと曲がって石が落ちる。';
 const ANSWER7 = '5.5 ミリくらいの石なら、0.7 ミリはほしい。';
+// 最終案 8（作者が決めた言葉。どの大きさの石の話かを、はじめに言う）
+const WORD8 = '8 mm くらいの石なら、爪はだいたい 0.8〜1 ミリ。最低でも 0.7 ミリ。細いと曲がって石が落ちる。';
+const ANSWER8 = ANSWER7;
+const dimsText = (p) => p.evaluate(() => [...document.querySelectorAll('.dims text, .dims .dim-label, .dim-label')].map((t) => t.textContent).join(' ・ '));
+/** 石の大きさを変える（確かめるの「手で変える」の石の大きさの数の欄に打つ。本物の操作）。細かい形まで待つ */
+const setStone = async (a, mm) => {
+  const { p } = a;
+  await refine(a); await openManual(a);
+  const sel = '.slider[data-s="r-stone"] .sl-num input';
+  await p.locator(sel).scrollIntoViewIfNeeded();
+  await p.fill(sel, String(mm)); await p.press(sel, 'Enter');
+  await fine(a, 800);
+};
 
 const CH = {
   // 組む：石の写真に輪郭 → 石が立体に → 線から指輪が組み上がる → 寸法 → 図面と作り方（工房 B ＝ ネットの公開情報だけ。爪が太い）
@@ -1601,6 +1614,303 @@ const CH = {
     await a.box('card4', c4, 6); await a.box('rule', `${c4} .rule-in-step`, 8); a.mark('rule');
     console.log('make7m 職人の決まり', await p.evaluate((s) => document.querySelector(s)?.innerText.replace(/\s+/g, ' '), `${c4} .rule-in-step`));
     await a.hold(N(120), { hide: true });
+  },
+  // ================================================================ 最終案 8（2026-11-05。今の形で撮り直す。最初の版 first7 は撮り直さない）
+  // 見せる（黒の上）：今の既定の三角・K18 と、丸 8 mm・Pt900。カメラは hero7 と同じ（first7 と腕の輪が重なる）
+  hero8: async (a) => {
+    const { p } = a;
+    const cam = JSON.parse(fs.readFileSync(`${OUT}/hero7/camera.json`, 'utf8'));
+    await studio(a);
+    await p.click('.act-present'); await a.settle(1500);
+    await hideClose(p);
+    await p.evaluate(() => { window.__viewer.setView('angle'); window.__viewer.keepCamera = true; }); await a.settle(400);
+    console.log('hero8 三角', await p.evaluate(() => document.querySelector('.pr-panel')?.innerText.replace(/\s+/g, ' ')), '／', await specsText(p), '／', await dimsText(p));
+    await setCam(p, cam);
+    a.mark('tri'); await a.box('ring', '.gl', 0);
+    await a.hold(N(280), { hide: true });
+    await p.click('.pr-close'); await a.settle(600);
+    await p.click('.tabs [data-mode="make"]'); await a.settle(300);
+    await p.click('.presets button[data-preset="round"]'); await a.settle(600);
+    await a.until(() => !!(window.__studio.session && window.__studio.session.built), null, { label: 'round' });
+    await fine(a, 1200);
+    await setStone(a, 8);
+    await p.click('.act-present'); await a.settle(1200);
+    await p.click('.pr-tabs button[data-g="setting"]'); await a.settle(200); await p.click('.pr-opt button[data-v="4"]'); await fine(a);
+    await p.click('.pr-tabs button[data-g="metal"]'); await a.settle(200); await p.click('.pr-opt button[data-v="pt900"]'); await fine(a);
+    console.log('hero8 丸', await p.evaluate(() => document.querySelector('.pr-panel')?.innerText.replace(/\s+/g, ' ')), '／', await specsText(p));
+    await setCam(p, cam);
+    a.mark('round');
+    await a.hold(N(140), { hide: true });
+  },
+  // 見せる（黒の上）：柱の一文の指輪。同じカメラのまま、回る向きの先の側から（hero7b のやり方）
+  hero8b: async (a) => {
+    const { p } = a;
+    const cam = JSON.parse(fs.readFileSync(`${OUT}/hero7/camera.json`, 'utf8'));
+    await studio(a);
+    await p.click('.act-present'); await a.settle(1500);
+    await hideClose(p);
+    await p.evaluate(() => { window.__viewer.setView('angle'); window.__viewer.keepCamera = true; }); await a.settle(300);
+    const th = 118 * Math.PI / 180;
+    const [ox, oy] = [cam.pos[0] - cam.tgt[0], cam.pos[1] - cam.tgt[1]];
+    await setCam(p, { pos: [cam.tgt[0] + ox * Math.cos(th) - oy * Math.sin(th), cam.tgt[1] + ox * Math.sin(th) + oy * Math.cos(th), cam.pos[2]], tgt: cam.tgt });
+    a.mark('start');
+    await a.hold(N(270), { hide: true });
+  },
+  // 職人の言葉 → Claude の案 → これでいい（Claude は 1 回）。word7 の前半と同じ手順で、言葉だけ替えた。これまでの作品の場面は外した
+  word8: async (a) => {
+    const { p } = a;
+    await studio(a); await workshopB(a, '試しの工房');
+    await p.reload({ waitUntil: 'load' });
+    await a.until(() => !!(window.__studio && window.__studio.session && window.__studio.session.built && window.__viewer), null, { label: '組み上がり', chunk: 50 });
+    await a.settle(1200);
+    await refine(a); await renderDisp(a);
+    await watchLook(p);
+    await p.locator('.add-samples').first().scrollIntoViewIfNeeded(); await a.settle(300);
+    await p.click('.add-samples'); await a.settle(1500);
+    console.log('word8 前の数字', await specsText(p));
+    await p.locator('.ar-text').scrollIntoViewIfNeeded(); await a.settle(300);
+    await a.box('ring', '.vp', 0); await a.box('panel', '.studio-refine', 0); a.mark('start');
+    await a.hold(N(20));
+    await a.box('field', '.ar-text', 10); a.mark('type');
+    // 押したあと、カーソルを字の上からよける（職人の言葉が隠れないように）
+    await a.press('.ar-text', { n: 12, after: 2 });
+    const fb8 = await p.locator('.ar-text').boundingBox();
+    await a.move({ x: fb8.x + fb8.width - 10, y: fb8.y + fb8.height + 16 }, 8);
+    a.mark('typeGo');
+    for (const ch of (process.env.CAP_TEST ? WORD8.slice(0, 4) : WORD8)) { await p.keyboard.insertText(ch); await a.hold(2); }
+    a.mark('typed');
+    await a.hold(N(8));
+    await a.box('go', '.ar-go', 8);
+    if (process.env.CAP_TEST) await p.evaluate((q) => { window.__propose({ title: '爪の太さ（試し）', text: '試し', reason: '試し', quote: q, param: 'prong.minDiameterMm', value: 0.7 }); }, WORD8);
+    else await a.press('.ar-go', { after: 0 });
+    a.mark('wait');
+    await a.until(() => /これでいい/.test(document.querySelector('.ar-proposal')?.innerText || ''), null, { label: 'Claude の案', timeout: 180000 });
+    // 案が欄の下に隠れないように（既知の不具合。人がスクロールして見るのと同じ）
+    await p.evaluate(() => document.querySelector('.ar-proposal')?.scrollIntoView({ block: 'center' })); await a.settle(300);
+    await a.box('proposal', '.ar-proposal', 10); a.mark('proposal');
+    console.log('word8 の案', await p.evaluate(() => document.querySelector('.ar-proposal')?.innerText.replace(/\s+/g, ' ')));
+    await a.hold(N(60));
+    await a.box('ok', '.ar-proposal button.ok', 8);
+    await a.press('.ar-proposal button.ok', { after: 0 });
+    a.mark('applied');
+    await a.until(() => /爪の太さ|0\.7/.test(document.querySelector('.rule-flash')?.innerText || ''), null, { label: '決まりが入る', timeout: 20000 });
+    await fine(a);
+    await a.hold(N(10));
+    console.log('word8 後の数字', await specsText(p));
+    console.log('word8 決まりの字', await p.evaluate(() => document.querySelector('.rule-flash')?.innerText.replace(/\s+/g, ' ')));
+    console.log('word8 帳面の決まり', await p.evaluate(() => { const w = JSON.parse(localStorage.getItem('tsugu.workshops.v1') || '{}'); const l = (w.list || []).find((x) => /試し/.test(x.name)); const r = l?.ledger?.rules?.slice(-1)[0]; return JSON.stringify(r ? { title: r.title, text: r.text, value: r.value, bySize: r.bySize, bySizeLine: r.bySizeLine, quote: r.quote } : null); }));
+  },
+  // 石の大きさのちがう指輪 3 つ（石川工房の帳面：爪の決まりは石の大きさの線）。同じカメラ・同じ向きから回り始める。大きさのちがいがそのまま見える
+  sizes8: async (a) => {
+    const { p } = a;
+    const cam0 = JSON.parse(fs.readFileSync(`${OUT}/hero7/camera.json`, 'utf8'));
+    // 3 つ並べるので引く。上下は石まで入るように、見る所を少し上へ
+    const K = 1.2;
+    const cam = { ...cam0, pos: cam0.pos.map((v, i) => cam0.tgt[i] + (v - cam0.tgt[i]) * K) };
+    await studio(a);
+    await p.click('.tabs [data-mode="make"]'); await a.settle(300);
+    await p.click('.presets button[data-preset="round"]'); await a.settle(600);
+    await a.until(() => !!(window.__studio.session && window.__studio.session.built), null, { label: 'round' });
+    await fine(a, 1200);
+    for (const [mm, name] of [[6, 'S6'], [8, 'S8'], [10, 'S10']]) {
+      await setStone(a, mm);
+      console.log('sizes8', mm, await specsText(p), '／', await p.evaluate(() => { const s = window.__studio.session; const b = s.built; return JSON.stringify({ long: s.stone.longMm, width: s.stone.widthMm, prong: b.ring.setting.prongs[0]?.diameterMm, std: b.ring.setting.standardProngMm, n: b.ring.setting.prongs.length, join: b.ring.params?.setting?.join, probs: b.problems.map((x) => x.check) }); }));
+      await p.click('.act-present'); await a.settle(1200);
+      await hideClose(p);
+      await p.evaluate(() => { window.__viewer.keepCamera = true; }); await a.settle(100);
+      await setCam(p, cam);
+      a.mark(name);
+      await a.box('ring', '.gl', 0);
+      await a.hold(N(130), { hide: true });
+      await p.click('.pr-close'); await a.settle(600);
+      await p.evaluate(() => { window.__viewer.keepCamera = false; });
+    }
+  },
+  // Claude が聞きに来る（スマホの幅）：確かめるの画面に質問の札（?rec では出ないので ?rec&ask）→ 答える → 帳面の問い → 作者の言葉で答える → Claude の案 → 帳面に入れる
+  ask8m: async (a) => {
+    const { p } = a;
+    p.on('dialog', (d) => d.accept());  // 帳面の頁は ?rec なしで開くので、確かめの窓が出る（人が OK を押すのと同じ）
+    await p.goto(`${BASE}/studio.html?rec&ask&nointro`, { waitUntil: 'load' });
+    await a.until(() => !!(window.__studio && window.__studio.session && window.__studio.session.built && window.__viewer), null, { label: '組み上がり', chunk: 50 });
+    await a.settle(1200);
+    await p.click('.tabs [data-mode="make"]'); await a.settle(300);
+    await p.click('.presets button[data-preset="round"]'); await a.settle(600);
+    await a.until(() => !!(window.__studio.session && window.__studio.session.built), null, { label: 'round' });
+    await fine(a, 1200);
+    await refine(a); await renderDisp(a);
+    await p.click('.t-grid'); await p.click('.t-dims'); await a.settle(300);
+    await p.evaluate(() => { window.__viewer.keepCamera = true; }); await a.settle(100);
+    const seat = await p.evaluate(() => { const r = window.__studio.session.built.ring; return [0, 0, r.shank.outerRadiusMm + r.shank.innerRadiusMm + 2.2]; });
+    // 石を 3D の所の下の方へ（切り取りの枠に、石と札が入るように）。3D の所の真ん中はページの (240, 215)
+    await aimAt(p, seat, [0.75, -1.0, 0.62], 27, 0, 215 - 262);
+    await a.settle(200);
+    console.log('ask8m 札', await p.evaluate(() => document.querySelector('.ask-nudge')?.innerText.replace(/\s+/g, ' ')), '／', await specsText(p));
+    await a.box('nudge', '.ask-nudge', 2); await a.box('btn', '.ask-nudge a.primary', 6); a.mark('card');
+    await a.hold(N(60), { turn: 0.0012 });
+    a.mark('go');
+    const c = await a.move('.ask-nudge a.primary', 16, { turn: 0.0012 });
+    await a.shot({ rip: 1 });
+    a.mark('press');
+    await a.shot({ rip: 0.8 });
+    await Promise.all([p.waitForURL(/app\.html/, { timeout: 30000 }), p.mouse.click(c.x, c.y)]);
+    console.log('ask8m url', p.url());
+    await a.until(() => { const q = document.querySelector('.iv-q'); return q && !q.classList.contains('pending') && /Claude が聞いています|つながらない/.test(document.body.innerText); }, null, { label: 'Claude の問い', timeout: 120000 });
+    await a.settle(900);
+    await p.evaluate(() => document.querySelector('.iv-card')?.scrollIntoView({ block: 'start' })); await a.settle(200);
+    await a.box('interview', '.iv-card', 12); await a.box('q', '.iv-q', 8); a.mark('asked');
+    console.log('ask8m の問い（Claude）', await p.evaluate(() => document.querySelector('.iv-q')?.innerText));
+    console.log('ask8m 問いのわけ', await p.evaluate(() => document.querySelector('.iv-why')?.innerText.replace(/\s+/g, ' ')));
+    await a.hold(N(40));
+    await a.box('answer', '.answer-box textarea', 10);
+    await a.type('.answer-box textarea', process.env.CAP_TEST ? ANSWER8.slice(0, 3) : ANSWER8, { each: 3 });
+    a.mark('typed');
+    await a.hold(N(30));
+    await a.box('make', '.answer-box button.make', 8);
+    await a.press('.answer-box button.make', { after: 0 });
+    a.mark('wait');
+    await a.hold(N(4));
+    await a.until(() => /帳面に入れる/.test(document.querySelector('.proposal-slot')?.innerText || ''), null, { label: 'Claude の決まり', timeout: 180000 });
+    await a.settle(200);
+    await p.evaluate(() => document.querySelector('.proposal-slot .proposal')?.scrollIntoView({ block: 'center' })); await a.settle(200);
+    await a.box('draft', '.proposal-slot .proposal', 10); await a.box('title', '.proposal-slot .iv-rule', 8); await a.box('quote', '.proposal-slot blockquote', 8); a.mark('draft');
+    console.log('ask8m の案', await p.evaluate(() => document.querySelector('.proposal-slot')?.innerText.replace(/\s+/g, ' ')));
+    await a.hold(N(100));
+    await a.box('ok', '.proposal-slot [data-a="ok"]', 8);
+    await a.press('.proposal-slot [data-a="ok"]', { after: 6 });
+    a.mark('saved');
+    await a.hold(N(10));
+    console.log('ask8m 帳面の点', await p.evaluate(() => { const l = JSON.parse(localStorage.getItem('tsugu.ledger.v1') || 'null'); const r = l?.rules?.filter((x) => x.param === 'prong.minDiameterMm' && !x.replacedBy).slice(-1)[0]; return JSON.stringify(r ? { title: r.title, text: r.text, bySize: r.bySize, quote: r.quote } : null); }));
+  },
+  // 工房ごとに：同じ指輪を、石川工房と工房 B の帳面で。石と爪に寄る（爪の太さの差がはっきり見えるように）。A と B は別の区切り。同じカメラ・同じ速さで回る
+  workshops8: async (a) => {
+    const { p } = a;
+    await studio(a); await workshopB(a); await renderDisp(a);
+    const mainVal = await p.evaluate(() => document.querySelector('.ws-pick option').value);
+    const bVal = await p.evaluate(() => [...document.querySelectorAll('.ws-pick option')].find((o) => /工房 B/.test(o.textContent))?.value);
+    const shoot = async (val, name, frames) => {
+      await p.selectOption('.ws-pick', val); await fine(a, 1200);
+      console.log('workshops8', name, await specsText(p));
+      await p.click('.act-present'); await a.settle(1200);
+      await hideClose(p);
+      await p.evaluate(() => { window.__viewer.keepCamera = true; window.__viewer.setView('angle'); }); await a.settle(200);
+      const seat = await p.evaluate(() => { const r = window.__studio.session.built.ring; return [0, 0, r.shank.outerRadiusMm + r.shank.innerRadiusMm + 3.0]; });
+      await aimAt(p, seat, [0.55, -1.0, 0.95], 34);
+      a.mark(name);
+      await a.hold(N(frames), { hide: true });
+      await p.click('.pr-close'); await a.settle(600);
+      await p.evaluate(() => { window.__viewer.keepCamera = false; });
+    };
+    await shoot(mainVal, 'A', 130);
+    await shoot(bVal, 'B', 130);
+  },
+  // 作れない所は、赤く光る：爪のつまみで細くする → 爪が赤く光る → 太くする → 消える。腕の尖りは使わない。粗い形のこまは撮らない
+  red8: async (a) => {
+    const { p } = a;
+    await studio(a); await refine(a); await openManual(a); await renderDisp(a);
+    await p.click('.t-grid'); await p.click('.t-dims'); await a.settle(300);
+    await p.evaluate(() => { window.__viewer.keepCamera = true; }); await a.settle(100);
+    const sl = '.slider[data-s="r-prong"]';
+    // つまみの行を、枠の決まった高さに留める（問題が出ると上に欄が増えるので、こまごとに合わせる）
+    const pin = () => p.evaluate(({ sl, y }) => { const r = document.querySelector('.studio-refine'); const s = document.querySelector(sl)?.getBoundingClientRect(); if (s) r.scrollTop += s.top - y; }, { sl, y: 560 });
+    await pin(); await a.settle(200);
+    const seat = await p.evaluate(() => { const r = window.__studio.session.built.ring; return [0, 0, r.shank.outerRadiusMm + r.shank.innerRadiusMm + 2.4]; });
+    // 3D の所の真ん中はページの (652, 434)。石座を、切り取りの枠 [160, 44, 1100, 700] の真ん中（ページの 710, 394）へ
+    await aimAt(p, seat, [0.62, -1.0, 0.78], 21, 58, 40);
+    await a.settle(200);
+    const thumb = (v) => p.evaluate(({ sl, v }) => { const r = document.querySelector(`${sl} input[type="range"]`); const b = r.getBoundingClientRect(); const u = (v - Number(r.min)) / (Number(r.max) - Number(r.min)); const T = 18; return { x: b.left + T / 2 + u * (b.width - T), y: b.top + b.height / 2 }; }, { sl, v });
+    const num = () => p.evaluate((sl) => document.querySelector(`${sl} .sl-num input`)?.value, sl);
+    const drag = async (from, to, near, n) => {
+      const c0 = await thumb(from); const c1 = await thumb(to);
+      await a.move(c0, near, { turn: 0.001 }); await pin();
+      await a.shot({ rip: 1, turn: 0.001 });
+      await p.mouse.down();
+      for (let k = 1; k <= n; k++) {
+        const e = ease(k / n);
+        await a.move({ x: c0.x + (c1.x - c0.x) * e, y: c0.y }, 1, { rip: 0.5, turn: 0.001 });
+      }
+      await p.mouse.up();
+    };
+    // こまの数は、そのまま 1 倍で流して 180 こま（12 拍）になるように決めた：12（はじめ）＋ 29（細くする）＋ 50（赤く光る）＋ 27（太くする）＋ 62（消えた）
+    await a.box('slider', sl, 8); await a.box('chip', '.verdict-chip', 8); a.mark('start');
+    console.log('red8 はじめ', await specsText(p), await num());
+    for (let k = 0; k < N(12); k++) { await a.shot({ turn: 0.001 }); await pin(); }
+    a.mark('go');
+    await drag(0.8, 0.55, 10, N(18));
+    a.mark('up');
+    await a.until(() => !window.__studio.session.pendingFinal, null, { label: '細かい形', chunk: 50 });
+    await a.settle(100); await pin();
+    a.mark('red'); await a.box('chip2', '.verdict-chip', 8); await a.box('slider2', sl, 8);
+    console.log('red8 細くした', await specsText(p), await num(), JSON.stringify(await p.evaluate(() => window.__studio.session.built.problems.map((x) => `${x.check}:${x.current}→${x.required}`))), await p.evaluate(() => document.querySelector('.verdict-chip')?.innerText));
+    for (let k = 0; k < N(50); k++) { await a.shot({ turn: 0.001 }); await pin(); }
+    a.mark('back');
+    const v1 = Number(await num());
+    // 0.80 mm に戻すと、留まりが 0.998× で「作れない所 1」が残る（標準の太さが 0.8004 mm のため。アプリの小さな不具合。作者に報告）。なので 0.85 mm まで太くする
+    await drag(v1, 0.85, 8, N(18));
+    a.mark('up2');
+    await a.until(() => !window.__studio.session.pendingFinal, null, { label: '細かい形', chunk: 50 });
+    await a.settle(100); await pin();
+    a.mark('fixed'); await a.box('chip3', '.verdict-chip', 8); await a.box('slider3', sl, 8);
+    console.log('red8 太くした', await specsText(p), await num(), JSON.stringify(await p.evaluate(() => window.__studio.session.built.problems.map((x) => `${x.check}:${x.current}→${x.required}`))), await p.evaluate(() => document.querySelector('.verdict-chip')?.innerText));
+    for (let k = 0; k < N(90); k++) { await a.shot({ turn: 0.001 }); await pin(); }
+  },
+  // 完成した指輪（仮。本物の映像 finished.mov が来るまで）：今の既定の三角を、ほぼ真上から。黒と白の地で 1 枚ずつ撮り、foot8.py が紙の上に重ねる（2 枚の差で、指輪の形を切り抜く）
+  finished8: async (a) => {
+    const { p } = a;
+    await studio(a);
+    await p.click('.act-present'); await a.settle(1500);
+    await p.addStyleTag({ content: '.pr-panel,.pr-close{display:none!important}' });
+    const D = [0.5, 0, 1];
+    const info = await p.evaluate(({ D }) => {
+      const v = window.__viewer; const c = v.camera; const V = c.position.constructor;
+      v.keepCamera = true; v.controls.autoRotate = false; v.setGrid?.(false);
+      if (v.shadow) v.shadow.plane.visible = false;
+      const r = window.__studio.session.built.ring;
+      const tgt = new V(0, 0, r.shank.innerRadiusMm + 0.5);
+      const dir = new V(D[0], D[1], D[2]).normalize();
+      v.controls.target.copy(tgt); c.position.copy(tgt).add(dir.multiplyScalar(90));
+      c.up.set(0, 0, 1); c.lookAt(tgt); v.controls.update(); v.dirty = true;
+      c.updateMatrixWorld();
+      // 石のまん中がこまのどこに来るか（ページの px）
+      const q = new V(0, 0, r.shank.outerRadiusMm + r.shank.innerRadiusMm + 3.0).project(c);
+      const g = document.querySelector('.gl').getBoundingClientRect();
+      const h = g.height; const pxmm = h / (2 * 90 * Math.tan(c.fov * Math.PI / 360));
+      return { stone: [g.x + (q.x + 1) / 2 * g.width, g.y + (1 - q.y) / 2 * g.height], pxmm, long: window.__studio.session.stone.longMm };
+    }, { D });
+    console.log('finished8', JSON.stringify(info), await specsText(p));
+    fs.writeFileSync(`${OUT}/finished8/info.json`, JSON.stringify(info));
+    const paint = (hex) => p.evaluate((hex) => { const v = window.__viewer; v.scene.background = null; v.renderer.setClearColor(hex, 1); v.dirty = true; }, hex);
+    await paint(0x000000); await a.settle(400); a.mark('black'); await a.shot({ hide: true });
+    await paint(0xffffff); await a.settle(400); a.mark('white'); await a.shot({ hide: true });
+  },
+  // 作り方の札（スマホの幅）：04 ロウ付けで閉じる で止める（スクロールしない）→ 「詳しく」を押して開く。職人の決まりの札を読む。
+  // 08「下の輪を腕の間に挟んでロウ付けする」には「詳しく」がない（工程の中の決まりが 3 つで、札も長い）ので、職人の決まりと「詳しく」が同じ札にある 04 にした
+  make8m: async (a) => {
+    const { p } = a;
+    await studio(a); await renderDisp(a);
+    await p.click('.tabs [data-mode="hand"]'); await a.settle(1000);
+    await renderDisp(a);
+    const c4 = '.build-panel .mk-card:nth-child(4)';
+    console.log('make8m 札', await p.evaluate((s) => document.querySelector(`${s} h3`)?.innerText, c4));
+    // 札の頭を、パネルの頭に合わせる（ここまでは撮らない）
+    await p.evaluate((s) => document.querySelector(s).scrollIntoView({ block: 'start' }), c4); await a.settle(300);
+    await a.box('panel', '.build-panel', 0); await a.box('card', c4, 4); await a.box('rule', `${c4} .rule-in-step:not(.pub-in-step)`, 6); await a.box('more', `${c4} details.more > summary`, 6);
+    await a.box('quote', `${c4} .rule-in-step:not(.pub-in-step) .r-q`, 4); await a.box('text', `${c4} .rule-in-step:not(.pub-in-step) .r-text`, 4);
+    console.log('make8m 職人の決まり', await p.evaluate((s) => document.querySelector(s)?.innerText.replace(/\s+/g, ' '), `${c4} .rule-in-step:not(.pub-in-step)`));
+    a.mark('card');
+    await a.hold(N(60), { hide: true });
+    a.mark('go');
+    await a.move(`${c4} details.more > summary`, 20);
+    await a.shot({ rip: 1 });
+    a.mark('press');
+    await p.mouse.click((await p.locator(`${c4} details.more > summary`).boundingBox()).x + 40, (await p.locator(`${c4} details.more > summary`).boundingBox()).y + 12);
+    await a.shot({ rip: 0.65 }); await a.shot({ rip: 0.3 });
+    await a.settle(50);
+    await a.box('lines', `${c4} details.more ul.lines`, 6);
+    a.mark('open');
+    console.log('make8m 詳しく', await p.evaluate((s) => document.querySelector(s)?.innerText.replace(/\s+/g, ' ').slice(0, 200), `${c4} details.more ul.lines`));
+    await a.move({ x: 470, y: 980 }, 14);
+    a.mark('away');
+    await a.hold(N(200), { hide: true });
   },
   // ================================================================ 最終案 4（2026-11-04 夜）
   // つかみ：公開情報だけの指輪（太く高い）→ 職人の決まりの指輪へ、同じ構図のまま切り替わる（斜め・レンダー）
