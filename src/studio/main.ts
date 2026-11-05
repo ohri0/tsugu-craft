@@ -24,11 +24,11 @@ import { loadPhoto } from "../ui/photo";
 import { Viewer, type DisplayMode } from "../ui/viewer";
 import { extractStone, type Extraction } from "../vision/extract";
 import { PARAMS, activeRules, addRule, seedLedger, sourceLabel, valueFor, type Ledger, type ParamId, type Rule } from "../rules/ledger";
-import { askConfirm } from "../app/confirm";
+import { askConfirm, filming } from "../app/confirm";
 import { askPassword, resetPassword } from "../app/password";
 import { esc, store, today } from "../app/store";
 import { bindVoice } from "../app/voice";
-import { bookLabel, masterName, sourceName } from "../app/master";
+import { bookLabel, bookTitle, masterName, sourceName } from "../app/master";
 import { toStl } from "../cad/solid";
 import { buildStone } from "../geometry/stone";
 import { LAYOUT_LABEL, METAL_LABEL, RingSession, SLOT_SHAPE_LABEL, STONE_LONG_RANGE, carryDesign, fitStoneDepth, fitStoneLong, tuneProngMm, underLedger, type Built, type SlotShape } from "./session";
@@ -94,13 +94,16 @@ let session: RingSession | null = null;
 let reason = "";
 let undoClaude: (() => boolean) | null = null;
 
+// 字・押す所・色の直し（pro.css の html.fit）。撮影では付けない（動画の絵を前のままにする）
+document.documentElement.classList.toggle("fit", !filming());
+
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
 <div class="pro" data-mode="make">
   <header class="tb">
     <div class="tb-l"><a class="brand" href="./"><span class="logo">継</span>継ぐ</a><span class="doc"><span class="word-name">新しい作品</span></span></div>
     <nav class="tabs" aria-label="場面">${MODES.map((m) => `<button type="button" data-mode="${m.id}" title="${m.sub}（${m.key}）">${m.word}<span class="k">${m.key}</span></button>`).join("")}</nav>
-    <div class="tb-r"><nav class="places hide-sm" aria-label="ほかの場所"><a href="app.html#ledger" title="職人の決まりと、Claude からの質問">帳面</a><a href="app.html#learn" title="次の人が、職人の決まりに聞いて学ぶ">学ぶ</a><a href="app.html#waza" title="彫金・金工の技と、途切れた技を組み立て直す">技</a></nav><button type="button" class="btn quiet act-present">見せる</button><button type="button" class="btn quiet act-why">なぜ継ぐ</button><button type="button" class="btn act-sheet hide-sm">図面・指示書</button><button type="button" class="btn primary act-stl">STL</button></div>
+    <div class="tb-r"><nav class="places hide-sm" aria-label="ほかの場所"><a href="app.html#ledger" title="職人の決まりと、Claude からの質問">帳面</a><a href="app.html#learn" title="次の人が、職人の決まりに聞いて学ぶ">学ぶ</a><a href="app.html#waza" title="彫金・金工の技と、途切れた技を組み立て直す">技</a></nav><button type="button" class="btn quiet act-present">見せる</button><button type="button" class="btn quiet act-why">なぜ継ぐ</button><button type="button" class="btn act-sheet hide-sm">図面・指示書</button><button type="button" class="btn primary act-stl">STL</button>${filming() ? "" : `<button type="button" class="btn quiet act-more" aria-label="ほかの場所" aria-expanded="false">≡</button><nav class="more-menu" hidden aria-label="ほかの場所"><a href="app.html#ledger">帳面</a><a href="app.html#learn">学ぶ</a><a href="app.html#waza">技</a><button type="button" class="more-sheet">図面・指示書を印刷</button></nav>`}</div>
   </header>
   <nav class="tools" aria-label="見る">
     ${(["angle", "top", "side", "front"] as const).map((v) => `<button type="button" class="tool view-btn" data-view="${v}" data-tip="${{ angle: "斜め", top: "上", side: "横", front: "正面" }[v]}" aria-label="${{ angle: "斜め", top: "上", side: "横", front: "正面" }[v]}">${ICON[v]}</button>`).join("")}
@@ -149,6 +152,7 @@ app.innerHTML = `
       <section class="sec"><h4>Claude の作業</h4>
         <p class="make-note" hidden></p>
         <ol class="worklog"><li class="note">下の欄に希望を書いて「生む」。Claude が組み、作れるか確かめて直します。</li></ol>
+        ${filming() ? "" : `<button type="button" class="next-btn make-next">作れるか確かめる・手で変える →</button>`}
         <button type="button" class="link reset-design">はじめの設計に戻す</button>
       </section>
     </div>
@@ -165,12 +169,14 @@ const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySele
 // ---- 3D ----
 const viewer = new Viewer($(".gl"));
 viewer.setDark(true);
+viewer.wireArm = !filming();
 
 // ---- 寸法の線と軸の印（3D を描き直すたびに合わせる） ----
 let dims: Dim[] = [];
 let showDims = true;
 /** 寸法のうち、隠しているもの（寸法のボタンを長く押す・右の小さな ▾ で選ぶ） */
-const hiddenDims = new Set<string>(JSON.parse(localStorage.getItem("tsugu.hiddenDims") ?? "[]"));
+// スマホは画面が小さく、札が指輪にかぶる。人がまだ選んでいなければ、内径と石の札を隠して始める（▾ で出せる）
+const hiddenDims = new Set<string>(JSON.parse(localStorage.getItem("tsugu.hiddenDims") ?? (!filming() && matchMedia("(max-width: 760px)").matches ? `["inner","stone"]` : "[]")));
 const DIM_NAMES: [string, string][] = [["inner", "内径"], ["stone", "石の大きさ"], ["culet", "石の先〜指（石のいちばん下から指まで）"], ["height", "指から上（指から石座のいちばん上まで）"]];
 /** 見せ場の間は寸法を出さない（最後に 1 本ずつ出す） */
 let holdDims = false;
@@ -322,9 +328,14 @@ document.querySelector(".shoot-help-btn")?.addEventListener("click", (e) => {
   const h = $(".shoot-help");
   h.hidden = !h.hidden;
 });
-/** same：今の石と同じ形か・同じ大きさか（長辺や深さの数字を直しただけのとき。引き継ぐ物が増える） */
-async function loadStone(img: ImageData, label: string, longMm: number, depthMm: number, opts: { intro?: boolean; same?: { shape?: boolean; size?: boolean } } = {}) {
+/**
+ * same：今の石と同じ形か・同じ大きさか（長辺や深さの数字を直しただけのとき。引き継ぐ物が増える）。
+ * shapeName：押した石の名前（「エメラルド」を押したのに、形から読んで「四角」と出ていた）
+ */
+async function loadStone(img: ImageData, label: string, longMm: number, depthMm: number, opts: { intro?: boolean; same?: { shape?: boolean; size?: boolean }; shapeName?: string } = {}) {
   stopIntro();
+  // 数字を直しただけなら、前の名前のまま
+  const keepName = opts.same && stone ? stone.shapeName : undefined;
   // 長辺や深さを直しただけなら、写真を読み直さない（輪郭の点がそろったままで、爪の位置がずれない）
   const extraction = opts.same && stone ? stone.extraction : extractStone(img);
   const measured = measureOutline({ outlinePx: extraction.outlinePx, longMm });
@@ -336,7 +347,7 @@ async function loadStone(img: ImageData, label: string, longMm: number, depthMm:
     measured,
     longMm,
     depthMm,
-    shapeName: nameShape(measured.outlineMm, corners).name,
+    shapeName: opts.shapeName ?? keepName ?? nameShape(measured.outlineMm, corners).name,
     cornerIdx: corners.map((c) => ({ index: outlineIndexAtT(measured.outlineMm, c.t), angle: Math.round(c.angleDeg) })),
   };
   $<HTMLInputElement>(".in-long").value = String(longMm);
@@ -663,7 +674,7 @@ function renderPresent() {
       metal: `${METAL_LABEL[session.state.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g`,
       gou: `${session.state.gou} 号（内径 ${(r.shank.innerRadiusMm * 2).toFixed(1)} mm）`,
       verdict: { ok: n === 0, text: n === 0 ? "作れます" : `作れない所 ${n}` },
-      quote: rule?.quote ? { text: rule.quote, by: `${masterName(store.ledger())} ・ ${bookLabel(store.ledger())}の帳面` } : undefined,
+      quote: rule?.quote ? { text: rule.quote, by: `${masterName(store.ledger())} ・ ${bookTitle(bookLabel(store.ledger()))}` } : undefined,
     },
     presentGroups(),
     presentGroup,
@@ -775,7 +786,8 @@ async function loadPreset(p: StonePreset) {
   g.fillStyle = grad;
   g.fill();
   document.querySelectorAll<HTMLButtonElement>(".presets button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.preset === p.id)));
-  await loadStone(g.getImageData(0, 0, W, W), `${p.name}の石`, p.longMm, p.depthMm, { intro: false });
+  // 撮影は前の名前のまま（台本の絵がそろうように）
+  await loadStone(g.getImageData(0, 0, W, W), `${p.name}の石`, p.longMm, p.depthMm, { intro: false, shapeName: filming() ? undefined : p.name });
   setStatus(`${p.name}（${p.longMm} × ${p.widthMm} mm、深さは例）。ノギスの値があれば、長辺と深さを直してください。`);
 }
 document.querySelectorAll<HTMLButtonElement>(".presets button").forEach((b) => b.addEventListener("click", () => void loadPreset(PRESETS.find((p) => p.id === b.dataset.preset)!)));
@@ -1053,12 +1065,57 @@ function showSheet() {
   el.hidden = false;
   $(".pro").classList.add("drawing-on");
   const body = drawingSheetHtml();
-  el.innerHTML = `<iframe title="図面" srcdoc="${esc(`<!doctype html><meta charset="utf-8"><style>${DRAWING_CSS}
+  el.innerHTML = `${filming() ? "" : `<button type="button" class="sheet-big">大きく見る</button>`}<iframe title="図面" srcdoc="${esc(`<!doctype html><meta charset="utf-8"><style>${DRAWING_CSS}
     html,body{margin:0;height:100%;background:#1c1c1e;overflow:hidden;font-family:-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
     .wrap{position:absolute;left:50%;top:50%;transform-origin:center}
     .dw{background:#fff;color:#111;box-shadow:0 20px 60px rgba(0,0,0,.5)}</style>
     <div class="wrap">${body}</div>
     <script>const w=document.querySelector('.wrap');function fit(){const r=w.firstElementChild.getBoundingClientRect();const k=Math.min(innerWidth/(r.width/(w._k||1)),innerHeight/(r.height/(w._k||1)))*0.92;w._k=k;w.style.transform='translate(-50%,-50%) scale('+k+')'}addEventListener('resize',fit);requestAnimationFrame(fit);</script>`)}"></iframe>`;
+  el.querySelector(".sheet-big")?.addEventListener("click", openSheetFull);
+}
+/** 図面を全画面で。＋ − で大きくして、指やマウスで動かして読む（スマホでは小さくて読めず、拡大もできなかった） */
+function openSheetFull() {
+  const body = drawingSheetHtml();
+  if (!body) return;
+  const el = document.createElement("div");
+  el.className = "sheet-full";
+  el.setAttribute("role", "dialog");
+  el.setAttribute("aria-label", "図面を大きく見る");
+  el.innerHTML = `<div class="sf-bar"><button type="button" class="sf-out" aria-label="小さくする">−</button><span class="sf-pct"></span><button type="button" class="sf-in" aria-label="大きくする">＋</button><button type="button" class="sf-close">閉じる</button></div>
+    <div class="sf-scroll"><div class="sf-size"><iframe title="図面" tabindex="-1" srcdoc="${esc(`<!doctype html><meta charset="utf-8"><style>${DRAWING_CSS}html,body{margin:0;background:#fff;color:#111;width:max-content;font-family:-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}</style>${body}`)}"></iframe></div></div>`;
+  document.body.appendChild(el);
+  const scroller = el.querySelector<HTMLElement>(".sf-scroll")!;
+  const size = el.querySelector<HTMLElement>(".sf-size")!;
+  const frame = el.querySelector("iframe")!;
+  let nat = { w: 1, h: 1 };
+  let fit = 1;
+  let zoom = 1;
+  const apply = () => {
+    const k = fit * zoom;
+    size.style.width = `${nat.w * k}px`;
+    size.style.height = `${nat.h * k}px`;
+    frame.style.width = `${nat.w}px`;
+    frame.style.height = `${nat.h}px`;
+    frame.style.transform = `scale(${k})`;
+    el.querySelector(".sf-pct")!.textContent = `${Math.round(zoom * 100)}%`;
+  };
+  frame.addEventListener("load", () => {
+    const page = frame.contentDocument?.body.firstElementChild?.getBoundingClientRect();
+    if (page?.width) nat = { w: page.width, h: page.height };
+    fit = scroller.clientWidth / nat.w;
+    apply();
+  });
+  const zoomBy = (m: number) => {
+    const cx = (scroller.scrollLeft + scroller.clientWidth / 2) / (nat.w * fit * zoom);
+    const cy = (scroller.scrollTop + scroller.clientHeight / 2) / (nat.h * fit * zoom);
+    zoom = Math.min(5, Math.max(1, zoom * m));
+    apply();
+    scroller.scrollLeft = cx * nat.w * fit * zoom - scroller.clientWidth / 2;
+    scroller.scrollTop = cy * nat.h * fit * zoom - scroller.clientHeight / 2;
+  };
+  el.querySelector(".sf-in")!.addEventListener("click", () => zoomBy(1.5));
+  el.querySelector(".sf-out")!.addEventListener("click", () => zoomBy(1 / 1.5));
+  el.querySelector(".sf-close")!.addEventListener("click", () => el.remove());
 }
 function hideSheet() {
   sheetOn = false;
@@ -1079,14 +1136,26 @@ document.addEventListener("keydown", (e) => {
   const m = MODES.find((x) => x.key === e.key);
   if (m) setMode(m.id);
 });
-$(".act-sheet").addEventListener("click", () => {
-  setMode("hand");
-  $<HTMLButtonElement>(".p-instr").click();
-});
-$(".act-stl").addEventListener("click", () => {
-  setMode("hand");
-  $<HTMLButtonElement>(".p-stl").click();
-});
+// 上のボタンは、場面を変えずに書き出す（押すと「作る」へ移っていた）
+$(".act-sheet").addEventListener("click", () => printSheet());
+$(".act-stl").addEventListener("click", () => exportStl());
+// スマホの上の帯のメニュー（帳面・学ぶ・技へ。図面・指示書も）
+{
+  const more = document.querySelector<HTMLButtonElement>(".act-more");
+  const menu = document.querySelector<HTMLElement>(".more-menu");
+  if (more && menu) {
+    more.addEventListener("click", (e) => {
+      e.stopPropagation();
+      menu.hidden = !menu.hidden;
+      more.setAttribute("aria-expanded", String(!menu.hidden));
+    });
+    menu.querySelector(".more-sheet")!.addEventListener("click", () => printSheet());
+    addEventListener("click", () => {
+      menu.hidden = true;
+      more.setAttribute("aria-expanded", "false");
+    });
+  }
+}
 
 // ---- 生む。：Claude が組んで、確かめて、直す ----
 const TOOL_WORD: Record<string, string> = { set_setting: "石座", set_shank: "腕", check: "確かめ", look: "見る" };
@@ -1145,7 +1214,7 @@ async function make() {
   const wish = $<HTMLInputElement>(".wish").value.trim();
   const pass = store.password() || (await askPassword(true));
   if (!pass) {
-    setStatus("生むには Claude が要ります。合言葉がないので、希望の言葉は使えません。形は今の案（決まりごとから作った案）のままです。「確かめる」の「手で変える」で変えられます。");
+    setStatus("生むには Claude が要ります。合言葉がないので、希望の言葉は使えません。形は今の案（決まりごとから作った案）のままです。", { links: [{ label: "手で変える →", run: toManual }] });
     return;
   }
   making = true;
@@ -1192,6 +1261,19 @@ async function make() {
     ],
   });
 }
+
+/** 手で変える欄を開いて、確かめるへ（合言葉がなくても、ここから続けられる） */
+function toManual() {
+  manualOpen = true;
+  setMode("refine");
+  // 質問や帳面の欄の下に隠れないよう、手で変える欄まで動かす
+  const m = document.querySelector<HTMLDetailsElement>(".studio-refine details.manual");
+  if (m) {
+    m.open = true;
+    requestAnimationFrame(() => m.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
+}
+document.querySelector(".make-next")?.addEventListener("click", toManual);
 
 function showCannot(text: string) {
   let el = document.querySelector<HTMLElement>(".cannot-chip");
@@ -1275,10 +1357,11 @@ function workshopBarHtml(): string {
   if (kind !== "solitaire") return "";
   const ws = store.workshops();
   const mainName = bookLabel(store.mainLedger());
-  const opts = [`<option value="${MAIN}"${ws.active === MAIN ? " selected" : ""}>${esc(mainName)}の帳面</option>`, ...ws.list.map((w) => `<option value="${esc(w.id)}"${ws.active === w.id ? " selected" : ""}>${esc(w.name)}の帳面</option>`)];
+  const opts = [`<option value="${MAIN}"${ws.active === MAIN ? " selected" : ""}>${esc(bookTitle(mainName))}</option>`, ...ws.list.map((w) => `<option value="${esc(w.id)}"${ws.active === w.id ? " selected" : ""}>${esc(bookTitle(w.name))}</option>`)];
   return `<section class="ws-bar"><label><span>使う帳面</span><select class="ws-pick">${opts.join("")}<option value="__new">＋ 工房の帳面を作る</option></select></label>
     <div class="ws-new" hidden><input class="ws-name" type="text" placeholder="工房の名前（例：工房 B）"><button type="button" class="primary ws-make">作る</button></div>
     ${ws.list.length ? `<button type="button" class="ghost-d ws-cmp">同じ指輪を、帳面ごとに比べる</button>` : `<p class="hint">工房ごとに決まりはちがいます。工房の帳面を作ると、同じ指輪をそれぞれの決まりで確かめられます。</p>`}
+    ${ws.list.length && !filming() ? `<a class="link ws-edit" href="app.html#ledger">この帳面の決まりを見る・直す →</a>` : ""}
     <div class="ws-table"></div></section>`;
 }
 function switchLedger(id: string) {
@@ -1291,7 +1374,7 @@ function switchLedger(id: string) {
   pastCheck = null;
   renderCheck();
   const ws = store.workshops();
-  const label = ws.active === MAIN ? `${bookLabel(store.mainLedger())}の帳面` : `${ws.list.find((w) => w.id === ws.active)?.name ?? "工房"}の帳面`;
+  const label = bookTitle(ws.active === MAIN ? bookLabel(store.mainLedger()) : (ws.list.find((w) => w.id === ws.active)?.name ?? "工房"));
   toast(`${label}で確かめ直しました`);
 }
 const ASK_LATER_KEY = "tsugu.askLater";
@@ -1548,6 +1631,8 @@ function renderCheck() {
   const pick = <T extends string | number>(name: string, cur: T, list: [T, string][]) =>
     `<div class="pick"><span>${name}</span><div>${list.map(([v, l]) => `<button type="button" data-k="${name}" data-v="${v}" aria-pressed="${v === cur}">${l}</button>`).join("")}</div></div>`;
   const fresh = lastRule ? new Set<string>(lastRule.checks) : new Set<string>();
+  // 決まりの案と「案にしています…」は、欄を描き直しても消さない（形の作り直しが案を消すと、もう押せなくなる）
+  const heldProposal = [...(box.querySelector(".ar-proposal")?.childNodes ?? [])];
   box.innerHTML = `
     ${lastRule ? `<section class="rule-flash"><small>${esc(lastRule.by)}の決まりで、確かめ直しました</small><b>${lastRule.spoken ? `「${esc(lastRule.quote)}」` : esc(lastRule.quote)}</b><span>作れない所 <em>${lastRule.before}</em> → <em class="${lastRule.after ? "ng" : "ok"}">${lastRule.after}</em>${lastRule.after && probs.length < lastRule.after ? ` → 直して <em class="${probs.length ? "ng" : "ok"}">${probs.length}</em>` : ""}</span></section>` : ""}
     <section class="big-verdict ${probs.length ? "ng" : "ok"}"><b>${probs.length ? "このままでは作れません" : "このまま作れます"}</b><small>${probs.length ? `直す所 ${probs.length}` : `爪・留まり・すき間・角、すべて目安の内側`}</small></section>
@@ -1600,6 +1685,7 @@ function renderCheck() {
     ${fixLog.length ? `<ol class="worklog fix-log">${fixLog.map((l) => `<li class="${l.cls}">${esc(l.text)}</li>`).join("")}</ol>` : ""}
     ${rulesSectionHtml()}
     <button type="button" class="next-btn to-build">作り方を見る →</button>`;
+  box.querySelector(".ar-proposal")?.append(...heldProposal);
   bindRules(box);
   bindWorkshops(box);
   bindStones(box, b);
@@ -2127,9 +2213,45 @@ function renderBuild() {
   );
   box.querySelector(".to-check")?.addEventListener("click", () => setMode("refine"));
   bindTerms(box);
-  box.querySelector(".p-instr")!.addEventListener("click", () => askPrint(true, (pick) => {
+  box.querySelector(".p-instr")!.addEventListener("click", () => printSheet());
+  box.querySelector(".p-stl")!.addEventListener("click", () => exportStl());
+}
+
+/** 図面・指示書を印刷する（印刷する物を選ぶ窓から）。どの場面からでも */
+function printSheet() {
+  if (kind === "band") {
+    if (!bandPositions) return;
+    return askPrint(false, (pick) => {
+      const probs = checkBand(band);
+      openPrint(
+        sheetHtml({
+          includeSteps: pick.steps,
+          includeDetails: pick.details,
+          drawingHtml: pick.drawing ? bandDrawing(probs.map((p) => p.title)) : "",
+          title: bandName(),
+          date: today(),
+          imageDataUrl: viewer.snapshot(),
+          specs: [
+            { label: "断面", value: SECTION_LABEL[band.kind] },
+            { label: "号", value: `${band.gou} 号 ・ 内径 ${bandInnerDiameter(band.gou).toFixed(1)} mm` },
+            { label: "上（見える側）", value: `${band.top.width} × ${band.top.thickness} mm` },
+            { label: "下（手のひら側）", value: `${band.bottom.width} × ${band.bottom.thickness} mm` },
+            { label: "地金", value: `${band.metalLabel} ・ 約 ${bandWeight.toFixed(1)} g` },
+          ],
+          problems: probs.map((p) => `${p.title}（${p.current} → ${p.required}）`),
+          methodLabel: method === "hand" ? "鍛造" : "鋳造",
+          steps: bandHowTo(band, method, bandWeight, alloyOf(bandMetal)),
+          patternSvg: "",
+        }),
+      );
+    });
+  }
+  if (!session?.built || !stone) return toast("指輪が組み上がるまで、少し待ってください");
+  askPrint(true, (pick) => {
     const svg = sheet();
-    if (!svg) return;
+    if (!svg || !session?.built) return;
+    const b = session.built;
+    const probs = grouped(b);
     const r = b.ring;
     const st = r.setting;
     openPrint(
@@ -2139,32 +2261,43 @@ function renderBuild() {
         imageDataUrl: viewer.snapshot(),
         specs: [
           { label: "石", value: `${stone!.measured.longMm.toFixed(2)} × ${stone!.measured.widthMm.toFixed(2)} × ${stone!.depthMm.toFixed(2)} mm` },
-          { label: "号", value: `${session!.state.gou} 号 ・ 内径 ${r.shank.innerDiameterMm.toFixed(1)} mm` },
+          { label: "号", value: `${session.state.gou} 号 ・ 内径 ${r.shank.innerDiameterMm.toFixed(1)} mm` },
           { label: "留め方", value: st.style === "bezel" ? `覆輪 ・ 壁 ${st.bezel?.wallMm.toFixed(2)} mm` : `爪 ${st.prongs.length} ・ ø ${st.prongs[0]?.diameterMm.toFixed(2)} mm` },
           { label: "腕", value: `${r.shank.widthMm.toFixed(1)} × ${r.shank.thicknessMm.toFixed(1)} mm` },
           { label: "石と指のすき間", value: `${r.culetGapMm.toFixed(2)} mm` },
-          { label: "地金", value: `${METAL_LABEL[session!.state.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g` },
+          { label: "地金", value: `${METAL_LABEL[session.state.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g` },
         ],
         problems: probs.map(({ p }) => `${SHORT[p.check] ?? p.where}（${p.current} → ${p.required}）`),
         methodLabel: method === "hand" ? "鍛造" : "鋳造",
-        steps,
+        steps: howToMake(howInput(b), method),
         patternSvg: pick.pattern ? svg : "",
         includeSteps: pick.steps,
         includeDetails: pick.details,
         drawingHtml: pick.drawing ? solitaireDrawing(b, probs.map(({ p }) => SHORT[p.check] ?? p.where)) : "",
       }),
     );
-  }));
-  box.querySelector(".p-stl")!.addEventListener("click", () => {
-    const r = b.ring.ringPositions;
-    const all = new Float32Array(r.setting.length + r.shank.length);
-    all.set(r.setting, 0);
-    all.set(r.shank, r.setting.length);
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([toStl(all)], { type: "model/stl" }));
-    a.download = `継ぐ_${stone!.shapeName}_${session!.state.gou}号.stl`;
-    a.click();
   });
+}
+/** STL を書き出す。どの場面からでも。作れない所があれば、書き出したうえで知らせる */
+function exportStl() {
+  const save = (positions: Float32Array, name: string, problems: number) => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([toStl(positions)], { type: "model/stl" }));
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+    toast(`STL を書き出しました：${name}${problems ? `（作れない所が ${problems} あります。確かめるで直せます）` : ""}`);
+  };
+  if (kind === "band") {
+    if (bandPositions) save(bandPositions, `継ぐ_${bandName()}_${band.gou}号.stl`, checkBand(band).length);
+    return;
+  }
+  if (!session?.built || !stone) return toast("指輪が組み上がるまで、少し待ってください");
+  const r = session.built.ring.ringPositions;
+  const all = new Float32Array(r.setting.length + r.shank.length);
+  all.set(r.setting, 0);
+  all.set(r.shank, r.setting.length);
+  save(all, `継ぐ_${stone.shapeName}_${session.state.gou}号.stl`, grouped(session.built).length);
 }
 
 async function addRuleFromWords(said: string) {
@@ -2173,10 +2306,12 @@ async function addRuleFromWords(said: string) {
   const slot = $(".ar-proposal");
   const pass = store.password() || (await askPassword(true));
   if (!pass) {
-    slot.innerHTML = `<p class="tech-what">決まりの案を作るには Claude が要ります。</p>`;
+    slot.innerHTML = `<p class="tech-what">決まりの案を作るには Claude が要ります。合言葉がなくても、下の「Claude なしで、数字で書く」で決まりにできます。</p>`;
+    showProposalSlot();
     return;
   }
   slot.innerHTML = `<p class="tech-what"><span class="pulse"></span> Claude が決まりの案にしています…</p>`;
+  showProposalSlot();
   const host: ToolHost<null> = {
     setSetting: () => Promise.reject(new Error("使わない")),
     setShank: () => Promise.reject(new Error("使わない")),
@@ -2189,21 +2324,35 @@ async function addRuleFromWords(said: string) {
   const r = await runClaude({ host, messages: [{ role: "user", content: `${name}さんが話したこと：${said}` }], system: keepPrompt(store.ledger(), name), tools: TOOLS.filter((t) => t.name === "propose_rule"), password: pass, maxTurns: 3, speed: "fast" });
   if (r.offline || (r.error && !r.log.length)) {
     if (r.error?.code === "wrong_password") resetPassword();
-    slot.innerHTML = `<p class="tech-what">Claude につながりませんでした。${esc(r.error?.message ?? "")}</p>`;
+    $(".ar-proposal").innerHTML = `<p class="tech-what">Claude につながりませんでした。${esc(r.error?.message ?? "")}</p>`;
+    showProposalSlot();
   }
+}
+/**
+ * 決まりの案の所まで欄を動かす。「これまでの作品」の欄があると、案が画面の下に隠れて見えなかった（2026-11-05）。
+ * 撮影（?rec・?nointro）では動かさない（台本が自分で動かす）
+ */
+function showProposalSlot() {
+  if (filming()) return;
+  requestAnimationFrame(() => document.querySelector(".ar-proposal")?.scrollIntoView({ behavior: "smooth", block: "center" }));
 }
 function propose(slot: HTMLElement, p: ProposeRuleInput, name: string): Promise<ProposeRuleResult> {
   return new Promise((resolve) => {
+    // 待っている間に欄が描き直されていても、今の欄に出す
+    if (!slot.isConnected) slot = $(".ar-proposal");
     slot.innerHTML = `<div class="proposal-d"><b>${esc(p.title)}</b><p>${esc(p.text)}</p><p class="tech-what">なぜ：${esc(p.reason)}</p>${p.param ? `<p class="tech-what">値：${p.value}</p>` : ""}${!p.param && p.steps?.length ? `<p class="tech-what">入る工程：${esc(p.steps.map((s) => MAKING_STEPS[s]).join("・"))}</p>` : ""}
       <div class="row"><button type="button" class="primary ok">これでいい</button><button type="button" class="ghost-d no">いらない</button></div></div>`;
-    slot.querySelector(".no")!.addEventListener("click", () => {
-      slot.innerHTML = "";
+    showProposalSlot();
+    // 案は欄の描き直しで今の欄へ移されることがあるので、案そのものを消す
+    const card = slot.querySelector<HTMLElement>(".proposal-d")!;
+    card.querySelector(".no")!.addEventListener("click", () => {
+      card.remove();
       resolve({ status: "declined", note: "職人が見送った" });
     });
-    slot.querySelector(".ok")!.addEventListener("click", () => {
+    card.querySelector(".ok")!.addEventListener("click", () => {
       if (!askConfirm(`この決まりを帳面に入れますか？\n「${p.title}」\n今の設計とこれまでの作品を確かめ直します。`)) return;
       // 押したらすぐ案を消す（2 度押しで同じ決まりが 2 つ入らないように）
-      slot.innerHTML = "";
+      card.remove();
       resolve({ status: "accepted", rule_id: acceptRule(p, name) });
     });
   });
@@ -2234,7 +2383,7 @@ function acceptRule(p: ProposeRuleInput, _said: string): string {
     // 決まりを足したら、上の「〇〇さんの決まりで、確かめ直しました」まで戻して見せる
     requestAnimationFrame(() => document.querySelector(".rule-flash")?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
-  toast(p.param ? `${by}の決まりで確かめ直しました：作れない所 ${before} → ${after}` : `${by}の帳面に決まりを足しました`);
+  toast(p.param ? `${by}の決まりで確かめ直しました：作れない所 ${before} → ${after}` : `${bookTitle(by)}に決まりを足しました`);
   flashVerdict();
   return id;
 }
@@ -2316,7 +2465,7 @@ function rulesSectionHtml(): string {
     ${mine.length ? `<ul class="rules-mini">${mine
       .slice()
       .reverse()
-      .map((r) => `<li><b>${esc(r.title)}</b>${r.param && r.value !== undefined ? `<span class="v">${r.value} ${esc(PARAMS[r.param].unit)}</span>` : ""}${r.quote ? `<small>「${esc(r.quote)}」</small>` : ""}<small>${esc(name)} ・ ${esc(r.date)}</small><span class="voice-row">${voices.has(r.id) ? `<button type="button" class="link voice-play" data-rid="${esc(r.id)}">▶ 声</button>` : ""}<button type="button" class="link voice-rec${stopRec && recFor === r.id ? " on" : ""}" data-rid="${esc(r.id)}">${stopRec && recFor === r.id ? `■ 止める（${MAX_SECONDS} 秒まで）` : voices.has(r.id) ? "録り直す" : "● 理由を声で残す"}</button></span></li>`)
+      .map((r) => `<li><b>${esc(r.title)}</b>${r.param && r.value !== undefined && r.param !== "hold.cornerSet" ? `<span class="v">${r.value} ${esc(PARAMS[r.param].unit)}</span>` : ""}${r.quote ? `<small>「${esc(r.quote)}」</small>` : ""}<small>${esc(name)} ・ ${esc(r.date)}</small><span class="voice-row">${voices.has(r.id) ? `<button type="button" class="link voice-play" data-rid="${esc(r.id)}">▶ 声</button>` : ""}<button type="button" class="link voice-rec${stopRec && recFor === r.id ? " on" : ""}" data-rid="${esc(r.id)}">${stopRec && recFor === r.id ? `■ 止める（${MAX_SECONDS} 秒まで）` : voices.has(r.id) ? "録り直す" : "● 理由を声で残す"}</button></span></li>`)
       .join("")}</ul>` : `<p class="hint">確かめに効く職人の決まりは、まだありません（いまは公開の目安で確かめています）。</p>`}
     ${loadWorks().some((w) => w.design) ? "" : `<p class="hint no-works">記録に作品がないので、決まりを足しても「これまでの作品」は確かめ直せません。<button type="button" class="link add-samples">見本の作品を入れて試す</button></p>`}
     ${making.length ? `<details class="more making-rules"><summary>作り方の決まり ${making.length} 件（作るの工程に出ます）</summary><ul class="rules-mini">${making
@@ -2468,6 +2617,8 @@ function fixPastWorks() {
   }
   renderCheck();
   flashVerdict();
+  // 結果の欄まで動かす（スマホで画面の外に出て、直ったのか分からなかった）
+  if (!filming()) requestAnimationFrame(() => document.querySelector(".past-check")?.scrollIntoView({ behavior: "smooth", block: "start" }));
 }
 
 function flashVerdict() {
@@ -2704,7 +2855,7 @@ function renderBandCheck() {
   box.innerHTML = `
     <section class="big-verdict ${probs.length ? "ng" : "ok"}"><b>${probs.length ? "このままでは作れません" : "このまま作れます"}</b><small>${probs.length ? `直す所 ${probs.length}` : "厚み・幅、どちらも目安の内側"}</small></section>
     ${probs.length ? `<ul class="probs">${probs.map((p, i) => `<li><div class="p-head"><b>${esc(p.title)}</b></div><p class="p-num">${esc(p.current)} <span>→</span> ${esc(p.required)}</p><div class="p-act"><button type="button" class="fix-go" data-i="${i}">${esc(p.fix.label)}</button><details><summary>なぜ</summary><p>${esc(p.why)}</p></details></div></li>`).join("")}</ul>` : ""}
-    <details class="manual" ${probs.length ? "" : "open"}><summary>手で変える</summary><div class="band-ctrl-2"></div></details>
+    <details class="manual" ${manualOpen ?? !probs.length ? "open" : ""}><summary>手で変える</summary><div class="band-ctrl-2"></div></details>
     <button type="button" class="next-btn to-build">作り方を見る →</button>`;
   bandControls(box.querySelector(".band-ctrl-2")!);
   box.querySelectorAll<HTMLButtonElement>(".fix-go").forEach((b) =>
@@ -2732,36 +2883,8 @@ function renderBandBuild() {
   box.querySelectorAll<HTMLButtonElement>(".method button").forEach((b) => b.addEventListener("click", () => ((method = b.dataset.m as Method), renderBandBuild())));
   box.querySelector(".to-check")?.addEventListener("click", () => setMode("refine"));
   bindTerms(box);
-  box.querySelector(".p-instr")!.addEventListener("click", () => askPrint(false, (pick) =>
-    openPrint(
-      sheetHtml({
-        includeSteps: pick.steps,
-        includeDetails: pick.details,
-        drawingHtml: pick.drawing ? bandDrawing(probs.map((p) => p.title)) : "",
-        title: bandName(),
-        date: today(),
-        imageDataUrl: viewer.snapshot(),
-        specs: [
-          { label: "断面", value: SECTION_LABEL[band.kind] },
-          { label: "号", value: `${band.gou} 号 ・ 内径 ${bandInnerDiameter(band.gou).toFixed(1)} mm` },
-          { label: "上（見える側）", value: `${band.top.width} × ${band.top.thickness} mm` },
-          { label: "下（手のひら側）", value: `${band.bottom.width} × ${band.bottom.thickness} mm` },
-          { label: "地金", value: `${band.metalLabel} ・ 約 ${bandWeight.toFixed(1)} g` },
-        ],
-        problems: probs.map((p) => `${p.title}（${p.current} → ${p.required}）`),
-        methodLabel: method === "hand" ? "鍛造" : "鋳造",
-        steps,
-        patternSvg: "",
-      }),
-    ),
-  ));
-  box.querySelector(".p-stl")!.addEventListener("click", () => {
-    if (!bandPositions) return;
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([toStl(bandPositions)], { type: "model/stl" }));
-    a.download = `継ぐ_${bandName()}_${band.gou}号.stl`;
-    a.click();
-  });
+  box.querySelector(".p-instr")!.addEventListener("click", () => printSheet());
+  box.querySelector(".p-stl")!.addEventListener("click", () => exportStl());
 }
 
 async function makeBand() {
@@ -2769,7 +2892,7 @@ async function makeBand() {
   const wish = $<HTMLInputElement>(".wish").value.trim();
   const pass = store.password() || (await askPassword(true));
   if (!pass) {
-    setStatus("生むには Claude が要ります。合言葉がなくても、「形」の数字を変えて手で作れます。");
+    setStatus("生むには Claude が要ります。合言葉がなくても、「形」の数字を変えて手で作れます。", { links: [{ label: "手で変える →", run: toManual }] });
     return;
   }
   making = true;
@@ -2943,6 +3066,7 @@ interface WorkData {
   problems: string[];
   steps: ReturnType<typeof howToMake>;
   design?: WorkRecord["design"];
+  bandDesign?: WorkRecord["bandDesign"];
   /** 図面（いま 3D に出ている形から描く。見本のように 3D に出ていない物は、帳面を開くときに描く） */
   drawing?: () => string;
 }
@@ -2953,7 +3077,7 @@ function solitaireData(sess: RingSession = session!, info: StoneInfo = currentSt
   return {
     title: `${info.shapeName}の一粒石の指輪`,
     kind: "一粒石の指輪",
-    design: { stone: structuredClone(sess.stone), state: sess.snapshot() },
+    design: { stone: structuredClone(sess.stone), state: sess.snapshot(), look: sess === session && stone ? { color: stone.extraction.color, colorless: stone.extraction.colorless } : undefined },
     specs: [
       { label: "石", value: `${info.longMm.toFixed(2)} × ${info.widthMm.toFixed(2)} × ${info.depthMm.toFixed(2)} mm` },
       { label: "号", value: `${sess.state.gou} 号 ・ 内径 ${r.shank.innerDiameterMm.toFixed(1)} mm` },
@@ -2971,6 +3095,7 @@ function bandData(): WorkData {
   return {
     title: bandName(),
     kind: bandName(),
+    bandDesign: { band: structuredClone(band), metal: bandMetal },
     specs: [
       { label: "断面", value: SECTION_LABEL[band.kind] },
       { label: "号", value: `${band.gou} 号 ・ 内径 ${bandInnerDiameter(band.gou).toFixed(1)} mm` },
@@ -3028,8 +3153,8 @@ function thumbnail(): string {
 function openSaveWork(slot: HTMLElement, data: WorkData) {
   slot.innerHTML = `<div class="save-form">
     <label>作った人<input type="text" class="w-maker" value="${esc(masterName(store.ledger()) === "職人" ? "" : masterName(store.ledger()))}" placeholder="名前"></label>
-    <label>話して残す（気をつけたこと・コツ・なぜそうしたか）<textarea rows="3" class="w-note" placeholder="例：座は爪の 3 分の 1 まで。V 字の爪は角に当てないよう先を逃がした。ロウは継ぎ目の反対から熱した"></textarea></label>
-    <p class="hint">Claude が、話を工程ごとのコツに分けて残します。次に同じ工程を作る人の画面に「前の記録から」と出ます。</p>
+    <label>話して残す（気をつけたこと・コツ・なぜそうしたか）<textarea rows="3" class="w-note" placeholder="例：座は爪の 3 分の 1 まで。ロウは継ぎ目の反対から熱した"></textarea></label>
+    <p class="hint">${store.password() ? "Claude が、話を工程ごとのコツに分けて残します。次に同じ工程を作る人の画面に「前の記録から」と出ます。" : "話はそのまま残します（合言葉があると、Claude が工程ごとのコツに分けます）。"}</p>
     <div class="row"><button type="button" class="ghost-d w-mic">話す</button><button type="button" class="primary w-save">記録する</button></div>
   </div>`;
   const note = slot.querySelector<HTMLTextAreaElement>(".w-note")!;
@@ -3043,7 +3168,8 @@ function openSaveWork(slot: HTMLElement, data: WorkData) {
     let leftOver = "";
     let sortNote = "";
     if (said) {
-      const pass = store.password() || (await askPassword(true));
+      // 話を残すだけなら、合言葉の窓を出さない（合言葉があるときだけ、工程に分ける）
+      const pass = store.password();
       if (pass) {
         slot.innerHTML = `<p class="saved working"><span class="pulse"></span> Claude が、話を工程ごとのコツに分けています…</p>`;
         const r = await callTool({ system: tipsPrompt(titles), user: `作った物：${data.title}\n職人が話したこと：${said}`, tool: SORT_TIPS, parse: parseTips(titles), password: pass, speed: "fast" });
@@ -3069,6 +3195,7 @@ function openSaveWork(slot: HTMLElement, data: WorkData) {
       maker,
       tips,
       design: data.design,
+      bandDesign: data.bandDesign,
       drawing: safeDrawing(data.drawing),
     });
     if (!ok) {
@@ -3115,6 +3242,63 @@ function addSampleWorks(): number {
   }
   return n;
 }
+/**
+ * 記録の形を開き直す（記録はそのまま。開いた形を直しても、記録は変わらない）。
+ * 記録に写真はないので、石の写真の欄には輪郭から描いた絵を出す
+ */
+function openWork(w: WorkRecord) {
+  if (!w.design && !w.bandDesign) return;
+  if (!askConfirm(`この形を開きますか？\n「${w.title}」\n今の設計は、この形に変わります（記録は変わりません）。`)) return;
+  if (w.bandDesign) {
+    band = structuredClone(w.bandDesign.band);
+    setBandMetal(w.bandDesign.metal);
+    setKind("band");
+  } else if (w.design) {
+    stopIntro();
+    const st = w.design.stone;
+    const W = 720;
+    const k = 260 / st.longMm;
+    const c = document.createElement("canvas");
+    c.width = c.height = W;
+    const g = c.getContext("2d", { willReadFrequently: true })!;
+    g.fillStyle = "#f6f5f2";
+    g.fillRect(0, 0, W, W);
+    g.beginPath();
+    st.outlineMm.forEach((q, i) => (i ? g.lineTo(W / 2 + q.x * k, W / 2 - q.y * k) : g.moveTo(W / 2 + q.x * k, W / 2 - q.y * k)));
+    g.closePath();
+    g.fillStyle = "#a9b0b7";
+    g.fill();
+    const look = w.design.look ?? { color: { r: 200, g: 220, b: 240 }, colorless: true };
+    const measured: StoneOutline = { outlineMm: [...st.outlineMm], longMm: st.longMm, widthMm: st.widthMm, widthFromPhotoMm: st.widthMm, widthFromPhoto: false, mmPerPx: 1 / k, imageAngle: 0 };
+    const corners = findCorners(measured.outlineMm);
+    stone = {
+      photo: g.getImageData(0, 0, W, W),
+      label: `記録：${w.title}`,
+      extraction: { outlinePx: st.outlineMm.map((q) => ({ x: W / 2 + q.x * k, y: W / 2 - q.y * k })), color: look.color, colorless: look.colorless } as Extraction,
+      measured,
+      longMm: st.longMm,
+      depthMm: st.depthMm,
+      shapeName: w.title.replace(/^見本：/, "").replace(/の一粒石の指輪.*$/, "") || nameShape(measured.outlineMm, corners).name,
+      cornerIdx: corners.map((x) => ({ index: outlineIndexAtT(measured.outlineMm, x.t), angle: Math.round(x.angleDeg) })),
+    };
+    keptPhoto = null;
+    compare = null;
+    undoClaude = null;
+    document.querySelectorAll<HTMLButtonElement>(".presets button").forEach((x) => x.setAttribute("aria-pressed", "false"));
+    $<HTMLInputElement>(".in-long").value = String(Number(st.longMm.toFixed(2)));
+    $<HTMLInputElement>(".in-depth").value = String(Number(st.depthMm.toFixed(2)));
+    $(".stone-sub").textContent = `${stone.shapeName}・${st.longMm.toFixed(2)} × ${st.widthMm.toFixed(2)} mm`;
+    drawThumb();
+    session = newSession(measured, st.depthMm);
+    session.state = structuredClone(w.design.state);
+    setKind("solitaire");
+  }
+  lastRule = null;
+  pastCheck = null;
+  setMode("refine");
+  $(".studio-refine").scrollTop = 0;
+  toast(`開きました：${w.title}`);
+}
 function renderWorks() {
   const box = $(".works-panel");
   const works = loadWorks();
@@ -3124,7 +3308,7 @@ function renderWorks() {
     ${works.some(isSample) ? `<button type="button" class="ghost-d w-unsample">見本の作品を消す</button>` : ""}
     <ul class="works-list">${works
       .map(
-        (w) => `<li><img alt="" src="${w.image}"><div><b>${esc(w.title)}</b><small>${esc(w.date)}${w.maker ? ` ・ ${esc(w.maker)}` : ""} ・ ${esc(w.methodLabel)}</small>${w.note ? (isSample(w) ? `<p class="sample-note">${esc(w.note)}</p>` : `<p>「${esc(w.note)}」</p>`) : ""}${(w.revisions ?? []).map((r) => `<p class="rev">${esc(r.by)}さんの決まりで直した：${esc(r.change)}</p>`).join("")}<span class="${w.problems.length ? "ng" : "ok"}">${w.problems.length ? "作れない所あり" : "作れる形"}</span></div><button type="button" class="w-del" data-id="${w.id}" aria-label="消す">×</button></li>`,
+        (w) => `<li><img alt="" src="${w.image}"><div><b>${esc(w.title)}</b><small>${esc(w.date)}${w.maker ? ` ・ ${esc(w.maker)}` : ""} ・ ${esc(w.methodLabel)}</small>${w.note ? (isSample(w) ? `<p class="sample-note">${esc(w.note)}</p>` : `<p>「${esc(w.note)}」</p>`) : ""}${(w.revisions ?? []).map((r) => `<p class="rev">${esc(r.by)}の決まりで直した：${esc(r.change)}</p>`).join("")}<span class="${w.problems.length ? "ng" : "ok"}">${w.problems.length ? "作れない所あり" : "作れる形"}</span>${!filming() && (w.design || w.bandDesign) ? `<button type="button" class="link w-open" data-id="${w.id}">この形を開く →</button>` : ""}</div><button type="button" class="w-del" data-id="${w.id}" aria-label="消す">×</button></li>`,
       )
       .join("")}</ul>
     <nav class="places-sm" aria-label="ほかの場所"><small>ほかの場所</small><a href="app.html#ledger">帳面<span>職人の決まりと、Claude からの質問</span></a><a href="app.html#learn">学ぶ<span>次の人が、職人の決まりに聞く</span></a><a href="app.html#waza">技<span>彫金・金工の技と、途切れた技を組み立て直す</span></a></nav>`;
@@ -3138,6 +3322,12 @@ function renderWorks() {
     for (const w of loadWorks()) if (isSample(w)) removeWork(w.id);
     renderWorks();
   });
+  box.querySelectorAll<HTMLButtonElement>(".w-open").forEach((b) =>
+    b.addEventListener("click", () => {
+      const w = loadWorks().find((x) => x.id === b.dataset.id);
+      if (w) openWork(w);
+    }),
+  );
   box.querySelectorAll<HTMLButtonElement>(".w-del").forEach((b) =>
     b.addEventListener("click", () => {
       if (!askConfirm("この記録を消しますか？\n消すと戻せません。")) return;

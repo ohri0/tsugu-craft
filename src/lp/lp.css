@@ -262,3 +262,9 @@ h2 { font-weight: 200; font-size: clamp(32px, 5.4vw, 72px); line-height: 1.2; le
 .mk-more li.g::before { display: none; }
 .mk-more b { color: var(--fg); font-weight: 500; }
 .mk-hint { margin: 12px 4px 0; color: var(--fg-3); font-size: 13px; }
+
+/* スマホ：押す所は 44 px 以上 */
+@media (pointer: coarse) {
+  .nav .pill { display: inline-flex; align-items: center; min-height: 44px; }
+  .nav .brand, .brand { min-height: 44px; display: inline-flex; align-items: center; }
+}

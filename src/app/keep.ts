@@ -2,25 +2,29 @@
 // その下に「Claude から質問が 1 つあります」（指輪の帳面のまだ決まっていない所。src/app/interview.ts の聞き取り）。
 // そのあとに、ほかにできること：帳面を印刷・手本を撮る・思いついたことを話して残す・届いている質問（あるときだけ）。
 // 届いた質問に答えると、Claude が決まりの案にまとめ、職人が「これでいい」を押すと帳面に入る。
-import { askConfirm } from "./confirm";
+import { askConfirm, filming } from "./confirm";
+import { openRuleEditor, removedRulesHtml } from "./rule-editor";
 import { runClaude } from "../claude/loop";
 import { printHtml } from "../ui/print";
 import { keepPrompt } from "../claude/prompt";
 import { TOOLS, type ProposeRuleInput, type ProposeRuleResult, type ToolHost } from "../claude/tools";
 import { summarizeMetrics } from "../craft/motion";
 import { bookHtml } from "../rules/book";
-import { ringGaps } from "../rules/gaps";
-import { activeRules, addRule, editRule, removeRule, sourceLabel, type Rule } from "../rules/ledger";
-import { MAIN } from "../rules/workshops";
+import { freshGap, ringGaps } from "../rules/gaps";
+import { activeRules, addRule, editRule, removedList, removeRule, restoreRule, seedLedger, sourceLabel, type Ledger, type Rule } from "../rules/ledger";
+import { MAIN, removeWorkshop, renameWorkshop, setActive } from "../rules/workshops";
+import repoLedger from "../../ledger/jewelry.json";
 import { groupQuestions, markAnswered, removeQuestions, type QuestionGroup } from "../rules/teacher-queue";
 import { mountMotion, savedRecords } from "../ui/motion-ui";
 import { mountInterview, type Interview } from "./interview";
-import { bookLabel, masterName } from "./master";
+import { bookLabel, bookTitle, masterName } from "./master";
 import { getVideo, putVideo } from "./video-store";
 import { askPassword, resetPassword } from "./password";
 import { esc, store, today } from "./store";
 import { bindVoice, canListen } from "./voice";
 import { ringTarget } from "./waza";
+
+const PUBLIC_NOTE = `<p class="small muted">公開の資料から入れた目安です。出どころのリンクつき。職人が確かめると、職人の決まりに置き換わります（目安・最後は職人が決める）。</p>`;
 
 const MIC = `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-2.1A7 7 0 0 0 19 12h-2Z" fill="currentColor"/></svg>`;
 
@@ -48,12 +52,18 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
   root.innerHTML = `
   <section class="view keep">
     <header class="view-head">
-      <div class="keep-name"><h2 class="keep-title"></h2><button type="button" class="linklike rename">名前を変える</button></div>
+      <div class="keep-name"><h2 class="keep-title"></h2><button type="button" class="linklike rename">名前を変える</button><label class="ws-switch" hidden><span>帳面を切り替える</span><select aria-label="使う帳面"></select></label></div>
       <p class="lead">工房の決まり。設計の確かめと、学ぶ人への答えに使います。</p>
     </header>
     <div class="block ask-card iv-card" hidden></div>
     <ul class="rule-cards"></ul>
-    <section class="public-rules" hidden><h3 class="pub-sec-h public-sum"></h3><p class="small muted">公開の資料から入れた目安です。出どころのリンクつき。職人が確かめると、職人の決まりに置き換わります（目安・最後は職人が決める）。</p><ul class="rule-cards pub"></ul></section>
+    ${
+      // 撮影のときは、前のまま開いた形で（台本が中の札まで動かす）
+      filming()
+        ? `<section class="public-rules" hidden><h3 class="pub-sec-h public-sum"></h3>${PUBLIC_NOTE}<ul class="rule-cards pub"></ul></section>`
+        : `<details class="public-rules" hidden><summary class="pub-sec-h public-sum"></summary>${PUBLIC_NOTE}<ul class="rule-cards pub"></ul></details>`
+    }
+    <div class="removed-slot"></div>
     <div class="block inbox-block" hidden>
       <h3>届いている質問 <small class="inbox-count"></small></h3>
       <ul class="inbox"></ul>
@@ -63,24 +73,36 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
       <div class="acts">
         <button type="button" class="act print"><b>帳面を印刷</b><small>紙にして工房に置く</small></button>
         <button type="button" class="act" data-open="motion"><b>手本を撮る</b><small>作業を撮るだけ。学ぶ人が手の動きを比べられます</small></button>
-        <button type="button" class="act" data-open="free"><b>思いついたことを話して残す</b><small>声で話すと、決まりの案になります</small></button>
+        <button type="button" class="act" data-open="free"><b>思いついたことを話して残す</b><small>話すか書くと、決まりの案になります</small></button>
       </div>
     </div>
     <div class="block panel motion-panel" hidden><div class="panel-head"><h3>手本を撮る</h3><button type="button" class="ghost close">閉じる</button></div><div class="motion-root"></div></div>
     <div class="block panel free-panel" hidden><div class="panel-head"><h3>話して残す</h3><button type="button" class="ghost close">閉じる</button></div><div class="free-body"></div></div>
   </section>`;
   const $ = <T extends HTMLElement = HTMLElement>(s: string) => root.querySelector<T>(s)!;
+  // 届いている質問は、赤い印で来て探す物なので、札より上に置く（資料の決まりの下で 6,000 px 以上 遠かった）。撮影のときは前の順のまま
+  if (!filming()) $(".iv-card").before($(".inbox-block"));
   /** 聞き取りを開いているときの部品（開いていなければ null） */
   let interview: Interview | null = null;
+  /** 質問の札：いま描いた一覧と、留めている質問（決まりを消して新しく出た質問。「あとで」で外す） */
+  let askKnown: Set<string> | null = null;
+  let askPinned: string | undefined;
 
   function refresh() {
     const ledger = store.ledger();
     const label = bookLabel(ledger);
-    $(".keep-title").textContent = `${label}${/[A-Za-z0-9]$/.test(label) ? " " : ""}の帳面`;
-    // 名前を変えられるのは、はじめの帳面（ほかの工房の帳面の名前はスタジオで足したときの名前）
-    $(".rename").hidden = store.workshops().active !== MAIN;
+    $(".keep-title").textContent = bookTitle(label);
+    const ws = store.workshops();
+    $(".rename").textContent = ws.active === MAIN ? "名前を変える" : "名前を変える・消す";
+    // 工房の帳面があれば、ここでも切り替えられる（帳面ごとに決まりを編集するため）
+    const sw = $(".ws-switch");
+    sw.hidden = !ws.list.length;
+    const pick = sw.querySelector("select")!;
+    pick.innerHTML = [`<option value="${MAIN}"${ws.active === MAIN ? " selected" : ""}>${esc(bookTitle(store.mainName()))}</option>`, ...ws.list.map((w) => `<option value="${esc(w.id)}"${ws.active === w.id ? " selected" : ""}>${esc(bookTitle(w.name))}</option>`)].join("");
     renderCards();
-    if (!interview) renderAskCard();
+    renderRemoved();
+    if (interview) interview.refresh();
+    else renderAskCard();
     const groups = groupQuestions(store.queue()).filter((g) => !g.answeredRuleId);
     $(".inbox-block").hidden = !groups.length;
     $(".inbox-count").textContent = groups.length ? `${groups.length} 件` : "";
@@ -104,82 +126,79 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
     root.querySelectorAll<HTMLButtonElement>("[data-edit-rule]").forEach((b) =>
       b.addEventListener("click", () => {
         const r = store.ledger().rules.find((x) => x.id === b.dataset.editRule);
-        if (r) openRuleEditor(r);
+        if (!r) return;
+        openRuleEditor(r, {
+          save: (patch) => {
+            store.setLedger(editRule(store.ledger(), r.id, patch));
+            refresh();
+          },
+          remove: () => {
+            store.setLedger(removeRule(store.ledger(), r.id));
+            refresh();
+            flash("決まりを消しました。下の「消した決まり」から戻せます。");
+          },
+        });
       }),
     );
   }
 
-  function openRuleEditor(r: Rule) {
-    // 資料の決まりは、資料に書いてあることなので言葉を変えない（直すなら職人の決まりとして足す）。消すことはできる
-    const mine = r.source.kind === "craftsman";
-    const points = mine && r.bySize?.every((s) => s.upToMm !== null) ? r.bySize : null;
-    const hasValue = mine && !r.bySize && r.value !== undefined;
+  /** 中身を残していなかった頃に消した決まりを探す所 */
+  const knownRules = (): Rule[] => [...(repoLedger as Ledger).rules, ...seedLedger().rules];
+
+  /** 消した決まりの一覧（元に戻せる） */
+  function renderRemoved() {
+    const box = $(".removed-slot");
+    box.innerHTML = removedRulesHtml(removedList(store.ledger(), knownRules()));
+    box.querySelectorAll<HTMLButtonElement>("[data-restore]").forEach((b) =>
+      b.addEventListener("click", () => {
+        store.setLedger(restoreRule(store.ledger(), b.dataset.restore!, knownRules()));
+        refresh();
+        flash("決まりを元に戻しました。");
+      }),
+    );
+  }
+
+  /** 工房の帳面の名前を変える・帳面ごと消す（札の「編集」と同じ形の窓） */
+  function openWorkshopEditor() {
+    const ws = store.workshops();
+    const w = ws.list.find((x) => x.id === ws.active);
+    if (!w) return;
     const dlg = document.createElement("dialog");
     dlg.className = "sheet rule-edit";
     dlg.innerHTML = `<form method="dialog">
-      <h3>${mine ? "決まりを編集" : "資料の決まり"}</h3>
-      ${
-        mine
-          ? `<label>見出し<input class="re-title" value="${esc(r.title)}"></label>
-      <label>決まり<textarea class="re-text" rows="5">${esc(r.text)}</textarea></label>
-      <label>職人の言葉<textarea class="re-quote" rows="2">${esc(r.quote ?? "")}</textarea></label>
-      ${hasValue ? `<label>確かめに使う数字<input class="re-value" type="number" inputmode="decimal" step="0.01" min="0" value="${r.value}"></label>` : ""}
-      ${
-        points
-          ? `<fieldset class="re-points"><legend>確かめに使う数字（mm）</legend>${points
-              .map((s, i) => `<label>石 ${s.upToMm} mm<input class="re-point" data-i="${i}" type="number" inputmode="decimal" step="0.01" min="0" value="${s.value}"></label>`)
-              .join("")}</fieldset>`
-          : ""
-      }
-      ${hasValue || points ? `<p class="small muted">数字を変えたら、上の「決まり」の文も合わせて直してください。</p>` : ""}`
-          : `<p class="rc-title">${esc(r.title)}</p><p>${esc(r.text)}</p><p class="small muted">資料に書いてあることなので、言葉は変えません。ちがうと思ったら、消して、職人の決まりとして足してください。</p>`
-      }
+      <h3>工房の帳面を編集</h3>
+      <label>工房の名前<input class="re-title" value="${esc(w.name)}" maxlength="24"></label>
       <p class="re-err" role="alert" hidden></p>
       <div class="sheet-actions re-actions">
-        <button type="button" class="ghost danger re-del">消す</button>
-        <span class="re-right"><button type="button" class="ghost re-cancel">${mine ? "やめる" : "閉じる"}</button>${mine ? `<button type="submit" class="primary re-save">保存</button>` : ""}</span>
+        <button type="button" class="ghost danger re-del">帳面を消す</button>
+        <span class="re-right"><button type="button" class="ghost re-cancel">やめる</button><button type="submit" class="primary re-save">保存</button></span>
       </div>
     </form>`;
     document.body.appendChild(dlg);
     const q = <T extends HTMLElement>(s: string) => dlg.querySelector<T>(s)!;
     dlg.addEventListener("close", () => dlg.remove());
     q(".re-cancel").addEventListener("click", () => dlg.close());
-    // 消す：確かめてから。前の決まりを置き換えていたら、前の決まりに戻る
     q(".re-del").addEventListener("click", () => {
-      if (!confirm(`この決まりを帳面から消しますか？\n「${r.title}」\n設計の確かめと、学ぶ人への答えに使われなくなります。`)) return;
-      store.setLedger(removeRule(store.ledger(), r.id));
+      if (!confirm(`「${w.name}」の帳面を消しますか？\nこの帳面の決まりが全部なくなります。消すと戻せません。\nはじめの帳面に戻ります。`)) return;
+      store.setWorkshops(removeWorkshop(store.workshops(), w.id));
+      dlg.close();
+      refresh();
+      flash(`「${w.name}」の帳面を消しました。`);
+    });
+    q("form").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const name = q<HTMLInputElement>(".re-title").value.trim();
+      if (!name) {
+        const err = q(".re-err");
+        err.textContent = "名前は、空にできません。";
+        err.hidden = false;
+        return;
+      }
+      store.setWorkshops(renameWorkshop(store.workshops(), w.id, name));
       dlg.close();
       refresh();
     });
-    if (mine) {
-      q("form").addEventListener("submit", (e) => {
-        e.preventDefault();
-        const err = q(".re-err");
-        const fail = (m: string) => {
-          err.textContent = m;
-          err.hidden = false;
-        };
-        const title = q<HTMLInputElement>(".re-title").value.trim();
-        const text = q<HTMLTextAreaElement>(".re-text").value.trim();
-        if (!title || !text) return fail("見出しと決まりは、空にできません。");
-        const patch: Partial<Pick<Rule, "title" | "text" | "quote" | "value" | "bySize">> = { title, text, quote: q<HTMLTextAreaElement>(".re-quote").value.trim() || undefined };
-        if (hasValue) {
-          const v = Number(q<HTMLInputElement>(".re-value").value);
-          if (!Number.isFinite(v) || v <= 0) return fail("数字は 0 より大きくしてください。");
-          patch.value = v;
-        }
-        if (points) {
-          const vs = [...dlg.querySelectorAll<HTMLInputElement>(".re-point")].map((x) => Number(x.value));
-          if (vs.some((v) => !Number.isFinite(v) || v <= 0)) return fail("数字は 0 より大きくしてください。");
-          patch.bySize = points.map((s, i) => ({ ...s, value: vs[i] }));
-        }
-        store.setLedger(editRule(store.ledger(), r.id, patch));
-        dlg.close();
-        refresh();
-      });
-    }
     dlg.showModal();
-    // 開いただけでスマホのキーボードが出ないように、はじめは窓そのものに合わせる
     dlg.tabIndex = -1;
     dlg.focus();
   }
@@ -234,11 +253,15 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
   function renderAskCard(gapId?: string) {
     const box = $(".iv-card");
     const gaps = ringGaps(store.ledger());
+    // 決まりを消して新しく出た質問は、すぐ見せる（読み直すまで順番の後ろに隠れていた）
+    const fresh = freshGap(askKnown, gaps);
+    if (fresh) askPinned = fresh.id;
+    askKnown = new Set(gaps.map((g) => g.id));
     if (!gaps.length) {
       box.hidden = true;
       return;
     }
-    const q = (gapId && gaps.find((g) => g.id === gapId)) || gaps[laterCount() % gaps.length];
+    const q = (gapId && gaps.find((g) => g.id === gapId)) || (askPinned && gaps.find((g) => g.id === askPinned)) || gaps[laterCount() % gaps.length];
     box.hidden = false;
     box.innerHTML = `
       <p class="eyebrow">Claude から質問が 1 つあります</p>
@@ -251,6 +274,7 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
     });
     box.querySelector(".later")!.addEventListener("click", () => {
       setLater(laterCount() + 1);
+      askPinned = undefined;
       renderAskCard();
     });
   }
@@ -271,9 +295,9 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
 
   function inboxItem(g: QuestionGroup, i: number): string {
     return `<li>
-      <div class="q-line"><p class="q-text">${esc(g.question)}</p><span class="q-count">${g.count > 1 ? `${g.count} 人から` : "1 人から"}</span></div>
+      <div class="q-line"><p class="q-text">${esc(g.question)}</p><span class="q-count">${g.count > 1 ? `${g.count} 回 届きました` : "1 回 届きました"}</span></div>
       <p class="q-why">${esc(g.whyUnanswered)}</p>
-      <div class="answer-slot"><button type="button" class="primary voice-cta" data-answer="${i}">${MIC}${canListen() ? "声で答える" : "答える"}</button></div>
+      <div class="answer-slot"><button type="button" class="primary voice-cta" data-answer="${i}">${canListen() ? MIC : ""}答える</button></div>
       <button type="button" class="linklike q-del" data-del-q="${i}">この質問を消す</button>
     </li>`;
   }
@@ -282,7 +306,7 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
   function openAnswer(li: HTMLElement, g?: QuestionGroup) {
     const slot = li.querySelector<HTMLElement>(".answer-slot") ?? li;
     slot.innerHTML = `<div class="answer-box">
-      <textarea rows="3" placeholder="${canListen() ? "マイクを押して話すと、ここに文字が入ります。書いてもかまいません。" : "答えを書いてください。"}"></textarea>
+      <textarea rows="3" placeholder="${canListen() ? "「話す」を押して話すと、ここに文字が入ります。書いてもかまいません。" : "答えを書いてください。"}"></textarea>
       <div class="row"><button type="button" class="mic">${MIC}話す</button><label class="ghost btnlike show-vid">動画で見せる<input type="file" accept="video/*" capture="environment" hidden></label><button type="button" class="primary make">決まりにする</button></div>
       <p class="small vid-name" hidden></p>
       <p class="small box-status"></p>
@@ -301,7 +325,7 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
       n.textContent = `動画をつけました：${f.name}（決まりと一緒に残ります）`;
       if (!field.value.trim()) field.value = "（動画で見せた）";
     });
-    if (canListen()) slot.querySelector<HTMLButtonElement>(".mic")!.click();
+    // 「話す」は押すまで聞かない（開いただけでマイクが始まっていた）
     slot.querySelector<HTMLButtonElement>(".make")!.addEventListener("click", () => {
       voice.stop();
       void makeRule(slot, field.value.trim(), g, st);
@@ -387,7 +411,7 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
           if (g) store.setQueue(markAnswered(store.queue(), g.ids, id));
           const changed = ed.title !== p.title || ed.text !== p.text || ed.reason !== p.reason;
           resolve(changed ? { status: "edited", rule_id: id, note: `職人が直した：${ed.text}（理由：${ed.reason}）` } : { status: "accepted", rule_id: id });
-          flash(`目安帳に足しました：${ed.title}`);
+          flash(`帳面に足しました：${ed.title}`);
           refresh();
         }),
       );
@@ -439,7 +463,12 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
   });
 
   // 工房の名前を変える（ここ 1 か所。帳面・学ぶ・技・スタジオのどこでもこの名前になる）
+  $(".ws-switch select").addEventListener("change", (e) => {
+    store.setWorkshops(setActive(store.workshops(), (e.target as HTMLSelectElement).value));
+    refresh();
+  });
   $(".rename").addEventListener("click", () => {
+    if (store.workshops().active !== MAIN) return openWorkshopEditor();
     const head = $(".keep-name");
     if (head.querySelector(".rename-form")) return;
     head.insertAdjacentHTML("beforeend", `<form class="rename-form"><input value="${esc(store.mainName())}" aria-label="工房の名前" maxlength="24"><button type="submit" class="primary">決める</button></form>`);

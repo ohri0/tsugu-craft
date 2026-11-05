@@ -306,6 +306,14 @@ export function ringGaps(ledger: Ledger): Gap[] {
   return gaps;
 }
 
+/**
+ * 帳面が変わって新しく出た質問（前の一覧 known になかった物のいちばん先）。
+ * 決まりを消すと、その所の質問がまた要る。読み直さなくても、すぐその質問を出すために使う
+ */
+export function freshGap(known: ReadonlySet<string> | null, gaps: readonly Gap[]): Gap | undefined {
+  return known ? gaps.find((g) => !known.has(g.id)) : undefined;
+}
+
 /** 言葉の決まり（未確認）を、職人に確かめる問い。答えはその決まりを置き換える */
 function confirmWordsGap(technique: Technique, r: Rule<string>): Gap {
   return {

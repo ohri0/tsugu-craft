@@ -855,3 +855,156 @@ dialog.sheet input:focus { border-color: var(--accent); }
 .ask-nudge .row { display: flex; gap: 8px; margin-top: 4px; }
 .ask-nudge .primary { display: inline-flex; align-items: center; justify-content: center; min-height: 34px; padding: 0 16px; border-radius: 6px; background: var(--accent); color: #fff; text-decoration: none; font-weight: 600; font-size: 13px; }
 
+/* 図面を大きく見る */
+.sheet-big { position: absolute; right: 12px; bottom: 12px; z-index: 2; min-height: 44px; padding: 0 16px; border: 1px solid var(--line-2); border-radius: var(--r); background: rgba(28, 28, 30, 0.9); color: var(--fg); font-size: 14px; font-weight: 600; }
+.sheet-full { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; background: #1c1c1e; }
+.sf-bar { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 12px calc(8px); padding-top: max(8px, env(safe-area-inset-top)); border-bottom: 1px solid var(--line); }
+.sf-bar button { min-width: 44px; min-height: 44px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--panel-2); color: var(--fg); font-size: 18px; }
+.sf-bar .sf-close { margin-left: auto; padding: 0 16px; font-size: 14px; font-weight: 600; }
+.sf-pct { min-width: 48px; text-align: center; font-size: 13px; color: var(--fg-2); }
+.sf-scroll { flex: 1; min-height: 0; overflow: auto; -webkit-overflow-scrolling: touch; background: #fff; }
+.sf-size { position: relative; overflow: hidden; }
+.sf-size iframe { position: absolute; left: 0; top: 0; border: 0; background: #fff; transform-origin: 0 0; pointer-events: none; }
+
+/* 生むの次の一歩・記録を開く・工房の帳面へ */
+.w-unsample { margin: 8px 14px 0; }
+.w-open { display: block; min-height: 44px; margin-top: 2px; padding: 0; font-size: 14px; text-align: left; }
+.ws-edit { font-size: 13px; }
+
+/*
+  使える形（html.fit）：字・押す所・コントラスト（2026-11-05 作者の頼み「実用レベルに」）。
+  撮影（?rec・?nointro）では html.fit を付けないので、動画の絵は前のまま。
+  色：--fg-3 は暗い面で 2.9〜3.6 しかなく読みにくかった。ボタンの青は白い字で 3.65 だった。どれも 4.5 以上に。
+*/
+html.fit { --fg-2: #b8b8be; --fg-3: #9e9ea4; --accent: #0a6fdc; }
+html.fit :is(.primary, .btn.primary):hover { background: #1a7fe8; }
+html.fit .fp-fix { color: var(--accent-2); border-color: var(--accent-2); }
+html.fit .sec > h4 small, html.fit .fix-pop small, html.fit .p-head small { font-size: 12px; }
+html.fit .why-note { font-size: 12px !important; }
+html.fit .pr-tabs button, html.fit .pk, html.fit .pr-opt button { color: #c4c4ca; }
+html.fit .pr-tabs button[aria-pressed="true"], html.fit .pr-tabs button[aria-current="true"] { color: #fff; }
+/* 12 px より小さかった字 */
+html.fit .vp-tl,
+html.fit .disp button,
+html.fit .cmd-label,
+html.fit .reset-design,
+html.fit .insp-head small,
+html.fit .sec > h4,
+html.fit .sec-h,
+html.fit .hint,
+html.fit .tech-what,
+html.fit .note-b,
+html.fit .kinds small,
+html.fit .asset small,
+html.fit .asset .act,
+html.fit .field,
+html.fit .field i,
+html.fit .pick > span,
+html.fit .sliders label > span,
+html.fit .pick button,
+html.fit .pick-notes li,
+html.fit .slider .sl-name,
+html.fit .slider .sl-num small,
+html.fit .big-verdict small,
+html.fit .p-head small,
+html.fit .fix-go,
+html.fit .p-act details,
+html.fit .manual > summary,
+html.fit .lines > li.grp,
+html.fit .save-form label,
+html.fit .works-head small,
+html.fit .works-list small,
+html.fit .works-list p,
+html.fit .works-list .ok,
+html.fit .works-list .ng,
+html.fit .tb .tabs button,
+html.fit .chk small,
+html.fit .term-def small,
+html.fit .term-def i,
+html.fit .term-def .td-sub,
+html.fit .why-note,
+html.fit .why-heritage figcaption,
+html.fit .flow-col h4,
+html.fit .flow-l small,
+html.fit .say,
+html.fit .presets button,
+html.fit .sorted small,
+html.fit [class^="k-"],
+html.fit .past > small,
+html.fit .past p span,
+html.fit .rule-flash small,
+html.fit .new-tag,
+html.fit .rules-mini small,
+html.fit .pc-list small,
+html.fit .pc-list p,
+html.fit .pc-list i,
+html.fit .cards .rule-in-step .r-why,
+html.fit .cards .rule-in-step .r-q,
+html.fit .manual-rule .mr-row,
+html.fit .works-list .sample-note,
+html.fit .places-sm small,
+html.fit .places-sm a span,
+html.fit .compare thead th,
+html.fit .sw-stats small,
+html.fit .sw-note,
+html.fit .sw-chart figcaption,
+html.fit .ws-table thead th,
+html.fit .sec-edit .se-read .se-n,
+html.fit .sec-edit .se-read small,
+html.fit .voice-play,
+html.fit .p-quote span,
+html.fit .look-note small,
+html.fit .t-dims-more,
+html.fit .dims-menu b,
+html.fit .fix-pop li span,
+html.fit .fix-pop li em,
+html.fit .shoot-help-btn,
+html.fit .stones-sec > summary,
+html.fit .place-row small,
+html.fit .stone-row b,
+html.fit .stone-row small,
+html.fit .stones-note,
+html.fit .ask-nudge small { font-size: 12px; }
+
+/* スマホ：押す所は 44 px 以上。字の入力は 16 px（Safari が勝手に拡大しないように） */
+@media (pointer: coarse), (max-width: 820px) {
+  html.fit .brand { min-height: 44px; }
+  html.fit .btn { height: 44px; padding: 0 10px; font-size: 13px; }
+  html.fit .disp button { min-height: 44px; padding: 0 10px; }
+  html.fit .verdict-chip { min-height: 44px; font-size: 13px; }
+  html.fit .tools { gap: 0; }
+  html.fit .tools hr { display: none; }
+  html.fit .tool, html.fit .tool.t-dims-more { width: 44px; height: 44px; }
+  html.fit .act-more { min-width: 44px; font-size: 18px; }
+  html.fit .p-act details > summary { min-width: 44px; }
+  html.fit .pr-tabs button { min-width: 44px; }
+  html.fit :is(.primary, .ghost, .ghost-d, .next-btn, .fix-go, .fp-fix, .fp-every, .fp-claude, .w-print, .w-unsample, .ask-later, .compare-btn, .compare-back, .past-fix, .claude-fix, .row.out button, .proposal-d .row button, .ws-new button, .pick button, .presets button, .se-tools button, .method button, .pr-tabs button, .pr-opt button, .sw-close, .voice-play, .voice-rec) { min-height: 44px; }
+  html.fit .link { display: inline-flex; align-items: center; min-height: 44px; font-size: 13px; }
+  html.fit .ask-nudge .row .primary { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 18px; }
+  html.fit :is(.fp-x, .w-del, .why-close, .pr-close) { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; font-size: 18px; }
+  html.fit .shoot-help-btn { width: 44px; height: 44px; border: 8px solid transparent; background-clip: padding-box; }
+  html.fit .sec h4:has(.shoot-help-btn) { margin-block: -8px; }
+  html.fit .slider { grid-template-columns: 44px 1fr 64px 44px; }
+  html.fit .slider .sl-step { width: 44px; height: 44px; }
+  html.fit .slider .sl-num { height: 44px; }
+  html.fit :is(input:not([type="range"], [type="checkbox"], [type="radio"], [type="file"]), select, textarea) { font-size: 16px; }
+  html.fit :is(.mr-param, .mr-value, .mr-quote, .ws-pick, .ws-name, .w-maker, .ar-text, .w-note) { min-height: 44px; height: auto; }
+  html.fit .field .in { min-height: 44px; display: flex; align-items: center; }
+  html.fit .field .in input { min-height: 44px; }
+  html.fit .command { min-height: 52px; }
+  html.fit .command .wish { min-height: 44px; }
+  html.fit .command button { min-height: 44px; }
+  html.fit .manual > summary, html.fit .more > summary, html.fit .stones-sec > summary, html.fit .p-act details > summary, html.fit .pub-in-step > summary, html.fit .making-rules > summary, html.fit .manual-rule > summary { min-height: 44px; display: flex; align-items: center; }
+  /* 文の中の言葉と出どころのリンク：行の高さを変えずに、押せる所だけ上下に広げる */
+  html.fit :is(.term, .r-q a, .past a) { position: relative; }
+  html.fit :is(.term, .r-q a, .past a)::after { content: ""; position: absolute; inset: -12px -2px; }
+  html.fit .chk { min-height: 44px; }
+  /* ほかの場所のメニュー */
+  html.fit .act-more { display: inline-flex; }
+}
+/* スマホの上の帯：帳面・学ぶ・技・図面へ（設計の画面に入り口がなく、記録の下まで行かないと移れなかった） */
+.act-more { display: none; }
+.more-menu { position: fixed; z-index: 55; right: 8px; top: 48px; min-width: 220px; display: grid; padding: 6px; border: 1px solid var(--line-2); border-radius: 10px; background: var(--panel-2); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5); }
+.more-menu[hidden] { display: none; }
+.more-menu :is(a, button) { display: flex; align-items: center; min-height: 44px; padding: 0 12px; border: 0; border-radius: 6px; background: none; color: var(--fg); font-size: 14px; text-align: left; text-decoration: none; }
+.more-menu :is(a, button):active { background: var(--hover); }

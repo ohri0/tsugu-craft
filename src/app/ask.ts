@@ -7,7 +7,7 @@ import { askPrompt } from "../claude/prompt";
 import { TOOLS, type ToolHost } from "../claude/tools";
 import type { ClaudeMessageParam } from "../claude/wire";
 import { activeRules, sourceLabel, type Rule } from "../rules/ledger";
-import { findRules } from "../rules/search";
+import { findRules, prongSizeAnswer } from "../rules/search";
 import { addQuestion, groupQuestions } from "../rules/teacher-queue";
 import { esc, store, today } from "./store";
 import { bindVoice } from "./voice";
@@ -90,7 +90,7 @@ export function mountAsk(root: HTMLElement): { refresh(): void } {
     return `<p class="a-short">${esc(a.short)}</p>
       ${a.why || rules.length ? `<button type="button" class="why-btn" aria-expanded="false">なぜ？</button>
       <div class="a-why" hidden>${a.why ? `<p>${esc(a.why)}</p>` : ""}${rules.map(ruleBlock).join("")}</div>` : ""}
-      <p class="a-meta">${asked ? `<span class="tag gold">${esc(name)}に回しました ・ 帳面に届きます</span>` : ""}${via === "local" ? `<span class="tag">Claude なし ・ 目安帳から探しました</span>` : ""}${rules.length ? `<span>決まり ${rules.length} つから</span>` : ""}</p>`;
+      <p class="a-meta">${asked ? `<span class="tag gold">${esc(name)}に回しました ・ 帳面に届きます</span>` : ""}${via === "local" ? `<span class="tag">Claude なし ・ 帳面から探しました</span>` : ""}${rules.length ? `<span>決まり ${rules.length} つから</span>` : ""}</p>`;
   }
 
   /** 職人が動画で見せた答えがあれば、なぜ？の中に出す */
@@ -123,12 +123,15 @@ export function mountAsk(root: HTMLElement): { refresh(): void } {
 
   function localAnswer(question: string, el: HTMLElement, reason: string) {
     const rules = activeRules(store.ledger());
+    const sized = prongSizeAnswer(question, rules);
     const found = findRules(question, rules);
-    if (found.length) {
+    if (sized) {
+      el.innerHTML = answerCard({ short: sized.short, why: sized.why, ruleIds: [sized.rule.id] }, [sized.rule], "local", false);
+    } else if (found.length) {
       const r = found[0];
       el.innerHTML = answerCard({ short: r.text, why: r.reason, ruleIds: found.map((x) => x.id) }, found, "local", false);
     } else {
-      sendToMaster(question, "目安帳に近い決まりがなかった");
+      sendToMaster(question, "帳面に近い決まりがなかった");
       const name = bookLabel(store.ledger());
       el.innerHTML = answerCard({ short: `${name}に聞いておきます。答えが届いたら、ここで答えられるようになります。`, why: "", ruleIds: [] }, [], "local", true);
     }
@@ -146,7 +149,7 @@ export function mountAsk(root: HTMLElement): { refresh(): void } {
     const ledger = store.ledger();
     const password = store.password() || (await askPassword());
     if (!password) {
-      localAnswer(question, el, "合言葉がないので、Claude なしで目安帳から探しました。");
+      localAnswer(question, el, "合言葉がないので、Claude なしで帳面から探しました。");
       busy = false;
       return;
     }
@@ -176,7 +179,7 @@ export function mountAsk(root: HTMLElement): { refresh(): void } {
     busy = false;
     if (r.offline || (r.error && !r.finalText)) {
       if (r.error?.code === "wrong_password") resetPassword();
-      localAnswer(question, el, `Claude につながらないので、目安帳から探しました。${r.error?.message ? `（${r.error.message}）` : ""}`);
+      localAnswer(question, el, `Claude につながらないので、帳面から探しました。${r.error?.message ? `（${r.error.message}）` : ""}`);
       return;
     }
     messages = r.messages;

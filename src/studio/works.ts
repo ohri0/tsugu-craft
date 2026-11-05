@@ -8,6 +8,8 @@ import { withDetails } from "./steps";
 import type { Tip } from "./tips";
 import type { StoneParams } from "../geometry/stone";
 import type { RingState } from "./session";
+import type { Band } from "./band";
+import type { Metal } from "../claude/tools";
 
 export interface WorkRecord {
   id: string;
@@ -28,7 +30,9 @@ export interface WorkRecord {
   /** 話したことを Claude が工程ごとに分けたコツ */
   tips?: Tip[];
   /** 組み直せる設計（一粒石の指輪）。新しい決まりで確かめ直すのに使う */
-  design?: { stone: StoneParams; state: RingState };
+  design?: { stone: StoneParams; state: RingState; look?: { color: { r: number; g: number; b: number }; colorless: boolean } };
+  /** 組み直せる設計（甲丸・平打ちの指輪）。「この形を開く」に使う */
+  bandDesign?: { band: Band; metal: Metal };
   /** 図面（drawingPage の HTML。正面・側面・上面と寸法）。古い記録にはない */
   drawing?: string;
   /** 新しい決まりで直した記録（いつ・誰の決まりで・何を） */
@@ -104,7 +108,7 @@ export function worksBookHtml(works: readonly WorkRecord[], date: string): strin
     <div class="top"><img alt="" src="${w.image}"><div><dl>${w.specs.map((s) => `<div><dt>${esc(s.label)}</dt><dd>${esc(s.value)}</dd></div>`).join("")}</dl>
     <p class="v ${w.problems.length ? "ng" : "ok"}">${w.problems.length ? `作れない所があった：${w.problems.map(esc).join("、")}` : "作れる形だった"}</p></div></div>
     ${w.note ? (w.maker === "見本" ? `<p class="sample">${esc(w.note)}</p>` : `<blockquote>「${esc(w.note)}」</blockquote>`) : ""}
-    ${(w.revisions ?? []).map((r) => `<p class="rev">${esc(r.date)} ${esc(r.by)}さんの決まり「${esc(r.rule)}」で直した：${esc(r.change)}</p>`).join("")}
+    ${(w.revisions ?? []).map((r) => `<p class="rev">${esc(r.date)} ${esc(r.by)}の決まり「${esc(r.rule)}」で直した：${esc(r.change)}</p>`).join("")}
     <section class="how"><h3 class="sec">作り方（${esc(w.methodLabel)}）<small>数字はこの形から計算した目安。最後は職人が決める。</small></h3>
     ${cardsPrintHtml(w.steps.map(withDetails), { details: true, extra: tips })}</section>
     <!-- 紙では作り方のあとに A4 横の 1 ページ。画面では作り方の前に出す（order） -->

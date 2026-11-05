@@ -1,13 +1,15 @@
 // 技の頁：どの技も同じ形（2026-11-04 作者の声「頁ごとに見た目がちがって読みにくい」から）。
 // 見出し（名前・一行の説明）→ ①作り方（工程を順に）→ ②職人の決まり（帳面と同じ札）→ ③Claude から質問（聞き取りの札）。
 // 指輪の石留め（#waza/ring）も同じ形で、見出しに「設計で試す」を置く。六つの技は #waza/bezel・milgrain・tsuchime・kebori・nunome・mokume。
-import { activeRules, ledgerText, sourceLabel, type Rule } from "../rules/ledger";
+import { activeRules, editRule, ledgerText, removedList, removeRule, restoreRule, seedLedger, sourceLabel, type Ledger, type Rule } from "../rules/ledger";
 import { answerToDraft, applyDraft, ringAnswerToDraft, ringGaps, techGaps, type Gap, type RuleDraft } from "../rules/gaps";
 import type { ParamId } from "../rules/ledger";
 import { howtoFor, howtoText, type HowtoId, type HowtoStep } from "../rules/howto-steps";
-import { TECHS, techLedgerText, type TechId } from "../rules/techniques";
+import { seedTechLedger, TECHS, techLedgerText, type TechId } from "../rules/techniques";
 import { MAIN } from "../rules/workshops";
-import { mountInterview, type InterviewTarget } from "./interview";
+import { filming } from "./confirm";
+import { flash, mountInterview, type InterviewTarget } from "./interview";
+import { openRuleEditor, removedRulesHtml } from "./rule-editor";
 import { masterName, sourceName } from "./master";
 import { esc, store } from "./store";
 
@@ -80,8 +82,19 @@ function ruleCard(r: Rule<string>): string {
     <p class="rc-title">${esc(r.title)}${r.unverified ? ` <span class="tag warn">未確認</span>` : ""}${r.source.kind === "provisional" ? ` <span class="tag">仮</span>` : ""}</p>
     <p class="rc-text">${esc(r.text)}</p>
     ${craft && r.quote ? `<blockquote>「${esc(r.quote)}」${r.question ? `<small>聞いたこと：${esc(r.question)}</small>` : ""}</blockquote>` : ""}
-    <p class="rc-meta"><span>${src} ・ ${esc(r.date)}</span></p>
+    <p class="rc-meta"><span>${src} ・ ${esc(r.date)}</span>${filming() ? "" : `<button type="button" class="linklike rc-del" data-edit-rule="${esc(r.id)}">編集</button>`}</p>
   </li>`;
+}
+
+/** その技の帳面を読む・書く（決まりの編集・消す・戻す） */
+function ledgerOf(id: HowtoId): { get(): Ledger<string>; set(l: Ledger<string>): void; known(): Rule<string>[] } {
+  if (id === "ring")
+    return {
+      get: () => store.ledger() as unknown as Ledger<string>,
+      set: (l) => store.setLedger(l as unknown as Ledger),
+      known: () => seedLedger().rules as Rule<string>[],
+    };
+  return { get: () => store.techLedger(id), set: (l) => store.setTechLedger(id, l), known: () => seedTechLedger(id).rules };
 }
 
 export function mountTech(root: HTMLElement, id: HowtoId, opts: { gapId?: string; onBack: () => void }): { refresh(): void } {
@@ -112,6 +125,7 @@ export function mountTech(root: HTMLElement, id: HowtoId, opts: { gapId?: string
       <h3><span class="tp-n">2</span>職人の決まり <small class="rule-n"></small></h3>
       <ul class="rule-cards tp-mine"></ul>
       <div class="tp-pub"></div>
+      <div class="tp-removed"></div>
     </section>
 
     <section class="tp-block" id="tp-ask">
@@ -132,6 +146,29 @@ export function mountTech(root: HTMLElement, id: HowtoId, opts: { gapId?: string
   const interview = mountInterview($(".iv-root"), id === "ring" ? ringTarget() : techTarget(id), { onApplied: () => render() });
   if (opts.gapId) interview.focus(opts.gapId);
 
+  const book = ledgerOf(id);
+  function bindEdits() {
+    root.querySelectorAll<HTMLButtonElement>("#tp-rules [data-edit-rule]").forEach((b) =>
+      b.addEventListener("click", () => {
+        const r = book.get().rules.find((x) => x.id === b.dataset.editRule);
+        if (!r) return;
+        openRuleEditor<string>(r, {
+          save: (patch) => book.set(editRule(book.get(), r.id, patch)),
+          remove: () => {
+            book.set(removeRule(book.get(), r.id));
+            flash("決まりを消しました。下の「消した決まり」から戻せます。");
+          },
+        });
+      }),
+    );
+    root.querySelectorAll<HTMLButtonElement>("#tp-rules [data-restore]").forEach((b) =>
+      b.addEventListener("click", () => {
+        book.set(restoreRule(book.get(), b.dataset.restore!, book.known()));
+        flash("決まりを元に戻しました。");
+      }),
+    );
+  }
+
   function render() {
     const { rules, gaps } = current(id);
     const mine = rules.filter((r) => r.source.kind === "craftsman").reverse();
@@ -147,6 +184,8 @@ export function mountTech(root: HTMLElement, id: HowtoId, opts: { gapId?: string
       : rest.length > 9
         ? `<details class="tp-more"><summary>資料から入れた決まり ${rest.length}</summary>${pub}</details>`
         : `<h4 class="tp-sub">資料から入れた決まり ${rest.length}</h4>${pub}`;
+    $(".tp-removed").innerHTML = removedRulesHtml(removedList(book.get(), book.known()));
+    bindEdits();
     $(".gap-n").textContent = `まだ決まっていない所 ${gaps.length}`;
     $(".nk-gaps").innerHTML = gaps.length
       ? gaps.map((g) => `<li><button type="button" class="gap-item" data-g="${esc(g.id)}"><b>${esc(g.title)}</b><small>${esc(g.why)}</small></button></li>`).join("")

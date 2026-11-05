@@ -526,6 +526,16 @@ a.back { display: inline-flex; align-items: center; border: 1px solid transparen
 .rule-cards.pub .rc-text { font-size: 13px; }
 .rule-cards.pub .rc-meta a { color: inherit; }
 .pub-sec-h { margin: 22px 0 4px; font-size: 14px; }
+details.public-rules > summary, .removed-rules > summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; padding: 0 14px; margin: 16px 0 0; border: 1px solid var(--line-2); border-radius: var(--radius); font-size: 14px; font-weight: 600; color: var(--fg-2); }
+details.public-rules[open] > summary, .removed-rules[open] > summary { margin-bottom: 8px; }
+.removed-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.removed-list li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); }
+.removed-list b { display: block; font-size: 13px; }
+.removed-list small { font-size: 12px; color: var(--fg-3); }
+.removed-list button { flex: none; min-height: 44px; padding: 0 14px; }
+.ws-switch { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--fg-2); }
+.ws-switch[hidden] { display: none; }
+.ws-switch select { min-height: 36px; padding: 0 8px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--field); color: var(--fg); font-size: 14px; }
 /* 技：ほかの技の帳面 */
 .tech-rules { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
 /* ---- 技の頁：どの技も同じ形（見出し → ① 作り方 → ② 職人の決まり → ③ Claude から質問）。帳面と同じ札の見た目 ---- */
@@ -574,4 +584,93 @@ a.back { display: inline-flex; align-items: center; border: 1px solid transparen
   .tp-head h2 { font-size: 20px; }
   .tp-step { padding: 12px; gap: 10px; }
   .tp-toc a { font-size: 11px; padding: 0 6px; }
+}
+
+/*
+  使える形（html.fit）：字・押す所・コントラスト（2026-11-05 作者の頼み「実用レベルに」）。
+  撮影（?rec・?nointro）では html.fit を付けないので、動画の絵は前のまま。
+  色：--fg-3 は暗い面で 2.9〜3.6 しかなく読みにくかった。ボタンの青は白い字で 3.65 だった。どれも 4.5 以上に。
+*/
+html.fit { --fg-2: #b8b8be; --fg-3: #9e9ea4; --accent: #0a6fdc; }
+html.fit :is(.primary, .btn.primary):hover { background: #1a7fe8; }
+/* 12 px より小さかった字 */
+html.fit .eyebrow,
+html.fit .nav a,
+html.fit .who small,
+html.fit .master-stats,
+html.fit .ev-src,
+html.fit .a-meta,
+html.fit .tag,
+html.fit .block h3 small,
+html.fit .q-count,
+html.fit .q-why,
+html.fit .proposal label,
+html.fit .tile small,
+html.fit .book-list li.sep,
+html.fit .motion .note,
+html.fit .motion .controls label,
+html.fit .sheet .eyebrow,
+html.fit .tech-body small,
+html.fit .tech-meta,
+html.fit .honest,
+html.fit .cond button small,
+html.fit .clue-peek,
+html.fit .clue-list li b,
+html.fit .steps-h .n,
+html.fit .smeta,
+html.fit .cid,
+html.fit .sunsure,
+html.fit .gnote b,
+html.fit .verdict,
+html.fit .trials h4,
+html.fit .missed h4,
+html.fit .trials li span,
+html.fit .missed li span,
+html.fit .ex small,
+html.fit .cta small,
+html.fit .verdict blockquote small,
+html.fit .pen-card blockquote small,
+html.fit .mk,
+html.fit .ticks,
+html.fit .pair figcaption small,
+html.fit .legend,
+html.fit .tiny,
+html.fit .sim-ctrl label,
+html.fit .sim-ctrl output,
+html.fit .tech-body b .entry,
+html.fit .iv-count,
+html.fit .iv-why,
+html.fit .iv-name,
+html.fit .iv-foot,
+html.fit .gap-item small,
+html.fit .src,
+html.fit .rc-title,
+html.fit .rc-meta,
+html.fit .acts .act small,
+html.fit .bt-meta,
+html.fit .tp-toc a span,
+html.fit .tp-n,
+html.fit .tp-block > h3 .tp-n,
+html.fit .tp-block > h3 small,
+html.fit .tp-tools b,
+html.fit .tp-fail b,
+html.fit .tp-src,
+html.fit .tp-uv,
+html.fit .tp-toc a { font-size: 12px; }
+
+/* スマホ：押す所は 44 px 以上。字の入力は 16 px（Safari が勝手に拡大しないように） */
+@media (pointer: coarse), (max-width: 720px) {
+  html.fit .brand { min-height: 44px; }
+  html.fit :is(.primary, .ghost, .chip, .tile, .btnlike, .back, .send, .help, .tiny, .cid, .ans-line .mic, .answer-box .mic) { min-height: 44px; }
+  html.fit :is(.icon.voice) { min-width: 44px; min-height: 44px; }
+  html.fit .linklike { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; justify-content: center; }
+  html.fit .iv-foot .linklike, html.fit .q-del { justify-content: flex-start; }
+  html.fit .composer textarea { min-height: 44px; }
+  html.fit :is(input:not([type="range"], [type="checkbox"], [type="radio"], [type="file"]), select, textarea) { font-size: 16px; }
+  html.fit .iv-name input { min-height: 44px; }
+  html.fit .ws-switch select { min-height: 44px; }
+  html.fit summary { min-height: 44px; display: flex; align-items: center; }
+  /* 文の中の出どころのリンク：行の高さを変えずに、押せる所だけ上下に広げる */
+  html.fit :is(.rc-meta a, .tp-src a, .ev-src a, .src a) { padding-block: 16px; }
+  html.fit .cid { min-width: 44px; }
 }

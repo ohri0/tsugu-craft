@@ -56,7 +56,9 @@ export function parseTechLedger(id: TechId, raw: string | null): Ledger<string> 
       const l = JSON.parse(raw) as Ledger<string>;
       if (Array.isArray(l.rules)) {
         const have = new Set(l.rules.map((r) => r.id));
-        return { ...seed, ...l, technique: id, rules: [...l.rules, ...seed.rules.filter((r) => !have.has(r.id))] };
+        // 職人が消した決まりは、読み直しても足し直さない
+        const removed = new Set(l.removed ?? []);
+        return { ...seed, ...l, technique: id, rules: [...l.rules, ...seed.rules.filter((r) => !have.has(r.id) && !removed.has(r.id))] };
       }
     }
   } catch {

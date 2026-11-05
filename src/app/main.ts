@@ -3,6 +3,7 @@
 // 前の名前（#see・#ask・#keep・#rebuild・#waza/nanako）で来ても、新しい場所へ送る。スマホは下のタブ、PC は上のタブ。
 import "./app.css";
 import { mountAsk } from "./ask";
+import { filming } from "./confirm";
 import { mountSee } from "./see";
 import { mountKeep } from "./keep";
 import { mountWaza } from "./waza";
@@ -16,6 +17,9 @@ const VIEWS: { id: ViewId; label: string; icon: string }[] = [
   { id: "learn", label: "学ぶ", icon: `<path d="M4 5h16v11H8l-4 4V5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>` },
   { id: "waza", label: "技", icon: `<circle cx="7" cy="7" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="7" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="17" cy="7" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="9.5" cy="12" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="14.5" cy="12" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="7" cy="17" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="17" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="17" cy="17" r="2.2" fill="none" stroke="currentColor" stroke-width="1.6"/>` },
 ];
+
+// 字・押す所・色の直し（app.css の html.fit）。撮影では付けない（動画の絵を前のままにする）
+document.documentElement.classList.toggle("fit", !filming());
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `

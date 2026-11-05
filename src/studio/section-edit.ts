@@ -584,8 +584,8 @@ export function bindSectionEditor(box: HTMLElement, start: SectionShape, onLive:
     jump(next);
   });
   q(".se-reset").addEventListener("click", () => {
-    const m = measure(ec);
-    commit(startCurve(M.preset, undefined, undefined, m.widthMm, m.thicknessMm), M.preset);
+    // 形だけでなく、太さも はじめの値に戻す（3.06 × 3.12 のままだった）
+    commit(startCurve(M.preset, undefined, undefined, GUIDES.shank.widthMm, GUIDES.shank.thicknessMm), M.preset);
   });
 
   // ---- 指・マウス ----

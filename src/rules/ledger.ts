@@ -132,6 +132,8 @@ export interface Ledger<P extends string = ParamId> {
   owner?: string;
   /** 職人が消した決まりの id（リポジトリの帳面から読み直しても、足し直さない） */
   removed?: string[];
+  /** 消した決まりの中身（「消した決まり」の一覧から元に戻すため） */
+  removedRules?: Rule<P>[];
 }
 
 const SKYJEMS = { kind: "public", title: "Prong wire（Skyjems）", url: "https://skyjems.ca/pages/encyclopedia-prong-wire" } as const;
@@ -272,8 +274,45 @@ export function addRule<P extends string = ParamId>(ledger: Ledger<P>, rule: Omi
  * その決まりが前の決まりを置き換えていたなら、前の決まりがまた効く（置き換える前に戻る）。
  */
 export function removeRule<P extends string = ParamId>(ledger: Ledger<P>, id: string): Ledger<P> {
-  if (!ledger.rules.some((r) => r.id === id)) return ledger;
-  return { ...ledger, rules: ledger.rules.filter((r) => r.id !== id), removed: [...new Set([...(ledger.removed ?? []), id])] };
+  const rule = ledger.rules.find((r) => r.id === id);
+  if (!rule) return ledger;
+  return {
+    ...ledger,
+    rules: ledger.rules.filter((r) => r.id !== id),
+    removed: [...new Set([...(ledger.removed ?? []), id])],
+    removedRules: [...(ledger.removedRules ?? []).filter((r) => r.id !== id), rule],
+  };
+}
+
+/**
+ * 消した決まりの一覧（新しく消した順）。known：中身を残していなかった頃に消した決まりを探す所（リポジトリの帳面・はじめの帳面）。
+ * 中身が見つからない決まりは出さない
+ */
+export function removedList<P extends string = ParamId>(ledger: Ledger<P>, known: readonly Rule<P>[] = []): Rule<P>[] {
+  return (ledger.removed ?? [])
+    .slice()
+    .reverse()
+    .flatMap((id) => {
+      const r = ledger.removedRules?.find((x) => x.id === id) ?? known.find((x) => x.id === id);
+      return r ? [r] : [];
+    });
+}
+
+/**
+ * 消した決まりを元に戻す。同じ値に結びついた決まりが今あれば、足すときと同じく、戻す決まりが置き換える
+ * （同じ値の決まりが 2 つ効かないように。戻した決まりをまた消せば、今の決まりがまた効く）。
+ */
+export function restoreRule<P extends string = ParamId>(ledger: Ledger<P>, id: string, known: readonly Rule<P>[] = []): Ledger<P> {
+  const rule = ledger.removedRules?.find((r) => r.id === id) ?? known.find((r) => r.id === id);
+  if (!rule || ledger.rules.some((r) => r.id === id)) return ledger;
+  const current = rule.param ? activeRules(ledger).find((r) => r.param === rule.param) : undefined;
+  const back: Rule<P> = current ? { ...rule, replaces: current.id } : rule;
+  return {
+    ...ledger,
+    rules: [...ledger.rules, back],
+    removed: (ledger.removed ?? []).filter((x) => x !== id),
+    removedRules: (ledger.removedRules ?? []).filter((r) => r.id !== id),
+  };
 }
 
 /** 決まりを直す（職人が言葉や数字を直す）。id と出どころは変えない。ない決まりなら、そのまま返す */
