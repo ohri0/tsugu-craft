@@ -50,6 +50,31 @@ const REBUILD: { t: string; v: "ok" | "part" | "miss" }[] = [
   { t: "品物の形にする", v: "ok" },
   { t: "仕上げて、煮色で色を出す", v: "ok" },
 ];
+/** テンションの比べ（三角の石 8.88 × 7.52 × 4.24 mm、設計の画面の札と同じ計算の値。決まった値ではない。作者：「この石の場合、という話」） */
+const TENSION_EXAMPLE: { metal: string; small?: string; open?: string; note?: string }[] = [
+  { metal: "K18 イエロー", small: "0.36", open: "1.66" },
+  { metal: "Pt900", note: "足りない（戻りきらず、約 0.60 mm 曲がったまま）" },
+  { metal: "SV925", small: "0.12", open: "1.42" },
+];
+
+/**
+ * 手順の札の、道具が文に出てこない工程に足す文（道具の名前を流れの中で言う。数字は書かない。道具の役目は src/studio/toolbox.ts のとおり）。
+ * 工程の題は設計の画面の手順と同じ。ここにない道具は、札の最後に一言で書く
+ */
+const MK_FLOW: Record<string, string> = {
+  "hand:材料を用意する": "号はリングゲージで確かめ、寸法はノギスで測る。太さが合わなければ、圧延機や線引き板で寸法に近づける。すり板の上で糸のこで切り、端はヤスリで整える。",
+  "hand:焼きなまして、のばす": "ロウ付けの台の上で、保護めがねを着けて熱し、酸洗いする。のばしたら、ノギスで寸法を確かめる。",
+  "hand:切って、丸める": "すり板の上で切り、芯金に合わせて丸める。",
+  "hand:ロウ付けで閉じる": "ロウ付けの台の上で、保護めがねを着けて作業する。ロウは耐熱ピンセットで置き、バーナーで熱する。",
+  "hand:芯金で丸く整える": "号はリングゲージで確かめる。",
+  "hand:座を彫って、石を留める": "指輪は指輪万力で押さえ、保護めがねを着ける。座はハンドピースに座彫りのバーやハートバーを付けて彫る。爪は押し棒で倒し、先は細工ヤスリで丸くする。",
+  "hand:仕上げ": "細かい所は細工ヤスリとハンドピースで整え、ルーペで見る。保護めがねを着ける。",
+  "cast:原型を作る": "ワックスは、ヤスリとワックスペンで形を作り、ノギスで測る。3D 印刷なら 3D プリンターを使う。",
+  "cast:湯道を付ける": "湯道はワックスペンで付け、ゴム台に立て、はかりで重さを量る。",
+  "cast:埋没して、焼く": "粉と水ははかりで量り、保護めがねを着ける。",
+  "cast:座を彫って、石を留める": "指輪は指輪万力で押さえ、保護めがねを着ける。座はハンドピースに座彫りのバーやハートバーを付けて彫る。爪は押し棒で倒し、先は細工ヤスリで丸くする。",
+  "cast:仕上げ": "細かい所は細工ヤスリとハンドピースで整える。保護めがねを着ける。",
+};
 const RV_LABEL = { ok: "一致", part: "一部", miss: "たどり着けず" } as const;
 
 const CLAUDE_USES: [string, string][] = [
@@ -182,7 +207,7 @@ const html = `
   <section class="sheet make" id="make" aria-labelledby="make-h">
     <div class="make-head">
       <h2 id="make-h" class="rv">作り方まで、<wbr>提案します。</h2>
-      <p class="rv">3D モデルをもとに、鋳造でも鍛造でも。工程ごとに、この形から計算した数字、温度の目安、道具が出ます。図面と作り方を印刷でき、STL も出せます。下の札は、押して試せます。</p>
+      <p class="rv">3D モデルをもとに、鋳造でも鍛造でも。工程ごとに、この形から計算した数字、温度の目安、道具が出ます。図面と作り方を印刷でき、STL も出せます。下は本物の中身です。点線の言葉は、押すと説明が開きます。</p>
     </div>
     <div class="make-live rv"><div class="mk-live" aria-live="polite"><p class="mk-loading">作り方を読み込んでいます…</p></div></div>
     <figure class="make-sheet rv">${shot("draw", 1944, 1404, "継ぐが描いた図面の全体。正面図・側面図・上面図と寸法、実物大の図、右下の表に石・号・地金・腕・留め方・尺度・日付", "(max-width: 760px) 92vw, 860px")}<figcaption>印刷すると、この図面と作り方が一緒に出ます。</figcaption></figure>
@@ -191,9 +216,16 @@ const html = `
   <section class="tension" aria-labelledby="ten-h">
     <figure class="ten-ring rv">${shot("ring-tension", 2000, 2400, "テンションの指輪。丸線の腕の端が、三角の石を両側から挟んでいる", "(max-width: 760px) 92vw, 44vw")}</figure>
     <div class="ten-b">
-      <h2 id="ten-h" class="rv">腕のばねで挟む<wbr>テンションも、<br>地金ごとに<wbr>計算します。</h2>
-      <p class="rv">角のくぼみと辺の溝で石を止め、どれだけ小さく作り、どれだけ広げて入れるかを、地金ごとに出します。足りない地金には「足りない」と出ます。線はまだ仮で、最後は職人が決めます。</p>
-      <figure class="rv">${shot("tn-card", 622, 1700, "テンションの札。角のくぼみ 0.80 mm、辺の溝 0.50 mm、入れ方、地金ごとの比べの表", "(max-width: 760px) 92vw, 400px")}</figure>
+      <h2 id="ten-h" class="rv">地金ごとに、<wbr>どれだけ小さく作り、<wbr>どれだけ広げて入れるかを<wbr>計算します。</h2>
+      <p class="rv">腕のばねで石を挟むテンションは、人がやると大変な計算です。石の形と地金によって、答えが変わります。継ぐは、組んだ形からその場で出します。</p>
+      <table class="ten-t rv">
+        <caption>この三角の石の場合の例（mm）</caption>
+        <thead><tr><th scope="col">地金</th><th scope="col">小さく作る</th><th scope="col">広げて入れる</th></tr></thead>
+        <tbody>
+          ${TENSION_EXAMPLE.map((r) => `<tr><th scope="row">${r.metal}</th>${r.small ? `<td class="num">約 ${r.small}</td><td class="num">約 ${r.open}</td>` : `<td colspan="2">${r.note}</td>`}</tr>`).join("")}
+        </tbody>
+      </table>
+      <p class="note rv">値は仮です。目安・最後は職人が決めます。くぼみや溝の深さも、石によって変わります。</p>
     </div>
   </section>
 
@@ -379,34 +411,58 @@ addEventListener("keydown", (e) => {
 });
 if (location.hash === "#why") openWhy();
 
-// 手順の札：設計の画面の「手順」と同じ中身（scripts/lp-shots.cjs の steps が JSON にした物）。鍛造・鋳造を押して切り替え、「詳しく」で開く
+// 手順の札：設計の画面の「手順」と同じ中身（scripts/lp-shots.cjs の steps が JSON にした物）。鍛造・鋳造を押して切り替える。
+// 流れを文で読む。点線の言葉を押すと、その行のすぐ下に説明が開き、もう一度押すと閉じる（設計の画面と同じことば帳。src/studio/cards.ts）。開くのは 1 つだけ
 interface MkLine { g?: string; b?: string; t?: string }
 interface MkCard { no: string; title: string; lead: string; rows: [string, string][]; watch: string; more: MkLine[] }
 const MK_LABEL: Record<string, string> = { hand: "鍛造", cast: "鋳造" };
 const escH = (x: string) => x.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
-function mkCards(list: MkCard[]): string {
+type Cards = typeof import("../studio/cards");
+function mkCards(list: MkCard[], method: string, words: Cards): string {
   return `<ol class="mk-cards">${list
-    .map(
-      (c) => `<li class="mk-c">
-      <div class="mk-h"><span class="mk-n">${escH(c.no)}</span><div><h3>${escH(c.title)}</h3><p>${escH(c.lead)}</p></div></div>
+    .map((c) => {
+      const seen = new Set<string>();
+      const mark = (t: string) => words.markTerms(escH(t), seen);
+      const tools = (c.more.find((l) => l.b === "道具")?.t ?? "").split("、").filter(Boolean);
+      const added = MK_FLOW[`${method}:${c.title}`] ?? "";
+      const lines = c.more.filter((l) => l.b !== "道具");
+      const said = c.lead + added + lines.map((l) => `${l.b ?? ""}${l.t ?? ""}${l.g ?? ""}`).join("") + c.watch;
+      const rest = tools.filter((t) => !said.includes(t));
+      const head = mark(c.lead);
+      const addHtml = added ? `<li>${mark(added)}</li>` : "";
+      return `<li class="mk-c">
+      <div class="mk-h"><span class="mk-n">${escH(c.no)}</span><div><h3>${escH(c.title)}</h3><p>${head}</p></div></div>
       ${c.rows.length ? `<dl class="mk-rows">${c.rows.map(([k, v]) => `<div><dt>${escH(k)}</dt><dd>${escH(v)}</dd></div>`).join("")}</dl>` : ""}
-      ${c.watch ? `<p class="mk-watch">${escH(c.watch)}</p>` : ""}
-      ${c.more.length ? `<details class="mk-more"><summary>詳しく</summary><ul>${c.more.map((l) => (l.g ? `<li class="g">${escH(l.g)}</li>` : `<li>${l.b ? `<b>${escH(l.b)}</b>` : ""}${escH(l.t ?? "")}</li>`)).join("")}</ul></details>` : ""}
-    </li>`,
-    )
+      ${addHtml || lines.length ? `<ul class="mk-flow">${addHtml}${lines.map((l) => (l.g ? `<li class="g">${mark(l.g)}</li>` : `<li>${mark(`${l.b ?? ""}${l.t ?? ""}`)}</li>`)).join("")}</ul>` : ""}
+      ${c.watch ? `<p class="mk-watch">${mark(c.watch)}</p>` : ""}
+      ${rest.length ? `<p class="mk-tools">ほかに使う道具：${mark(rest.join("、"))}</p>` : ""}
+    </li>`;
+    })
     .join("")}</ol>`;
+}
+function termBox(word: string, words: Cards): HTMLElement | null {
+  const g = words.glossOf(word);
+  if (!g) return null;
+  const el = document.createElement("div");
+  el.className = "term-def";
+  el.dataset.term = word;
+  const t = g.tool;
+  el.innerHTML = `<p class="td-h"><b>${escH(g.word)}</b>${g.reading ? `<small>${escH(g.reading)}</small>` : ""}</p>
+    <p>${escH(g.meaning)}</p>${t && t.what !== g.meaning ? `<p>${escH(t.what)}</p>` : ""}
+    ${t ? `<ol>${t.how.map((h) => `<li>${escH(h)}</li>`).join("")}</ol>` : ""}`;
+  return el;
 }
 async function mountMake() {
   const box = root.querySelector<HTMLElement>(".mk-live");
   if (!box) return;
   try {
-    const d: { methods: Record<string, MkCard[]> } = await (await fetch("lp/make-steps.json")).json();
+    const [d, words]: [{ methods: Record<string, MkCard[]> }, Cards] = await Promise.all([fetch("lp/make-steps.json").then((r) => r.json()), import("../studio/cards")]);
     let m = "hand";
     const stone = d.methods.hand[0]?.rows.find((r) => r[0] === "石")?.[1] ?? "";
     const gou = d.methods.hand[0]?.rows.find((r) => r[0] === "号")?.[1] ?? "";
     const draw = () => {
       box.innerHTML = `<div class="mk-top"><div class="mk-seg" role="group" aria-label="作り方">${Object.keys(d.methods).map((k) => `<button type="button" data-m="${k}" aria-pressed="${k === m}">${MK_LABEL[k] ?? k}</button>`).join("")}</div><small>見本：三角の石 ${escH(stone)} ・ ${escH(gou)}</small></div>
-        ${mkCards(d.methods[m])}`;
+        ${mkCards(d.methods[m], m, words)}`;
       box.querySelectorAll<HTMLButtonElement>(".mk-seg button").forEach((b) =>
         b.addEventListener("click", () => {
           if (b.dataset.m === m) return;
@@ -416,6 +472,21 @@ async function mountMake() {
         }),
       );
     };
+    // 言葉を押す：その行のすぐ下に開く。ほかに開いていたら閉じる
+    box.addEventListener("click", (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLButtonElement>(".term");
+      if (!b) return;
+      const wasOpen = b.getAttribute("aria-expanded") === "true";
+      box.querySelectorAll(".term-def").forEach((x) => x.remove());
+      box.querySelectorAll(".term[aria-expanded]").forEach((x) => x.removeAttribute("aria-expanded"));
+      if (wasOpen) return;
+      const el = termBox(b.dataset.term!, words);
+      if (!el) return;
+      b.setAttribute("aria-expanded", "true");
+      const line = b.closest<HTMLElement>("li:not(.mk-c), p")!;
+      if (line.tagName === "LI") line.appendChild(el);
+      else line.after(el);
+    });
     draw();
   } catch {
     box.innerHTML = `<p class="mk-loading">作り方を読み込めませんでした。<a href="${STUDIO}">設計の画面</a>の「手順」で見られます。</p>`;

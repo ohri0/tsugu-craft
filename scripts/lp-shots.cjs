@@ -246,21 +246,6 @@ const SHOTS = {
     const m = await p.locator('.thread .a-meta').last().boundingBox();
     await shot(p, 'learn', { fullPage: true, clip: { x: 0, y: v.y - 8, width: PHONE_W, height: m.y + m.height - v.y + 32 } });
   },
-  // テンション：地金ごとの計算の札
-  async tensionCard() {
-    const p = await studioNow(1440, 1400);
-    await p.evaluate(() => window.__studio.setMode('refine'));
-    await p.waitForTimeout(800);
-    await p.evaluate(() => window.__studio.session.setSetting({ style: 'tension', reason: '撮る' }));
-    await p.waitForTimeout(5000);
-    const el = p.locator('.tn-card');
-    // 表まで（下の説明と開く所は写さない）
-    await p.evaluate(() => { const t = document.querySelector('.tn-card table'); let n = t.closest('.tn-card > *'); while ((n = n.nextElementSibling)) n.style.display = 'none'; });
-    await p.waitForTimeout(800);
-    console.log('tn', await el.innerText().then((t) => t.replace(/\s+/g, ' ').slice(0, 240)));
-    await el.screenshot({ path: `${WORK}/tn-card.png` });
-    made.push('tn-card');
-  },
   // 石なしの指輪：断面の見本の欄
   async bandPanel() {
     const p = await studioNow(1440, 1000);
