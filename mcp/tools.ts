@@ -116,7 +116,7 @@ const designShape = z
     prong_tip: z
       .enum(["round", "oni"])
       .optional()
-      .describe("爪の先の形（爪留めだけ）：round＝丸い爪（シンプル）、oni＝鬼爪（先が尖り、石の上に少しかかる。尖り具合の数字は仮の目安）。省略すると帳面のベーシックの形、なければ丸い爪"),
+      .describe("爪の先の形（爪留めだけ）：round＝丸い爪（シンプル）、oni＝尖り爪（先が尖り、石の上に少しかかる。尖り具合の数字は仮の目安）。省略すると帳面のベーシックの形、なければ丸い爪"),
     join: z
       .enum(["on", "between"])
       .optional()

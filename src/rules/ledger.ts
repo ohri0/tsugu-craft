@@ -125,7 +125,7 @@ export function sizeStepsText(steps: SizeStep[], unit: string): string {
 
 /** 工房のベーシックの雰囲気 */
 export interface LedgerBasics {
-  /** 爪の先の形：round＝丸い爪、oni＝鬼爪 */
+  /** 爪の先の形：round＝丸い爪、oni＝尖り爪 */
   prongTip?: "round" | "oni";
 }
 

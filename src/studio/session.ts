@@ -478,7 +478,7 @@ export class RingSession implements ToolHost<RingState> {
     const outline = this.stone.outlineMm;
     const ledger = this.ledger();
     const guides = effectiveGuides(ledger, this.sizeMm());
-    // 爪の先の形：この設計で選んだ形。なければ帳面のベーシック（石川工房は丸い爪、見本の工房 B は鬼爪）
+    // 爪の先の形：この設計で選んだ形。なければ帳面のベーシック（石川工房は丸い爪、見本の工房 B は尖り爪）
     const prongTip = s.prongTip ?? ledger.basics?.prongTip ?? "round";
     // 三石の両脇の石座は、真ん中より低め（脇の石の縁が下に来て、3 つの縁が ゆるい弧を描く）。石の一番下の高さを直接決めたときも、脇は低めのまま
     const trio = s.layout === "trio";

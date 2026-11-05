@@ -1713,7 +1713,7 @@ function workshopBarHtml(): string {
     ${ws.list.length && !filming() ? `<a class="link ws-edit" href="app.html#ledger">この帳面の決まりを見る・直す →</a>` : ""}
     <div class="ws-table"></div></section>`;
 }
-const PRONG_TIP_LABEL: Record<ProngTip, string> = { round: "丸い爪", oni: "鬼爪" };
+const PRONG_TIP_LABEL: Record<ProngTip, string> = { round: "丸い爪", oni: "尖り爪" };
 const PRONG_TIP_PICK = "爪の形";
 const PRONG_TIP_NOTE: Record<ProngTip, string> = {
   round: "先を丸めた、シンプルな爪",
