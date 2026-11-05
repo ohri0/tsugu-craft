@@ -56,8 +56,8 @@ import { bindSlider, sliderHtml, type SliderSpec } from "./slider";
 import { bindSectionEditor, sectionEditorHtml, startShape } from "./section-edit";
 import { SHANK_SECTIONS, SHANK_SECTION_LABEL, shankSizeWords, type ShankSection } from "../geometry/shank";
 import { placePoint, rebuildShank } from "../geometry/ring";
-import { TENSION_OPENING_NOTE, TENSION_WORDS_NOTE, checkShank, tensionInsert, tensionNotes, type HardState, type Problem } from "../rules/checks";
-import { SPRING_PREMISE, SPRING_PREMISE_SOFT, springIdOf, springSummary, tensionCautions, tensionSpring, type SpringRow, type TensionCaution } from "../rules/tension-calc";
+import { TENSION_OPENING_NOTE, TENSION_WORDS_NOTE, checkShank, tensionInsert, tensionNotes, type Problem } from "../rules/checks";
+import { SPRING_PREMISE, springIdOf, springSummary, tensionCautions, tensionSpring, type SpringRow, type TensionCaution } from "../rules/tension-calc";
 import type { TensionGrip } from "../geometry/tension";
 import { presentHtml, STONE_SIZES, type PresentGroup } from "./present";
 import { MAX_SECONDS, playVoice, putVoice, startRecording, voiceIds } from "./voice-notes";
@@ -1768,7 +1768,6 @@ function wireSlider(b: Built): SliderSpec {
   return { cls: "r-wire", label: "腕の線の太さ", min: GUIDES.tension.wireMinMm, max: GUIDES.tension.wireMaxMm, step: 0.1, value: b.ring.shank.thicknessMm, unit: "mm" };
 }
 /** テンションの計算の表で見る硬さの状態（硬い状態が、この留め方の条件） */
-let springState: HardState = "hardened";
 /** 開いて読む欄のうち、開いているもの（形を作り直して欄を描き直しても、閉じない） */
 const tnOpen = new Set<string>();
 const GRIP_LABEL: Record<TensionGrip, string> = { short: "短い向きで挟む", long: "長い向きで挟む", corner: "角で挟む" };
@@ -1794,18 +1793,17 @@ function tensionCardHtml(b: Built): string {
   const g = session!.guides();
   const insert = tensionInsert(info);
   const mine = springIdOf(session!.state.metal);
-  const table = tensionSpring(r.setting, r.shank, springState, g)!;
-  const hard = tensionSpring(r.setting, r.shank, "hardened", g)!;
-  const myRow = hard.rows.find((x) => x.metal === mine)!;
+  const table = tensionSpring(r.setting, r.shank, "hardened", g)!;
+  const myRow = table.rows.find((x) => x.metal === mine)!;
   const facts: [string, string][] = [...info.ends.map((e): [string, string] => [e.kind === "pit" ? "角のくぼみ" : "辺の溝", `${e.depthMm.toFixed(2)} mm`]), ["開き（図面）", `${info.gapMm.toFixed(2)} mm`], ["石の先と指", `${r.culetGapMm.toFixed(2)} mm`]];
   const cautions = tensionCautionsOf(b);
   const row = (x: SpringRow) => {
-    const kari = x.provisional ? `<i class="kari">仮</i>` : "";
+    const name = `${esc(x.name)}${x.verdict === "tight" ? `<i class="tight">ぎりぎり</i>` : ""}`;
     const cells =
       x.shrinkMm === null
         ? `<td colspan="3" class="short">足りない（約 ${x.bentMm.toFixed(2)} mm 曲がったまま）</td>`
-        : `<td>${x.shrinkMm.toFixed(2)}${x.verdict === "tight" ? `<i class="tight">ぎりぎり</i>` : ""}</td><td>${x.makeGapMm!.toFixed(2)}</td><td>${x.spreadMm!.toFixed(2)}</td>`;
-    return `<tr class="${x.metal === mine ? "on" : ""}"><th>${esc(x.name)}</th><td>${x.limitMm.toFixed(2)}${kari}</td>${cells}</tr>`;
+        : `<td>${x.shrinkMm.toFixed(2)}</td><td>${x.makeGapMm!.toFixed(2)}</td><td>${x.spreadMm!.toFixed(2)}</td>`;
+    return `<tr class="${x.metal === mine ? "on" : ""}"><th>${name}</th>${cells}</tr>`;
   };
   const slide = table.slides ? `<p>横から滑らせるなら、開くのは締まりの分だけ。小さめに作れる量：${table.rows.map((x) => `${esc(x.name)} ${x.slideShrinkMm!.toFixed(2)}`).join("・")} mm（仮）</p>` : "";
   const basis = table.rows.map((x) => `<li><b>${esc(x.name)}</b>ヤング率（地金の曲がりにくさ）${x.young.gpa} GPa${x.young.provisional ? "（仮）" : ""}：${esc(x.young.basis)}。耐力（これを超えると曲がったまま戻らない強さ）${x.proof.mpa} MPa${x.proof.provisional ? "（仮）" : ""}：${esc(x.proof.basis)}</li>`).join("");
@@ -1819,13 +1817,13 @@ function tensionCardHtml(b: Built): string {
     <small class="tn-note">${esc(GUIDE_NOTE)}</small>
     ${cautions.length ? `<ul class="tn-cautions">${cautions.map((c) => `<li><b>${esc(c.title)}</b>${esc(c.text)}</li>`).join("")}</ul>` : ""}
     <div class="tn-table">
-      <div class="tn-head"><b>地金ごとの比べ（mm）</b><div class="tn-state" role="group" aria-label="地金の硬さ">${(["hardened", "annealed"] as const).map((st) => `<button type="button" data-state="${st}" aria-pressed="${st === springState}">${st === "hardened" ? "硬い（加工硬化）" : "やわらかい（焼きなまし）"}</button>`).join("")}</div></div>
-      <table><thead><tr><th>地金</th><td>開ける<br>限界</td><td>小さめに<br>作る</td><td>作る時の<br>開き</td><td>広げて<br>入れる</td></tr></thead><tbody>${table.rows.map(row).join("")}</tbody></table>
-      <p>石の長さ ${table.spanMm.toFixed(2)} mm まで広げると、石が通ります。腕は「小さめに作る」の分だけ戻ろうとして、石を押さえます（戻り）。</p>
+      <div class="tn-head"><b>地金ごとの比べ（mm）</b></div>
+      <table><thead><tr><th>地金</th><td>小さめに<br>作る</td><td>作る時の<br>開き</td><td>広げて<br>入れる</td></tr></thead><tbody>${table.rows.map(row).join("")}</tbody></table>
+      <p>石の長さ ${table.spanMm.toFixed(2)} mm まで広げると石が通り、手を離すと「小さめに作る」の分だけ戻ろうとして、石を押さえます。</p>
       ${slide}
-      <p>${esc(springState === "hardened" ? SPRING_PREMISE : SPRING_PREMISE_SOFT)}</p>
+      <p>${esc(SPRING_PREMISE)}</p>
     </div>
-    ${more("calc", "式と前提と出典を読む", `<p>${esc(TENSION_OPENING_NOTE)}。</p><p>${esc(TENSION_WORDS_NOTE)}。今は R ${table.radiusMm.toFixed(2)} mm（指の半径 ＋ 太さ ÷ 2）・d ${table.wireMm.toFixed(1)} mm。</p><p>開ける限界は、この式の値です。太い輪は線の内側で曲げが強まるので、「小さめに作る」は、限界を ${table.factor.toFixed(2)} で割ってから、開いて入れるのに要る量（${esc(table.needText)}）を引きました（ばねの手引きの式）。割ると足りないときは「ぎりぎり」です。</p><ul>${basis}</ul><p>帳面の決まり「テンションの角はくぼみ、辺は溝」「テンションの地金は硬い状態で」とつながっています。${filming() ? "" : `<a class="link" href="app.html#ledger">帳面で読む →</a>`}</p>`)}
+    ${more("calc", "式と前提と出典を読む", `<p>${esc(TENSION_OPENING_NOTE)}。</p><p>${esc(TENSION_WORDS_NOTE)}。今は R ${table.radiusMm.toFixed(2)} mm（指の半径 ＋ 太さ ÷ 2）・d ${table.wireMm.toFixed(1)} mm。</p><p>開ける限界（戻れる範囲で開ける量）：${table.rows.map((x) => `${esc(x.name)} ${x.limitMm.toFixed(2)}${x.provisional ? "（仮）" : ""}`).join("・")} mm。これは、この式の値です。太い輪は線の内側で曲げが強まるので、「小さめに作る」は、限界を ${table.factor.toFixed(2)} で割ってから、開いて入れるのに要る量（${esc(table.needText)}）を引きました（ばねの手引きの式）。割ると足りないときは「ぎりぎり」です。</p><ul>${basis}</ul><p>帳面の決まり「テンションの角はくぼみ、辺は溝」「テンションの地金は硬い状態で」とつながっています。${filming() ? "" : `<a class="link" href="app.html#ledger">帳面で読む →</a>`}</p>`)}
     ${more("notes", `気をつけること（${notes.length}）`, `<ul class="tension-notes">${notes.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>`)}
   </section>`;
 }
@@ -1913,12 +1911,6 @@ function renderCheck() {
   bindRules(box);
   bindWorkshops(box);
   bindStones(box, b);
-  box.querySelectorAll<HTMLButtonElement>(".tn-state button").forEach((btn) =>
-    btn.addEventListener("click", () => {
-      springState = btn.dataset.state as HardState;
-      renderCheck();
-    }),
-  );
   box.querySelectorAll<HTMLDetailsElement>(".tn-more").forEach((el) =>
     el.addEventListener("toggle", () => {
       if (el.open) tnOpen.add(el.dataset.tn!);

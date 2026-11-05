@@ -128,7 +128,7 @@ export function springSummary(row: SpringRow): string {
 /** 足りないときの言葉（作り方にも） */
 export const SPRING_SHORT_TEXT = "まっすぐ開くだけでは入らない見込み。斜めに入れる・熱で広げるなど、職人が決める";
 /** 計算の一言の前提 */
-export const SPRING_PREMISE = `加工硬化した硬い線のときの大まかな計算です。${GUIDE_NOTE}`;
+export const SPRING_PREMISE = `テンションは、叩いて硬くした線（加工硬化）が前提です。その状態の大まかな計算で、値は仮です。${GUIDE_NOTE}`;
 /** やわらかい状態の表に添える一言 */
 export const SPRING_PREMISE_SOFT = `焼きなましたやわらかい線のときの大まかな計算です。やわらかいと、石を入れた時点で曲がります（職人の言葉：硬い状態でないと取れる）。${GUIDE_NOTE}`;
 

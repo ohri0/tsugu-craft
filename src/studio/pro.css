@@ -1074,39 +1074,35 @@ html.fit .ask-nudge small { font-size: 12px; }
 .stone-pick > span { font-size: 12px; color: var(--fg-2); }
 .stone-pick .presets { margin-top: 0; }
 /* テンションの札：結論 → 小さな表 → 開いて読む */
-.tn-card { margin: 0 14px 12px; padding: 12px; border: 1px solid var(--line-2); border-radius: 8px; display: grid; gap: 8px; font-size: 13px; line-height: 1.6; color: var(--fg); }
-.tn-card h5 { margin: 0; font-size: 13px; font-weight: 600; }
+.tn-card { margin: 0 14px 12px; padding: 14px; border: 1px solid var(--line-2); border-radius: 8px; display: grid; gap: 12px; font-size: 14px; line-height: 1.7; color: var(--fg); }
+.tn-card h5 { margin: 0; font-size: 14px; font-weight: 600; }
 .tn-facts { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 12px; }
 .tn-facts div { display: flex; justify-content: space-between; gap: 8px; }
 .tn-facts dt { color: var(--fg-2); font-weight: 400; white-space: nowrap; }
 .tn-facts dd { margin: 0; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .tn-line { margin: 0; }
-.tn-line b { display: inline-block; margin-right: 8px; font-weight: 600; color: var(--fg-2); }
+.tn-line b { display: block; font-size: 12px; font-weight: 600; color: var(--fg-2); }
 .tn-note { color: var(--fg-2); font-size: 12px; }
 .tn-cautions { list-style: none; margin: 0; padding: 8px 10px; display: grid; gap: 6px; border-radius: 6px; background: rgba(255, 214, 10, 0.08); border: 1px solid rgba(255, 214, 10, 0.25); }
 .tn-cautions b { display: block; color: #ffd60a; font-weight: 600; }
-.tn-table { display: grid; gap: 6px; }
-.tn-table p { margin: 0; font-size: 12px; color: var(--fg-2); }
+.tn-table { display: grid; gap: 8px; }
+.tn-table p { margin: 0; font-size: 13px; line-height: 1.7; color: var(--fg-2); }
 .tn-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; }
 .tn-head b { font-weight: 600; font-size: 13px; }
-.tn-state { display: flex; gap: 4px; }
-.tn-state button { min-height: 26px; padding: 0 8px; border: 1px solid var(--line-2); border-radius: 6px; background: transparent; color: var(--fg-2); font-size: 11px; }
-.tn-state button[aria-pressed="true"] { background: var(--accent-weak); border-color: rgba(10, 132, 255, 0.5); color: var(--accent-2); }
-.tn-table table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
-.tn-table thead td, .tn-table thead th { font-size: 11px; font-weight: 400; color: var(--fg-2); line-height: 1.3; vertical-align: bottom; padding: 2px 3px 4px; border-bottom: 1px solid var(--line-2); }
-.tn-table tbody th { font-weight: 400; text-align: left; padding: 4px 3px; white-space: nowrap; }
+.tn-table table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+.tn-table thead td, .tn-table thead th { font-size: 12px; font-weight: 400; color: var(--fg-2); line-height: 1.35; vertical-align: bottom; padding: 2px 6px 6px; border-bottom: 1px solid var(--line-2); }
+.tn-table tbody th { font-weight: 400; text-align: left; padding: 8px 6px; white-space: nowrap; }
 .tn-table thead th { text-align: left; }
 .tn-table thead td { text-align: right; }
-.tn-table tbody td { text-align: right; padding: 4px 3px; white-space: nowrap; }
+.tn-table tbody td { text-align: right; padding: 8px 6px; white-space: nowrap; }
 .tn-table tbody tr { border-bottom: 1px solid var(--line); }
 .tn-table tbody tr.on th, .tn-table tbody tr.on td { background: var(--accent-weak); }
 .tn-table td.short { color: #e3c27a; text-align: left; white-space: normal; }
-.tn-table i { font-style: normal; font-size: 10px; margin-left: 3px; color: #e3c27a; }
+.tn-table i { font-style: normal; font-size: 12px; margin-left: 6px; color: #e3c27a; }
 .tn-more summary { cursor: pointer; font-size: 12px; color: var(--fg-2); padding: 4px 0; }
 .tn-more p, .tn-more li { margin: 4px 0; font-size: 12px; color: var(--fg-2); }
 .tn-more ul { margin: 4px 0; padding: 0; list-style: none; }
 .tn-more li b { font-weight: 600; margin-right: 6px; }
 @media (max-width: 760px) {
-  html.fit .tn-state button { min-height: 44px; }
   html.fit .tn-more summary { min-height: 44px; display: flex; align-items: center; }
 }
