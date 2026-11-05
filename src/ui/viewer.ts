@@ -12,6 +12,7 @@ import type { StoneMesh } from "../geometry/stone";
 import type { MetalId } from "../rules/guides";
 import type { Problem } from "../rules/checks";
 import { CadGrid, GRID_LOOK } from "./cad-grid";
+import { guardBufferUploads } from "./gl-upload";
 import { gridSpacing, labelStep, VIEW_DIR, ViewCameras, type FlatViewInfo, type ViewName } from "./view-camera";
 
 export type DisplayMode = "render" | "shaded" | "wire";
@@ -66,9 +67,21 @@ export class Viewer {
   private live: { shank: THREE.Mesh; marks: THREE.Mesh[]; lift: number; warn: THREE.MeshPhysicalMaterial } | null = null;
   /** 描き直しが要るか（動いていない間は描かない。スマホの電池のため） */
   private dirty = true;
+  /** 形の配列が GPU へ正しく届かず、3D の絵が乱れているか（数字と STL は正しい） */
+  drawFault = false;
+  private faultListeners: (() => void)[] = [];
+  /** 3D の絵が乱れたときに呼ぶ（壊れた絵のまま「作れます」と出さないため） */
+  onDrawFault(f: () => void) {
+    this.faultListeners.push(f);
+  }
 
   constructor(private host: HTMLElement) {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    // Mac の Safari で 1 MiB より大きい形が崩れないよう、小さく分けて GPU へ送る（gl-upload.ts）
+    guardBufferUploads(this.renderer.getContext() as WebGL2RenderingContext, () => {
+      this.drawFault = true;
+      for (const f of this.faultListeners) f();
+    });
     this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
     // 金の色が転ばないよう、色をそのまま保つ写し方にする
     this.renderer.toneMapping = THREE.NeutralToneMapping;
