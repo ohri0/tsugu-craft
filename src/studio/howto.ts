@@ -63,7 +63,8 @@ export function measures(o: HowToInput) {
   const girdleBottomZ = h.culetZ + h.pavilionMm;
   const prongWire = s.prongs.length
     ? {
-        diameter: s.prongs[0].diameterMm,
+        // 1 本ずつ太さを変えた爪があれば、いちばん太い線材で（細い爪は削る）
+        diameter: Math.max(...s.prongs.map((p) => p.diameterMm)),
         count: s.prongs.reduce((n, p) => n + p.legs, 0),
         // 石座の下の端から爪の先まで ＋ 先を整える分（線の太さ 1 本ぶん）
         length: Math.max(...s.prongs.map((p) => p.tipZ)) - h.baseZ + s.prongs[0].diameterMm,
@@ -310,7 +311,7 @@ function soloSteps(o: HowToInput, method: Method): Step[] {
         ]
       : m.prongWire
         ? [
-            { label: "爪", value: `${s.prongs.length} か所${m.prongWire.vCount ? `（うち V 字 ${m.prongWire.vCount}）` : ""}${s.prongTip === "oni" ? " ・ 尖り爪" : ""}` },
+            { label: "爪", value: `${s.prongs.length} か所${m.prongWire.vCount ? `（うち V 字 ${m.prongWire.vCount}）` : ""}${s.prongTip === "oni" ? " ・ 尖り爪" : ""}${s.prongs.some((p) => p.look) ? " ・ 手で形を直した爪あり（図面と 3D を見る）" : ""}` },
             { label: "爪の線材", value: `ø ${mm(m.prongWire.diameter, 2)} × ${m.prongWire.count} 本 ・ 1 本 約 ${mm(m.prongWire.length)}` },
           ]
         : [];

@@ -30,6 +30,10 @@ export interface DimsOpts {
   avoid?: Rect[];
   /** 札をこの中に収める（画面の大きさ） */
   bounds?: Rect;
+  /** もう置いた札（渡すと続けて足す。別の層の寸法と札が重ならないように） */
+  placed?: Rect[];
+  /** この寸法を選んでいる（key で見分ける） */
+  selected?: string;
 }
 
 const hit = (a: Rect, b: Rect) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
@@ -49,7 +53,7 @@ const escText = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;");
 export function dimsSvg(dims: Dim[], project: Project, k = 1, opts: DimsOpts = {}): string {
   const out: string[] = [];
   /** もう置いた札 */
-  const placed: Rect[] = [];
+  const placed: Rect[] = opts.placed ?? [];
   const pad = 5 * k;
   /** 重なりの広さ（0 なら置ける）。画面からはみ出すのは、とても悪い */
   const cost = (r: Rect) => {
@@ -80,7 +84,7 @@ export function dimsSvg(dims: Dim[], project: Project, k = 1, opts: DimsOpts = {
       nx = -nx;
       ny = -ny;
     }
-    const cls = d.bad ? "dim bad" : "dim";
+    const cls = `${d.bad ? "dim bad" : "dim"}${opts.selected !== undefined && d.key === opts.selected ? " sel" : ""}`;
     const mx = (pa.x + pb.x) / 2;
     const my = (pa.y + pb.y) / 2;
     const parts: string[] = [];
@@ -141,7 +145,7 @@ export function dimsSvg(dims: Dim[], project: Project, k = 1, opts: DimsOpts = {
     }
     parts.push(`<rect class="dim-tag" x="${f(lx - w / 2)}" y="${f(ly - 9 * k)}" width="${f(w)}" height="${f(18 * k)}" rx="${f(3 * k)}"/>`);
     parts.push(`<text class="dim-text" x="${f(lx)}" y="${f(ly + 4 * k)}" text-anchor="middle"${k !== 1 ? ` font-size="${f(11 * k)}"` : ""}>${escText(d.label)}</text>`);
-    out.push(`<g class="${cls}">${parts.join("")}</g>`);
+    out.push(`<g class="${cls}"${opts.selected !== undefined && d.key ? ` data-key="${escText(d.key)}"` : ""}>${parts.join("")}</g>`);
   }
   return out.join("");
 }
