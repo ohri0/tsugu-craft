@@ -2548,6 +2548,8 @@ function fixPastWorks() {
   }
   renderCheck();
   flashVerdict();
+  // 結果の欄まで動かす（スマホで画面の外に出て、直ったのか分からなかった）
+  if (!filming()) requestAnimationFrame(() => document.querySelector(".past-check")?.scrollIntoView({ behavior: "smooth", block: "start" }));
 }
 
 function flashVerdict() {
