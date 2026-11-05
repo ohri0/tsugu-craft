@@ -1104,9 +1104,12 @@ function smoothGeometry(positions: Float32Array, normals: Float32Array): THREE.B
   return g;
 }
 
+/** 腕の薄い所を 1 周光らせる線の太さ（半径 mm。見せるための値） */
+const SPOT_LINE_RADIUS_MM = 0.09;
+
 /**
- * 腕の断面の、局所的に薄い所（とがり・ヒレ）の印：腕ぜんぶではなく、その所に小さな赤い玉。
- * 印は指の横（カメラの側、φ ＝ −90°）の断面の上に置く（薄い所は腕を 1 周するので、見える側の 1 か所に）
+ * 腕の断面の、局所的に薄い所（とがり・ヒレ）の印：薄い所は腕を 1 周するので、その線を 1 周赤く光らせる
+ * （2026-11-05 作者：1 か所の赤い玉ではおかしい）。腕の間に挟む石座では、腕の切れている所は通らない
  */
 function spotMarks(sh: ShankResult, problems: Problem[], lift: number, warn: THREE.Material): THREE.Mesh[] {
   const out: THREE.Mesh[] = [];
@@ -1114,8 +1117,14 @@ function spotMarks(sh: ShankResult, problems: Problem[], lift: number, warn: THR
     if (p.target.kind !== "shank-spot") continue;
     const rho = sh.innerRadiusMm + p.target.y;
     const x = (p.target.x * sh.sideWidthMm) / sh.widthMm;
-    const mark = new THREE.Mesh(new THREE.SphereGeometry(0.22, 20, 14), warn);
-    mark.position.set(x, -rho, lift);
+    const endY = Math.max(0, ...(sh.ends ?? []).map((e) => Math.abs(e.y)));
+    const open = Math.asin(Math.min(1, endY / rho));
+    // 輪の面は指の軸（x）に直角。切れ目がいちばん上に来るように回す
+    const geo = new THREE.TorusGeometry(rho, SPOT_LINE_RADIUS_MM, 12, 180, 2 * Math.PI - 2 * open);
+    geo.rotateZ(Math.PI + open);
+    geo.rotateY(Math.PI / 2);
+    const mark = new THREE.Mesh(geo, warn);
+    mark.position.set(x, 0, lift);
     out.push(mark);
   }
   return out;
