@@ -219,6 +219,8 @@ line.ax-z { stroke: #4ea1ff; } text.ax-z { fill: #4ea1ff; }
 .pick-notes li { font-size: 10.5px; line-height: 1.45; color: var(--fg-3); }
 .pick-notes li.on { color: var(--fg-2); }
 .pick-notes b { font-weight: 600; margin-right: 6px; color: inherit; }
+.tension-notes { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 6px; }
+.tension-notes li { font-size: 12px; line-height: 1.55; color: var(--fg-2); padding-left: 10px; border-left: 2px solid var(--line, rgba(255, 255, 255, 0.14)); }
 .sliders { display: grid; gap: 6px; margin: 8px 0; }
 /* 数のつまみ：名前・−・つまみ・＋・数の欄。指でも押さえやすいよう、どれも 32 px 以上の高さ */
 .slider { display: grid; grid-template-columns: 76px 32px 1fr 32px 78px; align-items: center; gap: 6px; }

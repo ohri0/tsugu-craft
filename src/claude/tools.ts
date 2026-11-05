@@ -71,7 +71,9 @@ export interface AskTeacherResult {
   id: string;
 }
 
-export type SettingStyle = "prong" | "bezel";
+export type SettingStyle = "prong" | "bezel" | "tension";
+/** 並べた石の留め方（テンションは一粒だけ） */
+export type SideStyle = "prong" | "bezel";
 export type HeightChoice = keyof typeof GUIDES.height.options;
 export type Orientation = "along" | "across";
 /** 石座と腕の付け方：on＝腕の上にのせる、between＝腕の間に挟む */
@@ -104,7 +106,7 @@ export interface SetStonesInput {
   /** 三石の両脇の石の長辺（mm） */
   side_mm?: number;
   /** 両脇の石（三石）・ほかの石の留め方 */
-  side_style?: SettingStyle;
+  side_style?: SideStyle;
   /** 石座どうしの間を、既定の間からさらに広げる長さ（mm） */
   spread_mm?: number;
   reason: string;
@@ -117,7 +119,7 @@ export interface SetStonesResult {
 }
 
 /** 腕の断面。free は画面で手で描いた形（Claude の道具からは選ばない） */
-export type ShankSectionChoice = "kouman" | "hirauchi" | "hangouman" | "kaku" | "free";
+export type ShankSectionChoice = "kouman" | "hirauchi" | "hangouman" | "kaku" | "maru" | "free";
 
 export interface SetShankInput {
   width_mm?: number;
@@ -157,6 +159,8 @@ export interface SettingState {
   /** 尖った角を V 字の爪で包む設定か */
   v_corners: boolean;
   height: HeightChoice;
+  /** テンションのとき：図面の開き（mm）と、両はしの深さ（mm）。pit＝角のくぼみ、groove＝辺の溝 */
+  tension?: { gap_mm: number; ends: { kind: "pit" | "groove"; depth_mm: number }[] };
   orientation: Orientation;
   /** 石座と腕の付け方 */
   join: Join;
@@ -276,8 +280,9 @@ export const TOOLS: ClaudeTool[] = [
       properties: {
         style: {
           type: "string",
-          enum: ["prong", "bezel"],
-          description: "留め方。prong＝爪留め、bezel＝覆輪（石の縁をぐるりと壁で包む。いちばん取れにくいが、見た目が大きく変わる）",
+          enum: ["prong", "bezel", "tension"],
+          description:
+            `留め方。prong＝爪留め、bezel＝覆輪（石の縁をぐるりと壁で包む。いちばん取れにくいが、見た目が大きく変わる）、tension＝テンション（開いた腕の両はしで石を挟む。三角の石は、片方の端のくぼみに角の先を ${GUIDES.tension.cornerPitMm} mm、もう片方の端の溝に辺を ${GUIDES.tension.edgeGrooveMm} mm 入れる。職人の値。腕は φ${GUIDES.tension.wireMm} mm の丸線に替わる。地金は加工硬化した硬い状態が条件。爪・高さ・向きの項目は使わない）`,
         },
         prong_positions: {
           type: "array",
@@ -329,9 +334,9 @@ export const TOOLS: ClaudeTool[] = [
       properties: {
         section: {
           type: "string",
-          enum: ["kouman", "hirauchi", "hangouman", "kaku"],
+          enum: ["kouman", "hirauchi", "hangouman", "kaku", "maru"],
           description:
-            "腕の断面。kouman＝甲丸（内側が平らで外側が丸い。既定）、hirauchi＝平打ち（外側が平らで角が丸い）、hangouman＝半甲丸（端に少し壁があり、上がゆるい丸み）、kaku＝角（四角に近く、角だけ少し丸い。厚みを書かなければ幅と同じ）",
+            "腕の断面。kouman＝甲丸（内側が平らで外側が丸い。既定）、hirauchi＝平打ち（外側が平らで角が丸い）、hangouman＝半甲丸（端に少し壁があり、上がゆるい丸み）、kaku＝角（四角に近く、角だけ少し丸い。厚みを書かなければ幅と同じ）、maru＝丸線（内側も丸い。厚みを書かなければ幅と同じ）",
         },
         width_mm: { type: "number", description: `腕の幅（mm、${range("width_mm", " mm")}）。目安の初期値は ${GUIDES.shank.widthMm} mm` },
         thickness_mm: {

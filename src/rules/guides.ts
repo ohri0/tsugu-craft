@@ -170,6 +170,34 @@ export const GUIDES = {
     sideRatio: 0.65,
     trio: { stoneGapMm: 0.3, prongGapMm: 0.15, sideHeight: "low" as "low" | "standard" | "high", joinWireRatio: 1, pearProngCount: 5 },
   },
+  /**
+   * テンション（ばねの力で石を挟む留め方）。職人（石川）の値（2026-11-05）。資料に mm の数字はない（docs/RESEARCH-tension.md）。
+   * - cornerPitMm：片方の腕の端に掘るくぼみへ、石の角の先を入れる深さ。職人の言葉「角はくぼみに 1 mm くらい」（はじめ 0.8 mm、同じ日に 1 mm へ決め直した）。
+   * - edgeGrooveMm：もう片方の腕の端の、まっすぐな溝へ、石の辺を入れる深さ。職人の言葉「辺は溝に 0.5 mm」。
+   * - wireMm：腕の丸線の太さ。職人が本物の指輪に使う φ4 mm の丸線。
+   * - girdleAtWire：石の縁の高さ（腕の太さのどこか。0.5 は真ん中）。職人が見せた写真の見本から。
+   * - weakGrooveMm：これより浅い溝は抜けやすい、という注意。職人の言葉「0.3 mm くらいでは絶対抜ける」。
+   * - minWireMm：これより細い線は注意（作れないとは言わない）。資料は職人の掲示板の声（TS14）。
+   * 開きは図面では石が入る寸法のまま（石の高さ − くぼみ − 溝）。プリロードは図面に入れない（職人が地金を硬くしながら詰める）。
+   * 以下は **仮**（形を作るための決まり。職人の値でも資料の値でもない。作者が見て直す）：
+   * - clearanceMm：石と溝のすき間。覆輪の内側のすき間（bezel.clearanceMm）を借りた。
+   * - cornerMaxDeg：内角がこれより鋭いものを「角」と数える（hold.cornerSetMatch と同じ値）。
+   * - liftEnds・liftBlendDeg：縁を腕の太さの中ほどに置くと石の先が指に当たるとき、腕の両はしを指の丸みからなめらかに持ち上げるか、と、持ち上げる所の長さ（度）。
+   * - thinLipMm：彫り口の上下や両わきに残る地金がこれより薄いと、注意を出す（覆輪の壁の最低を借りた）。
+   */
+  tension: {
+    cornerPitMm: 1.0,
+    edgeGrooveMm: 0.5,
+    wireMm: 4,
+    girdleAtWire: 0.5,
+    weakGrooveMm: 0.3,
+    minWireMm: 3,
+    clearanceMm: 0.04,
+    cornerMaxDeg: 100,
+    liftEnds: true,
+    liftBlendDeg: 70,
+    thinLipMm: 0.45,
+  },
   shank: {
     widthMm: 2.2,
     thicknessMm: 1.6,

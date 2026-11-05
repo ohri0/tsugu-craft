@@ -7,9 +7,10 @@ import { add, closedPart, closedParts, concat, dot, len, normalize, ringsToTube,
 import { outwardNormals } from "./offset";
 import { buildSolid, smax, type Box, type Field, type Tube } from "./sdf";
 import { perimeter, resample, toCounterClockwise, type Point } from "./polygon";
+import type { TensionInfo } from "./tension";
 import { girdleCenter, stoneHeights, stoneKnots, stoneScaleAt, type StoneHeights, type StoneParams } from "./stone";
 
-export type SettingStyle = "bezel" | "prong";
+export type SettingStyle = "bezel" | "prong" | "tension";
 
 /**
  * 石座と腕の付け方（爪留めだけ）。on ＝ 腕の上にのせる（腕の上に溝を入れて、下の輪をのせてロウ付け）。
@@ -193,6 +194,8 @@ export interface SettingResult {
   join: JoinStyle;
   /** 腕の間に挟むときの下の輪（板を丸めた輪）。それ以外は null */
   collar: CollarInfo | null;
+  /** テンション（挟む）の測った数。それ以外はなし */
+  tension?: TensionInfo | null;
 }
 
 /** 縁を取り直す点の数（石座の 3D の細かさ） */
