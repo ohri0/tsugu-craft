@@ -3,7 +3,7 @@
 import { buildRing, type RingDesign, type StonePlace } from "../geometry/ring";
 import { layoutRow, layoutTrio, scaleStone } from "../geometry/multi";
 import { PRESETS, presetOutline } from "./presets";
-import { autoOrientation, tAtOutlineIndex, type JoinStyle, type SolidQuality } from "../geometry/setting";
+import { autoOrientation, tAtOutlineIndex, type JoinStyle, type ProngTip, type SolidQuality } from "../geometry/setting";
 import type { SectionCurve, SectionPoint, ShankSection, ShankStation } from "../geometry/shank";
 import type { ReliefParams } from "../geometry/shank-relief";
 import type { TensionGrip, TensionInfo } from "../geometry/tension";
@@ -63,6 +63,8 @@ export interface RingState {
   prongMm?: number;
   /** 爪を置く輪郭の点の番号（なければ自動） */
   prongPositions?: number[];
+  /** 爪の先の形を、この設計で選んだとき（なければ今の帳面のベーシックの形。帳面になければ丸い爪） */
+  prongTip?: ProngTip;
   height: HeightOption;
   orientation: "along" | "across";
   /** 向きを人が選んだか（選んでいなければ、尖った角が腕に当たらない向きを自動で選ぶ） */
@@ -142,6 +144,7 @@ export function carryDesign(prev: RingState, base: RingState, same: { shape?: bo
     style: prev.style,
     height: prev.height,
     culetGapMm: prev.culetGapMm,
+    prongTip: prev.prongTip,
     metal: prev.metal,
     gou: prev.gou,
     position: prev.position,
@@ -194,7 +197,8 @@ export function tuneProngMm(s: RingSession): void {
 /** その帳面に切り替えたら、今の設計はどうなるか（画面を変えずに、帳面の切り替えと同じ順で組む） */
 export function underLedger(stone: StoneParams, state: RingState, ledger: Ledger): Built {
   const s = new RingSession(stone, () => ledger, () => undefined, () => "");
-  s.state = { ...structuredClone(state), prongMm: undefined };
+  // 爪の形も、その帳面のベーシックから（手で選んだ形を持ち越すと、帳面ごとの違いが見えない）
+  s.state = { ...structuredClone(state), prongMm: undefined, prongTip: undefined };
   tuneProngMm(s);
   return s.build("帳面ごとに比べる");
 }
@@ -468,6 +472,8 @@ export class RingSession implements ToolHost<RingState> {
     const outline = this.stone.outlineMm;
     const ledger = this.ledger();
     const guides = effectiveGuides(ledger, this.sizeMm());
+    // 爪の先の形：この設計で選んだ形。なければ帳面のベーシック（石川工房は丸い爪、見本の工房 B は鬼爪）
+    const prongTip = s.prongTip ?? ledger.basics?.prongTip ?? "round";
     // 三石の両脇の石座は、真ん中より低め（脇の石の縁が下に来て、3 つの縁が ゆるい弧を描く）。石の一番下の高さを直接決めたときも、脇は低めのまま
     const trio = s.layout === "trio";
     const head = {
@@ -477,6 +483,7 @@ export class RingSession implements ToolHost<RingState> {
       solid: this.solid,
       solidQuality: quality,
       vAtCorners: false,
+      prongTip,
     } as const;
     // 石の大きさで変わる職人の決まり（爪の太さなど）は、石ごとに、その石の大きさの値を使う
     const slotGuides = (s.stones ?? []).map((slot) => {
@@ -510,6 +517,7 @@ export class RingSession implements ToolHost<RingState> {
         // 既定は、角を丸い爪で押さえる普通の爪留め（作者の判断）。V 字の爪は選んだときだけ
         // V 字の爪は、形の出来がまだ足りないので画面では使わない（作者と決めた。2026-11-04）
         vAtCorners: false,
+        prongTip,
         join: s.join ?? "between", // 前に残した設計（付け方の記録がない）も、既定の「腕の間に挟む」で
         collarHeightMm: s.collarHeightMm,
         collarWallMm: s.collarWallMm,
@@ -562,6 +570,7 @@ export class RingSession implements ToolHost<RingState> {
       height: this.state.height,
       orientation: this.state.orientation,
       join: st.join,
+      prong_tip: st.prongTip,
       bezel_wall_mm: st.bezel ? Math.round(st.bezel.wallMm * 100) / 100 : null,
       ...(st.tension
         ? {
@@ -609,6 +618,7 @@ export class RingSession implements ToolHost<RingState> {
       s.joinSet = true;
     }
     if (input.tension_grip) s.tensionGrip = input.tension_grip;
+    if (input.prong_tip) s.prongTip = input.prong_tip;
     const b = this.build(input.reason);
     if (b.ring.setting.style === "tension") {
       return {

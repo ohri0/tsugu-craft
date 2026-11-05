@@ -11,6 +11,11 @@ import type { TensionInfo } from "./tension";
 import { girdleCenter, stoneHeights, stoneKnots, stoneScaleAt, type StoneHeights, type StoneParams } from "./stone";
 
 export type SettingStyle = "bezel" | "prong" | "tension";
+/**
+ * 爪の先の形。round ＝ 丸い爪（シンプル）、oni ＝ 鬼爪（先が尖り、石の上に少しかかる。作者が確かめた形 2026-11-05）。
+ * V 字の爪には使わない（V 字は角を包む板のまま）
+ */
+export type ProngTip = "round" | "oni";
 
 /**
  * 石座と腕の付け方（爪留めだけ）。on ＝ 腕の上にのせる（腕の上に溝を入れて、下の輪をのせてロウ付け）。
@@ -63,6 +68,8 @@ export interface SettingParams {
   solidQuality?: SolidQuality;
   /** 石座と腕の付け方（爪留めだけ）。既定は on（腕の上にのせる） */
   join?: JoinStyle;
+  /** 爪の先の形（爪留めだけ）。既定は丸い爪 */
+  prongTip?: ProngTip;
   /**
    * 指（腕の内側の円）。腕の間に挟むとき、下の輪の下の面を指の丸みに合わせる（ヤスリで合わせる）のに使う。
    * innerRadiusMm：腕の内側の半径。axisRad：石の座標で、指の軸の向き（x 軸からの角度）。なければ指は平ら
@@ -192,6 +199,8 @@ export interface SettingResult {
   upperRail: { pts: V3[]; radiusMm: number } | null;
   /** 石座と腕の付け方（覆輪は on） */
   join: JoinStyle;
+  /** 爪の先の形（爪留めでなければ round） */
+  prongTip: ProngTip;
   /** 腕の間に挟むときの下の輪（板を丸めた輪）。それ以外は null */
   collar: CollarInfo | null;
   /** テンション（挟む）の測った数。それ以外はなし */
@@ -546,6 +555,55 @@ function clawBend(f: Frame, s: Sample, g: V3, tz: number, halfThickness: number,
   return pts;
 }
 
+/** 鬼爪の形を使うか（爪留めで、鬼爪を選んだとき） */
+function oniOf(params: Pick<SettingParams, "style" | "prongTip">): boolean {
+  return params.style === "prong" && params.prongTip === "oni";
+}
+
+/** 鬼爪の太さ：先からの長さ rest で、先の半径から爪の半径へ太くなる（先の円すいから、根もとで爪の太さへなめらかに） */
+function oniRadius(rest: number, reach: number, r: number): number {
+  const tip = Math.min(GUIDES.prong.oni.tipRadiusMm, r);
+  const u = Math.min(1, rest / Math.max(1e-6, reach));
+  return tip + (r - tip) * u * (1 + GUIDES.prong.oni.taperEase * (1 - u));
+}
+
+/**
+ * 鬼爪の先の中心の線（爪の線の縁の高さの点 base から先まで。base は含めない）。
+ * 爪の線から少し上へ出て、内へ曲がり、石の上側の面の少し上にある先の点へ届く。太さは先へ細くなるので、
+ * 外の面は爪の外から先へなだらかに下りる形になる（丸い爪の太さのまま曲げると、肩が石の上面より高く出た）。
+ * 先の点は石の面から「すき間 cl ＋ 先の半径」だけ離す（石に刺さらない）。内側は石の形で彫るので石に沿う。
+ * 確かめに使う先の高さ（ProngInfo.tipZ・留まりの長さ）は tz のまま。形の先は GUIDES.prong.oni.overCrownRatio まで届く。lean は base で爪が向かっている向き。
+ * 爪の太さを reach の長さで細くするので、reach も一緒に返す
+ */
+function oniClaw(f: Frame, s: Sample, base: V3, tz: number, r: number, lean: V3): { pts: V3[]; reach: number } {
+  const eps = 0.02;
+  const cl = GUIDES.bezel.clearanceMm;
+  const o = GUIDES.prong.oni;
+  const tip = Math.min(o.tipRadiusMm, r);
+  const nh: V3 = [s.n.x, s.n.y, 0];
+  // 先の中心の高さ：石の上側の高さの overCrownRatio まで（爪の先の高さの目安 tz より低くはしない）。石の上面の目安の上の端は超えない
+  const kn = stoneKnots(f.h);
+  const high = f.h.culetZ + GUIDES.prong.tipHeightRatio[1] * (f.h.tableZ - f.h.culetZ);
+  const zEnd = Math.max(base[2] + eps, Math.min(high, Math.max(tz, kn.girdleTop + o.overCrownRatio * f.h.crownMm)));
+  const up = normalize(sub(onStone(f, s, zEnd + eps), onStone(f, s, zEnd - eps)));
+  const out = normalize(sub(nh, scale(up, dot(nh, up))));
+  const end = add(onStone(f, s, zEnd), scale(out, cl + tip));
+  // 手前の引っぱり：爪の線の向きに、先の高さまでの o.rise の割合だけ上がった所
+  const pull = add(base, scale(lean, (o.rise * (zEnd - base[2])) / (lean[2] || 1)));
+  const pts: V3[] = [];
+  let reach = 0;
+  let last = base;
+  for (let q = 1; q <= o.bendSteps; q++) {
+    const u = q / o.bendSteps;
+    const v = 1 - u;
+    const c = add(add(scale(base, v * v), scale(pull, 2 * u * v)), scale(end, u * u));
+    reach += len(sub(c, last));
+    last = c;
+    pts.push(c);
+  }
+  return { pts, reach };
+}
+
 /** 曲線の各点から終わりまでの長さ */
 function lengthsToEnd(path: readonly V3[]): number[] {
   const out = new Array<number>(path.length).fill(0);
@@ -782,9 +840,12 @@ export function buildSetting(params: SettingParams): SettingResult {
           ...lower(footZ(r) + EPS, v.upperRingZ).map((z) => at(f, tipAt, z, d)),
           ...upper.map((z) => at(f, tipAt, z, z >= k.girdleBottom - EPS ? dSeat : d)),
         ];
+        // 鬼爪は、縁の上の点の代わりに、縁の高さから先へ曲げる
+        const claw = oniOf(params) ? oniClaw(f, tipAt, ctrl[ctrl.length - 2], tz, r, sub(ctrl[ctrl.length - 2], ctrl[ctrl.length - 3])) : null;
+        if (claw) ctrl.pop();
         // 先の丸いふたの長さ ＝ 先の断面の半径の平均 × TIP.cap（sweepTube と同じ決め方）
         const capLength = (TIP.cap * r * (TIP.normal + TIP.side)) / 2;
-        ctrl.push(...clawBend(f, tipAt, ctrl[ctrl.length - 1], tz, TIP.normal * r, capLength));
+        ctrl.push(...(claw ? claw.pts : clawBend(f, tipAt, ctrl[ctrl.length - 1], tz, TIP.normal * r, capLength)));
         const path = smoothPath(ctrl, PATH_STEP);
         const rest = lengthsToEnd(path);
         const tris: number[] = [];
@@ -793,13 +854,17 @@ export function buildSetting(params: SettingParams): SettingResult {
           {
             sides: PRONG_SIDES,
             side: side(tipAt),
-            // 先へ向かって、石に直角な向きに少し薄く、横に少し細く（強く薄くすると、先と曲がりの間がくぼんで見える）
+            // 先へ向かって、石に直角な向きに少し薄く、横に少し細く（強く薄くすると、先と曲がりの間がくぼんで見える）。鬼爪は先まで細くする
             radius: (j) => {
+              if (claw) {
+                const q = oniRadius(rest[j], claw.reach, r);
+                return [q, q];
+              }
               const w = smoothstep(1 - rest[j] / (TIP.taper * r));
               return [r * (1 - w * (1 - TIP.normal)), r * (1 - w * (1 - TIP.side))];
             },
             startCap: FOOT_CAP,
-            endCap: TIP.cap,
+            endCap: claw ? 1 : TIP.cap,
             capSteps: CAP_STEPS,
           },
           tris,
@@ -891,7 +956,7 @@ export function buildSetting(params: SettingParams): SettingResult {
     lowerRail = { pts: ringAt(f, v.lowerRingZ, cl + meanD / 2), radiusMm: wire / 2 };
     upperRail = { pts: ringAt(f, v.upperRingZ, cl + meanD / 2), radiusMm: wire / 2 };
     if (params.solid) {
-      const solid = solidHead(f, plans, v, tz, wire, meanD, total, params.solidQuality ?? "final");
+      const solid = solidHead(f, plans, v, tz, wire, meanD, total, params.solidQuality ?? "final", oniOf(params));
       solidNormals = solid.normals;
       parts.length = 0;
       parts.push(solid.positions);
@@ -961,6 +1026,7 @@ export function buildSetting(params: SettingParams): SettingResult {
     lowerRail,
     upperRail,
     join: between ? "between" : "on",
+    prongTip: oniOf(params) ? "oni" : "round",
     prongsOnArm,
     collarBlocked,
     collar,
@@ -1097,7 +1163,7 @@ function stoneDistanceFn(f: Frame, exactWithin?: number): (x: number, y: number,
   };
 }
 
-function solidHead(f: Frame, plans: ProngPlan[], v: Vertical, tz: number, wire: number, meanD: number, total: number, quality: SolidQuality) {
+function solidHead(f: Frame, plans: ProngPlan[], v: Vertical, tz: number, wire: number, meanD: number, total: number, quality: SolidQuality, oni = false) {
   const k = stoneKnots(f.h);
   const cl = GUIDES.bezel.clearanceMm;
   const seat = GUIDES.prong.seatCutRatio;
@@ -1140,6 +1206,13 @@ function solidHead(f: Frame, plans: ProngPlan[], v: Vertical, tz: number, wire: 
       const dTouch = cl + r * 0.85;
       const down = leg(s0, dTouch, r).reverse();
       const g1 = at(f, s0, k.girdleTop, dTouch);
+      if (oni) {
+        const claw = oniClaw(f, s0, down[down.length - 1], tz, r, sub(down[down.length - 1], down[down.length - 2]));
+        const path = smoothPath([...down, ...claw.pts], SOLID.step / 8);
+        const rest = lengthsToEnd(path);
+        tubes.push({ pts: path, radii: rest.map((q) => oniRadius(q, claw.reach, r)), owner: i });
+        return;
+      }
       const up = at(f, s0, (k.girdleTop + tz) / 2, cl + r * 0.95);
       const tipP = at(f, s0, tz - r * 0.6, cl + r * 0.75);
       const path = smoothPath([...down, g1, up, tipP], SOLID.step / 2);
@@ -1808,8 +1881,11 @@ function betweenHead(f: Frame, params: SettingParams, plans0: ProngPlan[], ctx: 
     const r = plan.diameterMm / 2;
     const s = sampleAt(f, plan.t);
     const ctrl = prongLine(s, r);
+    // 鬼爪は、縁の上の点の代わりに、縁の高さから先へ曲げる
+    const claw = oniOf(params) ? oniClaw(f, s, ctrl[ctrl.length - 2], tz, r, sub(ctrl[ctrl.length - 2], ctrl[ctrl.length - 3])) : null;
+    if (claw) ctrl.pop();
     const capLength = (TIP.cap * r * (TIP.normal + TIP.side)) / 2;
-    ctrl.push(...clawBend(f, s, ctrl[ctrl.length - 1], tz, TIP.normal * r, capLength));
+    ctrl.push(...(claw ? claw.pts : clawBend(f, s, ctrl[ctrl.length - 1], tz, TIP.normal * r, capLength)));
     const path = smoothPath(ctrl, PATH_STEP);
     const rest = lengthsToEnd(path);
     const tris: number[] = [];
@@ -1819,11 +1895,15 @@ function betweenHead(f: Frame, params: SettingParams, plans0: ProngPlan[], ctx: 
         sides: PRONG_SIDES,
         side: along(s),
         radius: (j) => {
+          if (claw) {
+            const q = oniRadius(rest[j], claw.reach, r);
+            return [q, q];
+          }
           const w = smoothstep(1 - rest[j] / (TIP.taper * r));
           return [r * (1 - w * (1 - TIP.normal)), r * (1 - w * (1 - TIP.side))];
         },
         startCap: PRONG_END_CAP,
-        endCap: TIP.cap,
+        endCap: claw ? 1 : TIP.cap,
         capSteps: CAP_STEPS,
       },
       tris,
@@ -1928,7 +2008,7 @@ function betweenHead(f: Frame, params: SettingParams, plans0: ProngPlan[], ctx: 
   const collar: CollarInfo = { outer, inner, outerLow, wallMm: wall, heightMm: collarH, topZ, bottomZ, fingerZ, triangles: collarRange, ends };
   const upperRail = { pts: ringPts.map((p) => [p.x, p.y, zU] as V3), radiusMm: wire / 2 };
 
-  const solid = params.solid ? solidBetween(f, plans, { prongLine, ringPts, bridges, zU, wire, tz, outer, outerLow, wall, topZ, bottomZ, fingerAt, armTopAt: (c, r) => bandTopUnder({ x: c[0], y: c[1] }, r), armSurface, quality: params.solidQuality ?? "final" }) : null;
+  const solid = params.solid ? solidBetween(f, plans, { prongLine, ringPts, bridges, zU, wire, tz, outer, outerLow, wall, topZ, bottomZ, fingerAt, armTopAt: (c, r) => bandTopUnder({ x: c[0], y: c[1] }, r), armSurface, quality: params.solidQuality ?? "final", oni: oniOf(params) }) : null;
   return { v, tipZ: tz, prongs, rings, collar, upperRail, solid, prongsOnArm, collarBlocked };
 }
 
@@ -1951,6 +2031,8 @@ interface BetweenSolid {
   /** 腕の外の面の高さ（x, y で）。腕がなければ null */
   armSurface: (x: number, y: number) => number | null;
   quality: SolidQuality;
+  /** 爪の先を鬼爪にするか */
+  oni: boolean;
 }
 
 /** 下の輪の円すいの傾き（上の端から下へ 1 mm で、外の線が内へ寄る長さ。点ごとの平均） */
@@ -1988,6 +2070,19 @@ function solidBetween(f: Frame, plans: ProngPlan[], b: BetweenSolid) {
     const s = sampleAt(f, plan.t);
     const line = b.prongLine(s, r);
     const top = line[line.length - 1];
+    if (b.oni) {
+      // 鬼爪：縁の上で内へ曲がり、先へ細くなって、石の上に少しかかる。下の端は丸い爪と同じ（指の面で切り落とす）
+      const low = sub(line[0], line[1]);
+      const lowLen = Math.hypot(low[0], low[1], low[2]) || 1;
+      const foot = add(line[0], scale(low, (line[0][2] - b.bottomZ + 2 * r + 0.1) / lowLen));
+      const girdle = line[line.length - 2];
+      const claw = oniClaw(f, s, girdle, b.tz, r, sub(girdle, line[line.length - 3]));
+      const pts = smoothPath([foot, ...line.slice(0, -1), ...claw.pts], SOLID.step / 8);
+      const rest = lengthsToEnd(pts);
+      tubes.push({ pts, radii: rest.map((q) => oniRadius(q, claw.reach, r)), owner: i });
+      if (b.armTopAt(line[1], r) !== null) armStops.push({ a: line[0], b: line[1], r });
+      return;
+    }
     // 縁の上からは、まっすぐの線のまま少し上がり、先だけクイと石の上側へ曲がる
     const zMid = top[2] + 0.45 * (b.tz - top[2]);
     const dir = sub(top, line[line.length - 2]);
