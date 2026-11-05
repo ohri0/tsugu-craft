@@ -1073,7 +1073,7 @@ html.fit .ask-nudge small { font-size: 12px; }
 .tn-card h5 { margin: 0; font-size: 13px; font-weight: 600; }
 .tn-facts { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 12px; }
 .tn-facts div { display: flex; justify-content: space-between; gap: 8px; }
-.tn-facts dt { color: var(--fg-2); font-weight: 400; }
+.tn-facts dt { color: var(--fg-2); font-weight: 400; white-space: nowrap; }
 .tn-facts dd { margin: 0; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .tn-line { margin: 0; }
 .tn-line b { display: inline-block; margin-right: 8px; font-weight: 600; color: var(--fg-2); }
