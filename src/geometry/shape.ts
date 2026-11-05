@@ -18,20 +18,20 @@ export function nameShape(outline: readonly Point[], corners: readonly Corner[],
   const solidity = Math.abs(signedArea(outline)) / Math.abs(signedArea(convexHull(outline)));
   const irregular = solidity < opts.solidityMin;
   const r = `長辺 ÷ 幅 ＝ ${ratio.toFixed(2)}、尖った角 ${corners.length} か所`;
-  // 写真から読む石は、決まった寸法の石ではないので「（ノンカリブレーション）」と添える（2026-11-05 作者）
+  // 写真から読む石は、決まった寸法の石ではないので「（ノンカリブレ）」と添える（2026-11-05 作者）
   const byCorners: Record<number, string> = {
-    1: "ペア（ノンカリブレーション）",
-    2: "マーキス（ノンカリブレーション）",
-    3: "トリリアント（ノンカリブレーション）",
-    4: "スクエア（ノンカリブレーション）",
+    1: "ペア（ノンカリブレ）",
+    2: "マーキス（ノンカリブレ）",
+    3: "トリリアント（ノンカリブレ）",
+    4: "スクエア（ノンカリブレ）",
     5: "五角形",
     6: "六角形",
   };
   let name = byCorners[corners.length];
   if (!name) {
     if (corners.length > 6) name = "角の多い形";
-    else if (ratio < opts.roundRatio) name = "ラウンド（ノンカリブレーション）";
-    else if (ratio < opts.elongatedRatio) name = "オーバル（ノンカリブレーション）";
+    else if (ratio < opts.roundRatio) name = "ラウンド（ノンカリブレ）";
+    else if (ratio < opts.elongatedRatio) name = "オーバル（ノンカリブレ）";
     else name = "細長い楕円";
   }
   if (irregular) name = `いびつな${name}`;
