@@ -7,7 +7,7 @@ import { buildShank, sectionOutline, type ShankParams, type ShankStation } from 
 import { commonRows, pchip } from "../src/geometry/shank-loft";
 import { makeReliefField, reliefPattern } from "../src/geometry/shank-relief";
 import { sectionCurveProblem } from "../src/geometry/section-input";
-import { checkRing, checkShank, outlineValleys } from "../src/rules/checks";
+import { checkRing, checkShank, grooveNote, outlineValleys } from "../src/rules/checks";
 import { GUIDES, innerDiameterMm } from "../src/rules/guides";
 import { parseToolCall, TOOLS } from "../src/claude/tools";
 import { seedLedger } from "../src/rules/ledger";
@@ -533,11 +533,12 @@ describe("段と溝の断面（モールディング）と、重ねる彫り", (
     ],
   };
 
-  it("線の入力として通り、確かめ（薄いヒレ・溝の底・溝の幅）も通る", () => {
+  it("線の入力として通り、確かめ（薄いヒレ・溝の底）も通る。細い溝の注意も出ない", () => {
     expect(sectionCurveProblem(MOLD)).toBeNull();
     expect(parseToolCall("set_shank", { section_curve: { points: MOLD }, relief: { pattern: "arch", across_from: 0.335, across_to: 0.47, count: 7 }, relief_more: [{ pattern: "mil", count: 30, across_from: 0.565, across_to: 0.645 }, { pattern: "blade", count: 2, from_deg: 26, to_deg: 66 }], reason: "ためし" }).ok).toBe(true);
     const sh = buildShank(heavy);
     expect(checkShank(sh).map((q) => q.check)).toEqual([]);
+    expect(grooveNote(sh)).toBeNull();
     expect(sh.positions.length / 9).toBeLessThan(160000);
   });
 
@@ -569,15 +570,16 @@ describe("段と溝の断面（モールディング）と、重ねる彫り", (
     expect(reliefPattern("blade", 0.5, 2, 3, 5, 1, [0.3, 0.5])).toBeGreaterThanOrEqual(0);
   });
 
-  it("溝の底が薄い・溝が狭いと、確かめが止める。甲丸のような形は溝に数えない", () => {
+  it("溝の底が薄いと、確かめが止める（溝の幅では止めない）。甲丸のような形は溝に数えない", () => {
     expect(outlineValleys([[1, 0], [0.8, 0.5], [0, 1], [-0.8, 0.5], [-1, 0]])).toEqual([]);
     const v = outlineValleys([[2, 0], [2, 1], [1.5, 1.4], [1, 1.4], [0.9, 0.7], [0.4, 0.7], [0.3, 1.6], [-0.3, 1.6], [-0.4, 0.7], [-0.9, 0.7], [-1, 1.4], [-1.5, 1.4], [-2, 1], [-2, 0]]);
     expect(v.length).toBe(2);
     expect(v[0].floorMm).toBeCloseTo(0.7, 6);
     expect(v[0].widthMm).toBeGreaterThan(0.5);
-    const narrow: [number, number][] = [[2, 0], [2, 1], [1.5, 1.4], [1, 1.4], [0.56, 0.7], [0.44, 0.7], [0.3, 1.6], [-0.3, 1.6], [-0.44, 0.7], [-0.56, 0.7], [-1, 1.4], [-1.5, 1.4], [-2, 1], [-2, 0]];
-    const probs = checkShank({ thicknessMm: 1.6, widthMm: 4, along: [{ atDeg: 90, widthMm: 4, thicknessMm: 1.6, outlineMm: narrow }] });
-    expect(probs.map((p) => p.check)).toEqual(expect.arrayContaining(["band-valley", "band-groove"]));
+    const narrow: [number, number][] = [[2, 0], [2, 1], [1.5, 1.4], [0.56, 1.4], [0.56, 0.7], [0.44, 0.7], [0.44, 1.6], [-0.44, 1.6], [-0.44, 0.7], [-0.56, 0.7], [-0.56, 1.4], [-1.5, 1.4], [-2, 1], [-2, 0]];
+    const sh = { thicknessMm: 1.6, widthMm: 4, along: [{ atDeg: 90, widthMm: 4, thicknessMm: 1.6, outlineMm: narrow }] };
+    expect(checkShank(sh).map((p) => p.check)).toEqual(["band-valley"]);
+    expect(grooveNote(sh)!.widthMm).toBeCloseTo(0.12, 6);
   });
 
   it("設計の場：重ねる彫りの入力で腕が変わり、空の並びでなくなる。テンションでは使わない", () => {

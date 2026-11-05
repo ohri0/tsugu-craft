@@ -8,7 +8,7 @@ import type { SectionCurve, SectionPoint, ShankSection, ShankStation } from "../
 import type { ReliefParams } from "../geometry/shank-relief";
 import type { TensionGrip, TensionInfo } from "../geometry/tension";
 import type { StoneParams } from "../geometry/stone";
-import { FIXES, checkRing, cornerDistances, holdRatio, tensionInsert, tensionNotes, tensionOpening, tensionOpeningText, type FixId, type Problem } from "../rules/checks";
+import { FIXES, checkRing, cornerDistances, grooveNote, holdRatio, tensionInsert, tensionNotes, tensionOpening, tensionOpeningText, type FixId, type Problem } from "../rules/checks";
 import { springForClaude, springIdOf, tensionCautions, tensionSpring } from "../rules/tension-calc";
 import { GUIDES, requiredHold, stoneSizeMm, type Guides, type HeightOption, type MetalId, type StonePosition } from "../rules/guides";
 import { effectiveGuides, prongMinOverride, ruleForCheck, type Ledger, type Rule } from "../rules/ledger";
@@ -321,7 +321,6 @@ const CHECK_NAME: Record<string, string> = {
   "band-spike": "腕の断面のとがり・薄いヒレ",
   "band-relief": "腕の彫りの下の地金",
   "band-valley": "断面の溝の底の厚み",
-  "band-groove": "断面の溝の幅",
   "stone-space": "となりの石との間",
   "metal-space": "となりの石座との間",
   "collar-wall": "石座の下の輪の板の厚み",
@@ -855,6 +854,7 @@ export class RingSession implements ToolHost<RingState> {
     const opening = tensionOpening(b.ring.setting, b.ring.shank, this.guides(), springIdOf(this.state.metal));
     const spring = tensionSpring(b.ring.setting, b.ring.shank, "hardened", this.guides());
     const insert = b.ring.setting.tension ? tensionInsert(b.ring.setting.tension) : null;
+    const groove = grooveNote(b.ring.shank, this.guides());
     return {
       problems: b.problems.map((p) => ({
         check: CHECK_NAME[p.check] ?? p.check,
@@ -865,9 +865,9 @@ export class RingSession implements ToolHost<RingState> {
         options: p.options.map((o) => ({ action: o.label, appearance: o.effectOnLook, tool_hint: hintFor(o.id, this.state, std, b.ring.setting.tension) })),
       })),
       passed: Object.entries(CHECK_NAME)
-        .filter(([k]) => !failed.has(k as Problem["check"]) && (b.ring.setting.style === "tension" ? TENSION_CHECKS.has(k) : !k.startsWith("tension-") && (b.ring.stones.length > 1 || !k.endsWith("-space")) && (b.ring.setting.collar !== null || (k !== "collar-wall" && k !== "band-end")) && (k !== "band-relief" || !!b.ring.shank.relief) && (!["band-valley", "band-groove"].includes(k) || b.ring.shank.section === "free")))
+        .filter(([k]) => !failed.has(k as Problem["check"]) && (b.ring.setting.style === "tension" ? TENSION_CHECKS.has(k) : !k.startsWith("tension-") && (b.ring.stones.length > 1 || !k.endsWith("-space")) && (b.ring.setting.collar !== null || (k !== "collar-wall" && k !== "band-end")) && (k !== "band-relief" || !!b.ring.shank.relief) && (k !== "band-valley" || b.ring.shank.section === "free")))
         .map(([, v]) => v),
-      note: `数字は目安・最後は職人が決める。石の一番下と指のすき間は ${b.ring.culetGapMm.toFixed(2)} mm、地金は約 ${b.ring.metalWeightG.toFixed(1)} g。${tensionNotes(b.ring.setting, b.ring.shank.thicknessMm, this.guides()).join(" ")}${insert ? ` 石の入れ方：${insert.how}。${insert.hold}。` : ""}${opening ? ` ${tensionOpeningText(opening)}` : ""}`.trim(),
+      note: `数字は目安・最後は職人が決める。石の一番下と指のすき間は ${b.ring.culetGapMm.toFixed(2)} mm、地金は約 ${b.ring.metalWeightG.toFixed(1)} g。${tensionNotes(b.ring.setting, b.ring.shank.thicknessMm, this.guides()).join(" ")}${insert ? ` 石の入れ方：${insert.how}。${insert.hold}。` : ""}${opening ? ` ${tensionOpeningText(opening)}` : ""}${groove ? ` ${groove.where} ${groove.widthMm.toFixed(2)} mm：${groove.text}（止めません。形はこのままでかまいません）。` : ""}`.trim(),
       ...(spring
         ? {
             tension_calc: {

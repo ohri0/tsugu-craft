@@ -3,7 +3,7 @@
 import { SECTION_LABEL, SECTION_LIST, bandCurve, innerLimit, isSectionKind, matchLoops, matchPreset, sectionInfo, thinOutline, valleyOf, type PresetKind, type SectionKind, type SectionSpec } from "../cad/section";
 import { bandSolid, meshVolume } from "../cad/solid";
 import { GUIDES, GUIDE_NOTE, type Guides } from "../rules/guides";
-import { SPIKE_TEXT, sectionSpots } from "../rules/checks";
+import { SPIKE_TEXT, narrowGroove, sectionSpots, type GrooveNote } from "../rules/checks";
 import type { ThinSpot } from "../geometry/section-thin";
 import type { SectionCurve } from "../geometry/shank";
 import type { ClaudeTool } from "../claude/wire";
@@ -230,6 +230,16 @@ export interface BandProblem {
   why: string;
   /** editor：自動では直さず、断面を描く画面を見せる（とがりは形の好みに深くかかわる） */
   fix: { label: string; apply: (b: Band) => Band; editor?: boolean };
+}
+
+/** 鋳造では出ない細い溝の注意（作れない所ではない。黄色）。外の面の線を、上と下の断面で見る。なければ null */
+export function bandGrooveNote(b: Band, guides: Guides = GUIDES): GrooveNote | null {
+  const both = b.split || !sameSize(b);
+  const ends: BandEndName[] = both ? ["top", "bottom"] : ["top"];
+  return narrowGroove(
+    ends.map((e) => ({ label: both ? (e === "top" ? "上の" : "下の") : "", pts: thinOutline({ ...specOf(b, e), innerMm: 0 }).map((q): [number, number] => [q.x, q.y]) })),
+    guides,
+  );
 }
 
 /** 作れるかの判定（目安）。guides は今の帳面の目安（職人の決まりをふくむ） */

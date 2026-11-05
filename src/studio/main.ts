@@ -47,7 +47,7 @@ import { loadWorks, newWorkId, removeSampleWorks, removeWork, saveWork, updateWo
 import { cardFlow, glossOf, markTerms, stepCard } from "./cards";
 import { NOTE, type AlloyId } from "./process";
 import type { Step } from "./howto";
-import { MAKE_BAND, SECTION_LABEL, SECTION_LIST, applyDraft, bandCutMesh, bandHowTo, bandInnerDiameter, bandMesh, bandPrompt, bandSpecRows, checkBand, defaultBand, normalizeBand, parseBand, pickSection, sectionWord, sizeWord, specOf, thinSpotsOf, type Band, type BandDraft, type BandProblem } from "./band";
+import { MAKE_BAND, SECTION_LABEL, bandGrooveNote, SECTION_LIST, applyDraft, bandCutMesh, bandHowTo, bandInnerDiameter, bandMesh, bandPrompt, bandSpecRows, checkBand, defaultBand, normalizeBand, parseBand, pickSection, sectionWord, sizeWord, specOf, thinSpotsOf, type Band, type BandDraft, type BandProblem } from "./band";
 import { BAND_GOU_RANGE, bandTarget, renderBandPanel, type BandPanelHost } from "./band-panel";
 import { sectionLoop, sectionPath, type PresetKind, type SectionSpec } from "../cad/section";
 import { effectiveGuides } from "../rules/ledger";
@@ -59,7 +59,7 @@ import { bindSlider, sliderHtml, type SliderSpec } from "./slider";
 import { bindSectionEditor, sectionEditorHtml, startShape } from "./section-edit";
 import { SHANK_SECTIONS, SHANK_SECTION_LABEL, shankSizeWords, type ShankSection } from "../geometry/shank";
 import { placePoint, rebuildShank } from "../geometry/ring";
-import { TENSION_OPENING_NOTE, TENSION_WORDS_NOTE, checkShank, tensionInsert, tensionNotes, type Problem } from "../rules/checks";
+import { TENSION_OPENING_NOTE, TENSION_WORDS_NOTE, checkShank, grooveNote, tensionInsert, tensionNotes, type GrooveNote, type Problem } from "../rules/checks";
 import { SPRING_PREMISE, springIdOf, springSummary, tensionCautions, tensionSpring, type SpringRow, type TensionCaution } from "../rules/tension-calc";
 import type { TensionGrip } from "../geometry/tension";
 import { presentHtml, STONE_SIZES, type PresentGroup } from "./present";
@@ -1041,8 +1041,9 @@ function onBuilt(b: Built, _why: string, refined = false) {
   const chip = $(".verdict-chip");
   chip.hidden = false;
   const cautions = tensionCautionsOf(b);
-  chip.className = `verdict-chip ${n ? "ng" : cautions.length ? "warn" : "ok"}`;
-  chip.textContent = n ? `作れない所 ${grouped(b).length}` : cautions.length ? `職人に聞く ${cautions.length}` : "作れます";
+  const handGroove = handGrooveOf(b);
+  chip.className = `verdict-chip ${n ? "ng" : cautions.length || handGroove ? "warn" : "ok"}`;
+  chip.textContent = n ? `作れない所 ${grouped(b).length}` : cautions.length ? `職人に聞く ${cautions.length}` : handGroove ? "手で彫る溝あり" : "作れます";
   markDrawFault();
   $(".word-name").textContent = r.stones.length > 1 ? `${stone.shapeName}の${layoutName()}の指輪` : `${stone.shapeName}の一粒石の指輪`;
   drawStoneTags();
@@ -1636,7 +1637,6 @@ const SHORT: Record<string, string> = {
   "band-spike": "腕の断面が尖りすぎ",
   "band-relief": "腕の彫りの下の地金が薄い",
   "band-valley": "断面の溝の底が薄い",
-  "band-groove": "断面の溝が狭い",
   "stone-space": "となりの石と近すぎる",
   "metal-space": "石座の間のすき間が狭い",
   "collar-wall": "石座の下の輪の板が薄い",
@@ -2073,6 +2073,20 @@ const GRIP_NOTE: Record<TensionGrip, string> = {
   long: "石の長い向きを腕で挟みます。腕の開きは広くなり、腕の幅の外へ出る所は小さくなります",
   corner: "向かい合う 2 つの角をくぼみに入れます。横にずれませんが、挟む力が角の先にかかります",
 };
+/** 腕の断面の、鋳造では出ない細い溝（作れない所ではない。札を黄色にして、注意だけ出す） */
+function handGrooveOf(b: Built): GrooveNote | null {
+  return grooveNote(b.ring.shank, session!.guides());
+}
+/** 細い溝の黄色の注意。腕の薄さと間違えないよう「溝の幅」と書く。職人の言葉があれば添える */
+function grooveNoteHtml(n: GrooveNote | null): string {
+  if (!n) return "";
+  const r = craftRuleFor("band-groove");
+  return `<p class="look-note groove-note"><b>${esc(n.where)} ${n.widthMm.toFixed(2)} mm</b>${esc(n.text)}。<small>形はこのままでかまいません。${r?.quote ? `「${esc(r.quote)}」${esc(masterName(store.ledger()))}` : ""}</small></p>`;
+}
+/** 指示書の行：手で彫る溝 */
+function grooveSpecRow(n: GrooveNote | null): { label: string; value: string }[] {
+  return n ? [{ label: "手で彫る溝", value: `${n.where} ${n.widthMm.toFixed(2)} mm。${n.text}` }] : [];
+}
 /** 作れない所ではないが、職人に確かめること（札を緑にしない） */
 function tensionCautionsOf(b: Built): TensionCaution[] {
   const st = b.ring.setting;
@@ -2148,7 +2162,7 @@ function renderCheck() {
   const heldProposal = [...(box.querySelector(".ar-proposal")?.childNodes ?? [])];
   box.innerHTML = `
     ${ruleFlashHtml(probs.length)}
-    <section class="big-verdict ${probs.length ? "ng" : tensionCautionsOf(b).length ? "warn" : "ok"}"><b>${probs.length ? "このままでは作れません" : tensionCautionsOf(b).length ? "形は作れます。職人に確かめる所があります" : "このまま作れます"}</b><small>${probs.length ? `直す所 ${probs.length}` : tensionCautionsOf(b).length ? tensionCautionsOf(b).map((c) => esc(c.title)).join("・") : b.ring.setting.tension ? "溝・くぼみ・すき間は目安の内側。ばねの強さは職人が決める" : `爪・留まり・すき間・角、すべて目安の内側`}</small></section>
+    <section class="big-verdict ${probs.length ? "ng" : tensionCautionsOf(b).length || handGrooveOf(b) ? "warn" : "ok"}"><b>${probs.length ? "このままでは作れません" : tensionCautionsOf(b).length ? "形は作れます。職人に確かめる所があります" : handGrooveOf(b) ? "形は作れます。細い溝は、あとから手で彫ります" : "このまま作れます"}</b><small>${probs.length ? `直す所 ${probs.length}` : tensionCautionsOf(b).length ? tensionCautionsOf(b).map((c) => esc(c.title)).join("・") : b.ring.setting.tension ? "溝・くぼみ・すき間は目安の内側。ばねの強さは職人が決める" : `爪・留まり・すき間・角、すべて目安の内側`}</small></section>
     ${filming() ? "" : `<div class="stone-pick"><span>石の形</span><div class="presets" role="group" aria-label="石の形">${stoneButtonsHtml()}</div></div>`}
     ${askNudgeHtml(b)}
     ${workshopBarHtml()}
@@ -2171,6 +2185,7 @@ function renderCheck() {
             .join("")}</ul>`
         : ""
     }
+    ${grooveNoteHtml(handGrooveOf(b))}
     ${(() => {
       const note = prongCountNote(b);
       const r = b.ring;
@@ -2816,7 +2831,7 @@ function printSheet() {
           title: bandName(),
           date: today(),
           imageDataUrl: withWholeBand(() => viewer.snapshot()),
-          specs: bandSpecRows(band, bandWeight),
+          specs: [...bandSpecRows(band, bandWeight), ...grooveSpecRow(bandGrooveNote(band, bandGuides()))],
           problems: probs.map((p) => `${p.title}（${p.current} → ${p.required}）`),
           methodLabel: method === "hand" ? "鍛造" : "鋳造",
           steps: bandHowTo(band, method, bandWeight, alloyOf(bandMetal)),
@@ -2845,6 +2860,7 @@ function printSheet() {
           { label: "腕", value: `${r.shank.widthMm.toFixed(1)} × ${r.shank.thicknessMm.toFixed(1)} mm` },
           { label: "石と指のすき間", value: `${r.culetGapMm.toFixed(2)} mm` },
           { label: "地金", value: `${METAL_LABEL[session.state.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g` },
+          ...grooveSpecRow(handGrooveOf(b)),
         ],
         problems: probs.map(({ p }) => `${SHORT[p.check] ?? p.where}（${p.current} → ${p.required}）`),
         methodLabel: method === "hand" ? "鍛造" : "鋳造",
@@ -3334,6 +3350,11 @@ $(".verdict-chip").addEventListener("click", () => {
     document.querySelector(".tn-card")?.scrollIntoView({ block: "start" });
     return;
   }
+  if (session?.built && !session.built.problems.length && handGrooveOf(session.built)) {
+    setMode("refine");
+    document.querySelector(".groove-note")?.scrollIntoView({ block: "center" });
+    return;
+  }
   if (!session?.built?.problems.length) return;
   const pop = $(".fix-pop");
   pop.hidden = !pop.hidden;
@@ -3459,8 +3480,9 @@ function showBand(live = false) {
   setDims(bandDims(m.positions, probs));
   const chip = $(".verdict-chip");
   chip.hidden = false;
-  chip.className = `verdict-chip ${probs.length ? "ng" : "ok"}`;
-  chip.textContent = probs.length ? `作れない所 ${probs.length}` : "作れます";
+  const handGroove = bandGrooveNote(band, bandGuides());
+  chip.className = `verdict-chip ${probs.length ? "ng" : handGroove ? "warn" : "ok"}`;
+  chip.textContent = probs.length ? `作れない所 ${probs.length}` : handGroove ? "手で彫る溝あり" : "作れます";
   markDrawFault();
   $(".word-name").textContent = bandName();
   $(".specs").innerHTML = bandSpecRows(band, bandWeight)
@@ -3554,7 +3576,8 @@ function renderBandCheck() {
   const heldProposal = [...(box.querySelector(".ar-proposal")?.childNodes ?? [])];
   box.innerHTML = `
     ${ruleFlashHtml(probs.length)}
-    <section class="big-verdict ${probs.length ? "ng" : "ok"}"><b>${probs.length ? "このままでは作れません" : "このまま作れます"}</b><small>${probs.length ? `直す所 ${probs.length}` : "厚み・幅・断面の薄い所、どれも目安の内側"}</small></section>
+    <section class="big-verdict ${probs.length ? "ng" : bandGrooveNote(band, bandGuides()) ? "warn" : "ok"}"><b>${probs.length ? "このままでは作れません" : bandGrooveNote(band, bandGuides()) ? "形は作れます。細い溝は、あとから手で彫ります" : "このまま作れます"}</b><small>${probs.length ? `直す所 ${probs.length}` : "厚み・幅・断面の薄い所、どれも目安の内側"}</small></section>
+    ${grooveNoteHtml(bandGrooveNote(band, bandGuides()))}
     ${
       probs.length
         ? `<ul class="probs">${probs
