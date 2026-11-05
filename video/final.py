@@ -1,6 +1,7 @@
 # 最終案を、はじめから終わりまで組む（画面 → 音楽 → 効果音 → 声 → 混ぜる）。
 # 使い方：python -I final.py [--plan 2|3] [--variant A|B] [--no-video] [--jobs 12]
 #   --plan 2 で最終案 2（final_build2.py・bgm4.py。--variant は終わり方の 2 案）、--plan 3 で最終案 3（final_build3.py・bgm5.py）
+#   --plan 7 で最終案 7（final_build7.py・bgm5.py）。--variant B で工房ごとを外した版
 #  1. final_build.py：台本（final.json。拍で書いた場面・言葉・音楽・声）
 #  2. reel.py：本物の画面のこまに、カメラ・つなぎ・大きな言葉 → work/vc/final_video.mp4（＋効果音の合図）
 #  3. bgm3.py：音楽（自作）　4. sfx.py：効果音（自作）
@@ -20,7 +21,8 @@ PLAN = args[args.index("--plan") + 1] if "--plan" in args else "1"
 VARIANT = args[args.index("--variant") + 1] if "--variant" in args else ""
 if VARIANT:
     os.environ["VARIANT"] = VARIANT
-NAME = os.environ.get("NAME", f"継ぐ_デモ_最終案{PLAN}" + (f"_{VARIANT}" if VARIANT else ""))
+# 最終案 7：工房ごとを入れた版（--variant なし）と外した版（--variant B）で、名前を分ける
+NAME = os.environ.get("NAME", f"継ぐ_デモ_最終案7_{'工房なし' if VARIANT == 'B' else '工房あり'}" if PLAN == "7" else f"継ぐ_デモ_最終案{PLAN}" + (f"_{VARIANT}" if VARIANT else ""))
 BUILD = "final_build.py" if PLAN == "1" else f"final_build{PLAN}.py"
 JSON = "final.json" if PLAN == "1" else (f"final{PLAN}.json" if VARIANT in ("", "A") else f"final{PLAN}{VARIANT}.json")
 BGM = {"1": "bgm3.py", "2": "bgm4.py"}.get(PLAN, "bgm5.py")
@@ -138,13 +140,14 @@ print("できた：", outA, round(total, 1), "秒")
 
 
 def phone(src):
-    """スマホで見る・送る用（1280 px・30 MB 以下）"""
+    """スマホで見る・送る用（1280 px・30 MB 以下。最終案 7 は 20 MB 以下）"""
     dst = src[:-4] + "_スマホ.mp4"
-    for crf in (28, 30, 32, 34):
+    limit = 20 if PLAN == "7" else 30
+    for crf in (28, 30, 32, 34, 36):
         run(["ffmpeg", "-v", "error", "-y", "-i", src, "-vf", "scale=1280:-2", "-c:v", "libx264", "-preset", "slow", "-crf", str(crf), "-pix_fmt", "yuv420p", "-c:a", AAC, "-b:a", "128k" if PLAN in ("1", "2") else "192k", "-movflags", "+faststart", dst])
         mb = os.path.getsize(dst) / 1e6
         print("スマホ用", os.path.basename(dst), f"crf {crf}", round(mb, 1), "MB")
-        if mb < 30:
+        if mb < limit:
             break
 
 

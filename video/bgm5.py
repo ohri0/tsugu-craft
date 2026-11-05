@@ -601,7 +601,7 @@ for bar in range(nbars):
         else:
             for st in (0, 10):
                 put("kick", kick(0.8), t0 + st * S16); kicks.append((t0 + st * S16, 0.5))
-        if name == "build" and b >= s["at"] + s["len"] - 8 and not last:  # 抜いた 1 小節め：8 分のスネアで刻む
+        if name == "build" and b >= s["at"] + s["len"] - 8 and not last and not SC.get("no_roll"):  # 抜いた 1 小節め：8 分のスネアで刻む（最終案 7 はなし）
             for k in range(8):
                 put("drums", clap(0.16 + 0.12 * k / 8), t0 + k * BEAT / 2, rev=0.18)
         if prog > 0.35:
@@ -613,7 +613,7 @@ for bar in range(nbars):
             tq = t0 + sw(st)
             if not stopped(tq):
                 put("drums", hat(vel(0.08 + 0.12 * prog * (1 if st % 2 else 0.6))), hum(tq), pan=0.25)
-        if last:  # 最後の小節：スネアの連打（だんだん細かく、だんだん大きく）
+        if last and not SC.get("no_roll"):  # 最後の小節：スネアの連打（だんだん細かく、だんだん大きく。最終案 7 はなし：上がる音と同じく、上げて落とす感じをやめる）
             for k in range(16):
                 tq = t0 + k * S16
                 if stopped(tq):

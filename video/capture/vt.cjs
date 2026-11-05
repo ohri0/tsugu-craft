@@ -13,7 +13,10 @@ const INIT = `(() => {
   const timers = new Map();
   let rafs = new Map();
   performance.now = () => T;
-  Date.now = () => Math.round(dateBase + T);
+  // 同じ時刻に 2 度読んでも、少しずつ増える（時計が止まっている間に作った記録の id が同じにならないように。
+  // 見本の作品を 6 つ続けて作ると id がみな同じになり、1 つ直すと全部がその作品に置きかわった。2026-11-05）
+  let lastNow = 0;
+  Date.now = () => { const t = Math.round(dateBase + T); lastNow = t > lastNow ? t : lastNow + 1; return lastNow; };
   window.setTimeout = (fn, ms, ...args) => { const id = ++seq; timers.set(id, { at: T + Math.max(0, Number(ms) || 0), fn, args, n: id }); return id; };
   window.setInterval = (fn, ms, ...args) => { const id = ++seq; const every = Math.max(1, Number(ms) || 0); timers.set(id, { at: T + every, fn, args, every, n: id }); return id; };
   window.clearTimeout = window.clearInterval = (id) => { timers.delete(id); };

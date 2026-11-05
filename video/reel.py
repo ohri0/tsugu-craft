@@ -461,6 +461,25 @@ def render_split(clip, tl):
     return out
 
 
+# ---------------------------------------------------------------- 並べる（最終案 7：見本の作品 6 つ。どれも本物の画面のこま）
+def render_grid(clip, tl):
+    ow, oh = OUT
+    out = Image.new("RGB", (ow, oh), (0, 0, 0))
+    cols, rows = clip.get("cols", 3), clip.get("rows", 2)
+    gap = clip.get("gap", 0)
+    cw, ch_ = (ow - gap * (cols - 1)) // cols, (oh - gap * (rows - 1)) // rows
+    for i, sub in enumerate(clip["cells"]):
+        sub = dict(sub)
+        sub.setdefault("len", clip["len"])
+        OUT[:] = [cw, ch_]
+        try:
+            im = render_story(sub, tl)
+        finally:
+            OUT[:] = [ow, oh]
+        out.paste(im, ((i % cols) * (cw + gap), (i // cols) * (ch_ + gap)))
+    return out
+
+
 # ---------------------------------------------------------------- 作者の素材（あれば）
 def footage_dir(name):
     d = os.path.join(WORK, "footage")
@@ -546,6 +565,8 @@ def render_inner(clip, tl):
         return render_foot(clip, tl)
     if k == "split":
         return render_split(clip, tl)
+    if k == "grid":
+        return render_grid(clip, tl)
     if k == "black":
         return Image.new("RGB", tuple(OUT), hexrgb(clip.get("bg", "#000000")))
     if k in KINDS3:
@@ -862,7 +883,7 @@ def render_school3(clip, tl):
     a = _ap(tl, cl, 0.6)
     if a > 0:
         P.text(tx, ty + 128, "待ち時間", S3, C3["gray"], a, "g4")
-        P.text(tx, ty + 176, "最大 約 1 時間", S3, C3["white"], a, "g6")
+        P.text(tx, ty + 176, k.get("clockText", "最大 約 1 時間"), S3, C3["white"], a, "g6")
     return P.out()
 
 
