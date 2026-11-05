@@ -73,7 +73,7 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
       <div class="acts">
         <button type="button" class="act print"><b>帳面を印刷</b><small>紙にして工房に置く</small></button>
         <button type="button" class="act" data-open="motion"><b>手本を撮る</b><small>作業を撮るだけ。学ぶ人が手の動きを比べられます</small></button>
-        <button type="button" class="act" data-open="free"><b>思いついたことを話して残す</b><small>声で話すと、決まりの案になります</small></button>
+        <button type="button" class="act" data-open="free"><b>思いついたことを話して残す</b><small>話すか書くと、決まりの案になります</small></button>
       </div>
     </div>
     <div class="block panel motion-panel" hidden><div class="panel-head"><h3>手本を撮る</h3><button type="button" class="ghost close">閉じる</button></div><div class="motion-root"></div></div>
@@ -297,7 +297,7 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
     return `<li>
       <div class="q-line"><p class="q-text">${esc(g.question)}</p><span class="q-count">${g.count > 1 ? `${g.count} 回 届きました` : "1 回 届きました"}</span></div>
       <p class="q-why">${esc(g.whyUnanswered)}</p>
-      <div class="answer-slot"><button type="button" class="primary voice-cta" data-answer="${i}">${MIC}${canListen() ? "声で答える" : "答える"}</button></div>
+      <div class="answer-slot"><button type="button" class="primary voice-cta" data-answer="${i}">${canListen() ? MIC : ""}答える</button></div>
       <button type="button" class="linklike q-del" data-del-q="${i}">この質問を消す</button>
     </li>`;
   }
@@ -306,7 +306,7 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
   function openAnswer(li: HTMLElement, g?: QuestionGroup) {
     const slot = li.querySelector<HTMLElement>(".answer-slot") ?? li;
     slot.innerHTML = `<div class="answer-box">
-      <textarea rows="3" placeholder="${canListen() ? "マイクを押して話すと、ここに文字が入ります。書いてもかまいません。" : "答えを書いてください。"}"></textarea>
+      <textarea rows="3" placeholder="${canListen() ? "「話す」を押して話すと、ここに文字が入ります。書いてもかまいません。" : "答えを書いてください。"}"></textarea>
       <div class="row"><button type="button" class="mic">${MIC}話す</button><label class="ghost btnlike show-vid">動画で見せる<input type="file" accept="video/*" capture="environment" hidden></label><button type="button" class="primary make">決まりにする</button></div>
       <p class="small vid-name" hidden></p>
       <p class="small box-status"></p>
@@ -325,7 +325,7 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
       n.textContent = `動画をつけました：${f.name}（決まりと一緒に残ります）`;
       if (!field.value.trim()) field.value = "（動画で見せた）";
     });
-    if (canListen()) slot.querySelector<HTMLButtonElement>(".mic")!.click();
+    // 「話す」は押すまで聞かない（開いただけでマイクが始まっていた）
     slot.querySelector<HTMLButtonElement>(".make")!.addEventListener("click", () => {
       voice.stop();
       void makeRule(slot, field.value.trim(), g, st);
