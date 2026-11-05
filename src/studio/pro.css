@@ -1013,10 +1013,10 @@ html.fit .ask-nudge small { font-size: 12px; }
 }
 /*
   スマホの縦の配置（2026-11-05 作者の iPhone の写真から）。撮影（?rec・?nointro）では html.fit がないので、動画の絵は前のまま。
-  - 道具の帯：前は画面の高さの計算で置いていて、ボタンを 44 px にした分（と Safari の vh のずれ）だけ下の欄にかぶっていた。
+  - 道具の帯：前は画面の高さの計算で置いていて、帯の高さを 44 px と見ていた（ボタンを 44 px にしてからは 50 px）。下の欄に 6 px かぶっていた。
     3D の所（grid-area: vp）を入れ物にして、いつもその下の端に置く。
   - 高さは svh（Safari の帯が出ている時の本当の高さ）で。vh だと 3D の所が大きくなりすぎ、下の欄がせまくなった。
-  - 種類は 2 つ横に並べる（縦に並べると、形の設定が 150 px 下へ押された）。
+  - 種類は 2 つ横に並べる（縦に並べると、形の設定が約 50 px 下へ押された）。
 */
 @media (max-width: 820px) {
   html.fit .pro { grid-template-rows: 44px minmax(220px, 42vh) 1fr auto 52px; grid-template-rows: 44px minmax(220px, 42svh) 1fr auto 52px; }
