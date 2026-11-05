@@ -290,13 +290,12 @@ const CLIPS = {
     await drag(p, '.slider[data-s="r-stone"] input[type=range]', 5.2, 8.2, 4500);
     await p.waitForTimeout(3500);
   },
-  // 作る：工程・数字・道具・詳しく・言葉の意味、図面
+  // 作る：工程・流れの文・数字・言葉の意味、図面
   make: async (p) => {
     await studioReady(p);
     M('start');
     await click(p, '.tabs [data-mode="hand"]', { after: 2000 });
-    await click(p, 'details.more > summary', { after: 1200 });
-    await click(p, 'details.more .term', { after: 1500 });
+    await click(p, '.mk-card .flow .term', { after: 1500 });
     await p.mouse.wheel(0, 500); await p.waitForTimeout(1500);
     M('draw');
     await click(p, '.disp [data-disp="draw"]', { after: 3500 });

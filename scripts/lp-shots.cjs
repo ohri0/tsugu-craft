@@ -105,22 +105,12 @@ const FLAT = { section: 'hirauchi', width_mm: 2.0, thickness_mm: 1.4, reason: '�
 const MACRO = { x: 0.62, y: -0.5, z: 0.5 };
 const WHOLE = { x: 0.66, y: -0.62, z: 0.34 };
 
-/** 工房 B（公開情報だけの帳面）を作る。三角の石は角に 3 本で留まる、という決まりだけ先に入れる */
+/** 見本の工房 B（爪 ø 1 mm くらい・鬼爪）を足して、その帳面に切り替える */
 async function workshopB(p) {
-  await p.evaluate(() => { window.__studio.setMode('refine'); document.querySelectorAll('.ws-new, .ws-pick, details.ws').forEach((e) => (e.open = true)); });
+  await p.evaluate(() => { window.__studio.setMode('refine'); });
   await p.waitForTimeout(800);
-  await p.evaluate(() => { const s = document.querySelector('.ws-pick'); s.value = '__new'; s.dispatchEvent(new Event('change')); });
-  await p.waitForTimeout(500);
-  await p.evaluate(() => { const i = document.querySelector('.ws-name'); i.value = '工房 B'; i.dispatchEvent(new Event('input', { bubbles: true })); });
-  await tap(p, '.ws-make');
-  await p.waitForTimeout(2000);
-  await p.evaluate(() => { document.querySelector('.manual-rule').open = true; });
-  await p.evaluate(() => {
-    const set = (q, v) => { const e = document.querySelector(q); e.value = v; e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); };
-    set('.mr-param', 'hold.cornerSet'); set('.mr-value', '1'); set('.mr-quote', '三角の石は、角に 1 本ずつの 3 本で留まる');
-  });
-  await tap(p, '.mr-go');
-  await p.waitForTimeout(3000);
+  await p.evaluate(() => { const s = document.querySelector('.ws-pick'); s.value = '__sample'; s.dispatchEvent(new Event('change')); });
+  await p.waitForTimeout(5000);
 }
 
 const SHOTS = {
@@ -287,18 +277,7 @@ const SHOTS = {
     await tap(p, '.tabs [data-mode="hand"]');
     await p.waitForTimeout(2000);
     const out = { title: await p.evaluate(() => window.__studio.stone?.shapeName ?? ''), methods: {} };
-    for (const m of ['hand', 'cast']) {
-      await tap(p, `.build-panel .method [data-m="${m}"]`);
-      await p.waitForTimeout(800);
-      out.methods[m] = await p.evaluate(() => [...document.querySelectorAll('.build-panel .cards > .mk-card')].map((c) => ({
-        no: c.querySelector('.n')?.textContent ?? '',
-        title: c.querySelector('h3')?.textContent ?? '',
-        lead: c.querySelector('.card-lead')?.textContent ?? '',
-        rows: [...c.querySelectorAll('table.spec tr')].map((r) => [r.querySelector('th').textContent, r.querySelector('td').textContent]),
-        watch: c.querySelector('.watch')?.textContent ?? '',
-        more: [...c.querySelectorAll('details.more .lines > li')].map((l) => l.classList.contains('grp') ? { g: l.textContent } : { b: l.querySelector(':scope > b')?.textContent ?? '', t: [...l.childNodes].filter((n) => !(n.nodeType === 1 && n.tagName === 'B')).map((n) => n.textContent).join('') }),
-      })));
-    }
+    for (const m of ['hand', 'cast']) out.methods[m] = await p.evaluate((x) => window.__studio.makeCards(x), m);
     fs.writeFileSync(path.join(OUT, 'make-steps.json'), JSON.stringify(out));
     console.log('steps', out.title, out.methods.hand.length, out.methods.cast.length);
   },
