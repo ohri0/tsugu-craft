@@ -98,7 +98,8 @@ describe("ほかの技の帳面", () => {
       const l = seedTechLedger(id);
       expect(l.rules.length).toBeGreaterThanOrEqual(4);
       const gaps = techGaps(id, l);
-      expect(gaps.length).toBeGreaterThanOrEqual(2);
+      // 職人が答えると減る（毛彫りは 2026-11-05 に作者が 1 つ答えた）。聞く所が 1 つは残っていること
+      expect(gaps.length).toBeGreaterThanOrEqual(1);
       for (const g of gaps) {
         expect(g.technique).toBe(id);
         expect(g.question).toMatch(/[？?]$/);
