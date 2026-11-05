@@ -515,6 +515,7 @@ def word(s, t, f):
         y = (bx["field"]["y"] - 6) * 4
         r = lift(shot("word9", int(i), (WORD_X, y, 1920, 1080)), 0.05)
         r = band(r, 0, (bx["go"]["y"] + bx["go"]["h"] - bx["field"]["y"] + 40) * 4, 0.3)
+        r = edges(r, 70, 60)
     elif i < mark("word9", "applied"):
         y = (bx["proposal"]["y"] - 8) * 4
         r = lift(shot("word9", int(i), (WORD_X, y, 1920, 1080)), 0.05)
@@ -826,17 +827,17 @@ def firstnow(s, t, f):
         a = ring_frame("first9", i_now)
     else:
         a = ring_frame("first9", i_first) * (1 - k) + ring_frame("first9", i_now) * k
-    # 右に縦で、今どちらの版か。数字は小さく
+    # 右に縦で、今どちらの版か。数字は右下に横書きで小さく（縦書きの中の mm は横に寝てしまうので）
     k1 = fade(t, 0.5, 0.8) * (1 - sm((t - sw) / 0.5))
     if k1 > 0:
         a = ink(a, V(RIGHT - 30, TOP + 6, "最初の版。", "min", M, 0.10), SHIRO, k1)
         a = ink(a, V(RIGHT - 110, TOP + 10, "ネットの情報だけ。", "min", S, 0.10), SHIRO, k1)
-        a = ink(a, V(RIGHT - 180, TOP + 12, "爪 [ø1.66] mm", "sans", T, 0.10), SHIRO, 0.9 * k1)
+        a = ink(a, Hz(RIGHT, 1016, "最初の版　爪 ø 1.66 mm", "sans", T, 0.06, "r"), SHIRO, 0.9 * k1)
     k2 = fade(t, sw + 0.3, 0.8)
     if k2 > 0:
         a = ink(a, V(RIGHT - 30, TOP + 6, "職人の言葉から。", "min", M, 0.10), SHIRO, k2)
-        a = ink(a, V(RIGHT - 110, TOP + 10, "爪 [ø0.80] mm", "sans", T, 0.10), SHIRO, 0.9 * k2)
-        a = ink(a, V(RIGHT - 160, TOP + 12, "目安・最後は職人が決める", "sans", 22, 0.10), SHIRO, 0.82 * k2)
+        a = ink(a, Hz(RIGHT, 1016, "今の版　爪 ø 0.80 mm", "sans", T, 0.06, "r"), SHIRO, 0.9 * k2)
+        a = ink(a, Hz(RIGHT, 1052, "目安・最後は職人が決める", "sans", 22, 0.08, "r"), SHIRO, 0.82 * k2)
     return a
 
 
@@ -889,7 +890,7 @@ def gothic(s, t, f):
     k2 = fade(t, sw + 0.4, 0.9)
     a = ink(a, V(RIGHT - 30, TOP + 6, "「ゴシックな感じ」", "min", M, 0.08), SHIRO, k2)
     a = ink(a, V(RIGHT - 112, TOP + 12, "写真の石のまま。断面と彫りまで。", "min", S - 6, 0.08), SHIRO, 0.95 * k2)
-    a = ink(a, V(RIGHT - 170, TOP + 12, "彫りの深さ 0.25 mm（目安・最後は職人が決める）", "sans", 22, 0.08), SHIRO, 0.82 * k2)
+    a = ink(a, Hz(RIGHT, 1052, "彫りの深さ 0.25 mm（目安・最後は職人が決める）", "sans", 22, 0.06, "r"), SHIRO, 0.82 * k2)
     return a
 
 
@@ -1187,7 +1188,7 @@ def mokume(s, t, f):
     a = ink(a, V(1378, 130, "刀の飾りの技。", "min", S, 0.10), SHIRO, k)
     a = ink(a, V(640, 130, "一時途絶えたとされ、", "min", S, 0.10), SHIRO, fade(t, a1 - 0.1, 0.9))
     a = ink(a, V(582, 130, "のちに復元された。", "min", S, 0.10), SHIRO, fade(t, a1 + 0.5, 0.9))
-    a = ink(a, V(500, 150, "鐔：メトロポリタン美術館（CC0）", "sans", 22, 0.12), SHIRO, 0.82 * fade(t, 0.6, 0.8))
+    a = ink(a, Hz(LEFT, 1056, "鐔：メトロポリタン美術館（CC0）", "sans", 22, 0.08), SHIRO, 0.82 * fade(t, 0.6, 0.8))
     return a
 
 
