@@ -61,6 +61,33 @@ export const GUIDES = {
      */
     oni: { overCrownRatio: 0.5, tipRadiusMm: 0.11, rise: 0.35, taperEase: 0, bendSteps: 12 },
     /**
+     * 爪を押して、その爪（または全部の爪）の形を直す欄の範囲と、形の決まり。数字に出典はない。どれも仮（作者の頼み 2026-11-06）。
+     * diameterMm・flareMm・tipLengthMm・baseScale・tipScale：欄のつまみの範囲（min・max・step）。
+     * flareReachRatio：先の反りをかける長さ（縁の上の部分の、先の方のこの割合）。flareLift：反らせた量のこの割合だけ上へも上げる（外へ開くように）。
+     * flareContactGapMm：石からこれより離れた爪の先は、押さえている長さに数えない（確かめの先の高さが下がる）。
+     * baseReachRatio：土台の太さが効く長さ（爪の線の、下からこの割合。なめらかに元の太さへ）。
+     * tipReachRadii：先の力強さが効く長さ（先から、爪の半径のこの倍）。outwardShift：太った分のこの倍だけ線を外へ（石の側の面が動かない）。
+     * aboveGirdleMm・belowTableMm：先の高さは、縁の上からこれだけ上、石の上面からこれだけ下に収める。capOverRatio：丸い先が先の高さから上へ出る量（爪の半径に対する割合。形を作るための決まり）。
+     * strong：「土台を太く、先を力強く」を押したときの倍率。職人の言う鬼爪に近い形を項目で作るための、最初の値（定義は作者が確かめ中）。
+     */
+    edit: {
+      diameterMm: { min: 0.4, max: 2, step: 0.05 },
+      flareMm: { min: 0, max: 0.6, step: 0.05 },
+      tipLengthMm: { min: -0.4, max: 0.6, step: 0.05 },
+      baseScale: { min: 1, max: 1.8, step: 0.05 },
+      tipScale: { min: 1, max: 1.8, step: 0.05 },
+      flareReachRatio: 0.5,
+      flareLift: 0.35,
+      flareContactGapMm: 0.1,
+      baseReachRatio: 0.6,
+      tipReachRadii: 3.2,
+      outwardShift: 1.15,
+      aboveGirdleMm: 0.05,
+      belowTableMm: 0.1,
+      capOverRatio: 0.4,
+      strong: { baseScale: 1.4, tipScale: 1.35 },
+    },
+    /**
      * 見本の工房（工房 B）のベーシックの雰囲気。本当の工房の値ではなく、工房ごとの違いを見せるための例（作者の頼み 2026-11-05：ø 0.9〜1 mm くらい・尖り爪）。
      * prongMm：大きな石での標準の爪の太さ（mm）。小さな石は公開の資料の線の細さのまま。あとで画面で直せる。
      */

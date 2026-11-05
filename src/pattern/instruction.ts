@@ -35,7 +35,7 @@ export function instructionHtml(o: InstructionInput): string {
   const style =
     s.style === "bezel"
       ? `覆輪（ふくりん）：壁の厚み ${mm(s.bezel?.wallMm ?? 0)}`
-      : `爪 ${s.prongs.length} か所（うち V 字 ${s.prongs.filter((p) => p.isV).length}）・太さ ${mm(s.prongs[0]?.diameterMm ?? 0)}`;
+      : `爪 ${s.prongs.length} か所（うち V 字 ${s.prongs.filter((p) => p.isV).length}）・太さ ${[...new Set(s.prongs.map((p) => mm(p.diameterMm)))].join("〜") || mm(0)}`;
   const rows: [string, string][] = [
     ["石", `${o.shapeName}　長辺 ${mm(st.longMm)} × 幅 ${mm(st.widthMm)}${o.widthFromPhoto ? "（写真から）" : ""} × 深さ ${mm(o.depthMm)}`],
     ["上側／下側", `${mm(ring.stone.heights.crownMm)} ／ ${mm(ring.stone.heights.pavilionMm)}`],

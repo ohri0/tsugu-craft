@@ -730,9 +730,35 @@ export function checkSetting(s: SettingResult, culetGapMm: number = s.heights.cu
       }
     });
 
-    // 爪の先の高さ（全部の爪で同じ高さなので、1 つにまとめる）
+    // 爪の先の高さ（ふつうは全部の爪で同じ高さなので、1 つにまとめる。1 本ずつ直した爪があれば、高さの違う爪ごとに）
     const tipZ = s.heights.tipZ;
-    if (tipZ !== null) {
+    const tipsDiffer = tipZ !== null && s.prongs.some((p) => Math.abs(p.tipZ - tipZ) > 1e-9);
+    if (tipsDiffer) {
+      s.prongs.forEach((p, i) => {
+        const m = tipMeasures(s.heights, p.tipZ);
+        const [r0, r1] = g.prong.tipHeightRatio;
+        const [o0, o1] = g.prong.crownOverlapRatio;
+        const ratioOk = m.ratio >= r0 - 1e-9 && m.ratio <= r1 + 1e-9;
+        const overlapOk = m.overlap >= o0 - 1e-9 && m.overlap <= o1 + 1e-9;
+        if (ratioOk && overlapOk) return;
+        const useRatio = !ratioOk;
+        const v = useRatio ? m.ratio : m.overlap;
+        const [lo, hi] = useRatio ? [r0, r1] : [o0, o1];
+        const low = v < lo;
+        out.push({
+          id: `tip-height:${i}`,
+          check: "tip-height",
+          where: `${prongName(i, p.isV)}の先`,
+          current: useRatio ? `上面までの高さの ${pct(v)}` : `上側にかかる長さ 上側の ${pct(v)}`,
+          required: useRatio ? `上面までの高さの ${pct(lo)}〜${pct(hi)}` : `上側の ${pct(lo)}〜${pct(hi)}`,
+          currentValue: v,
+          requiredValue: low ? lo : hi,
+          reason: low ? "爪の先が低いか、反らせて石から離れ、石を押さえる所が浅い" : "爪の先が高く、引っかかりやすい・石の上面が隠れる",
+          options: fix(low ? "tipUp" : "tipDown"),
+          target: { kind: "prong", index: i },
+        });
+      });
+    } else if (tipZ !== null) {
       const m = tipMeasures(s.heights, tipZ);
       const [r0, r1] = g.prong.tipHeightRatio;
       const [o0, o1] = g.prong.crownOverlapRatio;
