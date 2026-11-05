@@ -330,29 +330,18 @@ details summary::-webkit-details-marker { display: none; }
 .spec td { color: var(--fg); font-variant-numeric: tabular-nums; }
 .mk-card .watch { margin-top: 10px; margin-bottom: 0; font-size: 12px; line-height: 1.65; color: var(--warn); }
 .mk-card .watch::before { content: "注意  "; font-weight: 600; }
-.mk-card .more { margin-top: 12px; }
-.mk-card .more > summary { display: inline-flex; align-items: center; gap: 7px; min-height: 32px; font-size: 12.5px; font-weight: 500; color: var(--fg-2); list-style: none; cursor: pointer; }
-.mk-card .more > summary::-webkit-details-marker { display: none; }
-.mk-card .more > summary::marker { content: ""; }
-.mk-card .more > summary:hover { color: var(--fg); }
-.pm { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; }
-.pm circle { stroke: var(--line-2); }
-.more > summary:hover .pm circle { stroke: currentColor; }
-.more[open] .pm .v { display: none; }
-.lines { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 8px; }
-.lines > li { font-size: 12.5px; line-height: 1.75; color: var(--fg-2); }
-.lines > li > b { font-weight: 600; color: var(--fg); }
-.lines > li > b.h { margin-right: 8px; font-weight: 700; }
-.lines > li > b .term { font-weight: 700; }
-.lines > li.grp { margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 11px; font-weight: 600; letter-spacing: 0.06em; color: var(--fg-3); }
-.lines > li.tools-line { padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.flow { margin-top: 6px; display: grid; gap: 6px; }
+.flow p { margin: 0; font-size: 13px; line-height: 1.75; color: var(--fg-2); }
+.flow p.flow-g { margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12px; font-weight: 600; color: var(--fg); }
+.flow .term-def { margin: 0 0 4px; }
+.mk-card .flow-tools { margin-top: 10px; margin-bottom: 0; font-size: 12.5px; line-height: 1.75; color: var(--fg-2); }
 @media (max-width: 820px) {
   .cards { padding: 0 10px; }
   .mk-card { padding: 16px 14px 12px; }
   .mk-card > :not(.card-head) { margin-left: 0; }
   .spec { width: 100%; }
   .mk-card h3 { font-size: 16px; }
-  .card-lead, .lines > li { font-size: 14px; }
+  .card-lead, .flow p, .mk-card .flow-tools { font-size: 14px; }
   .spec { font-size: 13.5px; }
 }
 .note-b { padding: 0 14px; }
@@ -450,7 +439,6 @@ dialog.sheet input:focus { border-color: var(--accent); }
 .term-def ol { margin: 4px 0 0; padding-left: 18px; color: var(--fg); }
 .term-def ol li { margin: 0 0 2px; font-size: 12.5px; }
 .term-def .td-watch { margin-top: 8px; font-size: 12px; color: var(--warn); }
-.lines > li > .term-def { display: block; }
 
 /* ---- なぜ継ぐ ---- */
 .presets { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
@@ -625,6 +613,15 @@ dialog.sheet input:focus { border-color: var(--accent); }
 .ws-new[hidden] { display: none; }
 .ws-new button { height: 30px; padding: 0 14px; border-radius: var(--r); font-size: 12px; font-weight: 600; border: 0; background: var(--accent); color: #fff; }
 .ws-bar .hint { margin: 0; }
+.ws-basics { display: grid; gap: 7px; padding: 8px 0 2px; border-top: 1px solid var(--line); }
+.ws-b-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; margin: 0; font-size: 12px; color: var(--fg); }
+.ws-b-h b { font-weight: 600; }
+.ws-b-h small { font-size: 10.5px; color: var(--fg-3); }
+.ws-tip { margin: 0; }
+.ws-bar .ws-b-mm { grid-template-columns: 1fr auto; }
+.ws-b-mm .in { display: inline-flex; align-items: center; gap: 5px; }
+.ws-b-mm input { width: 68px; font-variant-numeric: tabular-nums; }
+.ws-b-mm i { font-style: normal; font-size: 11px; color: var(--fg-3); }
 .ws-table table { width: 100%; border-collapse: collapse; font-size: 12px; }
 .ws-table th, .ws-table td { padding: 6px 4px; border-top: 1px solid var(--line); text-align: left; font-weight: 400; }
 .ws-table thead th { border-top: 0; font-size: 10.5px; color: var(--fg-3); }
@@ -875,7 +872,7 @@ html.fit .p-head small,
 html.fit .fix-go,
 html.fit .p-act details,
 html.fit .manual > summary,
-html.fit .lines > li.grp,
+html.fit .flow p.flow-g,
 html.fit .save-form label,
 html.fit .works-head small,
 html.fit .works-list small,
@@ -954,7 +951,7 @@ html.fit .ask-nudge small { font-size: 12px; }
   html.fit .command { min-height: 52px; }
   html.fit .command .wish { min-height: 44px; }
   html.fit .command button { min-height: 44px; }
-  html.fit .manual > summary, html.fit .more > summary, html.fit .stones-sec > summary, html.fit .p-act details > summary, html.fit .pub-in-step > summary, html.fit .making-rules > summary, html.fit .manual-rule > summary { min-height: 44px; display: flex; align-items: center; }
+  html.fit .manual > summary, html.fit .stones-sec > summary, html.fit .p-act details > summary, html.fit .pub-in-step > summary, html.fit .making-rules > summary, html.fit .manual-rule > summary { min-height: 44px; display: flex; align-items: center; }
   /* 文の中の言葉と出どころのリンク：行の高さを変えずに、押せる所だけ上下に広げる */
   html.fit :is(.term, .r-q a, .past a) { position: relative; }
   html.fit :is(.term, .r-q a, .past a)::after { content: ""; position: absolute; inset: -12px -2px; }

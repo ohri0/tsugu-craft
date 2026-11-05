@@ -575,9 +575,9 @@ const CH = {
       await a.box(`card${k}`, sel, 6); a.mark(`card${k}`);
       const title = await p.evaluate((s) => document.querySelector(s + ' h3')?.innerText, sel);
       console.log('make2', k, title);
-      if (/石座を組む|覆輪を作る|ロウ付け/.test(title || '') && (await p.locator(sel + ' details.more > summary').count())) {
+      if (/石座を組む|覆輪を作る|ロウ付け/.test(title || '') && (await p.locator(sel + ' .flow .term').count())) {
         await a.hold(10);
-        await a.press(sel + ' details.more > summary', { n: 12, after: 4 });
+        await a.press(sel + ' .flow .term', { n: 12, after: 4 });
         await a.box(`card${k}open`, sel, 6); a.mark(`open${k}`);
         await a.hold(30);
       } else {
@@ -1082,9 +1082,9 @@ const CH = {
       await a.box(`card${k}`, sel, 6); a.mark(`card${k}`);
       const title = await p.evaluate((s) => document.querySelector(s + ' h3')?.innerText, sel);
       console.log('make3', k, title);
-      if (/ロウ付け|石座を腕に付ける/.test(title || '') && (await p.locator(sel + ' details.more > summary').count())) {
+      if (/ロウ付け|石座を腕に付ける/.test(title || '') && (await p.locator(sel + ' .flow .term').count())) {
         await a.hold(10);
-        await a.press(sel + ' details.more > summary', { n: 12, after: 4 });
+        await a.press(sel + ' .flow .term', { n: 12, after: 4 });
         await a.box(`card${k}open`, sel, 6); a.mark(`open${k}`);
         await a.hold(36);
       } else {
@@ -1882,8 +1882,8 @@ const CH = {
     await paint(0x000000); await a.settle(400); a.mark('black'); await a.shot({ hide: true });
     await paint(0xffffff); await a.settle(400); a.mark('white'); await a.shot({ hide: true });
   },
-  // 作り方の札（スマホの幅）：04 ロウ付けで閉じる で止める（スクロールしない）→ 「詳しく」を押して開く。職人の決まりの札を読む。
-  // 08「下の輪を腕の間に挟んでロウ付けする」には「詳しく」がない（工程の中の決まりが 3 つで、札も長い）ので、職人の決まりと「詳しく」が同じ札にある 04 にした
+  // 作り方の札（スマホの幅）：04 ロウ付けで閉じる で止める（スクロールしない）→ 流れの文の中の点線の言葉を押すと、すぐ下に開く。職人の決まりの札を読む。
+  // 08「下の輪を腕の間に挟んでロウ付けする」は札が長いので、職人の決まりと流れの文の言葉が同じ札にある 04 にした
   make8m: async (a) => {
     const { p } = a;
     await studio(a); await renderDisp(a);
@@ -1893,21 +1893,21 @@ const CH = {
     console.log('make8m 札', await p.evaluate((s) => document.querySelector(`${s} h3`)?.innerText, c4));
     // 札の頭を、パネルの頭に合わせる（ここまでは撮らない）
     await p.evaluate((s) => document.querySelector(s).scrollIntoView({ block: 'start' }), c4); await a.settle(300);
-    await a.box('panel', '.build-panel', 0); await a.box('card', c4, 4); await a.box('rule', `${c4} .rule-in-step:not(.pub-in-step)`, 6); await a.box('more', `${c4} details.more > summary`, 6);
+    await a.box('panel', '.build-panel', 0); await a.box('card', c4, 4); await a.box('rule', `${c4} .rule-in-step:not(.pub-in-step)`, 6); await a.box('more', `${c4} .flow .term`, 6);
     await a.box('quote', `${c4} .rule-in-step:not(.pub-in-step) .r-q`, 4); await a.box('text', `${c4} .rule-in-step:not(.pub-in-step) .r-text`, 4);
     console.log('make8m 職人の決まり', await p.evaluate((s) => document.querySelector(s)?.innerText.replace(/\s+/g, ' '), `${c4} .rule-in-step:not(.pub-in-step)`));
     a.mark('card');
     await a.hold(N(60), { hide: true });
     a.mark('go');
-    await a.move(`${c4} details.more > summary`, 20);
+    await a.move(`${c4} .flow .term`, 20);
     await a.shot({ rip: 1 });
     a.mark('press');
-    await p.mouse.click((await p.locator(`${c4} details.more > summary`).boundingBox()).x + 40, (await p.locator(`${c4} details.more > summary`).boundingBox()).y + 12);
+    { const t = await p.locator(`${c4} .flow .term`).first().boundingBox(); await p.mouse.click(t.x + t.width / 2, t.y + t.height / 2); }
     await a.shot({ rip: 0.65 }); await a.shot({ rip: 0.3 });
     await a.settle(50);
-    await a.box('lines', `${c4} details.more ul.lines`, 6);
+    await a.box('lines', `${c4} .term-def`, 6);
     a.mark('open');
-    console.log('make8m 詳しく', await p.evaluate((s) => document.querySelector(s)?.innerText.replace(/\s+/g, ' ').slice(0, 200), `${c4} details.more ul.lines`));
+    console.log('make8m 言葉', await p.evaluate((s) => document.querySelector(s)?.innerText.replace(/\s+/g, ' ').slice(0, 200), `${c4} .term-def`));
     await a.move({ x: 470, y: 980 }, 14);
     a.mark('away');
     await a.hold(N(200), { hide: true });

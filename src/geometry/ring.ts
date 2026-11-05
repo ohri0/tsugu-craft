@@ -268,6 +268,7 @@ function tensionRing(p: RingParams): RingDesign {
   const empty = new Float32Array(0);
   const setting: SettingResult = {
     style: "tension",
+    prongTip: "round",
     positions: empty,
     prongs: [],
     prongsOnArm: 0,

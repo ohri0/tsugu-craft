@@ -113,6 +113,10 @@ const designShape = z
       .optional()
       .describe("腕の外の面に彫る浅い模様（穴は開かない）"),
     shank_width_mm: z.number().min(1).max(10).optional().describe(`腕の幅（mm）。いちばん上（石座のそば）の幅。省略で ${GUIDES.shank.widthMm} mm`),
+    prong_tip: z
+      .enum(["round", "oni"])
+      .optional()
+      .describe("爪の先の形（爪留めだけ）：round＝丸い爪（シンプル）、oni＝鬼爪（先が尖り、石の上に少しかかる。尖り具合の数字は仮の目安）。省略すると帳面のベーシックの形、なければ丸い爪"),
     join: z
       .enum(["on", "between"])
       .optional()
@@ -302,6 +306,7 @@ export function checkRingTool(ctx: ToolContext, input: CheckRingInput) {
     shankWidthMm: d.shank_width_mm,
     shankThicknessMm: d.shank_thickness_mm,
     join: d.join,
+    prongTip: d.prong_tip ?? ledger.basics?.prongTip,
   };
   const built = build(stone.params, design, ledger);
   const { ring } = built;
@@ -328,6 +333,7 @@ export function checkRingTool(ctx: ToolContext, input: CheckRingInput) {
       height: design.height,
       orientation: design.orientation,
       join: s.join,
+      prong_tip: s.prongTip,
       metal: metalName(design.metal),
       gou: design.gou,
       position: design.position,

@@ -14,13 +14,22 @@ describe("なぜ継ぐ", () => {
   });
   it("行き来の図は「デザイン・設計（CAD）」と「制作」の 2 つ。戻りは制作から「デザイン・設計」へ", () => {
     const html = whyHtml();
-    expect(html).toContain("制作からデザイン・設計へ戻る");
+    expect(html).toContain("制作からデザイン・設計へ何度も戻る");
     expect(html).toContain("デザイン・設計<tspan>（CAD）</tspan>");
-    // 朱の線は、線と同じ道を引く（線の上から外れない）
+    // 印は、線と同じ道を通る（線の上から外れない）
     const m = /class="ff-back" d="([^"]+)"/.exec(html);
-    const k = /class="ff-mark" pathLength="100" d="([^"]+)"/.exec(html);
+    const k = /class="ff-run-back" pathLength="100" d="([^"]+)"/.exec(html);
     expect(m?.[1]).toBeTruthy();
     expect(k?.[1]).toBe(m?.[1]);
+    const go = /class="ff-go" d="([^"]+)"/.exec(html)?.[1] ?? "";
+    const run = /class="ff-run-go" pathLength="100" d="([^"]+)"/.exec(html)?.[1] ?? "";
+    expect(run).toBeTruthy();
+    expect(go.startsWith(run)).toBe(true);
+  });
+  it("往復のたびに数が変わる。動きを減らす設定では字で分かる", () => {
+    const html = whyHtml();
+    for (const n of [1, 2, 3]) expect(html).toContain(`${n} 回目</text>`);
+    expect(html).toContain("何度も戻る</text>");
   });
   it("継ぐの枠が「デザイン・設計」と職人の判断を包み、制作へまっすぐ。戻りはなくなるとは言わない", () => {
     const html = whyHtml();

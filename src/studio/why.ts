@@ -16,22 +16,40 @@ export function chances(start: number, end: number, cycle: number, offset = 0): 
 /** 国土交通白書の出どころ（「この20年の周期によって、多い人で3回の遷宮に携わることができます。」。社殿を作る技能者の話） */
 export const HAKUSHO_URL = "https://www.mlit.go.jp/hakusyo/mlit/h25/hakusho/h26/html/n1233c20.html";
 
+/** 行き来の図の朱の線の道。線と印が同じ path を通るので、印は線から外れない */
+const FLOW_BACK = "M326 106C300 26 144 26 118 106";
+
 /**
  * 行ったり来たりの図。「デザイン・設計（CAD）」→「制作」。戻りは制作から「デザイン・設計」へ（設計の人の仕事を奪う絵にしない。作者の声）。
- * 朱の線は、線と同じ path を 1 秒ほどで引く（線の上から外れない。動きを減らす設定では、線を止めて出すだけ）
+ * 細い印が矢印に沿って進み、朱の線に沿って戻る。1 往復 1.4 秒で 3 回、数を変えて少し止まり、くり返す。何度も戻っていることが見えるように（作者の声）。
+ * 動くのは画面に入っている間だけ（bindFlowMotion）。動きを減らす設定では止めて「何度も戻る」と字で出す
  */
 export function flowBeforeSvg(): string {
-  return `<svg class="ff" viewBox="0 0 360 150" role="img" aria-label="デザイン・設計（CAD）から制作へ進み、制作で作れないと分かると、制作からデザイン・設計へ戻る">
+  return `<svg class="ff ff-loop" viewBox="0 0 360 150" role="img" aria-label="デザイン・設計（CAD）から制作へ進み、制作で作れないと分かると、制作からデザイン・設計へ何度も戻る">
     <g class="ff-labels">
       <text x="118" y="132" text-anchor="middle">デザイン・設計<tspan>（CAD）</tspan></text>
       <text x="326" y="132" text-anchor="middle">制作</text>
     </g>
     <path class="ff-go" d="M226 126H296M292 122l4 4-4 4"/>
-    <path class="ff-back" d="M326 106C300 26 144 26 118 106"/>
+    <path class="ff-back" d="${FLOW_BACK}"/>
     <path class="ff-tip" d="M113 100l5 6 7-3"/>
-    <path class="ff-mark" pathLength="100" d="M326 106C300 26 144 26 118 106"/>
+    <path class="ff-run-go" pathLength="100" d="M226 126H296"/>
+    <path class="ff-run-back" pathLength="100" d="${FLOW_BACK}"/>
     <text class="ff-say" x="222" y="30" text-anchor="middle">作れない</text>
+    ${[1, 2, 3].map((n) => `<text class="ff-count c${n}" x="222" y="78" text-anchor="middle">${n} 回目</text>`).join("")}
+    <text class="ff-still" x="222" y="78" text-anchor="middle">何度も戻る</text>
   </svg>`;
+}
+
+/** 行き来の図を、画面に入っている間だけ動かす */
+export function bindFlowMotion(root: ParentNode): void {
+  const figs = root.querySelectorAll<SVGElement>(".ff-loop");
+  if (!("IntersectionObserver" in window)) {
+    figs.forEach((f) => f.classList.add("on"));
+    return;
+  }
+  const io = new IntersectionObserver((es) => es.forEach((e) => e.target.classList.toggle("on", e.isIntersecting)), { threshold: 0.2 });
+  figs.forEach((f) => io.observe(f));
 }
 
 /**
@@ -111,7 +129,7 @@ export function whyHtml(opts: { standalone?: boolean } = {}): string {
     <figure class="wy-tachi">
       <img src="/heritage/goshinpo-gyokuhai.jpg" width="1800" height="793" alt="内宮御神宝図の一部。玉と金の飾りをつないだ玉佩の絵" loading="lazy" decoding="async" />
       <img src="/heritage/goshinpo-tachi.jpg" width="1800" height="793" alt="内宮御神宝図の一部。金の飾りのある太刀の絵" loading="lazy" decoding="async" />
-      <figcaption>神宝を描いた図。内宮御神宝図（部分。江戸時代の写し）、<a href="https://commons.wikimedia.org/wiki/File:NDL2574228_%E5%86%85%E5%AE%AE%E5%BE%A1%E7%A5%9E%E5%AE%9D%E5%9B%B3.(1).pdf" target="_blank" rel="noopener">国立国会図書館所蔵／Wikimedia Commons</a>・パブリックドメイン。写真ではありません。</figcaption>
+      <figcaption>神宝を描いた図。内宮御神宝図（部分。江戸時代の写し）、<a href="https://commons.wikimedia.org/wiki/File:NDL2574228_%E5%86%85%E5%AE%AE%E5%BE%A1%E7%A5%9E%E5%AE%9D%E5%9B%B3.(1).pdf" target="_blank" rel="noopener">国立国会図書館所蔵／Wikimedia Commons</a>・パブリックドメイン。</figcaption>
     </figure>
     <div class="wy-w">
       <h3>刀の金具も、<wbr>同じ彫金の技で。</h3>

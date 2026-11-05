@@ -12,11 +12,27 @@ import { mountRebuild } from "./rebuild";
 import { mountRestore } from "./restore";
 import { listProjects } from "./restore-store";
 import { mountTech, pageCounts, pageInfo, ringTarget, techTarget } from "./tech-view";
+import { WAZA_ORDER } from "../rules/flow";
+import { flowCounts, flowDots } from "./flow-view";
+import { flowUI, isMihon } from "./mihon";
 import { TECH_IDS, isTechId } from "../rules/techniques";
 import type { HowtoId } from "../rules/howto-steps";
-import { esc } from "./store";
+import { esc, store } from "./store";
 
 export { ringTarget, techTarget };
+
+/** 技の札：残ったもの（決まり・手本・届いた質問）で育っていくのが見える */
+function flowCard(id: HowtoId): string {
+  const t = pageInfo(id);
+  const c = flowCounts(id);
+  const stat = (n: number, label: string, cls = "") => `<span class="bt-stat${n ? " has" : ""}${cls}"><b>${n}</b>${esc(label)}</span>`;
+  return `<li><a class="big-tech" href="#waza/${id}">
+    <span class="bt-mark" aria-hidden="true">${esc(t.mark)}</span>
+    <span class="bt-body"><b>${esc(id === "ring" ? "指輪の石留め" : t.name)}</b><small>${esc(t.lead)}</small>
+      <span class="bt-stats">${stat(c.craftsman, isMihon() ? "残した決まり" : "職人の決まり")}${stat(c.models, "手本")}${stat(c.questions, "届いた質問", c.questions ? " alert" : "")}${flowDots(id)}</span></span>
+    <span class="bt-go" aria-hidden="true">›</span>
+  </a></li>`;
+}
 
 function card(id: HowtoId): string {
   const t = pageInfo(id);
@@ -55,6 +71,21 @@ export function mountWaza(root: HTMLElement): { refresh(): void; route(sub: stri
     page = null;
     const mokume = TECHNIQUES.find((t) => t.id === "mokume");
     const hasRun = PUBLISHED_RUNS.some((r) => r.technique === "mokume");
+    if (flowUI()) {
+      // 職人の技を残して次の人へ渡す道具だと、最初の画面で分かるように
+      root.innerHTML = `
+    <section class="view waza">
+      <header class="view-head waza-head">
+        <h2>職人の技を、次の人へ</h2>
+        <p class="lead">どの技も同じ流れです。</p>
+      </header>
+      <ol class="flow-line" aria-label="流れ"><li class="master">職人が答える</li><li class="master">手本を残す</li><li class="learner">学ぶ人が聞く</li><li class="learner">手を比べる</li></ol>
+      ${isMihon() ? "" : `<a class="ghost btnlike mihon-link" href="app.html?mihon#waza/kebori">作り話の例で、流れを見る <span aria-hidden="true">›</span></a>`}
+      <ul class="big-techs">${WAZA_ORDER.map(flowCard).join("")}</ul>
+      ${mokume ? rebuildCards(hasRun) : ""}
+    </section>`;
+      return;
+    }
     root.innerHTML = `
     <section class="view waza">
       <header class="view-head">
@@ -71,9 +102,12 @@ export function mountWaza(root: HTMLElement): { refresh(): void; route(sub: stri
   function route(next: string) {
     sub = next;
     const [name, query] = sub.split("?");
-    const gapId = new URLSearchParams(query ?? "").get("gap") ?? undefined;
+    const params = new URLSearchParams(query ?? "");
+    const gapId = params.get("gap") ?? undefined;
     if (name === "ring" || isTechId(name)) {
-      page = mountTech(root, name, { gapId, onBack: () => (location.hash = "#waza") });
+      // 「学ぶ」のタブを押したとき、いま見ている技のまま開く
+      if (flowUI()) store.setLastTech(name);
+      page = mountTech(root, name, { gapId, step: params.get("step") ?? undefined, onBack: () => (location.hash = "#waza") });
     } else if (name === "rebuild") {
       page = null;
       mountRebuild(root, { onBack: () => (location.hash = "#waza") });

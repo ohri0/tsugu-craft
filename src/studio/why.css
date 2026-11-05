@@ -22,24 +22,48 @@
 .ff-labels text { font-family: var(--t-mincho); font-size: 19px; fill: currentColor; }
 .ff-labels tspan { font-size: 14.5px; }
 .ff-go { fill: none; stroke: currentColor; stroke-width: 0.8; opacity: 0.7; }
-.ff-back { fill: none; stroke: var(--t-shu); stroke-width: 1; opacity: 0.26; }
+.ff-back { fill: none; stroke: var(--t-shu); stroke-width: 1; opacity: 0.5; }
 .ff-tip { fill: none; stroke: var(--t-shu); stroke-width: 1; opacity: 0.8; }
-.ff-mark { fill: none; stroke: var(--t-shu); stroke-width: 1.2; stroke-dasharray: 100; stroke-dashoffset: 100; animation: ff-draw 7s ease-in-out infinite; }
+.ff-run-go, .ff-run-back, .ff-count { animation-duration: 5.6s; animation-timing-function: linear; animation-iteration-count: infinite; animation-play-state: paused; }
+.ff-run-go, .ff-run-back { fill: none; stroke-width: 1.8; stroke-linecap: round; }
+.ff-run-go { stroke: currentColor; stroke-dasharray: 22 300; stroke-dashoffset: 22; animation-name: ff-loop-go; }
+.ff-run-back { stroke: var(--t-shu); stroke-dasharray: 7 200; stroke-dashoffset: 7; animation-name: ff-loop-back; }
+.ff-count { font-family: var(--t-mincho); font-size: 15px; fill: var(--t-shu); opacity: 0; }
+.ff-count.c1 { animation-name: ff-c1; }
+.ff-count.c2 { animation-name: ff-c2; }
+.ff-count.c3 { animation-name: ff-c3; }
+.ff-still { display: none; font-family: var(--t-mincho); font-size: 15px; fill: var(--t-shu); }
+.ff-loop.on .ff-run-go, .ff-loop.on .ff-run-back, .ff-loop.on .ff-count { animation-play-state: running; }
 .ff-box { fill: none; stroke: currentColor; stroke-width: 0.8; opacity: 0.75; }
 .ff-faint { fill: none; stroke: var(--t-shu); stroke-width: 0.5; opacity: 0.32; }
 .ff-labels .ff-in { font-size: 22px; letter-spacing: 0.1em; }
 .ff-say { font-family: var(--t-mincho); font-size: 16px; fill: var(--t-shu); }
 .ff-note { font-family: var(--t-sans); font-size: 15px; fill: currentColor; }
-/* 朱の線を、制作からデザイン・設計へ、線の上に約 1.1 秒で引く。しばらく残して、薄く消える */
-@keyframes ff-draw {
-  0% { stroke-dashoffset: 100; opacity: 1; }
-  16% { stroke-dashoffset: 0; opacity: 1; }
-  80% { stroke-dashoffset: 0; opacity: 1; }
-  90% { stroke-dashoffset: 0; opacity: 0; }
-  100% { stroke-dashoffset: 100; opacity: 0; }
+/* 1 周 5.6 秒：1 往復 1.4 秒（行き 0.6・戻り 0.6）を 3 回、そのあと 1.4 秒止まる。25% が 1 往復 */
+@keyframes ff-loop-go {
+  0% { stroke-dashoffset: 22; }
+  10.7% { stroke-dashoffset: -100; }
+  10.71%, 25% { stroke-dashoffset: 22; }
+  35.7% { stroke-dashoffset: -100; }
+  35.71%, 50% { stroke-dashoffset: 22; }
+  60.7% { stroke-dashoffset: -100; }
+  60.71%, 100% { stroke-dashoffset: 22; }
 }
+@keyframes ff-loop-back {
+  0%, 12.5% { stroke-dashoffset: 7; }
+  23.2% { stroke-dashoffset: -100; }
+  23.21%, 37.5% { stroke-dashoffset: 7; }
+  48.2% { stroke-dashoffset: -100; }
+  48.21%, 62.5% { stroke-dashoffset: 7; }
+  73.2% { stroke-dashoffset: -100; }
+  73.21%, 100% { stroke-dashoffset: 7; }
+}
+@keyframes ff-c1 { 0%, 24.9% { opacity: 1; } 25%, 100% { opacity: 0; } }
+@keyframes ff-c2 { 0%, 24.9% { opacity: 0; } 25%, 49.9% { opacity: 1; } 50%, 100% { opacity: 0; } }
+@keyframes ff-c3 { 0%, 49.9% { opacity: 0; } 50%, 96% { opacity: 1; } 100% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) {
-  .ff-mark { animation: none; display: none; }
+  .ff-run-go, .ff-run-back, .ff-count { display: none; animation: none; }
+  .ff-still { display: inline; }
   .ff-back { opacity: 0.9; }
 }
 

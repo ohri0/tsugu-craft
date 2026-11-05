@@ -123,6 +123,12 @@ export function sizeStepsText(steps: SizeStep[], unit: string): string {
     .join("、");
 }
 
+/** 工房のベーシックの雰囲気 */
+export interface LedgerBasics {
+  /** 爪の先の形：round＝丸い爪、oni＝鬼爪 */
+  prongTip?: "round" | "oni";
+}
+
 export interface Ledger<P extends string = ParamId> {
   /** 何の工芸の目安帳か */
   craft: string;
@@ -132,6 +138,11 @@ export interface Ledger<P extends string = ParamId> {
   rules: Rule<P>[];
   /** 誰の帳面か（工房ごとの帳面の名前。なければ、決まりをいちばん多く残した職人の名前） */
   owner?: string;
+  /**
+   * 工房のベーシックの雰囲気（既定。あとで編集できる）。今は爪の先の形。爪の太さは、決まり（prong.minDiameterMm）のほうで持つ。
+   * なければ丸い爪
+   */
+  basics?: LedgerBasics;
   /** 職人が消した決まりの id（リポジトリの帳面から読み直しても、足し直さない） */
   removed?: string[];
   /** 消した決まりの中身（「消した決まり」の一覧から元に戻すため） */

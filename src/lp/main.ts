@@ -3,7 +3,7 @@
 // 書いてあることは、どれも今のアプリでできること。数字は、撮った画面の数字か、出典・記録のあるものだけ。
 // 写真は public/lp/（scripts/lp-shots.cjs で撮る）と public/heritage/（README に出どころ）。3D は読み込まない。
 import "./lp.css";
-import { flowBeforeSvg, HAKUSHO_URL, whyHtml } from "../studio/why";
+import { bindFlowMotion, flowBeforeSvg, HAKUSHO_URL, whyHtml } from "../studio/why";
 
 const STUDIO = "studio.html";
 const LEARN = "app.html#learn";
@@ -55,25 +55,6 @@ const TENSION_EXAMPLE: { metal: string; small?: string; open?: string; note?: st
   { metal: "Pt900", note: "足りない（戻りきらず、約 0.60 mm 曲がったまま）" },
   { metal: "SV925", small: "0.12", open: "1.42" },
 ];
-
-/**
- * 手順の札の、道具が文に出てこない工程に足す文（道具の名前を流れの中で言う。数字は書かない。道具の役目は src/studio/toolbox.ts のとおり）。
- * 工程の題は設計の画面の手順と同じ。ここにない道具は、札の最後に一言で書く
- */
-const MK_FLOW: Record<string, string> = {
-  "hand:材料を用意する": "号はリングゲージで確かめ、寸法はノギスで測る。太さが合わなければ、圧延機や線引き板で寸法に近づける。すり板の上で糸のこで切り、端はヤスリで整える。",
-  "hand:焼きなまして、のばす": "ロウ付けの台の上で、保護めがねを着けて熱し、酸洗いする。のばしたら、ノギスで寸法を確かめる。",
-  "hand:切って、丸める": "すり板の上で切り、芯金に合わせて丸める。",
-  "hand:ロウ付けで閉じる": "ロウ付けの台の上で、保護めがねを着けて作業する。ロウは耐熱ピンセットで置き、バーナーで熱する。",
-  "hand:芯金で丸く整える": "号はリングゲージで確かめる。",
-  "hand:座を彫って、石を留める": "指輪は指輪万力で押さえ、保護めがねを着ける。座はハンドピースに座彫りのバーやハートバーを付けて彫る。爪は押し棒で倒し、先は細工ヤスリで丸くする。",
-  "hand:仕上げ": "細かい所は細工ヤスリとハンドピースで整え、ルーペで見る。保護めがねを着ける。",
-  "cast:原型を作る": "ワックスは、ヤスリとワックスペンで形を作り、ノギスで測る。3D 印刷なら 3D プリンターを使う。",
-  "cast:湯道を付ける": "湯道はワックスペンで付け、ゴム台に立て、はかりで重さを量る。",
-  "cast:埋没して、焼く": "粉と水ははかりで量り、保護めがねを着ける。",
-  "cast:座を彫って、石を留める": "指輪は指輪万力で押さえ、保護めがねを着ける。座はハンドピースに座彫りのバーやハートバーを付けて彫る。爪は押し棒で倒し、先は細工ヤスリで丸くする。",
-  "cast:仕上げ": "細かい所は細工ヤスリとハンドピースで整える。保護めがねを着ける。",
-};
 
 const MET = "メトロポリタン美術館";
 const CREDITS: { what: string; src: string; href: string; lic: string }[] = [
@@ -150,10 +131,10 @@ const html = `
   <section class="book" aria-labelledby="book-h">
     <h2 id="book-h" class="v book-h rv">決まりは、<br>工房ごとに持てます。</h2>
     <div class="book-two">
-      <figure class="rv">${shot("book-a", 2000, 2000, "石川工房の帳面で組んだ指輪。爪が細く、石がよく見える", "(max-width: 760px) 92vw, 46vw")}<figcaption><b>石川工房</b><span>爪 ø <span class="num">0.80</span> mm</span></figcaption></figure>
-      <figure class="rv">${shot("book-b", 2000, 2000, "工房 B の帳面で組んだ指輪。同じ石でも爪が太い", "(max-width: 760px) 92vw, 46vw")}<figcaption><b>工房 B</b><span>爪 ø <span class="num">1.66</span> mm</span></figcaption></figure>
+      <figure class="rv">${shot("book-a", 2000, 2000, "石川工房の帳面で組んだ指輪。細い丸い爪で、シンプルに見える", "(max-width: 760px) 92vw, 46vw")}<figcaption><b>石川工房</b><span>丸い爪 ø <span class="num">0.80</span> mm</span></figcaption></figure>
+      <figure class="rv">${shot("book-b", 2000, 2000, "見本の工房 B の帳面で組んだ指輪。先が尖って石の上に少しかかる鬼爪で、シャープに見える", "(max-width: 760px) 92vw, 46vw")}<figcaption><b>工房 B（見本）</b><span>鬼爪 ø <span class="num">1.00</span> mm</span></figcaption></figure>
     </div>
-    <p class="book-n rv">同じ石・同じ号で、帳面だけを変えて撮りました。工房 B は、公開の資料の目安に「三角の石は角に 3 本」だけを足した帳面です。形は、その工房の判断で決まります。数字は目安・最後は職人が決めます。</p>
+    <p class="book-n rv">同じ石・同じ号で、帳面だけを変えて撮りました。帳面には、爪の形や太さといった、工房のいつもの雰囲気も入ります。あとで直せます。工房 B は見本の工房で、鬼爪（先が尖り、石の上に少しかかる爪）と太さは例です。数字は目安・最後は職人が決めます。</p>
   </section>
 
   ${door(1, "design", "デザインする人へ", `<figure class="door-draw">${shot("draw-views", 1460, 660, "継ぐが描いた図面の一部。指輪の正面図・側面図・上面図と寸法", "(max-width: 760px) 92vw, 56vw")}</figure>`)}
@@ -191,10 +172,10 @@ const html = `
 
   <section class="red" aria-labelledby="red-h">
     <figure class="red-ring rv">${shot("ring-red", 3200, 2000, "爪を細くした指輪。細すぎる爪 3 本が赤く光っている", "100vw")}</figure>
-    <h2 id="red-h" class="v red-h rv">作れない所は、<br>赤く光る。</h2>
+    <h2 id="red-h" class="v red-h rv">作れない所を、<br>職人の言葉で<br>教えます。</h2>
     <div class="red-b">
-      <p class="rv">爪が細い、腕が薄い。押すと、どこが・いくつで・なぜが並びます。理由は職人の言葉か、資料の出どころです。直せば、消えます。</p>
-      <figure class="rv">${shot("fixpop", 2112, 1564, "設計の画面。爪が赤い指輪と、作れない所の窓。爪が細い 0.60 mm → 0.70 mm 以上、職人の言葉、爪を太くするボタン、まとめて直す、Claude で直す", "(max-width: 900px) 92vw, 860px")}<figcaption>爪を細くしたところ。数字は目安・最後は職人が決めます。</figcaption></figure>
+      <p class="rv">赤く光る所を押すと、なぜ作れないかを、その工房の職人の言葉で教えます。直し方のボタンを押すと、その場で直ります。</p>
+      <figure class="rv"><picture><source media="(max-width: 760px)" srcset="lp/fixpop-pop-sm.webp 368w, lp/fixpop-pop.webp 736w" sizes="92vw" width="368" height="361">${shot("fixpop", 1624, 738, "赤く光る爪の指輪と、作れない所の窓。爪が細い 0.60 mm → 0.70 mm 以上、職人の言葉「このサイズの石なら最低ライン 0.7 mm は欲しい感じ」、爪を太くするボタン、まとめて直す、Claude で直す", "(max-width: 900px) 92vw, 860px")}</picture><figcaption>数字と言葉は、この工房の帳面から。数字は目安・最後は職人が決めます。</figcaption></figure>
     </div>
   </section>
 
@@ -272,7 +253,7 @@ const html = `
     <div class="naiku-b">
       <p class="rv">伊勢神宮の式年遷宮では、社殿も御装束神宝も、20 年に一度、すべて新しく作り直されます。遷宮に関わる技能者が携われるのは、多い人で <span class="num">3</span> 回ほどです。</p>
       <p class="src rv">出典：<a href="${HAKUSHO_URL}" target="_blank" rel="noopener">国土交通白書 平成 26 年版のコラム</a>（社殿を作る技能者の話）。写真は 1953 年の内宮。上が新しい殿舎、下がそれまでの殿舎。本田照夫 撮影・パブリックドメイン。</p>
-      <figure class="naiku-zu rv">${heritage("goshinpo-gyokuhai.jpg", "内宮御神宝図の一部。玉と金の飾りをつないだ玉佩の絵", 1800, 793)}<figcaption>神宝の一つ、玉佩を描いた図。内宮御神宝図（部分。江戸時代の写し）、国立国会図書館所蔵・パブリックドメイン。写真ではありません。</figcaption></figure>
+      <figure class="naiku-zu rv">${heritage("goshinpo-gyokuhai.jpg", "内宮御神宝図の一部。玉と金の飾りをつないだ玉佩の絵", 1800, 793)}<figcaption>神宝の一つ、玉佩を描いた図。内宮御神宝図（部分。江戸時代の写し）、国立国会図書館所蔵・パブリックドメイン。</figcaption></figure>
     </div>
   </section>
 
@@ -315,7 +296,11 @@ const html = `
         <p class="note rv">案は、試して確かめるためのものです。最後は職人が試して決めます。</p>
         <p class="links rv"><a href="${RESTORE}">自分の技を組み立て直す</a></p>
       </div>
-      <figure class="rv">${shot("restore-flow", 896, 198, "途切れた技の流れ。分かることを入れる、Claude が作り方の案を出す、試して結果を入れる", "(max-width: 760px) 92vw, 446px")}${shot("restore-step", 896, 826, "工程の案の 1 つ。灰を洗う。もとにしたもの、危ない所", "(max-width: 760px) 92vw, 446px")}<figcaption>作り話の例で見た、流れと工程の案。</figcaption></figure>
+      
+    </div>
+    <div class="own-shots">
+      <figure class="own-flow rv">${shot("restore-flow", 960, 245, "途切れた技の流れ。分かることを入れる、Claude が作り方の案を出す、試して結果を入れる", "(max-width: 760px) 92vw, 760px")}</figure>
+      <figure class="own-step rv">${shot("restore-step", 960, 871, "工程の案の 1 つ。灰を洗う。もとにしたもの、危ない所", "(max-width: 760px) 92vw, 600px")}<figcaption>作り話の例で見た、工程の案。</figcaption></figure>
     </div>
     <p class="restore-e rv">公開の情報や、職人の帳面・記録をもとに、失われた技も、組み立て直せるかもしれません。</p>
   </section>
@@ -325,8 +310,8 @@ const html = `
   </section>
 
   <section class="stance" aria-labelledby="stance-h">
-    <h2 id="stance-h" class="rv">Claude は、<wbr>答えを決めません。</h2>
-    <p class="rv">職人の決まりを読んで選び、理由を残します。最後は職人が決めます。</p>
+    <h2 id="stance-h" class="rv">決めるのは、<wbr>職人です。</h2>
+    <p class="rv">Claude は職人の決まりを読み、案を出し、理由を残します。</p>
     <p class="note rv"><a href="https://github.com/ohri0/tsugu-craft#readme" rel="noopener">このアプリの作り方（GitHub）</a></p>
   </section>
 
@@ -354,6 +339,7 @@ const html = `
 
 const root = document.getElementById("lp")!;
 root.innerHTML = html;
+bindFlowMotion(root);
 
 // 字は動かさず、濃くなるだけ（動きを減らす設定なら、はじめから全部見せる）
 const els = [...root.querySelectorAll<HTMLElement>(".rv")];
@@ -383,6 +369,7 @@ function openWhy() {
     el.setAttribute("aria-label", "なぜ継ぐ");
     el.tabIndex = -1;
     el.innerHTML = whyHtml({ standalone: true });
+    bindFlowMotion(el);
     document.body.appendChild(el);
     el.querySelector(".why-close")!.addEventListener("click", closeWhy);
   }
@@ -411,8 +398,8 @@ if (location.hash === "#why") openWhy();
 
 // 手順の札：設計の画面の「手順」と同じ中身（scripts/lp-shots.cjs の steps が JSON にした物）。鍛造・鋳造を押して切り替える。
 // 流れを文で読む。点線の言葉を押すと、その行のすぐ下に説明が開き、もう一度押すと閉じる（設計の画面と同じことば帳。src/studio/cards.ts）。開くのは 1 つだけ
-interface MkLine { g?: string; b?: string; t?: string }
-interface MkCard { no: string; title: string; lead: string; rows: [string, string][]; watch: string; more: MkLine[] }
+interface MkLine { g?: string; t?: string }
+interface MkCard { no: string; title: string; lead: string; rows: [string, string][]; watch: string; tools: string[]; more: MkLine[] }
 const MK_LABEL: Record<string, string> = { hand: "鍛造", cast: "鋳造" };
 const escH = (x: string) => x.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 type Cards = typeof import("../studio/cards");
@@ -421,17 +408,16 @@ function mkCards(list: MkCard[], method: string, words: Cards): string {
     .map((c) => {
       const seen = new Set<string>();
       const mark = (t: string) => words.markTerms(escH(t), seen);
-      const tools = (c.more.find((l) => l.b === "道具")?.t ?? "").split("、").filter(Boolean);
-      const added = MK_FLOW[`${method}:${c.title}`] ?? "";
-      const lines = c.more.filter((l) => l.b !== "道具");
-      const said = c.lead + added + lines.map((l) => `${l.b ?? ""}${l.t ?? ""}${l.g ?? ""}`).join("") + c.watch;
-      const rest = tools.filter((t) => !said.includes(t));
+      // 道具の文は設計の画面と同じ（src/studio/cards.ts の FLOW_TOOLS）。文に出てこない道具は、札の最後に一言で
+      const added = words.flowToolsFor(c.title, method);
+      const said = c.lead + added + c.more.map((l) => l.g ?? l.t ?? "").join("") + c.watch;
+      const rest = c.tools.filter((t) => !said.includes(t));
       const head = mark(c.lead);
       const addHtml = added ? `<li>${mark(added)}</li>` : "";
       return `<li class="mk-c">
       <div class="mk-h"><span class="mk-n">${escH(c.no)}</span><div><h3>${escH(c.title)}</h3><p>${head}</p></div></div>
       ${c.rows.length ? `<dl class="mk-rows">${c.rows.map(([k, v]) => `<div><dt>${escH(k)}</dt><dd>${escH(v)}</dd></div>`).join("")}</dl>` : ""}
-      ${addHtml || lines.length ? `<ul class="mk-flow">${addHtml}${lines.map((l) => (l.g ? `<li class="g">${mark(l.g)}</li>` : `<li>${mark(`${l.b ?? ""}${l.t ?? ""}`)}</li>`)).join("")}</ul>` : ""}
+      ${addHtml || c.more.length ? `<ul class="mk-flow">${addHtml}${c.more.map((l) => (l.g ? `<li class="g">${mark(l.g)}</li>` : `<li>${mark(l.t ?? "")}</li>`)).join("")}</ul>` : ""}
       ${c.watch ? `<p class="mk-watch">${mark(c.watch)}</p>` : ""}
       ${rest.length ? `<p class="mk-tools">ほかに使う道具：${mark(rest.join("、"))}</p>` : ""}
     </li>`;

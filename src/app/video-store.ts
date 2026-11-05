@@ -1,7 +1,11 @@
 // 手本の動画を、このブラウザの中（IndexedDB）に残す。動画は重いので localStorage ではなくこちら。
 // 外には送らない。手の記録（JSON）は src/ui/motion-ui.ts と同じ所（localStorage）に残す。
+import { isMihon } from "./mihon";
+
 const DB = "tsugu.videos";
 const STORE = "videos";
+/** 見本の間は、このブラウザに残さない（閉じれば消える） */
+const memory = new Map<string, Blob>();
 
 function open(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -13,6 +17,10 @@ function open(): Promise<IDBDatabase> {
 }
 
 export async function putVideo(id: string, blob: Blob): Promise<void> {
+  if (isMihon()) {
+    memory.set(id, blob);
+    return;
+  }
   const db = await open();
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE, "readwrite");
@@ -38,6 +46,7 @@ export async function removeVideo(id: string): Promise<void> {
 }
 
 export async function getVideo(id: string): Promise<Blob | null> {
+  if (isMihon()) return memory.get(id) ?? null;
   try {
     const db = await open();
     const blob = await new Promise<Blob | null>((resolve, reject) => {

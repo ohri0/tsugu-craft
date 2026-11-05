@@ -12,12 +12,15 @@ import { summarizeMetrics } from "../craft/motion";
 import { bookHtml } from "../rules/book";
 import { freshGap, ringGaps } from "../rules/gaps";
 import { activeRules, addRule, editRule, removedList, removeRule, restoreRule, seedLedger, sourceLabel, type Ledger, type Rule } from "../rules/ledger";
-import { MAIN, removeWorkshop, renameWorkshop, setActive } from "../rules/workshops";
+import { setBasics, MAIN, removeWorkshop, renameWorkshop, setActive } from "../rules/workshops";
 import repoLedger from "../../ledger/jewelry.json";
 import { groupQuestions, markAnswered, removeQuestions, type QuestionGroup } from "../rules/teacher-queue";
 import { mountMotion, savedRecords } from "../ui/motion-ui";
 import { mountInterview, type Interview } from "./interview";
 import { bookLabel, bookTitle, masterName } from "./master";
+import { openQuestions, WAZA_ORDER } from "../rules/flow";
+import { flowCounts, flowDots, techName } from "./flow-view";
+import { flowUI } from "./mihon";
 import { getVideo, putVideo } from "./video-store";
 import { askPassword, resetPassword } from "./password";
 import { esc, store, today } from "./store";
@@ -53,8 +56,10 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
   <section class="view keep">
     <header class="view-head">
       <div class="keep-name"><h2 class="keep-title"></h2><button type="button" class="linklike rename">名前を変える</button><label class="ws-switch" hidden><span>帳面を切り替える</span><select aria-label="使う帳面"></select></label></div>
-      <p class="lead">工房の決まり。設計の確かめと、学ぶ人への答えに使います。</p>
+      <p class="lead">${flowUI() ? "決まりは、技ごとに残ります。" : "工房の決まり。設計の確かめと、学ぶ人への答えに使います。"}</p>
+      <div class="keep-basics"><span>この工房のベーシック：爪の形</span><div class="seg-b" role="group" aria-label="爪の形（工房の既定）"><button type="button" data-tip="round">丸い爪</button><button type="button" data-tip="oni">鬼爪</button></div><small class="keep-basics-n"></small></div>
     </header>
+    ${flowUI() ? `<ul class="book-techs"></ul><h3 class="pub-sec-h book-ring-h">指輪の石留めの決まり <small>設計の確かめにも使います</small></h3>` : ""}
     <div class="block ask-card iv-card" hidden></div>
     <ul class="rule-cards"></ul>
     ${
@@ -99,11 +104,24 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
     sw.hidden = !ws.list.length;
     const pick = sw.querySelector("select")!;
     pick.innerHTML = [`<option value="${MAIN}"${ws.active === MAIN ? " selected" : ""}>${esc(bookTitle(store.mainName()))}</option>`, ...ws.list.map((w) => `<option value="${esc(w.id)}"${ws.active === w.id ? " selected" : ""}>${esc(bookTitle(w.name))}</option>`)].join("");
+    const tip = store.ledger().basics?.prongTip ?? "round";
+    root.querySelectorAll<HTMLButtonElement>(".keep-basics button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.tip === tip)));
+    $(".keep-basics-n").textContent = ws.list.find((w) => w.id === ws.active)?.sample ? "見本の工房です。爪の太さと形は雰囲気の例。あとで直せます。目安・最後は職人が決めます。" : "いつもの雰囲気の既定。設計ごとにも選べます。";
     renderCards();
     renderRemoved();
     if (interview) interview.refresh();
     else renderAskCard();
-    const groups = groupQuestions(store.queue()).filter((g) => !g.answeredRuleId);
+    const flow = flowUI();
+    if (flow) {
+      // 技ごとの帳面：開くとその技の頁へ。届いた質問もそこで答える（答えがちがう技の帳面に入らないように）
+      $(".book-techs").innerHTML = WAZA_ORDER.filter((id) => id !== "ring")
+        .map((id) => {
+          const c = flowCounts(id);
+          return `<li><a href="#waza/${id}${c.questions ? "?step=answer" : ""}"><b>${esc(techName(id))}</b><span class="bk-n">${c.craftsman ? `言葉 ${c.craftsman}` : ""}${c.models ? ` ・ 手本 ${c.models}` : ""}${c.questions ? ` <i class="alert">質問 ${c.questions}</i>` : ""}</span>${flowDots(id)}</a></li>`;
+        })
+        .join("");
+    }
+    const groups = flow ? openQuestions(store.queue(), "ring") : groupQuestions(store.queue()).filter((g) => !g.answeredRuleId);
     $(".inbox-block").hidden = !groups.length;
     $(".inbox-count").textContent = groups.length ? `${groups.length} 件` : "";
     $(".inbox").innerHTML = groups.map((g, i) => inboxItem(g, i)).join("");
@@ -462,6 +480,13 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
   $(".print").addEventListener("click", () => {
     printHtml(book());
   });
+
+  root.querySelectorAll<HTMLButtonElement>(".keep-basics button").forEach((b) =>
+    b.addEventListener("click", () => {
+      store.setLedger(setBasics(store.ledger(), { prongTip: b.dataset.tip as "round" | "oni" }));
+      refresh();
+    }),
+  );
 
   // 工房の名前を変える（ここ 1 か所。帳面・学ぶ・技・スタジオのどこでもこの名前になる）
   $(".ws-switch select").addEventListener("change", (e) => {

@@ -47,7 +47,7 @@ Built with Claude: Japan 2026（テーマ #1「あなたにしかない深さを
    - **断面を描く**：腕の断面を、甲丸・平打ち・半甲丸・角から選ぶか、指で描く。点を動かす・足す・消す、左右対称、自由に描く（なめらかな線に直る）、元に戻す。尖りすぎた先や薄いヒレだけが赤くなる。地金のみの指輪は同じ画面に加えて、断面の見本 11 種（甲丸・かまぼこ・平甲丸・平打ち・角・丸線・面取り・山形・V 溝・段つき・くぼみ）、上と下で断面を変える、内甲丸（内側を丸くする。内径は変わらない）、切って断面を見る。
    - **ザグり・ロウ付けのつなぎ目**：石の先が腕の厚みの中まで下りるときは、腕の上を丸いビットで削ったくぼみを自動で作る（深さと直径を出す）。石座は 1 つの部品で、下の輪が腕を横切る 2 か所に座とロウの丸みを作って腕につなぐ。3D・図面・重さ・STL がみな同じ形。
    - **職人の決まり**：話す（Claude が決まりの案にする）か、Claude なしで数字で書く →「これでいい」で、今の設計とこれまでの作品をすべて確かめ直し、まとめて直す。「職人の決まりを外して比べる」で、公開情報だけで組んだ形（爪 1.66 mm）と並べられる。工房ごとに帳面を作り、同じ指輪を帳面ごとに比べられる。
-3. **手順**：鋳造／鍛造の工程の札。数字・道具・「詳しく」、言葉を押すとその場で意味。工程の中に、職人の手の決まりと、前の記録のコツ（「前の記録から」）。**図面**（正面・側面・上面と寸法・表題欄、A4 横）・作り方・原寸の型紙の印刷と、**STL** の書き出し。
+3. **手順**：鋳造／鍛造の工程の札。流れの文・この指輪の数字。文の中の道具や専門の言葉を押すと、すぐ下に意味と使い方が開く。工程の中に、職人の手の決まりと、前の記録のコツ（「前の記録から」）。**図面**（正面・側面・上面と寸法・表題欄、A4 横）・作り方・原寸の型紙の印刷と、**STL** の書き出し。
 4. **記録**：作った物ごとの記録（形・作れるか・作り方・職人のひとこと。話すと Claude が工程ごとのコツに分ける）。新しい決まりで直した跡。記録の帳面の印刷。自分で残した指輪だけが並び、開くと続きを作れる。
 
 **見せる** を押すと、全画面の黒の上で指輪が回り、本物の数字と職人の言葉が出ます。石の大きさ・腕の断面・留め方・地金を押して切り替えられます。
@@ -146,7 +146,7 @@ Claude Desktop に足す（設定の「開発者」→ 設定ファイル `claud
 | 道具 | どこで | すること |
 | --- | --- | --- |
 | `choose_stone` | 設計の「生成」で石もおまかせのとき | よくある形（ラウンド・オーバル・スクエア・エメラルド・ペア・マーキス）と長辺を選ぶ。幅と深さは形の例の比から決まる（測った値ではない）。今の石を使うときは渡さず、呼ばれても断る |
-| `set_setting`・`set_shank`・`check`・`look` | 設計の「生成」「Claude で直す」 | 石座（留め方・爪・高さ・向き）と腕（断面の線・場所ごとの幅と厚みと断面・腕の流れ・面に彫る模様・号・地金）を変え、帳面で確かめ、見た目を見て、作れない所を直す。雰囲気の言葉は、腕の形にも訳す。作業の記録を一行ずつ出し、全部戻せる |
+| `set_setting`・`set_shank`・`check`・`look` | 設計の「生成」「Claude で直す」 | 石座（留め方・爪の太さと形・高さ・向き）と腕（断面の線・場所ごとの幅と厚みと断面・腕の流れ・面に彫る模様・号・地金）を変え、帳面で確かめ、見た目を見て、作れない所を直す。雰囲気の言葉は、腕の形にも訳す。作業の記録を一行ずつ出し、全部戻せる |
 | `set_stones` | 石を並べる指輪（いまは画面から外している） | 三石・横一列の石の並びと間を決める |
 | `propose_rule` | 設計の「職人の決まり」・帳面の「話して残す」 | 職人の話を決まりの案（題・言葉・理由・数字・職人の言葉そのまま）にする。決めるのは職人（「これでいい」） |
 | `ask_gap`・`gap_rule` | 帳面の「Claude から質問」・技の帳面 | 帳面のまだ決まっていない所を Claude が選んで聞き、職人の答えを決まりの案にする |
@@ -214,12 +214,16 @@ Claude Desktop に足す（設定の「開発者」→ 設定ファイル `claud
 | `public/heritage/mokume-tsuba-2.jpg`（木目金の鐔、19 世紀か） | メトロポリタン美術館（[29947](https://www.metmuseum.org/art/collection/search/29947)） | CC0 |
 | `public/heritage/itomaki-tachi.jpg`（糸巻太刀拵、江戸時代。元の 4000 px）と、そこから作った `itomaki-tachi-wide.jpg`（全体）・`itomaki-tachi-tsuka.jpg`（柄と鐔に寄る）・`itomaki-tachi-saya.jpg`（鞘に寄る） | メトロポリタン美術館（[894754](https://www.metmuseum.org/art/collection/search/894754)、2023.735.6a–e。[公式の収蔵品 API](https://collectionapi.metmuseum.org/public/collection/v1/objects/894754) で `isPublicDomain: true` を確かめた） | CC0 |
 | `public/heritage/kozuka-carp.jpg`・`kozuka-boar.jpg`（小柄、18 世紀。寄って切り出し）、`menuki-tiger.jpg`（目貫、17 世紀。切り出し）、`kashira-dragon.jpg`（頭、江戸時代。切り出し） | メトロポリタン美術館（[24755](https://www.metmuseum.org/art/collection/search/24755)・[24775](https://www.metmuseum.org/art/collection/search/24775)・[24733](https://www.metmuseum.org/art/collection/search/24733)・[34756](https://www.metmuseum.org/art/collection/search/34756)。公式の収蔵品 API で `isPublicDomain: true` を確かめた） | CC0 |
-| `public/heritage/goshinpo-gyokuhai.jpg`・`goshinpo-tachi.jpg`（「内宮御神宝図」の一部を切り出したもの。図で、写真ではない） | 国立国会図書館所蔵、[Wikimedia Commons](https://commons.wikimedia.org/wiki/File:NDL2574228_%E5%86%85%E5%AE%AE%E5%BE%A1%E7%A5%9E%E5%AE%9D%E5%9B%B3.(1).pdf) | パブリックドメイン |
+| `public/heritage/goshinpo-gyokuhai.jpg`・`goshinpo-tachi.jpg`（「内宮御神宝図」の一部を切り出したもの） | 国立国会図書館所蔵、[Wikimedia Commons](https://commons.wikimedia.org/wiki/File:NDL2574228_%E5%86%85%E5%AE%AE%E5%BE%A1%E7%A5%9E%E5%AE%9D%E5%9B%B3.(1).pdf) | パブリックドメイン |
 | `public/heritage/mokume-tsuba-1-black.jpg`・`mokume-tsuba-2-black.jpg`（上の木目金の鐔の、灰色の地と穴を黒に抜いたもの） | メトロポリタン美術館（同上） | CC0 |
 | `public/heritage/tachi.jpg`（太刀と拵え） | メトロポリタン美術館、[Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Blade_and_Mounting_for_a_Slung_Sword_(Tachi)_MET_1820.jpg) | CC0 |
 | `public/heritage/naiku-1953.jpg`（1953 年の内宮の空からの写真） | 本田照夫 撮影、[Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Ise_Shrine_Naiku_1953-8-26_cropped.jpg) | パブリックドメイン |
 | `public/lp/*.webp`（入口のページと README の写真。それぞれ半分の幅の `-sm` つき） | 継ぐの画面を撮ったもの（`scripts/lp-shots.cjs`） | このリポジトリの作品の一部 |
 | `samples/triangle_closeup_2026-11-02.jpg`・`public/stones/triangle.jpg`（同じ写真） | 作者が撮った石の写真（撮影情報は消してある） | このリポジトリの作品の一部 |
+
+## 見本の動画
+
+`public/mihon/` の動画と手の記録は、`scripts/make-mihon.ts` がこのリポジトリの中で描いて作った作り話です（手は絵で、人の手を撮っていません）。
 
 ## ライセンス
 

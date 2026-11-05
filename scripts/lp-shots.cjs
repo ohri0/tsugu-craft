@@ -105,22 +105,12 @@ const FLAT = { section: 'hirauchi', width_mm: 2.0, thickness_mm: 1.4, reason: '�
 const MACRO = { x: 0.62, y: -0.5, z: 0.5 };
 const WHOLE = { x: 0.66, y: -0.62, z: 0.34 };
 
-/** 工房 B（公開情報だけの帳面）を作る。三角の石は角に 3 本で留まる、という決まりだけ先に入れる */
+/** 見本の工房 B（爪 ø 1 mm くらい・鬼爪）を足して、その帳面に切り替える */
 async function workshopB(p) {
-  await p.evaluate(() => { window.__studio.setMode('refine'); document.querySelectorAll('.ws-new, .ws-pick, details.ws').forEach((e) => (e.open = true)); });
+  await p.evaluate(() => { window.__studio.setMode('refine'); });
   await p.waitForTimeout(800);
-  await p.evaluate(() => { const s = document.querySelector('.ws-pick'); s.value = '__new'; s.dispatchEvent(new Event('change')); });
-  await p.waitForTimeout(500);
-  await p.evaluate(() => { const i = document.querySelector('.ws-name'); i.value = '工房 B'; i.dispatchEvent(new Event('input', { bubbles: true })); });
-  await tap(p, '.ws-make');
-  await p.waitForTimeout(2000);
-  await p.evaluate(() => { document.querySelector('.manual-rule').open = true; });
-  await p.evaluate(() => {
-    const set = (q, v) => { const e = document.querySelector(q); e.value = v; e.dispatchEvent(new Event('input', { bubbles: true })); e.dispatchEvent(new Event('change', { bubbles: true })); };
-    set('.mr-param', 'hold.cornerSet'); set('.mr-value', '1'); set('.mr-quote', '三角の石は、角に 1 本ずつの 3 本で留まる');
-  });
-  await tap(p, '.mr-go');
-  await p.waitForTimeout(3000);
+  await p.evaluate(() => { const s = document.querySelector('.ws-pick'); s.value = '__sample'; s.dispatchEvent(new Event('change')); });
+  await p.waitForTimeout(5000);
 }
 
 const SHOTS = {
@@ -217,17 +207,45 @@ const SHOTS = {
       await p.context().close();
     }
   },
-  // 作れない所の窓：爪を細くして、赤い札を押す → 理由と直し方（今の見た目）
+  // 作れない所の窓：爪を細くして、赤い札を押す → 理由と職人の言葉と直すボタン（今の見た目。指輪に寄って、窓の字が読めるように切り抜く）
   async fixpop() {
-    const p = await studioNow();
+    const p = await studioNow(1200, 900);
     await refine(p);
-    await p.evaluate(() => window.__studio.viewer.setDisplayMode('render'));
-    await p.evaluate(() => { window.__studio.session.setSetting({ prong_mm: 0.6, reason: '撮る' }); });
+    await p.evaluate(() => {
+      const v = window.__studio.viewer;
+      v.setDisplayMode('render');
+      document.querySelector('.t-dims')?.click();
+      document.querySelector('.t-grid')?.click();
+      window.__studio.session.setSetting({ prong_mm: 0.6, reason: '撮る' });
+    });
     await p.waitForTimeout(3000);
+    await p.evaluate(() => {
+      const v = window.__studio.viewer;
+      v.setAutoRotate(false);
+      const t = v.controls.target;
+      v.camera.position.copy(t).add({ x: 0.62, y: -0.5, z: 0.5 });
+      v.fit();
+      const c = v.camera;
+      t.z += 7;
+      c.position.z += 7;
+      c.position.sub(t).multiplyScalar(0.74).add(t);
+      c.updateMatrixWorld();
+      // 窓に隠れないよう、指輪を左へ寄せる
+      const r = c.position.clone().setFromMatrixColumn(c.matrixWorld, 0).multiplyScalar(5);
+      t.add(r);
+      c.position.add(r);
+      v.controls.update();
+      v.dirty = true;
+    });
+    await p.waitForTimeout(2500);
     await p.evaluate(() => document.querySelector('.verdict-chip')?.click());
     await p.waitForTimeout(1500);
-    console.log('fixpop', await p.evaluate(() => document.querySelector('.fix-pop')?.innerText.replace(/\s+/g, ' ')));
-    await shot(p, 'fixpop', { clip: { x: 44, y: 44, width: 1056, height: 782 } });
+    const pop = await p.locator('.fix-pop').boundingBox();
+    console.log('fixpop', JSON.stringify(pop), await p.evaluate(() => document.querySelector('.fix-pop')?.innerText.replace(/\s+/g, ' ').slice(0, 160)));
+    const x = Math.max(44, pop.x - 470);
+    await shot(p, 'fixpop', { clip: { x, y: Math.max(44, pop.y - 8), width: pop.x + pop.width + 8 - x, height: pop.height + 16 } });
+    // スマホでは窓だけを出す（字が小さくならないように）
+    await shot(p, 'fixpop-pop', { clip: { x: pop.x - 4, y: pop.y - 4, width: pop.width + 8, height: pop.height + 8 } });
   },
   // 帳面：職人の決まりの札と、Claude からの質問
   async ledger() {
@@ -277,9 +295,10 @@ const SHOTS = {
     await p.waitForTimeout(2000);
     await hideFixed(p);
     await p.waitForTimeout(500);
-    await p.locator('.rs-flow').screenshot({ path: `${WORK}/restore-flow.png` });
-    await p.locator('.rs-steps > li').nth(1).screenshot({ path: `${WORK}/restore-step.png` });
-    made.push('restore-flow', 'restore-step');
+    // 切り抜きで端が切れないよう、まわりに画面の地を残す
+    const box = async (sel, i = 0) => { const b = await p.locator(sel).nth(i).boundingBox(); return { x: 0, y: b.y - 12, width: PHONE_W, height: b.height + 24 }; };
+    await shot(p, 'restore-flow', { fullPage: true, clip: await box('.rs-flow') });
+    await shot(p, 'restore-step', { fullPage: true, clip: await box('.rs-steps > li', 1) });
   },
   // 作る：図面
   async draw() {
@@ -299,18 +318,7 @@ const SHOTS = {
     await tap(p, '.tabs [data-mode="hand"]');
     await p.waitForTimeout(2000);
     const out = { title: await p.evaluate(() => window.__studio.stone?.shapeName ?? ''), methods: {} };
-    for (const m of ['hand', 'cast']) {
-      await tap(p, `.build-panel .method [data-m="${m}"]`);
-      await p.waitForTimeout(800);
-      out.methods[m] = await p.evaluate(() => [...document.querySelectorAll('.build-panel .cards > .mk-card')].map((c) => ({
-        no: c.querySelector('.n')?.textContent ?? '',
-        title: c.querySelector('h3')?.textContent ?? '',
-        lead: c.querySelector('.card-lead')?.textContent ?? '',
-        rows: [...c.querySelectorAll('table.spec tr')].map((r) => [r.querySelector('th').textContent, r.querySelector('td').textContent]),
-        watch: c.querySelector('.watch')?.textContent ?? '',
-        more: [...c.querySelectorAll('details.more .lines > li')].map((l) => l.classList.contains('grp') ? { g: l.textContent } : { b: l.querySelector(':scope > b')?.textContent ?? '', t: [...l.childNodes].filter((n) => !(n.nodeType === 1 && n.tagName === 'B')).map((n) => n.textContent).join('') }),
-      })));
-    }
+    for (const m of ['hand', 'cast']) out.methods[m] = await p.evaluate((x) => window.__studio.makeCards(x), m);
     fs.writeFileSync(path.join(OUT, 'make-steps.json'), JSON.stringify(out));
     console.log('steps', out.title, out.methods.hand.length, out.methods.cast.length);
   },

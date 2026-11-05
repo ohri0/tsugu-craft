@@ -25,6 +25,8 @@ export interface SkillRecord {
   title: string;
   /** 誰の手か */
   craftsman: string;
+  /** どの技の手本か（なければ指輪の石留め） */
+  technique?: string;
   /** YYYY-MM-DD */
   date: string;
   videoName: string;
@@ -78,6 +80,7 @@ export interface NewRecord {
   date?: string;
   notes?: SkillNote[];
   id?: string;
+  technique?: string;
 }
 
 const newId = () => `rec-${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`;
@@ -90,6 +93,7 @@ export function createRecord(input: MotionInput, info: NewRecord): SkillRecord {
     id: info.id ?? newId(),
     title: info.title.trim() || "手の記録",
     craftsman: info.craftsman.trim(),
+    ...(info.technique ? { technique: info.technique } : {}),
     date: info.date ?? new Date().toLocaleDateString("sv-SE"),
     videoName: info.videoName,
     durationS: metrics.durationS,
@@ -155,6 +159,7 @@ export function importRecord(src: string | unknown): SkillRecord {
     id: str(v.id, newId()),
     title: str(v.title, "手の記録"),
     craftsman: str(v.craftsman, ""),
+    ...(typeof v.technique === "string" ? { technique: v.technique } : {}),
     date: str(v.date, ""),
     videoName: str(v.videoName, ""),
     durationS: durationS ?? metrics.durationS,

@@ -2,7 +2,7 @@
 // Claude が使えないときも、この 3 案を「決まりごとから」と書いて出す（SPEC「Claude の役割」）。
 import type { Corner } from "../geometry/corners";
 import { buildRing, type Orientation, type RingDesign } from "../geometry/ring";
-import { autoProngCount, type JoinStyle, type SettingStyle } from "../geometry/setting";
+import { autoProngCount, type JoinStyle, type ProngTip, type SettingStyle } from "../geometry/setting";
 import type { SectionCurve, ShankSection, ShankStation } from "../geometry/shank";
 import type { ReliefParams } from "../geometry/shank-relief";
 import type { StoneParams } from "../geometry/stone";
@@ -39,6 +39,8 @@ export interface Design {
   shankThicknessMm?: number;
   /** 石座と腕の付け方（爪留めだけ。なければ腕の上にのせる） */
   join?: JoinStyle;
+  /** 爪の先の形（なければ丸い爪） */
+  prongTip?: ProngTip;
 }
 
 export const DEFAULT_DESIGN: Design = {
@@ -72,6 +74,7 @@ export function build(stone: StoneParams, d: Design, ledger: Ledger = seedLedger
       prongDiameterMm: std * d.prongScale,
       vAtCorners: d.vCorners,
       join: d.join,
+      prongTip: d.prongTip,
     },
     shank: { gou: d.gou, metal: d.metal, section: d.section, sectionCurve: d.sectionCurve, stations: d.stations, relief: d.relief, reliefMore: d.reliefMore, widthMm: d.shankWidthMm, thicknessMm: d.shankThicknessMm },
     orientation: d.orientation,

@@ -46,3 +46,6 @@
 .motion-root input[type="file"] { display: none; }
 .motion-root details.sub summary { cursor: pointer; font-weight: 600; }
 .motion-count { font: 600 11px var(--mono); color: var(--fg-3, #888); margin-left: 4px; }
+
+/* 撮るだけの形（技の頁の「手本を残す」）。数字の線と書き出しは出さない */
+.motion-simple :is(.motion-fps, .motion-export, .motion-saved-box, .motion-compare-box, .motion-chart, .motion-legend, .motion-summary) { display: none; }
