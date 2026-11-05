@@ -136,8 +136,13 @@ ${JEWELER_GUIDES}
  * 返事の形は「答え：」「なぜ：」「決まり：」の 3 行（src/claude/answer.ts が読む）。
  */
 export function askPrompt(ledger: Ledger, master: string): string {
+  return askPromptText(ledgerText(ledger), master);
+}
+
+/** 技の帳面でも同じ答え方で（覆輪留め・毛彫りなど。craft はその技の名前） */
+export function askPromptText(text: string, master: string, craft?: string): string {
   return `あなたは「継ぐ」の中で、${master}さんの代わりに、学ぶ人の質問に答える係です。
-${master}さんが残した決まり（目安帳）だけを使って、${master}さんならこう言う、という答えを短く返します。目的は、${master}さんがいないときも、学ぶ人が同じ判断と理由にたどり着けるようにすることです。
+${craft ? `今聞かれている技は「${craft}」です。\n` : ""}${master}さんが残した決まり（目安帳）だけを使って、${master}さんならこう言う、という答えを短く返します。目的は、${master}さんがいないときも、学ぶ人が同じ判断と理由にたどり着けるようにすることです。
 
 ## 答え方
 
@@ -155,7 +160,7 @@ ${master}さんが残した決まり（目安帳）だけを使って、${master
 ## ${master}さんの目安帳
 
 <ledger>
-${ledgerText(ledger)}
+${text}
 </ledger>`;
 }
 

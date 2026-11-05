@@ -9,9 +9,9 @@ export type Technique = "ring" | TechId;
 
 /**
  * missing＝値の決まりがまだない / unverified＝原文で確かめていない決まり / uncovered＝職人の点が届いていない石の大きさ /
- * provisional＝仮の目安のまま / public＝公開情報の目安のまま（職人がまだ話していない） / open＝言葉で答える問い
+ * provisional＝仮の目安のまま / public＝公開情報の目安のまま（職人がまだ話していない） / open＝言葉で答える問い / asked＝学ぶ人から届いた質問
  */
-export type GapKind = "missing" | "unverified" | "uncovered" | "provisional" | "public" | "open";
+export type GapKind = "missing" | "unverified" | "uncovered" | "provisional" | "public" | "open" | "asked";
 
 /** number＝数字で答える / confirm＝「はい」か数字（または言葉）で答える / text＝言葉で答える */
 export type Expect = "number" | "confirm" | "text";
