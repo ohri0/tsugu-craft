@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { bookTitle } from "../src/app/master";
 import { freshGap, ringGaps } from "../src/rules/gaps";
 import { activeRules, addRule, removedList, removeRule, restoreRule, seedLedger } from "../src/rules/ledger";
 import { parseTechLedger, seedTechLedger } from "../src/rules/techniques";
@@ -78,6 +79,10 @@ describe("まちがえて入れた決まり・質問を消す", () => {
     const gone = removeWorkshop(named, id);
     expect(gone.list).toEqual([]);
     expect(gone.active).toBe("main");
+  });
+  it("帳面の題は、英数字で終わる名前だけ間をあける", () => {
+    expect(bookTitle("石川工房")).toBe("石川工房の帳面");
+    expect(bookTitle("工房 B")).toBe("工房 B の帳面");
   });
   it("届いた質問を消せる", () => {
     const { queue } = addQuestion({ items: [] }, { question: "帳面情報に害もいける", whyUnanswered: "目安帳に近い決まりがなかった", date: "2026-11-05" });

@@ -108,7 +108,7 @@ export function worksBookHtml(works: readonly WorkRecord[], date: string): strin
     <div class="top"><img alt="" src="${w.image}"><div><dl>${w.specs.map((s) => `<div><dt>${esc(s.label)}</dt><dd>${esc(s.value)}</dd></div>`).join("")}</dl>
     <p class="v ${w.problems.length ? "ng" : "ok"}">${w.problems.length ? `作れない所があった：${w.problems.map(esc).join("、")}` : "作れる形だった"}</p></div></div>
     ${w.note ? (w.maker === "見本" ? `<p class="sample">${esc(w.note)}</p>` : `<blockquote>「${esc(w.note)}」</blockquote>`) : ""}
-    ${(w.revisions ?? []).map((r) => `<p class="rev">${esc(r.date)} ${esc(r.by)}さんの決まり「${esc(r.rule)}」で直した：${esc(r.change)}</p>`).join("")}
+    ${(w.revisions ?? []).map((r) => `<p class="rev">${esc(r.date)} ${esc(r.by)}の決まり「${esc(r.rule)}」で直した：${esc(r.change)}</p>`).join("")}
     <section class="how"><h3 class="sec">作り方（${esc(w.methodLabel)}）<small>数字はこの形から計算した目安。最後は職人が決める。</small></h3>
     ${cardsPrintHtml(w.steps.map(withDetails), { details: true, extra: tips })}</section>
     <!-- 紙では作り方のあとに A4 横の 1 ページ。画面では作り方の前に出す（order） -->

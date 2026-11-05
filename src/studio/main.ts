@@ -28,7 +28,7 @@ import { askConfirm, filming } from "../app/confirm";
 import { askPassword, resetPassword } from "../app/password";
 import { esc, store, today } from "../app/store";
 import { bindVoice } from "../app/voice";
-import { bookLabel, masterName, sourceName } from "../app/master";
+import { bookLabel, bookTitle, masterName, sourceName } from "../app/master";
 import { toStl } from "../cad/solid";
 import { buildStone } from "../geometry/stone";
 import { LAYOUT_LABEL, METAL_LABEL, RingSession, SLOT_SHAPE_LABEL, STONE_LONG_RANGE, carryDesign, fitStoneDepth, fitStoneLong, tuneProngMm, underLedger, type Built, type SlotShape } from "./session";
@@ -670,7 +670,7 @@ function renderPresent() {
       metal: `${METAL_LABEL[session.state.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g`,
       gou: `${session.state.gou} 号（内径 ${(r.shank.innerRadiusMm * 2).toFixed(1)} mm）`,
       verdict: { ok: n === 0, text: n === 0 ? "作れます" : `作れない所 ${n}` },
-      quote: rule?.quote ? { text: rule.quote, by: `${masterName(store.ledger())} ・ ${bookLabel(store.ledger())}の帳面` } : undefined,
+      quote: rule?.quote ? { text: rule.quote, by: `${masterName(store.ledger())} ・ ${bookTitle(bookLabel(store.ledger()))}` } : undefined,
     },
     presentGroups(),
     presentGroup,
@@ -1335,7 +1335,7 @@ function workshopBarHtml(): string {
   if (kind !== "solitaire") return "";
   const ws = store.workshops();
   const mainName = bookLabel(store.mainLedger());
-  const opts = [`<option value="${MAIN}"${ws.active === MAIN ? " selected" : ""}>${esc(mainName)}の帳面</option>`, ...ws.list.map((w) => `<option value="${esc(w.id)}"${ws.active === w.id ? " selected" : ""}>${esc(w.name)}の帳面</option>`)];
+  const opts = [`<option value="${MAIN}"${ws.active === MAIN ? " selected" : ""}>${esc(bookTitle(mainName))}</option>`, ...ws.list.map((w) => `<option value="${esc(w.id)}"${ws.active === w.id ? " selected" : ""}>${esc(bookTitle(w.name))}</option>`)];
   return `<section class="ws-bar"><label><span>使う帳面</span><select class="ws-pick">${opts.join("")}<option value="__new">＋ 工房の帳面を作る</option></select></label>
     <div class="ws-new" hidden><input class="ws-name" type="text" placeholder="工房の名前（例：工房 B）"><button type="button" class="primary ws-make">作る</button></div>
     ${ws.list.length ? `<button type="button" class="ghost-d ws-cmp">同じ指輪を、帳面ごとに比べる</button>` : `<p class="hint">工房ごとに決まりはちがいます。工房の帳面を作ると、同じ指輪をそれぞれの決まりで確かめられます。</p>`}
@@ -1352,7 +1352,7 @@ function switchLedger(id: string) {
   pastCheck = null;
   renderCheck();
   const ws = store.workshops();
-  const label = ws.active === MAIN ? `${bookLabel(store.mainLedger())}の帳面` : `${ws.list.find((w) => w.id === ws.active)?.name ?? "工房"}の帳面`;
+  const label = bookTitle(ws.active === MAIN ? bookLabel(store.mainLedger()) : (ws.list.find((w) => w.id === ws.active)?.name ?? "工房"));
   toast(`${label}で確かめ直しました`);
 }
 const ASK_LATER_KEY = "tsugu.askLater";
@@ -2314,7 +2314,7 @@ function acceptRule(p: ProposeRuleInput, _said: string): string {
     // 決まりを足したら、上の「〇〇さんの決まりで、確かめ直しました」まで戻して見せる
     requestAnimationFrame(() => document.querySelector(".rule-flash")?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
-  toast(p.param ? `${by}の決まりで確かめ直しました：作れない所 ${before} → ${after}` : `${by}の帳面に決まりを足しました`);
+  toast(p.param ? `${by}の決まりで確かめ直しました：作れない所 ${before} → ${after}` : `${bookTitle(by)}に決まりを足しました`);
   flashVerdict();
   return id;
 }

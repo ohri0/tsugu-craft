@@ -17,7 +17,7 @@ import repoLedger from "../../ledger/jewelry.json";
 import { groupQuestions, markAnswered, removeQuestions, type QuestionGroup } from "../rules/teacher-queue";
 import { mountMotion, savedRecords } from "../ui/motion-ui";
 import { mountInterview, type Interview } from "./interview";
-import { bookLabel, masterName } from "./master";
+import { bookLabel, bookTitle, masterName } from "./master";
 import { getVideo, putVideo } from "./video-store";
 import { askPassword, resetPassword } from "./password";
 import { esc, store, today } from "./store";
@@ -91,14 +91,14 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
   function refresh() {
     const ledger = store.ledger();
     const label = bookLabel(ledger);
-    $(".keep-title").textContent = `${label}${/[A-Za-z0-9]$/.test(label) ? " " : ""}の帳面`;
+    $(".keep-title").textContent = bookTitle(label);
     const ws = store.workshops();
     $(".rename").textContent = ws.active === MAIN ? "名前を変える" : "名前を変える・消す";
     // 工房の帳面があれば、ここでも切り替えられる（帳面ごとに決まりを編集するため）
     const sw = $(".ws-switch");
     sw.hidden = !ws.list.length;
     const pick = sw.querySelector("select")!;
-    pick.innerHTML = [`<option value="${MAIN}"${ws.active === MAIN ? " selected" : ""}>${esc(store.mainName())}の帳面</option>`, ...ws.list.map((w) => `<option value="${esc(w.id)}"${ws.active === w.id ? " selected" : ""}>${esc(w.name)}の帳面</option>`)].join("");
+    pick.innerHTML = [`<option value="${MAIN}"${ws.active === MAIN ? " selected" : ""}>${esc(bookTitle(store.mainName()))}</option>`, ...ws.list.map((w) => `<option value="${esc(w.id)}"${ws.active === w.id ? " selected" : ""}>${esc(bookTitle(w.name))}</option>`)].join("");
     renderCards();
     renderRemoved();
     if (interview) interview.refresh();
@@ -295,7 +295,7 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
 
   function inboxItem(g: QuestionGroup, i: number): string {
     return `<li>
-      <div class="q-line"><p class="q-text">${esc(g.question)}</p><span class="q-count">${g.count > 1 ? `${g.count} 人から` : "1 人から"}</span></div>
+      <div class="q-line"><p class="q-text">${esc(g.question)}</p><span class="q-count">${g.count > 1 ? `${g.count} 回 届きました` : "1 回 届きました"}</span></div>
       <p class="q-why">${esc(g.whyUnanswered)}</p>
       <div class="answer-slot"><button type="button" class="primary voice-cta" data-answer="${i}">${MIC}${canListen() ? "声で答える" : "答える"}</button></div>
       <button type="button" class="linklike q-del" data-del-q="${i}">この質問を消す</button>
@@ -411,7 +411,7 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
           if (g) store.setQueue(markAnswered(store.queue(), g.ids, id));
           const changed = ed.title !== p.title || ed.text !== p.text || ed.reason !== p.reason;
           resolve(changed ? { status: "edited", rule_id: id, note: `職人が直した：${ed.text}（理由：${ed.reason}）` } : { status: "accepted", rule_id: id });
-          flash(`目安帳に足しました：${ed.title}`);
+          flash(`帳面に足しました：${ed.title}`);
           refresh();
         }),
       );
