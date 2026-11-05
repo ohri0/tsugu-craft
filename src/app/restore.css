@@ -79,6 +79,13 @@
 .rs-field input { width: 100%; min-height: 48px; padding: 0 12px; border: 1px solid var(--line-2); border-radius: 10px; background: var(--field); font-size: 16px; outline: none; }
 .rs-add-st { font-size: 15px; color: var(--fg-2); text-align: center; }
 .rs-add-st:empty { display: none; }
+.rs-book { display: flex; align-items: center; gap: 14px; min-height: 64px; margin-top: 16px; padding: 12px 18px; border: 1px solid var(--master); border-radius: 12px; background: rgba(233, 196, 106, 0.07); cursor: pointer; }
+.rs-book.is-off { border-color: var(--line-2); background: var(--panel); }
+.rs-book input { flex: none; width: 24px; height: 24px; margin: 0; accent-color: var(--master); cursor: pointer; }
+.rs-book input:disabled { cursor: default; }
+.rs-book-text { display: grid; min-width: 0; }
+.rs-book-text b { font-size: 17px; font-weight: 700; }
+.rs-book-text small { font-size: 15px; color: var(--fg-2); }
 .rs-facts { list-style: none; padding: 0; margin: 28px 0 0; display: grid; gap: 12px; }
 .rs-fact { padding: 16px 18px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); }
 .rs-fact-title { font-size: 17px; font-weight: 700; overflow-wrap: anywhere; }
@@ -106,6 +113,8 @@
 .rs-pill.ng { background: var(--ng-weak); color: var(--ng-2); }
 .rs-pill.new { background: var(--accent-weak); color: var(--accent-2); }
 .rs-pill.changed { background: var(--caution-weak); color: var(--caution); }
+.rs-pill.book { background: rgba(233, 196, 106, 0.16); color: var(--master); }
+.rs-from-book .rs-pill { margin: 0 8px 0 0; vertical-align: 1px; }
 .rs-from { margin-top: 8px !important; font-size: 15px; color: var(--fg-2); overflow-wrap: anywhere; }
 .rs-from.is-prior { color: var(--caution); }
 .rs-danger { margin-top: 10px !important; padding: 8px 12px; border-left: 3px solid var(--ng); background: var(--ng-weak); border-radius: 0 8px 8px 0; font-size: 15px; overflow-wrap: anywhere; }

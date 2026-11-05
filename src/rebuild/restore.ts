@@ -54,6 +54,8 @@ export interface TrialResult {
 export type StepChange = "same" | "changed" | "new";
 
 export interface PlanStep extends HypothesisStep {
+  /** 根拠にした職人の帳面の決まりの番号（この案の book の中の番号）。手がかりの根拠（clue_ids）とは分ける */
+  book_ids?: string[];
   /** 案が変わっても、同じ工程なら同じ印（結果と前の案をたどるため） */
   key: string;
   /** 危ない物や作業の注意 */
@@ -97,6 +99,9 @@ export interface PlanClueRef {
   title: string;
 }
 
+/** 案に渡した職人の帳面の決まりの控え（番号と題だけ）。帳面があとで変わっても、何を渡したか分かるように */
+export type PlanBookRef = PlanClueRef;
+
 export interface RestorePlan {
   /** 案 1、案 2、… */
   version: number;
@@ -112,6 +117,10 @@ export interface RestorePlan {
   clues: PlanClueRef[];
   /** 写真を渡した手がかりの番号 */
   photosSent: string[];
+  /** 職人の帳面を渡す設定だったか */
+  bookOn: boolean;
+  /** 渡した職人の帳面の決まりの控え */
+  book: PlanBookRef[];
   /** 受け取るときに気づいたこと（無い番号を外した、言い切りの言葉があった など） */
   notes: string[];
 }
@@ -141,6 +150,8 @@ export interface RestoreProject {
   name: string;
   /** 作り話の例（research/restore/sample.json）。画面に「これは作り話の例です」と出す */
   sample?: boolean;
+  /** 案を出すときに、職人の帳面も渡すか */
+  useBook: boolean;
   created: string;
   updated: string;
   clues: RestoreClue[];
@@ -156,7 +167,7 @@ export interface RestoreProject {
 
 /** Claude が出した案（src/rebuild/restore-tools.ts で確かめたあとの形） */
 export interface RestorationOutput {
-  steps: (HypothesisStep & { caution?: string; prev_step: number; change: StepChange; change_note?: string })[];
+  steps: (HypothesisStep & { book_ids?: string[]; caution?: string; prev_step: number; change: StepChange; change_note?: string })[];
   dropped: { prev_step: number; why: string }[];
   unknowns: UnknownPoint[];
   next_checks: Omit<NextCheck, "unsourced">[];
@@ -165,7 +176,7 @@ export interface RestorationOutput {
 }
 
 export function newProject(id: string, name: string, date: string): RestoreProject {
-  return { id, name: name.trim().slice(0, TEXT_LIMITS.name), created: date, updated: date, clues: [], plans: [], results: [], rules: [], nextClue: 1, nextResult: 1, nextStep: 1, nextRule: 1 };
+  return { id, name: name.trim().slice(0, TEXT_LIMITS.name), useBook: true, created: date, updated: date, clues: [], plans: [], results: [], rules: [], nextClue: 1, nextResult: 1, nextStep: 1, nextRule: 1 };
 }
 
 export function renameProject(p: RestoreProject, name: string, date: string): RestoreProject {
@@ -317,6 +328,7 @@ export function nextAct(p: RestoreProject, view: Stage): NextAct {
   const fresh = freshSince(p);
   if (fresh.results) return { do: "plan", label: "結果を入れて、案を出し直す" };
   if (fresh.clues || fresh.removed) return { do: "plan", label: "入れたことを足して、案を出し直す" };
+  if (p.plans.at(-1)!.bookOn !== p.useBook) return { do: "plan", label: p.useBook ? "職人の帳面を加えて、案を出し直す" : "職人の帳面を外して、案を出し直す" };
   if (view === 1) return { do: "view", view: 2, label: "次へ：案を見る" };
   if (view === 2) return { do: "view", view: 3, label: "次へ：試して、結果を入れる" };
   return { do: "none" };
@@ -332,13 +344,14 @@ export const previousPlan = (p: RestoreProject, plan: RestorePlan): RestorePlan 
 
 // ---- 人に見せる言葉：番号（C1・T2）は見せず、名前で ----
 
-/** 番号 → 人に見せる名前。消した手がかりは、案の控えから */
-export function namesOf(p: RestoreProject): Map<string, string> {
+/** 番号 → 人に見せる名前。消した手がかりは、案の控えから。帳面の番号は案ごとなので、plan を渡したときだけ */
+export function namesOf(p: RestoreProject, plan?: RestorePlan): Map<string, string> {
   const names = new Map<string, string>();
   const label = (id: string, title: string) => (id.startsWith("T") ? `「${title.replace(/^試した結果：/, "")}」の結果` : title);
   for (const v of p.plans) for (const c of v.clues) names.set(c.id, label(c.id, c.title));
   for (const c of p.clues) names.set(c.id, c.title);
   for (const r of p.results) names.set(r.id, label(r.id, r.stepTitle));
+  for (const b of plan?.book ?? []) names.set(b.id, b.title);
   return names;
 }
 
@@ -347,13 +360,14 @@ export function namesOf(p: RestoreProject): Map<string, string> {
  * 番号 → 名前、「工程」→「手順」、「手がかり」→「入れたこと」。
  */
 export function plainWords(text: string, names: ReadonlyMap<string, string>): string {
-  const fallback = (kind: string) => (kind === "T" ? "試した結果" : "入れたこと");
+  const fallback = (kind: string) => (kind === "T" ? "試した結果" : kind === "B" ? "職人の帳面" : "入れたこと");
   return text
-    .replace(/ ?([CT])\d+\s*[〜～~ー-]\s*\1?\d+ ?/g, (_m, kind: string) => fallback(kind))
-    .replace(/ ?\b[CT]\d+\b ?/g, (hit) => {
+    .replace(/ ?([CTB])\d+\s*[〜～~ー-]\s*\1?\d+ ?/g, (_m, kind: string) => fallback(kind))
+    .replace(/ ?\b[CTB]\d+\b ?/g, (hit) => {
       const id = hit.trim();
       const name = names.get(id);
       if (!name) return fallback(id[0]);
+      if (id[0] === "B") return `帳面の「${name}」`;
       return id[0] === "T" ? name : `「${name}」`;
     })
     .replace(/工程/g, "手順")
@@ -433,6 +447,10 @@ export interface PlanContext {
   /** 渡した手がかりと結果の控え */
   sent: PlanClueRef[];
   photosSent: string[];
+  /** 職人の帳面を渡す設定だったか（なければ、今の設定） */
+  bookOn?: boolean;
+  /** 渡した帳面の決まりの控え */
+  book?: PlanBookRef[];
   /** 渡した手がかりの文 */
   sources: string;
   warnings?: string[];
@@ -463,6 +481,7 @@ export function applyPlan(p: RestoreProject, out: RestorationOutput, ctx: PlanCo
       change: from ? s.change : "new",
     };
     if (s.uncertain) step.uncertain = s.uncertain;
+    if (s.book_ids?.length) step.book_ids = s.book_ids;
     if (s.caution) step.caution = s.caution;
     if (from) step.prevStep = s.prev_step;
     if (from && s.change_note) step.changeNote = s.change_note;
@@ -493,6 +512,8 @@ export function applyPlan(p: RestoreProject, out: RestorationOutput, ctx: PlanCo
     changes: out.changes,
     clues: ctx.sent,
     photosSent: ctx.photosSent,
+    bookOn: ctx.bookOn ?? p.useBook,
+    book: ctx.book ?? [],
     notes,
   };
   return { ...p, plans: [...p.plans, plan], nextStep, updated: ctx.date };
@@ -582,6 +603,8 @@ function readStep(v: unknown): PlanStep | null {
     confidence: (v.confidence === 2 || v.confidence === 3 ? v.confidence : 1) as Confidence,
     change,
   };
+  const bookIds = strList(v.book_ids);
+  if (bookIds.length) step.book_ids = bookIds;
   const uncertain = optStr(v.uncertain);
   if (uncertain) step.uncertain = uncertain;
   const caution = optStr(v.caution);
@@ -617,6 +640,8 @@ function readPlan(v: unknown, fallbackDate: string): RestorePlan | null {
     changes: str(v.changes),
     clues: list(v.clues).map((c) => ({ id: str(c.id, 20), title: str(c.title) })),
     photosSent: strList(v.photosSent),
+    bookOn: v.bookOn === true,
+    book: list(v.book).map((b) => ({ id: str(b.id, 20), title: str(b.title) })),
     notes: strList(v.notes),
   };
 }
@@ -659,6 +684,7 @@ export function readProject(raw: unknown): RestoreProject | null {
     id: raw.id,
     name,
     ...(raw.sample === true ? { sample: true } : {}),
+    useBook: raw.useBook !== false,
     created,
     updated: dateOr(raw.updated, created),
     clues,

@@ -3,7 +3,8 @@
 // 目立つボタンは常に 1 つ（次に押すもの。src/rebuild/restore.ts の nextAct）。番号や専門の言葉は画面に出さない（記録の中では C1・T1 を使う）。
 // 答え合わせはない。案は案として出し、確かな作り方だと言わない。確かめた手順だけ、職人が「この技の決まり」にする
 // （この記録の中だけに持ち、書き出しに入る。指輪の帳面には入れないので、指輪の設計の確かめと学ぶの答えには混ざらない）。
-// 答えの分かっている技で試す頁は src/app/rebuild.ts。
+// 案を出すときは、手がかりと一緒に、この工房の職人の帳面も渡す（オフにもできる）。帳面は読むだけ。根拠が帳面なら、案に「職人の帳面から」と出す。
+// 答えの分かっている技で試す頁は src/app/rebuild.ts（手がかりだけで、帳面は渡さない）。
 import "./restore.css";
 import { parseToolCall, TOOLS, type ProposeRuleInput } from "../claude/tools";
 import {
@@ -43,6 +44,7 @@ import {
   type RestoreProject,
   type Stage,
 } from "../rebuild/restore";
+import { bookText } from "../rebuild/book";
 import { PHOTO_SEND, photosToSend, restoreContent, restorePrompt, ruleRequest, techRulePrompt } from "../rebuild/restore-prompt";
 import { parseRestoration, PROPOSE_RESTORATION } from "../rebuild/restore-tools";
 import { callTool } from "../rebuild/run";
@@ -50,6 +52,7 @@ import { askConfirm } from "./confirm";
 import { flash } from "./interview";
 import { masterName } from "./master";
 import { askPassword, resetPassword } from "./password";
+import { workshopBook } from "./restore-book";
 import {
   blobToBase64,
   getPhoto,
@@ -279,6 +282,10 @@ function mountProject(root: HTMLElement, id: string) {
         <button type="submit" class="primary rs-big rs-add-go">入れる</button>
         <p class="rs-add-st" role="status"></p>
       </form>
+      <label class="rs-book">
+        <input type="checkbox" class="rs-book-on">
+        <span class="rs-book-text"><b>職人の帳面も渡す</b><small class="rs-book-n"></small></span>
+      </label>
       <ul class="rs-facts"></ul>
     </div>
     <div class="rs-panel" data-panel="2"></div>
@@ -313,7 +320,7 @@ function mountProject(root: HTMLElement, id: string) {
   /** 例の印を外す（例のときだけ。ふつうの記録の文は変えない） */
   const unmark = (s: string) => (project.sample ? withoutMark(s) : s);
   /** Claude の文：番号を名前に、言葉をふつうに */
-  const says = (s: string) => esc(plainWords(unmark(s), namesOf(project)));
+  const says = (s: string, plan?: RestorePlan) => esc(plainWords(unmark(s), namesOf(project, plan)));
   /** 職人が入れた文 */
   const own = (s: string) => esc(unmark(s));
 
@@ -373,7 +380,7 @@ function mountProject(root: HTMLElement, id: string) {
     }
     btn.textContent = act.label;
     const { left } = photosToSend(project.clues);
-    note.textContent = act.do === "plan" ? `1〜2 分かかります。書いたことと写真を Claude に送ります。${left.length ? `写真は多くて ${PHOTO_SEND.count} 枚まで渡します。` : ""}` : "";
+    note.textContent = act.do === "plan" ? `1〜2 分かかります。書いたことと写真${project.useBook && workshopBook().rules.length ? "、職人の帳面" : ""}を Claude に送ります。${left.length ? `写真は多くて ${PHOTO_SEND.count} 枚まで渡します。` : ""}` : "";
   }
 
   function setStatus(msg: string, opts: { bad?: boolean; working?: boolean } = {}) {
@@ -424,6 +431,16 @@ function mountProject(root: HTMLElement, id: string) {
   }
 
   // ---- ① 分かることを入れる ----
+
+  /** 職人の帳面も渡すか（読むだけ。ここで帳面は書き換えない） */
+  function paintBook() {
+    const { rules, total } = workshopBook();
+    const check = $<HTMLInputElement>(".rs-book-on");
+    check.disabled = !total;
+    check.checked = !!total && project.useBook;
+    $(".rs-book").classList.toggle("is-off", !check.checked);
+    $(".rs-book-n").textContent = total ? `職人の決まり ${total}${rules.length < total ? `（新しい ${rules.length} を渡します）` : ""}` : "職人の決まりは、まだありません";
+  }
 
   function paintFacts() {
     const list = $(".rs-facts");
@@ -557,6 +574,7 @@ function mountProject(root: HTMLElement, id: string) {
     const pass = store.password() || (await askPassword(true));
     if (!pass) return setStatus("案を出すには、合言葉が要ります。入れたことは、このまま残っています。", { bad: true });
     const base = project;
+    const book = base.useBook ? workshopBook().rules : [];
     inFlight.add(base.id);
     paintNext();
     setStatus("", { working: true });
@@ -570,10 +588,10 @@ function mountProject(root: HTMLElement, id: string) {
     }
     const prev = base.plans.at(-1);
     const r = await callTool({
-      system: restorePrompt(),
-      user: restoreContent(base, photos),
+      system: restorePrompt({ book: book.length > 0 }),
+      user: restoreContent(base, photos, book),
       tool: PROPOSE_RESTORATION,
-      parse: (x) => parseRestoration(x, { ids: knownClueIds(base), prev }),
+      parse: (x) => parseRestoration(x, { ids: knownClueIds(base), bookIds: book.map((b) => b.id), prev }),
       password: pass,
     });
     inFlight.delete(base.id);
@@ -588,7 +606,8 @@ function mountProject(root: HTMLElement, id: string) {
     const warnings = [...(r.warnings ?? []), ...(left.length ? [`写真が多いので、渡していない写真があります。`] : []), ...(missing.length ? [`このブラウザに残っていない写真は、渡していません。`] : [])];
     // 待っている間に入れたことは消さない（渡したものだけを、この案の控えにする）
     const current = viewEl.isConnected ? project : (loadProject(base.id) ?? base);
-    const next = applyPlan(current, r.value, { date: today(), sent: clueRefs(base), photosSent: photos.map((x) => x.id), sources: sourceText(base), warnings });
+    // 帳面の数字は職人の言葉なので、「入れたことにない数字」としない
+    const next = applyPlan(current, r.value, { date: today(), sent: clueRefs(base), photosSent: photos.map((x) => x.id), bookOn: base.useBook, book: book.map((b) => ({ id: b.id, title: b.title })), sources: `${sourceText(base)}\n${bookText(book)}`, warnings });
     if (viewEl.isConnected) {
       commit(next);
       viewing = null;
@@ -620,18 +639,22 @@ function mountProject(root: HTMLElement, id: string) {
     const prevStep = s.prevStep ? prevPlan?.steps[s.prevStep - 1] : undefined;
     const differs = prevStep && (prevStep.title !== s.title || prevStep.detail !== s.detail);
     const more = [
-      s.uncertain ? `<p>まだ分からないこと：${says(s.uncertain)}</p>` : "",
-      s.changeNote ? `<p>変えたわけ：${says(s.changeNote)}</p>` : "",
+      s.uncertain ? `<p>まだ分からないこと：${says(s.uncertain, plan)}</p>` : "",
+      s.changeNote ? `<p>変えたわけ：${says(s.changeNote, plan)}</p>` : "",
       `<p>どのくらい確かか：${SURE[s.confidence]}</p>`,
-      differs && prevStep ? `<p>前の案の文${s.change === "same" ? "（Claude は「そのまま」としましたが、文は少しちがいます）" : ""}：${says(prevStep.title)}。${says(prevStep.detail)}</p>` : "",
+      differs && prevStep ? `<p>前の案の文${s.change === "same" ? "（Claude は「そのまま」としましたが、文は少しちがいます）" : ""}：${says(prevStep.title, prevPlan)}。${says(prevStep.detail, prevPlan)}</p>` : "",
     ].join("");
     return `<li class="rs-step">
       <span class="rs-num" aria-hidden="true">${i + 1}</span>
       <div class="rs-step-body">
-        <h4>${says(s.title)}${outcome !== "pending" ? `<span class="rs-pill ${outcome}">${OUT_UI[outcome]}</span>` : ""}${plan.version > 1 && s.change === "changed" ? `<span class="rs-pill changed">変わった</span>` : ""}${plan.version > 1 && s.change === "new" ? `<span class="rs-pill new">新しい</span>` : ""}</h4>
-        <p class="rs-step-text">${says(s.detail)}</p>
-        ${s.basis === "prior" ? `<p class="rs-from is-prior">もとにしたもの：Claude がもともと知っていること（入れたことには書かれていません）</p>` : `<p class="rs-from">もとにしたもの：${fromNames(s.clue_ids)}</p>`}
-        ${s.caution ? `<p class="rs-danger"><b>危ない所</b>${says(s.caution)}</p>` : ""}
+        <h4>${says(s.title, plan)}${outcome !== "pending" ? `<span class="rs-pill ${outcome}">${OUT_UI[outcome]}</span>` : ""}${plan.version > 1 && s.change === "changed" ? `<span class="rs-pill changed">変わった</span>` : ""}${plan.version > 1 && s.change === "new" ? `<span class="rs-pill new">新しい</span>` : ""}</h4>
+        <p class="rs-step-text">${says(s.detail, plan)}</p>
+        ${
+          s.basis === "prior"
+            ? `<p class="rs-from is-prior">もとにしたもの：Claude がもともと知っていること（入れたこと${plan.bookOn ? "や帳面" : ""}には書かれていません）</p>`
+            : `${s.clue_ids.length ? `<p class="rs-from">もとにしたもの：${fromNames(s.clue_ids)}</p>` : ""}${s.book_ids?.length ? `<p class="rs-from rs-from-book"><span class="rs-pill book">職人の帳面から</span>${s.book_ids.map((b) => esc(plan.book.find((x) => x.id === b)?.title ?? "")).filter(Boolean).join("・")}</p>` : ""}`
+        }
+        ${s.caution ? `<p class="rs-danger"><b>危ない所</b>${says(s.caution, plan)}</p>` : ""}
         ${s.unsourced?.length ? `<p class="rs-unsourced">入れたことにない数字：${esc(s.unsourced.join("・"))}（試すまで使わないでください）</p>` : ""}
         <details class="rs-more"><summary>くわしく</summary>${more}</details>
       </div>
@@ -651,15 +674,15 @@ function mountProject(root: HTMLElement, id: string) {
     const notes = plan.notes.filter((n) => /言い切り|写真/.test(n));
     box.innerHTML = `
       ${latest ? `<p class="rs-soft">これは案です。確かな作り方ではありません。試して確かめてください。</p>` : `<p class="rs-soft">前の案です。<button type="button" class="linklike rs-to-latest">今の案に戻る</button></p>`}
-      <p class="rs-sum">${says(plan.summary)}</p>
-      ${notes.map((n) => `<p class="rs-unsourced">${says(n)}</p>`).join("")}
+      <p class="rs-sum">${says(plan.summary, plan)}</p>
+      ${notes.map((n) => `<p class="rs-unsourced">${says(n, plan)}</p>`).join("")}
       <ol class="rs-steps">${plan.steps.map((s, i) => stepCard(plan, s, i)).join("")}</ol>
       ${
         project.plans.length > 1
           ? `<details class="rs-fold"><summary>前の案とのちがい</summary><div class="rs-fold-body">
         ${diff ? `<p class="rs-counts"><span class="rs-pill changed">変わった ${diff.changed}</span><span class="rs-pill new">新しい ${diff.added}</span><span class="rs-pill ng">やめた ${diff.dropped}</span><span class="rs-pill">そのまま ${diff.same}</span></p>` : ""}
-        ${plan.changes ? `<p>${says(plan.changes)}</p>` : ""}
-        ${plan.dropped.length ? `<ul class="rs-plain">${plan.dropped.map((d) => `<li>やめた手順：${says(d.title)}${d.why ? `<small>${says(d.why)}</small>` : ""}</li>`).join("")}</ul>` : ""}
+        ${plan.changes ? `<p>${says(plan.changes, plan)}</p>` : ""}
+        ${plan.dropped.length ? `<ul class="rs-plain">${plan.dropped.map((d) => `<li>やめた手順：${says(d.title, plan)}${d.why ? `<small>${says(d.why, plan)}</small>` : ""}</li>`).join("")}</ul>` : ""}
         <div class="rs-file-acts">${project.plans
           .slice()
           .reverse()
@@ -683,8 +706,8 @@ function mountProject(root: HTMLElement, id: string) {
 
   // ---- ③ 試して、結果を入れる ----
 
-  function checkLine(c: RestorePlan["nextChecks"][number]): string {
-    return `${says(c.what)}${c.why ? `<small>${says(c.why)}</small>` : ""}${c.caution ? `<small class="rs-danger"><b>危ない所</b>${says(c.caution)}</small>` : ""}`;
+  function checkLine(c: RestorePlan["nextChecks"][number], plan: RestorePlan): string {
+    return `${says(c.what, plan)}${c.why ? `<small>${says(c.why, plan)}</small>` : ""}${c.caution ? `<small class="rs-danger"><b>危ない所</b>${says(c.caution, plan)}</small>` : ""}`;
   }
 
   function tryInner(plan: RestorePlan, s: PlanStep, i: number, isNext: boolean): string {
@@ -695,7 +718,7 @@ function mountProject(root: HTMLElement, id: string) {
     const kept = project.rules.find((r) => r.stepKey === s.key);
     return `
       ${isNext ? `<span class="rs-try-next">次はこれ</span>` : ""}
-      <h4>${i + 1}. ${says(s.title)}</h4>
+      <h4>${i + 1}. ${says(s.title, plan)}</h4>
       <div class="rs-out" role="radiogroup" aria-label="結果">${OUTCOMES.map((o) => `<button type="button" role="radio" aria-checked="${o === outcome}" data-o="${o}" class="o-${o}">${OUT_UI[o]}</button>`).join("")}</div>
       <div class="rs-note-box answer-box"${outcome !== "pending" || note ? "" : " hidden"}><div class="ans-line"><textarea class="rs-note-field" rows="2" maxlength="${TEXT_LIMITS.note}" placeholder="どうでしたか？（書かなくてもよい）" aria-label="どうでしたか">${own(note)}</textarea>${MIC_BUTTON("rs-note-mic")}</div></div>
       <p class="rs-try-st" role="status"></p>
@@ -774,13 +797,13 @@ function mountProject(root: HTMLElement, id: string) {
       ${
         first
           ? `<section class="rs-sec"><h3>まず、これをやってみる</h3>
-        <div class="rs-first"><b>${says(first.what)}</b>${first.why ? `<p>${says(first.why)}</p>` : ""}${first.caution ? `<p class="rs-danger"><b>危ない所</b>${says(first.caution)}</p>` : ""}</div>
-        ${rest.length ? `<details class="rs-fold"><summary>ほかにやってみること ${rest.length}</summary><div class="rs-fold-body"><ol>${rest.map((c) => `<li>${CHECK_KINDS[c.kind]}：${checkLine(c)}</li>`).join("")}</ol></div></details>` : ""}
+        <div class="rs-first"><b>${says(first.what, plan)}</b>${first.why ? `<p>${says(first.why, plan)}</p>` : ""}${first.caution ? `<p class="rs-danger"><b>危ない所</b>${says(first.caution, plan)}</p>` : ""}</div>
+        ${rest.length ? `<details class="rs-fold"><summary>ほかにやってみること ${rest.length}</summary><div class="rs-fold-body"><ol>${rest.map((c) => `<li>${CHECK_KINDS[c.kind]}：${checkLine(c, plan)}</li>`).join("")}</ol></div></details>` : ""}
       </section>`
           : ""
       }
       <section class="rs-sec"><h3>手順ごとに、結果を入れる</h3><ul class="rs-tries"></ul></section>
-      ${plan.unknowns.length ? `<details class="rs-fold"><summary>まだ分かっていないこと ${plan.unknowns.length}</summary><div class="rs-fold-body"><ol>${plan.unknowns.map((u) => `<li>${says(u.what)}${u.why ? `<small>${says(u.why)}</small>` : ""}</li>`).join("")}</ol></div></details>` : ""}`;
+      ${plan.unknowns.length ? `<details class="rs-fold"><summary>まだ分かっていないこと ${plan.unknowns.length}</summary><div class="rs-fold-body"><ol>${plan.unknowns.map((u) => `<li>${says(u.what, plan)}${u.why ? `<small>${says(u.why, plan)}</small>` : ""}</li>`).join("")}</ol></div></details>` : ""}`;
     paintTries(plan);
   }
 
@@ -896,6 +919,7 @@ function mountProject(root: HTMLElement, id: string) {
   function paintAll() {
     $("h2").textContent = project.name;
     $(".rs-example").hidden = !project.sample;
+    paintBook();
     paintFacts();
     paintPlan();
     paintTry();
@@ -915,6 +939,11 @@ function mountProject(root: HTMLElement, id: string) {
     } else if (act.do === "view" && act.view) {
       show(act.view, true);
     }
+  });
+  $<HTMLInputElement>(".rs-book-on").addEventListener("change", (e) => {
+    commit({ ...project, useBook: (e.target as HTMLInputElement).checked, updated: today() });
+    paintBook();
+    paintNext();
   });
   $(".rs-export").addEventListener("click", () => void exportFile());
   wireImport($<HTMLInputElement>(".rs-import input"), (t) => ($(".rs-file-st").textContent = t));

@@ -2,6 +2,7 @@
 // 決まりは system に、毎回変わる手がかり・結果・前の案は人の言葉に置く（system の長さの上限にかからず、決まりの部分を使い回せる）。
 // 力試しとちがって技の名前を隠さない。答えがないので、当てることに意味がなく、もともとの知識も分けて書いてもらえば役に立つ。
 import type { ClaudeContentBlockParam } from "../claude/wire";
+import { bookText, type BookRule } from "./book";
 import { CLUE_KIND_IDS, CLUE_KINDS, resultFor, usableResults, type Outcome, type RestoreClue, type RestorePlan, type RestoreProject, type TrialResult } from "./restore";
 import { PROPOSE_RESTORATION } from "./restore-tools";
 
@@ -28,7 +29,21 @@ export function photosToSend(clues: readonly RestoreClue[]): { send: string[]; l
   return { send, left };
 }
 
-export function restorePrompt(): string {
+/** 職人の帳面を渡すときだけ足す決まり */
+const BOOK_RULES = `
+
+## 職人の帳面があるとき
+
+<book> の中は、この工房の職人の帳面です。この工房の職人の判断として読んでください。
+
+- B で始まる番号は帳面の決まりです。工程の根拠に帳面の決まりを使ったら、その番号を book_ids に書いてください。手がかりの番号（clue_ids）とは分けます。手がかりと帳面の両方が根拠なら、両方に書きます。
+- 帳面は、この技ではなく指輪など別の技についての判断かもしれません（決まりの頭の［ ］に、何についての決まりかを書いてあります）。そのまま当てはまるとは限らないので、当てはめるときは「この工房では〜と判断している。この技でも〜かもしれない」のように、案として書いてください。
+- 帳面にないことを、帳面にあるように言わないでください。職人が言っていないことを、職人の判断として書かないでください。
+- 帳面にある数字は職人の言葉なので使ってかまいませんが、別の技についての数字を、この技の数字として言い切らないでください。
+- 帳面を使う所がなければ、使わなくてかまいません。そのときは book_ids を空にします。
+- 手がかりからも帳面からも出ず、もともと知っていたことから出た工程だけを、basis を prior にしてください。`;
+
+export function restorePrompt(opts: { book?: boolean } = {}): string {
   return `あなたは「継ぐ」の中で働く助手です。作り方の途切れた工芸の技を、職人と一緒に組み立て直します。
 
 この技には答えがありません。本当の作り方を知っている人は、もういないかもしれません。あなたが出す工程は、職人が試して確かめるための「案」です。
@@ -44,7 +59,7 @@ export function restorePrompt(): string {
 
 - 確かな作り方だと言わないでください。「正しい」「確実」「本当の作り方」のような言い切りは使わず、「〜と考えられる」「〜かもしれない」と書いてください。
 - どの工程にも、根拠にした手がかりの番号を clue_ids に書いてください（C で始まる番号は手がかり、T で始まる番号は職人が試した結果）。一覧にない番号は使えません。
-- 番号は clue_ids と prev_step にだけ書きます。職人が読む文（detail・uncertain・caution・why・what・summary・changes・change_note）には番号を書かず、手がかりの名前で書いてください。職人は番号を知りません。
+- 番号は ${opts.book ? "clue_ids・book_ids" : "clue_ids"} と prev_step にだけ書きます。職人が読む文（detail・uncertain・caution・why・what・summary・changes・change_note）には番号を書かず、手がかりの名前で書いてください。職人は番号を知りません。
 - 手がかりからでなく、もともと知っていたことから出た工程は、basis を prior にして、clue_ids を空にしてください。prior が多くてもかまいません。職人がどこまで手がかりに頼れるかが分かることのほうが、もっともらしく見えることより大事です。
 - 本や人の名前、年号、産地を、手がかりにないのに挙げないでください。調べたとも書かないでください。あなたはここで調べることができません。
 - 温度・時間・割合・厚さ・枚数などの数字は、手がかりにあるものだけ書いてください。もともと知っている値でも、手がかりになければ書かず、uncertain に「何度かは分からない。試して決める」のように書いてください。切れ端の大きさも、数字でなく「小さな切れ端」と書いてください。数字は、職人が試して決めるものです。
@@ -58,7 +73,7 @@ export function restorePrompt(): string {
 
 ## 前の案があるとき
 
-前の案の工程を続けるときは、prev_step にその番号を書き、change を same（そのまま）か changed（変えた）にしてください。変えたときは change_note に、何をなぜ変えたかを、どの手がかりや結果からか分かるように書いてください。新しく足した工程は prev_step を 0、change を new にしてください。やめた工程は dropped に、番号と理由を書いてください。前の案の工程は、どれも、どれかの工程の prev_step になるか、dropped に入るようにしてください。changes には、前の案からの違いのあらましを 2〜3 文で書いてください。
+前の案の工程を続けるときは、prev_step にその番号を書き、change を same（そのまま）か changed（変えた）にしてください。変えたときは change_note に、何をなぜ変えたかを、どの手がかりや結果からか分かるように書いてください。新しく足した工程は prev_step を 0、change を new にしてください。やめた工程は dropped に、番号と理由を書いてください。前の案の工程は、どれも、どれかの工程の prev_step になるか、dropped に入るようにしてください。changes には、前の案からの違いのあらましを 2〜3 文で書いてください。${opts.book ? BOOK_RULES : ""}
 `;
 }
 
@@ -88,23 +103,26 @@ export function clueText(p: RestoreProject, sent: ReadonlySet<string>): string {
 }
 
 function planText(p: RestoreProject, plan: RestorePlan): string {
+  const bookTitle = (id: string) => plan.book.find((b) => b.id === id)?.title ?? "職人の帳面";
+  // 帳面の番号は案ごとに変わるので、前の案の文の番号は題に直して渡す（今の帳面の別の決まりと取りちがえないように）
+  const clean = (t: string) => t.replace(/\bB\d+\b/g, (id) => `帳面の「${bookTitle(id)}」`);
   const steps = plan.steps.map((s, i) => {
-    const basis = s.basis === "clues" ? `根拠 ${s.clue_ids.join("・")}` : "もともとの知識から";
+    const basis = s.basis === "clues" ? [s.clue_ids.length ? `根拠 ${s.clue_ids.join("・")}` : "", s.book_ids?.length ? `帳面の${s.book_ids.map((b) => `「${bookTitle(b)}」`).join("")}` : ""].filter(Boolean).join("、") : "もともとの知識から";
     const r = resultFor(p, plan, s);
     const tried = r ? `\n試した結果：${OUTCOME_LABEL[r.result.outcome]}（${r.result.id}）` : "\n試した結果：まだ試していない";
-    return `${i + 1}. ${s.title}（${basis}）\n${s.detail}${tried}`;
+    return `${i + 1}. ${clean(s.title)}（${basis}）\n${clean(s.detail)}${tried}`;
   });
-  return `## 前の案（案 ${plan.version}）\n\nあらまし：${plan.summary}\n\n${steps.join("\n\n")}`;
+  return `## 前の案（案 ${plan.version}）\n\nあらまし：${clean(plan.summary)}\n\n${steps.join("\n\n")}`;
 }
 
-/** Claude に渡す人の言葉（文と写真の並び）。photos は渡す写真の中身 */
-export function restoreContent(p: RestoreProject, photos: readonly { id: string; media: string; data: string }[]): ClaudeContentBlockParam[] {
+/** Claude に渡す人の言葉（文と写真の並び）。photos は渡す写真の中身、book は渡す職人の帳面の決まり（渡さないなら空） */
+export function restoreContent(p: RestoreProject, photos: readonly { id: string; media: string; data: string }[], book: readonly BookRule[] = []): ClaudeContentBlockParam[] {
   const sent = new Set(photos.map((x) => x.id));
   const prev = p.plans.at(-1);
   const blocks: ClaudeContentBlockParam[] = [
     {
       type: "text",
-      text: `この技の呼び名（職人がつけた名前で、本当の名前とは限りません）：${p.name}\n\n## 手がかり\n\n<clues>\n${clueText(p, sent)}\n</clues>`,
+      text: `この技の呼び名（職人がつけた名前で、本当の名前とは限りません）：${p.name}\n\n## 手がかり\n\n<clues>\n${clueText(p, sent)}\n</clues>${book.length ? `\n\n## この工房の職人の帳面\n\n<book>\n${bookText(book)}\n</book>` : ""}`,
     },
   ];
   for (const x of photos) {

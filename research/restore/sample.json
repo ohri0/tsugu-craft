@@ -555,7 +555,8 @@
     "nextClue": 7,
     "nextResult": 5,
     "nextStep": 8,
-    "sample": true
+    "sample": true,
+    "useBook": false
   },
   "photos": {
     "C1": {
