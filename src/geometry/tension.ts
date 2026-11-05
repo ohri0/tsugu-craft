@@ -1,6 +1,7 @@
 // テンション（挟む）の腕：開いた輪の両はしに、石の形（すき間を足した物）を彫る。画面に依存しない純粋な関数。
 // 座標は指輪の座標（shank.ts と同じ）：mm、x が指の向き、z が上、腕は y–z の面。
 // 職人（石川、2026-11-05）の決まり：片方の端は角のくぼみ、もう片方の端は辺の溝。数字は GUIDES.tension の 1 か所。
+// 石の向きは選べる（TensionGrip）：狭い幅を挟む・長い向きを挟む・向かい合う角をくぼみに。
 //
 // 作り方：腕の端の面を「断面の点 (x, h) ごとに、腕に沿ってどこで終わるか」として決める。
 // 腕の端は y 一定の平らな面（図面の開き）で、そこから石の形だけ奥へ彫る。石は下へ行っても上へ行っても細くなるので、
@@ -13,7 +14,12 @@ import { convexHull, toCounterClockwise, type Point } from "./polygon";
 import { sectionOutline, weightG, type ShankParams, type ShankResult, type ShankSection } from "./shank";
 import { girdleCenter, meshVolume, stoneHeights, stoneKnots, stoneScaleAt, type StoneParams } from "./stone";
 
-export type TensionMode = "corner-edge" | "edge-edge";
+export type TensionMode = "corner-edge" | "edge-edge" | "corner-corner";
+/**
+ * 石のどこを腕で挟むか（上から見た石の向き）。
+ * short：いちばん狭い幅を挟む（長い向きは指に沿って、腕の幅の外へ出る）。long：長い向きを挟む（短い辺や丸い端を溝に）。corner：向かい合う 2 つの角をくぼみに。
+ */
+export type TensionGrip = "short" | "long" | "corner";
 
 export interface TensionEnd {
   kind: "pit" | "groove";
@@ -63,6 +69,20 @@ export interface TensionInfo {
   spanMm: number;
   /** 角の数（内角が目安より鋭い物） */
   cornerCount: number;
+  /** 今の挟む向きと、この石で選べる挟む向き（1 つなら選ぶものはない） */
+  grip: TensionGrip;
+  grips: TensionGrip[];
+  /** 腕の線の高さ（断面の高さ。mm） */
+  wireMm: number;
+  /** 石の先が、腕の端の内側の線より下（指の側）へ出る長さ（mm。− なら腕の内側より上） */
+  culetBelowArmMm: number;
+  /** 石の上面が、腕の端のいちばん上より低い長さ（mm。− なら腕より上に出ている） */
+  tableBelowArmMm: number;
+  /** 石の縁の高さで、腕の幅の外へはみ出す石の長さ（片側の大きい方。mm）と、その腕の幅に対する割合 */
+  overhangMm: number;
+  overhangRatio: number;
+  /** 石を横（x の向き）から滑らせて入れられるか：両はしとも腕の幅いっぱいに抜けるまっすぐな溝で、石のどこも溝より奥へ出ない */
+  slides: boolean;
   /** 腕の線の長さ（mm。太さの真ん中の線で、端の面から端の面まで。切り口を整える分はふくまない） */
   wireLengthMm: number;
   ends: [TensionEnd, TensionEnd];
@@ -79,6 +99,10 @@ export interface TensionOptions {
   culetGapMm?: number;
   /** 腕の両はしを持ち上げるか。なければ GUIDES.tension.liftEnds */
   liftEnds?: boolean;
+  /** 挟む向き。なければ short（角が 1 つ・3 つの石は、いつも角をくぼみに） */
+  grip?: TensionGrip;
+  /** 石の縁の高さ（腕の太さのどこか。0.5 は真ん中）。なければ GUIDES.tension.girdleAtWire */
+  girdleAtWire?: number;
 }
 
 /** 指のまわりの分け方（形を作るための決まり） */
@@ -91,12 +115,19 @@ const ROW = { maxStepMm: 0.05, minStepMm: 0.012 };
 const TABLE_STEP_MM = 0.01;
 /** すき間の角を丸く回る分け方（度） */
 const ARC_STEP_DEG = 15;
+/** これより大きく曲がる角は、丸く回らず、辺を延ばした交点まで広げる（度。形を作るための決まり） */
+const SHARP_TURN_DEG = 30;
 /** 溝をまっすぐにしてよい、腕の幅の中の輪郭の反り（腕の幅に対する割合。形を作るための決まり） */
 const STRAIGHT_SAG_RATIO = 0.06;
 /** 彫りの奥より少し先まで、腕を丸い弧のまま保つ長さ（mm。形を作るための決まり） */
 const PLATEAU_MARGIN_MM = 0.5;
 /** 開きの最低（mm。これより狭いと形が作れないので、ここで止める。確かめが「作れない」と言う） */
 const MIN_GAP_MM = 0.1;
+/** 端の面を探す回数：奥から平らな面まで見る数と、見つけた所を細かくする数（形を作るための決まり） */
+const END_SCAN = 12;
+const END_BISECT = 14;
+/** 彫り口の折れ目を探す回数（形を作るための決まり） */
+const SNAP_BISECT = 12;
 
 /** 石の輪郭（上から見た形）の、x ごとの上と下の y の表 */
 interface OutlineTable {
@@ -146,12 +177,16 @@ function lookup(t: OutlineTable, col: Float32Array, x: number): number | null {
   return a + (b - a) * f;
 }
 
-/** 凸の輪郭を外へ c だけ広げる（角は丸く回る） */
+/**
+ * 凸の輪郭を外へ c だけ広げる。ゆるい角は丸く回り、とがった角（マーキスの先など）は、辺をそのまま延ばした交点まで広げる。
+ * 丸く回ると、とがった先の所だけ、面の格子の細かさより小さくなり、すき間が残らなかった（マーキスの先で 0.004 mm）
+ */
 function offsetHull(hull: readonly Point[], c: number): Point[] {
   if (c <= 0) return [...hull];
   const out: Point[] = [];
   const n = hull.length;
   const step = (ARC_STEP_DEG * Math.PI) / 180;
+  const sharp = (SHARP_TURN_DEG * Math.PI) / 180;
   for (let i = 0; i < n; i++) {
     const p = hull[(i + n - 1) % n];
     const q = hull[i];
@@ -159,9 +194,16 @@ function offsetHull(hull: readonly Point[], c: number): Point[] {
     const a0 = Math.atan2(q.y - p.y, q.x - p.x) - Math.PI / 2;
     let a1 = Math.atan2(r.y - q.y, r.x - q.x) - Math.PI / 2;
     while (a1 < a0) a1 += Math.PI * 2;
-    const m = Math.max(1, Math.ceil((a1 - a0) / step));
+    const turn = a1 - a0;
+    if (turn >= sharp && turn < Math.PI * 0.95) {
+      const mid = (a0 + a1) / 2;
+      const len = c / Math.cos(turn / 2);
+      out.push({ x: q.x + len * Math.cos(mid), y: q.y + len * Math.sin(mid) });
+      continue;
+    }
+    const m = Math.max(1, Math.ceil(turn / step));
     for (let k = 0; k <= m; k++) {
-      const a = a0 + ((a1 - a0) * k) / m;
+      const a = a0 + (turn * k) / m;
       out.push({ x: q.x + c * Math.cos(a), y: q.y + c * Math.sin(a) });
     }
   }
@@ -203,12 +245,42 @@ function narrowAngle(hull: readonly Point[]): number {
   return best;
 }
 
+/** 内角が目安より鋭い角 */
+function sharpCorners(stone: StoneParams) {
+  return findCorners(stone.outlineMm).filter((c) => c.angleDeg < GUIDES.tension.cornerMaxDeg);
+}
+
+/** 上から見た長さと幅の比（narrowAngle の向きで測る） */
+function aspectOf(hull: readonly Point[]): number {
+  const a = narrowAngle(hull);
+  const pts = hull.map((q) => rotate(q, a));
+  const w = Math.max(...pts.map((q) => q.y)) - Math.min(...pts.map((q) => q.y));
+  const l = Math.max(...pts.map((q) => q.x)) - Math.min(...pts.map((q) => q.x));
+  return w > 1e-6 ? l / w : 1;
+}
+
+/**
+ * この石で選べる挟む向き。角が 1 つ・3 つの石は角をくぼみに入れる形だけ（職人の決まり）。丸い石に向きはない。
+ * 角が 2 つ（マーキス）：腹を溝に／両先をくぼみに。角が 4 つ以上（スクエアなど）：辺を溝に／角をくぼみに（長方形なら長い向きも）。
+ */
+export function tensionGrips(stone: StoneParams): TensionGrip[] {
+  const n = sharpCorners(stone).length;
+  if (n === 1 || n === 3) return ["short"];
+  const hull = toCounterClockwise(convexHull(toCounterClockwise(stone.outlineMm)));
+  const long = aspectOf(hull) >= GUIDES.tension.gripAspect;
+  if (n === 2) return ["short", "corner"];
+  if (n >= 4) return long ? ["short", "long", "corner"] : ["short", "corner"];
+  return long ? ["short", "long"] : ["short"];
+}
+
 /** 石の向きと、どちらの端をくぼみにするか */
-function stonePose(stone: StoneParams): { mode: TensionMode; rotationZ: number; cornerCount: number; hull: Point[] } {
+function stonePose(stone: StoneParams, wanted: TensionGrip | undefined): { mode: TensionMode; rotationZ: number; cornerCount: number; hull: Point[]; grip: TensionGrip; grips: TensionGrip[] } {
   const outline = toCounterClockwise(stone.outlineMm);
   const hull = toCounterClockwise(convexHull(outline));
-  const corners = findCorners(stone.outlineMm).filter((c) => c.angleDeg < GUIDES.tension.cornerMaxDeg);
+  const corners = sharpCorners(stone);
   const n = corners.length;
+  const grips = tensionGrips(stone);
+  const grip = wanted && grips.includes(wanted) ? wanted : "short";
   if (n === 3) {
     // 三角：いちばん長い辺を x に沿わせ（高さが y に沿う）、向かいの角を +y へ
     let a = narrowAngle(hull);
@@ -219,17 +291,33 @@ function stonePose(stone: StoneParams): { mode: TensionMode; rotationZ: number; 
     });
     const lone = pairs.reduce((p, q) => (q.d > p.d ? q : p)).i;
     if (ys[lone] < (ys[(lone + 1) % 3] + ys[(lone + 2) % 3]) / 2) a += Math.PI;
-    return { mode: "corner-edge", rotationZ: a, cornerCount: n, hull };
+    return { mode: "corner-edge", rotationZ: a, cornerCount: n, hull, grip, grips };
   }
   if (n === 1) {
     // しずく形：先を +y へ（真ん中から先への線が y に沿う）
     const c = girdleCenter(stone.outlineMm);
     const p = corners[0].point;
     const a = Math.PI / 2 - Math.atan2(p.y - c.y, p.x - c.x);
-    return { mode: "corner-edge", rotationZ: a, cornerCount: n, hull };
+    return { mode: "corner-edge", rotationZ: a, cornerCount: n, hull, grip, grips };
   }
-  // 角のない石・角が 2 つや 4 つの石：くぼみを作る 1 つの角が決まらないので、狭い幅の両側を溝にする
-  return { mode: "edge-edge", rotationZ: narrowAngle(hull), cornerCount: n, hull };
+  if (grip === "corner") {
+    // 向かい合う 2 つの角（いちばん離れた組）を y に沿わせて、両方をくぼみに
+    let best: [Point, Point] = [corners[0].point, corners[1].point];
+    let far = -1;
+    for (let i = 0; i < n; i++)
+      for (let j = i + 1; j < n; j++) {
+        const d = Math.hypot(corners[i].point.x - corners[j].point.x, corners[i].point.y - corners[j].point.y);
+        if (d > far + 1e-6) {
+          far = d;
+          best = [corners[i].point, corners[j].point];
+        }
+      }
+    const a = Math.PI / 2 - Math.atan2(best[1].y - best[0].y, best[1].x - best[0].x);
+    return { mode: "corner-corner", rotationZ: a, cornerCount: n, hull, grip, grips };
+  }
+  // 角のない石・角が 2 つや 4 つの石：くぼみを作る 1 つの角が決まらないので、両側を溝にする。short は狭い幅、long はそれと直角の向き
+  const narrow = narrowAngle(hull);
+  return { mode: "edge-edge", rotationZ: grip === "long" ? narrow + Math.PI / 2 : narrow, cornerCount: n, hull, grip, grips };
 }
 
 /** 断面（x：幅の向き、h：指の側からの高さ）の、高さごとの左右の端 */
@@ -274,22 +362,30 @@ export function buildTensionBand(p: ShankParams, stone: StoneParams, o: TensionO
   const grooveDepth = o.edgeGrooveMm ?? g.edgeGrooveMm;
 
   // 石の向き：上から見て回し、くぼみの幅の真ん中（なければ石の真ん中）を腕の幅の真ん中へ
-  const pose = stonePose(stone);
+  const pose = stonePose(stone, o.grip);
+  const pitTop = pose.mode !== "edge-edge";
+  const pitBot = pose.mode === "corner-corner";
   const hullR = pose.hull.map((q) => rotate(q, pose.rotationZ));
   const xs = hullR.map((q) => q.x);
   let tx = -(Math.min(...xs) + Math.max(...xs)) / 2;
-  if (pose.mode === "corner-edge") {
+  if (pitTop) {
     const rough = polygonTable(hullR);
-    const tip = Math.max(...rough.yTop);
-    let lo = Infinity;
-    let hi = -Infinity;
-    rough.yTop.forEach((y, i) => {
-      if (y < tip - pitDepth) return;
-      const x = rough.xMin + i * TABLE_STEP_MM;
-      if (x < lo) lo = x;
-      if (x > hi) hi = x;
-    });
-    tx = -(lo + hi) / 2;
+    const middle = (col: Float32Array, sign: 1 | -1) => {
+      let tip = -Infinity;
+      col.forEach((y) => {
+        if (Number.isFinite(y) && sign * y > tip) tip = sign * y;
+      });
+      let lo = Infinity;
+      let hi = -Infinity;
+      col.forEach((y, i) => {
+        if (!Number.isFinite(y) || sign * y < tip - pitDepth) return;
+        const x = rough.xMin + i * TABLE_STEP_MM;
+        if (x < lo) lo = x;
+        if (x > hi) hi = x;
+      });
+      return (lo + hi) / 2;
+    };
+    tx = pitBot ? -(middle(rough.yTop, 1) + middle(rough.yBot, -1)) / 2 : -middle(rough.yTop, 1);
   }
   const hull0 = hullR.map((q) => ({ x: q.x + tx, y: q.y }));
   const bare = polygonTable(hull0);
@@ -306,11 +402,10 @@ export function buildTensionBand(p: ShankParams, stone: StoneParams, o: TensionO
   const topMin = span(bare.yTop, Math.min);
   const botMin = span(bare.yBot, Math.min);
   const botMax = span(bare.yBot, Math.max);
-  const corner = pose.mode === "corner-edge";
-  const depthTop = corner ? pitDepth : grooveDepth;
-  const depthBot = grooveDepth;
-  const straightTop = !corner && topMax - topMin <= STRAIGHT_SAG_RATIO * w;
-  const straightBot = botMax - botMin <= STRAIGHT_SAG_RATIO * w;
+  const depthTop = pitTop ? pitDepth : grooveDepth;
+  const depthBot = pitBot ? pitDepth : grooveDepth;
+  const straightTop = !pitTop && topMax - topMin <= STRAIGHT_SAG_RATIO * w;
+  const straightBot = !pitBot && botMax - botMin <= STRAIGHT_SAG_RATIO * w;
   // 図面の開き：石が入る寸法のまま（プリロードは図面に入れない。作者が地金を硬くしながら詰める）
   const spanY = topMax - botMin;
   const gap = Math.max(MIN_GAP_MM, spanY - depthTop - depthBot);
@@ -321,12 +416,13 @@ export function buildTensionBand(p: ShankParams, stone: StoneParams, o: TensionO
   const h = stoneHeights(stone);
   const k = stoneKnots(h);
   const minGap = o.culetGapMm ?? g.culetGapMm;
+  const girdleAt = o.girdleAtWire ?? g.girdleAtWire;
   const yIn = Math.min(planeAbs, rc * 0.95);
-  const zMid = Math.sqrt(Math.max(0, rc * rc - yIn * yIn)) + (g.girdleAtWire - 0.5) * t;
+  const zMid = Math.sqrt(Math.max(0, rc * rc - yIn * yIn)) + (girdleAt - 0.5) * t;
   const zNeed = r + minGap - h.culetZ;
   const girdleZ = Math.max(zMid, zNeed);
   const lift = o.liftEnds ?? g.liftEnds;
-  const liftMm = lift && girdleZ > zMid ? Math.hypot(yIn, girdleZ - (g.girdleAtWire - 0.5) * t) - rc : 0;
+  const liftMm = lift && girdleZ > zMid ? Math.hypot(yIn, girdleZ - (girdleAt - 0.5) * t) - rc : 0;
   const rhoEnd = rc + liftMm;
 
   // 腕の中心の線：指の丸み（半径 rc）。両はしの近くだけ、半径 rhoEnd の弧へなめらかに持ち上げる
@@ -371,6 +467,17 @@ export function buildTensionBand(p: ShankParams, stone: StoneParams, o: TensionO
   };
   const yEdgeTop = topMax + ty + clear;
   const yEdgeBot = botMin + ty - clear;
+  // すき間を足した輪郭の、それぞれの端のいちばん奥（腕の幅の中）
+  const reachOf = (col: Float32Array, sign: 1 | -1) => {
+    let best = -Infinity;
+    for (let i = 0; i < col.length; i++) {
+      const x = table.xMin + i * TABLE_STEP_MM;
+      if (Math.abs(x) <= w / 2 + 0.05 && Number.isFinite(col[i]) && sign * col[i] > best) best = sign * col[i];
+    }
+    return best;
+  };
+  const stoneReachTop = Math.max(straightTop ? yEdgeTop : reachOf(table.yTop, 1), planeAbs + depthTop + clear);
+  const stoneReachBot = Math.max(straightBot ? -yEdgeBot : reachOf(table.yBot, -1), planeAbs + depthBot + clear);
   /** 石（すき間を足した形）の、その端の側の y の絶対値（石がなければ null） */
   const stoneAbs = (side: 1 | -1, x: number, z: number): number | null => {
     const s = scaleAtZ(z);
@@ -382,23 +489,41 @@ export function buildTensionBand(p: ShankParams, stone: StoneParams, o: TensionO
     if (y === null) return null;
     return side * (cy + s * (y - cy));
   };
-  /** 端の面の場所：その (x, h) の線が腕の端で止まる角度 a（y ＝ 石か平らな面のどちらか奥の方） */
+  /** その (x, h) の線が腕の端の平らな面に届く角度（石がなければ、ここで止まる） */
+  const planeAngle = (hh: number): number => Math.asin(Math.min(1, planeAbs / Math.max(1e-6, rhoEnd + hh - t / 2)));
+  /**
+   * 端の面の場所：その (x, h) の線が腕の端で止まる角度 a。それより先（a が大きい方）は地金で、石が入らない。
+   * 線は奥へ進むほど下がる。石の上側（クラウン）が線より緩いと、線は端の面より奥でいったん石に入り、また出る。
+   * 最初に石に当たる所で止めると、その奥の地金に石が入る（2026-11-05 に、浅くて大きい石で見つけた）。だから奥から見て、最後に石を出る所で止める
+   */
   const endAngle = (side: 1 | -1, x: number, hh: number): number => {
-    const inside = (a: number) => {
+    const aP = planeAngle(hh);
+    if (aP >= aHi) return aHi;
+    const free = (a: number) => {
       const [y, z] = onBand(hh, a);
       const s = stoneAbs(side, x, z);
-      return y >= Math.max(planeAbs, s ?? -Infinity);
+      return s === null || y >= s;
     };
-    let lo = 0;
-    let hi = aHi;
-    if (inside(lo)) return lo;
-    if (!inside(hi)) return hi;
-    for (let it = 0; it < 26; it++) {
-      const m = (lo + hi) / 2;
-      if (inside(m)) hi = m;
-      else lo = m;
+    // 石が届く奥の上限（これより奥に石はない。すき間を足した輪郭の、いちばん奥）
+    const deepest = (side > 0 ? stoneReachTop : stoneReachBot) + 0.02;
+    const aDeep = Math.min(aHi, Math.asin(Math.min(1, deepest / Math.max(1e-6, rhoEnd + hh - t / 2))));
+    if (!free(aDeep)) return aHi;
+    let prev = aDeep;
+    for (let i = 1; i <= END_SCAN; i++) {
+      const a = aDeep + ((aP - aDeep) * i) / END_SCAN;
+      if (!free(a)) {
+        let lo = a;
+        let hi = prev;
+        for (let it = 0; it < END_BISECT; it++) {
+          const m = (lo + hi) / 2;
+          if (free(m)) hi = m;
+          else lo = m;
+        }
+        return hi;
+      }
+      prev = a;
     }
-    return hi;
+    return aP;
   };
 
   // 断面の高さの行：断面の線の点 ＋ 溝の折れ目
@@ -413,7 +538,9 @@ export function buildTensionBand(p: ShankParams, stone: StoneParams, o: TensionO
   };
   const wireTopZ = wireAt(hMax);
   const wireBottomZ = wireAt(hMin);
-  // 腕の真ん中の、端の面での彫り口（石が端の面より奥へ入っている高さ）
+  /** その線が、端の面より奥まで彫られているか */
+  const isCut = (side: 1 | -1, x: number, hh: number) => endAngle(side, x, hh) > planeAngle(hh) + 1e-9;
+  // 腕の真ん中の、端の面での彫り口（端の面より奥まで彫る高さ）。腕の外まで彫るときは、石が端の面を通る高さで、はみ出す長さが分かる
   const opening = (side: 1 | -1) => {
     let top = -Infinity;
     let bottom = Infinity;
@@ -425,6 +552,12 @@ export function buildTensionBand(p: ShankParams, stone: StoneParams, o: TensionO
         if (z > top) top = z;
         if (z < bottom) bottom = z;
       }
+    }
+    for (let hh = hMin; hh <= hMax + 1e-9; hh += 0.02) {
+      if (!isCut(side, 0, hh)) continue;
+      const z = wireAt(hh);
+      if (z > top) top = z;
+      if (z < bottom) bottom = z;
     }
     return Number.isFinite(top) ? { top, bottom } : { top: girdleZ, bottom: girdleZ };
   };
@@ -466,31 +599,28 @@ export function buildTensionBand(p: ShankParams, stone: StoneParams, o: TensionO
     const [y, z] = onBand(hh, a);
     return [x, phi <= Math.PI ? y : -y, z];
   };
-  /** その (x, h) の所で、石が端の面より奥へ入っている長さ（＋ なら彫る所。0 の線が彫り口の折れ目） */
-  const carve = (side: 1 | -1, x: number, hh: number) => {
-    const rho = rhoEnd + hh - t / 2;
-    const s = stoneAbs(side, x, Math.sqrt(Math.max(0, rho * rho - planeAbs * planeAbs)));
-    return (s ?? -1) - planeAbs;
-  };
   /**
    * 端の面の格子の点を、彫り口の折れ目へ寄せる（のこぎりの歯のような折れ目にしない）。
-   * 折れ目が通る格子の辺ごとに、近い方の点を、辺に沿って折れ目まで動かす。断面の 1 周の点は動かさない（腕の筒とつながっているので）
+   * 折れ目が通る格子の辺ごとに、近い方の点を、辺に沿って折れ目まで動かす。断面の 1 周の点は動かさない（腕の筒とつながっているので）。
+   * 点ごとの止まる角度もいっしょに返す（同じ計算を 2 度しないように）
    */
   const snappedGrid = (side: 1 | -1) => {
     const gx = rows.map((_, j) => cols.map((_, q) => xAt(j, q)));
     const gh = rows.map((hh) => cols.map(() => hh));
-    const f = rows.map((_, j) => cols.map((_, q) => carve(side, gx[j][q], gh[j][q])));
+    const angle = rows.map((_, j) => cols.map((_, q) => (collapsed[j] && q > 0 ? 0 : endAngle(side, gx[j][q], gh[j][q]))));
+    for (let j = 0; j <= M; j++) if (collapsed[j]) for (let q = 1; q <= K; q++) angle[j][q] = angle[j][0];
+    const f = rows.map((_, j) => cols.map((_, q) => angle[j][q] > planeAngle(gh[j][q]) + 1e-9));
     const moves = new Map<number, { d: number; x: number; h: number }>();
     const key = (j: number, q: number) => j * (K + 1) + q;
     const edge = (j0: number, q0: number, j1: number, q1: number) => {
-      if (f[j0][q0] > 0 === f[j1][q1] > 0) return;
+      if (f[j0][q0] === f[j1][q1]) return;
       let lo = 0;
       let hi = 1;
       const at = (u: number) => [gx[j0][q0] + (gx[j1][q1] - gx[j0][q0]) * u, gh[j0][q0] + (gh[j1][q1] - gh[j0][q0]) * u];
-      for (let it = 0; it < 14; it++) {
+      for (let it = 0; it < SNAP_BISECT; it++) {
         const m = (lo + hi) / 2;
         const [mx, mh] = at(m);
-        if (carve(side, mx, mh) > 0 === f[j0][q0] > 0) lo = m;
+        if (isCut(side, mx, mh) === f[j0][q0]) lo = m;
         else hi = m;
       }
       const u = (lo + hi) / 2;
@@ -516,8 +646,9 @@ export function buildTensionBand(p: ShankParams, stone: StoneParams, o: TensionO
       const q = k2 - j * (K + 1);
       gx[j][q] = m.x;
       gh[j][q] = m.h;
+      angle[j][q] = endAngle(side, m.x, m.h);
     }
-    return { gx, gh };
+    return { gx, gh, angle };
   };
   const gridS = snappedGrid(1);
   const gridE = snappedGrid(-1);
@@ -538,8 +669,8 @@ export function buildTensionBand(p: ShankParams, stone: StoneParams, o: TensionO
         pE.push(pE[0]);
         continue;
       }
-      const a0 = endAngle(1, gridS.gx[j][q], gridS.gh[j][q]);
-      const a1 = 2 * Math.PI - endAngle(-1, gridE.gx[j][q], gridE.gh[j][q]);
+      const a0 = gridS.angle[j][q];
+      const a1 = 2 * Math.PI - gridE.angle[j][q];
       aS.push(a0);
       aE.push(a1);
       pS.push(point(gridS.gx[j][q], gridS.gh[j][q], a0));
@@ -649,9 +780,25 @@ export function buildTensionBand(p: ShankParams, stone: StoneParams, o: TensionO
       prev = q;
     }
   }
+  const ends: [TensionEnd, TensionEnd] = [endInfo(1, pitTop ? "pit" : "groove", depthTop, straightTop), endInfo(-1, pitBot ? "pit" : "groove", depthBot, straightBot)];
+  // 石の縁の高さの腕の幅の外へ、石がはみ出す長さ
+  const seatWidth = Math.max(ends[0].contactWidthMm, ends[1].contactWidthMm) || w;
+  const placedXs = hullPlaced.map((q) => q.x);
+  const overhangMm = Math.max(0, Math.max(Math.abs(Math.min(...placedXs)), Math.abs(Math.max(...placedXs))) - seatWidth / 2);
+  // 横から滑らせられるか：両はしとも、まっすぐな溝が腕の幅いっぱいに抜け、溝の奥より外へ出る所が石にない
+  const placedYs = hull0.map((q) => q.y);
+  const slides = straightTop && straightBot && Math.max(...placedYs) <= topMax + 1e-3 && Math.min(...placedYs) >= botMin - 1e-3;
   const info: TensionInfo = {
     wireLengthMm,
     mode: pose.mode,
+    grip: pose.grip,
+    grips: pose.grips,
+    wireMm: t,
+    culetBelowArmMm: wireBottomZ - (girdleZ + h.culetZ),
+    tableBelowArmMm: wireTopZ - (girdleZ + h.tableZ),
+    overhangMm,
+    overhangRatio: overhangMm / seatWidth,
+    slides,
     gapMm: gap,
     clearanceMm: clear,
     girdleZ,
@@ -661,7 +808,7 @@ export function buildTensionBand(p: ShankParams, stone: StoneParams, o: TensionO
     translateY: ty,
     spanMm: spanY,
     cornerCount: pose.cornerCount,
-    ends: [endInfo(1, corner ? "pit" : "groove", depthTop, straightTop), endInfo(-1, "groove", depthBot, straightBot)],
+    ends,
   };
   const shank: ShankResult = {
     positions,

@@ -6,7 +6,7 @@ import type { ShankResult } from "../geometry/shank";
 import { findThinSpots, type ThinSpot } from "../geometry/section-thin";
 import { stoneSpaces } from "../geometry/multi";
 import { tipMeasures, type SettingResult } from "../geometry/setting";
-import type { TensionEnd } from "../geometry/tension";
+import type { TensionEnd, TensionInfo } from "../geometry/tension";
 import { GUIDE_NOTE, GUIDES, type Guides, type MetalId, type StonePosition } from "./guides";
 import { prongMinOverride } from "./ledger";
 
@@ -46,6 +46,8 @@ export const FIXES = {
   tallerCollar: { label: "下の輪を高くする", effectOnLook: "石座の下の輪が少し高くなり、腕の端がまるごと輪に当たる" },
   thinnerBand: { label: "腕を薄くする", effectOnLook: "腕が少し細く見え、少し軽くなる" },
   thickerWire: { label: "腕の線を太くする", effectOnLook: "腕が太く、少し重く見える" },
+  thinnerWire: { label: "腕の線を細くする", effectOnLook: "腕が細く見え、軽くなる。ばねの力は弱くなる" },
+  turnGrip: { label: "挟む向きを変える", effectOnLook: "石の向きが変わり、腕の開きも変わる" },
   prongInstead: { label: "爪留めにする", effectOnLook: "石のまわりに爪が立ち、腕の両はしは閉じて見える" },
 } as const satisfies Record<string, Omit<FixOption, "id">>;
 
@@ -73,7 +75,10 @@ export type CheckId =
   | "tension-cut"
   | "tension-lip"
   | "tension-girdle"
-  | "tension-pit";
+  | "tension-pit"
+  | "tension-culet"
+  | "tension-sunk"
+  | "tension-overhang";
 
 /** 問題の場所（画面で赤くする所） */
 export type CheckTarget =
@@ -183,7 +188,7 @@ export function cornerDistances(s: SettingResult): number[] {
 
 /** 指輪をまるごと確かめる。問題がなければ空の一覧 */
 export function checkRing(ring: RingDesign, opts: CheckOptions = {}): Problem[] {
-  const out = [...checkSetting(ring.setting, ring.culetGapMm, opts), ...checkShank(ring.shank, opts), ...checkBandEnds(ring, opts), ...checkTension(ring.setting)];
+  const out = [...checkSetting(ring.setting, ring.culetGapMm, opts), ...checkShank(ring.shank, opts), ...checkBandEnds(ring, opts), ...checkTension(ring.setting, opts.guides)];
   // 爪の間が空きすぎの所に、赤い印を出すための縁の点（石の座標）
   const gapPoints = (list: Problem[], outline: readonly Point[]) => {
     for (const p of list) {
@@ -265,11 +270,14 @@ const endPoint = (e: TensionEnd, z: number): [number, number, number] => [0, e.p
  * テンション（挟む）：計算で確かな物だけ「作れない」にする。地金が残らない・石の縁が溝に入らない、という形の話。
  * ばねの強さは形から分からないので合否にしない（tensionNotes が注意を出す）
  */
-export function checkTension(s: Pick<SettingResult, "tension">): Problem[] {
+export function checkTension(s: Pick<SettingResult, "tension">, g: Guides = GUIDES): Problem[] {
   const info = s.tension;
   if (!info) return [];
   const out: Problem[] = [];
-  const opts = fix("thickerWire", "prongInstead");
+  const t = g.tension;
+  // 腕の線を太くできるのは、つまみの上限まで。そこまで来たら、ほかの留め方をすすめる
+  const canThicken = info.wireMm < t.wireMaxMm - 1e-9;
+  const opts = canThicken ? fix("thickerWire", "prongInstead") : fix("prongInstead", "bezel");
   if (info.gapMm <= GEOMETRY_MIN_GAP_MM + 1e-9) {
     out.push({
       id: "tension-gap",
@@ -348,6 +356,54 @@ export function checkTension(s: Pick<SettingResult, "tension">): Problem[] {
       });
     }
   }
+  const armEnd = info.ends[0];
+  // 石の先が、腕の内側より指の側へ出る（作者の声 2026-11-05「腕に刺さってるか、指の側に出てる」）
+  if (info.culetBelowArmMm > t.maxCuletBelowArmMm + 1e-9) {
+    out.push({
+      id: "tension-culet",
+      check: "tension-culet",
+      where: "石の先と腕の内側",
+      current: `石の先が腕の内側より ${mm(info.culetBelowArmMm)} 指の側へ出る`,
+      required: `${mm(t.maxCuletBelowArmMm)} まで（仮の目安）`,
+      currentValue: info.culetBelowArmMm,
+      requiredValue: t.maxCuletBelowArmMm,
+      reason: "石が深いのに腕が細く、石の先が腕より指の側へ出る。指に当たりやすい。腕の太さは、石の深さくらい要る",
+      options: opts,
+      target: { kind: "band-end", point: [0, 0, armEnd.wireBottomZ - info.culetBelowArmMm] },
+    });
+  }
+  // 石が腕の中に沈む（同じ声）
+  if (info.tableBelowArmMm > t.maxTableBelowArmMm + 1e-9) {
+    out.push({
+      id: "tension-sunk",
+      check: "tension-sunk",
+      where: "石の上面と腕の上",
+      current: `石の上面が腕の上より ${mm(info.tableBelowArmMm)} 低い`,
+      required: `${mm(t.maxTableBelowArmMm)} まで（仮の目安）`,
+      currentValue: info.tableBelowArmMm,
+      requiredValue: t.maxTableBelowArmMm,
+      reason: "腕が太いのに石が浅く、石が腕の中に沈む。光が入りにくく、腕に刺さったように見える",
+      options: info.wireMm > t.wireMinMm + 1e-9 ? fix("thinnerWire", "prongInstead") : fix("prongInstead", "bezel"),
+      target: { kind: "band-end", point: [0, armEnd.planeY, armEnd.wireTopZ] },
+    });
+  }
+  // 石が腕の幅の外へ大きくはみ出す（腕に挟まるのが、石の長さの 3 分の 1 より短い）
+  if (info.overhangRatio > t.maxOverhangRatio + 1e-9) {
+    const turn = info.grips.length > 1 && info.grip === "short";
+    const seat = armEnd.contactWidthMm > 0 ? armEnd.contactWidthMm : info.ends[1].contactWidthMm;
+    out.push({
+      id: "tension-overhang",
+      check: "tension-overhang",
+      where: "腕の幅の外へ出る石",
+      current: `腕の幅 ${mm(seat)} の外へ、片側 ${mm(info.overhangMm)} 出る`,
+      required: `腕の幅の ${pct(t.maxOverhangRatio)} まで（仮の目安）`,
+      currentValue: info.overhangRatio,
+      requiredValue: t.maxOverhangRatio,
+      reason: "腕に挟まるのは石の真ん中だけで、外へ出た所をぶつけると、てこになって石が傾く。挟まる所が石の長さの 3 分の 1 より短い形は、作れるとは言わない",
+      options: [...(turn ? fix("turnGrip") : []), ...opts],
+      target: { kind: "setting" },
+    });
+  }
   return out;
 }
 
@@ -367,10 +423,9 @@ export function tensionNotes(s: Pick<SettingResult, "tension" | "corners">, wire
     "欠けやすい石（職人の言葉：パライバなど）は、挟む力で欠けることがあります。できないと決まったわけではありません。職人に確かめてください",
     "あとで号を変えにくい留め方です。先に号を決めます（資料の声）",
   ];
-  if (info.mode === "edge-edge") notes.push("この石には、くぼみを掘る角が 1 つに決まりません。両はしを溝にしました。角のくぼみがないので、横へのずれを止める物は溝だけです");
-  if (info.mode === "corner-edge" && info.cornerCount === 1) notes.push("尖った形の石は、資料でも意見が分かれます（販売の文だけ）。挟む所は職人が決めます");
-  if (info.mode === "edge-edge" && info.cornerCount === 2) notes.push("尖った形の石は、資料でも意見が分かれます（販売の文だけ）。挟む所は職人が決めます");
-  if (info.liftMm > 0) notes.push(`石の先が指に当たらないよう、腕の両はしを指の丸みから ${mm(info.liftMm)} 持ち上げました（縁を腕の太さの中ほどにするため）`);
+  if ((info.mode === "corner-edge" && info.cornerCount === 1) || info.cornerCount === 2) notes.push("尖った形の石は、資料でも意見が分かれます（販売の文だけ）。挟む所は職人が決めます");
+  if (info.overhangMm > 0) notes.push(`石が腕の幅の外へ、片側 ${mm(info.overhangMm)} 出ます。ぶつけやすい所です。職人が見て決めます`);
+  if (info.liftMm > 0) notes.push(`石の先が指に当たらないよう、腕の両はしを指の丸みから ${mm(info.liftMm)} 持ち上げました（石の縁を腕の上寄りに置くため。仮の目安）`);
   const thin = info.ends.flatMap((e) => {
     const list: string[] = [];
     if (e.lipTopMm > 0 && e.lipTopMm < t.thinLipMm) list.push(`${endName(e)}の上 ${mm(e.lipTopMm)}`);
@@ -382,6 +437,37 @@ export function tensionNotes(s: Pick<SettingResult, "tension" | "corners">, wire
   if (info.ends.some((e) => e.depthMm < t.weakGrooveMm + 1e-9)) notes.push(`溝が ${mm(t.weakGrooveMm)} くらいでは抜ける、と職人は言います`);
   if (wireMm < t.minWireMm) notes.push(`腕の太さ ${mm(wireMm)}：${mm(t.minWireMm)} より細いと弱い、という職人の声が資料にあります（掲示板の 1 人の声）`);
   return notes;
+}
+
+/** 石の入れ方：形から決まる動き（どの動きで入るか）。言葉はここ 1 か所（画面・作り方・Claude の確かめが同じ言葉を読む） */
+export interface TensionInsert {
+  kind: "corner-first" | "corners" | "open" | "slide-or-open";
+  /** どう入れるか（短い文） */
+  how: string;
+  /** 横のずれを、何が止めるか */
+  hold: string;
+  /** 横に止める物がない（まっすぐな溝だけ） */
+  noStop: boolean;
+}
+
+/**
+ * 形から決まる入れ方。くぼみと丸みに沿う溝は、横から入らない（行き止まり）ので、腕を開いて入れる。
+ * 両はしともまっすぐな溝なら、形の上では横から滑り込む。資料の手順は、開いて入れるものだけ（docs/RESEARCH-tension.md の 13 節）。
+ * 滑らせて締まりを強めにするのは作者の考えで、試していない
+ */
+export function tensionInsert(info: Pick<TensionInfo, "mode" | "slides">): TensionInsert {
+  if (info.mode === "corner-edge")
+    return { kind: "corner-first", how: "腕を開いて、角を先にくぼみへ入れ、辺を溝へ倒し込みます", hold: "角がくぼみで止まるので、横にずれません", noStop: false };
+  if (info.mode === "corner-corner")
+    return { kind: "corners", how: "腕を開いて、片方の角をくぼみへ入れてから、もう片方の角を入れます", hold: "角がくぼみで止まるので、横にずれません。挟む力は角の先にかかります", noStop: false };
+  if (info.slides)
+    return {
+      kind: "slide-or-open",
+      how: "腕を開いて上から入れるか、横から溝に滑らせて入れます。滑らせるなら、開くのは締まり（石を押さえる力）の分だけで済みます",
+      hold: "溝がまっすぐなので、横に止める物がありません。締まりの力だけで止まります。締まりを強めにするのは作者の考えで、まだ試していません",
+      noStop: true,
+    };
+  return { kind: "open", how: "腕を開いて、片側を溝へ入れてから、もう片側を入れます", hold: "溝が石の丸みに沿うので、腕が開かないと横へ動きません", noStop: false };
 }
 
 /**
@@ -415,6 +501,8 @@ export interface TensionOpening {
 
 /** 式の前提（画面の注。elasticOpeningMm のコメントと同じ） */
 export const TENSION_OPENING_NOTE = "開ける量 ≒ 3π × R² × σ ÷（E × d）。細い輪の近似（太い輪では実際は少なめになりやすい）・まっすぐ押し開く・端の溝は無視、という前提の計算です";
+/** 式の記号の言い換え（画面の注） */
+export const TENSION_WORDS_NOTE = "R は輪の真ん中の半径、d は線の太さ、E はヤング率（地金の曲がりにくさ）、σ は耐力（これを超えると曲がったまま戻らない強さ）";
 /** 足りないときの言葉 */
 export const TENSION_SHORT_TEXT = "まっすぐ開くだけでは入らない見込み。斜めに入れる・熱で広げるなど、職人が決める";
 
@@ -563,16 +651,17 @@ export function checkSetting(s: SettingResult, culetGapMm: number = s.heights.cu
   const out: Problem[] = [];
   const g: Guides = opts.guides ?? GUIDES;
 
-  // 石の一番下と指のすき間
-  if (culetGapMm < g.height.minFingerGapMm - 1e-6) {
+  // 石の一番下と指のすき間（テンションは、職人の言葉「石の先が指に当たると痛い」から決めた値も見る）
+  const needGap = s.style === "tension" ? Math.max(g.height.minFingerGapMm, g.tension.culetGapMm) : g.height.minFingerGapMm;
+  if (culetGapMm < needGap - 1e-6) {
     out.push({
       id: "finger-gap",
       check: "finger-gap",
       where: "石の一番下（キューレット）と指",
       current: mm(culetGapMm),
-      required: `${mm(g.height.minFingerGapMm)} 以上`,
+      required: `${mm(needGap)} 以上`,
       currentValue: culetGapMm,
-      requiredValue: g.height.minFingerGapMm,
+      requiredValue: needGap,
       reason: "石の先が指に当たると痛く、石も欠けやすい",
       options: fix("raise"),
       target: { kind: "setting" },
