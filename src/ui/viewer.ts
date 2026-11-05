@@ -1005,24 +1005,32 @@ export class Viewer {
         scene.add(hull);
       }
     });
-    const rt = new THREE.WebGLRenderTarget(W, H, { samples: 4 });
+    // 倍の大きさで描いて縮める。Mac の Safari は、多重サンプルの描き先からの読み出しが空になった（2026-11-05 実測）
+    const SS = 2;
+    const rt = new THREE.WebGLRenderTarget(W * SS, H * SS);
     const prevTone = this.renderer.toneMapping;
     this.renderer.toneMapping = THREE.NoToneMapping;
     this.renderer.setRenderTarget(rt);
     this.renderer.render(scene, cam);
-    const buf = new Uint8Array(W * H * 4);
-    this.renderer.readRenderTargetPixels(rt, 0, 0, W, H, buf);
+    const buf = new Uint8Array(W * SS * H * SS * 4);
+    this.renderer.readRenderTargetPixels(rt, 0, 0, W * SS, H * SS, buf);
     this.renderer.setRenderTarget(null);
     this.renderer.toneMapping = prevTone;
     rt.dispose();
     temp.forEach((g) => g.dispose());
+    const big = document.createElement("canvas");
+    big.width = W * SS;
+    big.height = H * SS;
+    const bigImg = big.getContext("2d")!.createImageData(W * SS, H * SS);
+    // 読み出しは下から上なので、上下を返す
+    for (let y = 0; y < H * SS; y++) bigImg.data.set(buf.subarray((H * SS - 1 - y) * W * SS * 4, (H * SS - y) * W * SS * 4), y * W * SS * 4);
+    big.getContext("2d")!.putImageData(bigImg, 0, 0);
     const c = document.createElement("canvas");
     c.width = W;
     c.height = H;
-    const img = c.getContext("2d")!.createImageData(W, H);
-    // 読み出しは下から上なので、上下を返す
-    for (let y = 0; y < H; y++) img.data.set(buf.subarray((H - 1 - y) * W * 4, (H - y) * W * 4), y * W * 4);
-    c.getContext("2d")!.putImageData(img, 0, 0);
+    const ctx = c.getContext("2d")!;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(big, 0, 0, W, H);
     this.dirty = true;
     const project = (x: number, y: number, z: number) => {
       const p = new THREE.Vector3(x, y, z);
