@@ -1208,6 +1208,10 @@ function solidHead(f: Frame, plans: ProngPlan[], v: Vertical, tz: number, wire: 
 const BETWEEN_PRONG_EMBED = 0.15;
 /** 下の輪の外の線が、爪の内の端からこれより離れていたら、爪に届いていないとみなす（mm） */
 const COLLAR_REACH_MM = 0.02;
+/** 上の輪と爪をつなぐ管の先が、爪の中心を越える長さ（爪の太さに対する割合。形を作るための決まり） */
+const BRIDGE_PAST_CENTER = 0.1;
+/** 上の輪と爪がこれだけ重なっていれば、つなぐ管を足さない（mm。形を作るための決まり） */
+const BRIDGE_TOUCH_MM = 0.04;
 /** これより小さいかけら（全体の三角形に対する割合）は、格子のすき間の粒とみなして消す */
 const SLIVER_MAX_RATIO = 0.02;
 /** 爪と腕の横の間にあける最低のすき間（mm。仮） */
@@ -1794,7 +1798,16 @@ function betweenHead(f: Frame, params: SettingParams, plans0: ProngPlan[], ctx: 
     const pc = L.line(s, zU);
     let best = ringPts[0];
     for (const q of ringPts) if (Math.hypot(q.x - pc.x, q.y - pc.y) < Math.hypot(best.x - pc.x, best.y - pc.y)) best = q;
-    return [[best.x, best.y, zU], [pc.x, pc.y, zU], Math.min(wire / 2, plan.diameterMm / 2)];
+    // 管の先の丸みが爪の外側まで届くと、なめらかにつなぐ処理で爪の外側が膨らむ（2026-11-05 作者）。先の丸みが爪の中心を少し越える所で止める
+    const rb = Math.min(wire / 2, plan.diameterMm / 2);
+    const dx = pc.x - best.x;
+    const dy = pc.y - best.y;
+    const len = Math.hypot(dx, dy);
+    // 輪がもう爪に当たっている石（丸い石など）には、管を足さない（爪の横に小さなこぶが出る）
+    const touches = len < plan.diameterMm / 2 + wire / 2 - BRIDGE_TOUCH_MM;
+    const stop = touches ? 0 : Math.max(0, len - Math.max(0, rb - BRIDGE_PAST_CENTER * plan.diameterMm));
+    const end = len > 1e-9 ? { x: best.x + (dx / len) * stop, y: best.y + (dy / len) * stop } : pc;
+    return [[best.x, best.y, zU], [end.x, end.y, zU], rb];
   });
   const rings: GalleryRing[] = [];
   {

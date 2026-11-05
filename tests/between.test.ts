@@ -399,6 +399,31 @@ describe("腕の間に挟めない石（2026-11-05 点検：石座が塔のよ�
   });
 });
 
+describe("腕の間に挟む石座：爪の外側は、上の輪の高さでも膨らまない（2026-11-05 作者）", () => {
+  it.each([["ラウンド", round, "along"], ["スクエア", preset("princess"), "along"], ["既定の三角", stoneFrom(triangle(200, 200, 160, 140), 8.88, 4.24), "across"]] as const)("%s", (_n, stone, orientation) => {
+    const ring = buildRing(params({ stone, orientation, solder: false, shank: { gou: 11, metal: "k18y" } }, { prongCount: undefined, solid: true }));
+    const st = ring.setting;
+    const pos = st.positions;
+    const zU = st.rings[0].z;
+    for (const pr of st.prongs) {
+      const L = Math.hypot(pr.point.x, pr.point.y) || 1;
+      const [ux, uy] = [pr.point.x / L, pr.point.y / L];
+      const r = pr.diameterMm / 2;
+      const out = (z0: number) => {
+        let m = -Infinity;
+        for (let i = 0; i < pos.length; i += 3) {
+          if (Math.abs(pos[i + 2] - z0) > 0.04) continue;
+          if (Math.abs(-(pos[i] * uy - pos[i + 1] * ux)) > r * 1.3 + 0.3) continue;
+          m = Math.max(m, pos[i] * ux + pos[i + 1] * uy);
+        }
+        return m;
+      };
+      // 爪はまっすぐなので、上の輪の高さの外側は、上と下の真ん中と同じ所にある
+      expect(out(zU) - (out(zU + 0.75) + out(zU - 0.75)) / 2).toBeLessThan(0.015);
+    }
+  }, 60000);
+});
+
 describe("腕の間に挟む石座：爪の下の端（職人 2026-11-05：輪に埋まっている。丸い先が輪の下に出ることはない）", () => {
   const tri = stoneFrom(triangle(200, 200, 160, 140), 8.88, 4.24);
   const cases: [string, StoneParams, "along" | "across"][] = [
