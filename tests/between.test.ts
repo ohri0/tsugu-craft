@@ -447,6 +447,15 @@ describe("腕の間に挟む石座：太い爪の先は、外へふくらまな�
   }, 60000);
 });
 
+describe("爪のつまみ（2026-11-05）", () => {
+  it("既定の三角で、爪を 0.80 mm にしても「作れない」にならない", () => {
+    const s = new RingSession(stoneFrom(triangle(200, 200, 160, 140), 8.88, 4.24), () => JSON.parse(readFileSync("ledger/jewelry.json", "utf8")), () => undefined, () => "");
+    s.build("x");
+    s.setSetting({ prong_mm: 0.8, reason: "x" });
+    expect(s.built!.problems.filter((p) => p.check === "hold")).toEqual([]);
+  });
+});
+
 describe("腕の間に挟む石座：爪の下の端（職人 2026-11-05：輪に埋まっている。丸い先が輪の下に出ることはない）", () => {
   const tri = stoneFrom(triangle(200, 200, 160, 140), 8.88, 4.24);
   const cases: [string, StoneParams, "along" | "across"][] = [

@@ -473,7 +473,8 @@ export function checkSetting(s: SettingResult, culetGapMm: number = s.heights.cu
   const position = opts.position ?? "top";
   const need = position === "palm" ? g.hold.requiredPalm : position === "side" ? g.hold.requiredSide : g.hold.requiredTop;
   const hold = holdRatio(s, g);
-  if (hold < need - 1e-9) {
+  // 画面の数字（小数 2 桁）と同じ細かさで比べる。つまみの 0.80 mm は標準の 0.8004 mm より細く、留まりは 1.00× と見えるのに「作れない」と出ていた
+  if (Math.round(hold * 100) / 100 < need - 1e-9) {
     out.push({
       id: "hold",
       check: "hold",
