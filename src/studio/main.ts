@@ -1808,6 +1808,7 @@ function tensionCardHtml(b: Built): string {
   const notes = tensionNotes(r.setting, r.shank.thicknessMm, g);
   return `<section class="tn-card">
     <h5>テンション（腕のばねで石を挟む）</h5>
+    <small class="tn-note">この石の場合の案です。深さや開きは、石によって変わります。</small>
     <dl class="tn-facts">${facts.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl>
     <p class="tn-line"><b>入れ方</b>${esc(insert.how)}。${esc(insert.hold)}。</p>
     <p class="tn-line"><b>計算</b>${esc(springSummary(myRow))}。</p>
