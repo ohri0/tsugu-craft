@@ -1133,14 +1133,9 @@ document.addEventListener("keydown", (e) => {
   const m = MODES.find((x) => x.key === e.key);
   if (m) setMode(m.id);
 });
-$(".act-sheet").addEventListener("click", () => {
-  setMode("hand");
-  $<HTMLButtonElement>(".p-instr").click();
-});
-$(".act-stl").addEventListener("click", () => {
-  setMode("hand");
-  $<HTMLButtonElement>(".p-stl").click();
-});
+// 上のボタンは、場面を変えずに書き出す（押すと「作る」へ移っていた）
+$(".act-sheet").addEventListener("click", () => printSheet());
+$(".act-stl").addEventListener("click", () => exportStl());
 
 // ---- 生む。：Claude が組んで、確かめて、直す ----
 const TOOL_WORD: Record<string, string> = { set_setting: "石座", set_shank: "腕", check: "確かめ", look: "見る" };
@@ -2192,9 +2187,45 @@ function renderBuild() {
   );
   box.querySelector(".to-check")?.addEventListener("click", () => setMode("refine"));
   bindTerms(box);
-  box.querySelector(".p-instr")!.addEventListener("click", () => askPrint(true, (pick) => {
+  box.querySelector(".p-instr")!.addEventListener("click", () => printSheet());
+  box.querySelector(".p-stl")!.addEventListener("click", () => exportStl());
+}
+
+/** 図面・指示書を印刷する（印刷する物を選ぶ窓から）。どの場面からでも */
+function printSheet() {
+  if (kind === "band") {
+    if (!bandPositions) return;
+    return askPrint(false, (pick) => {
+      const probs = checkBand(band);
+      openPrint(
+        sheetHtml({
+          includeSteps: pick.steps,
+          includeDetails: pick.details,
+          drawingHtml: pick.drawing ? bandDrawing(probs.map((p) => p.title)) : "",
+          title: bandName(),
+          date: today(),
+          imageDataUrl: viewer.snapshot(),
+          specs: [
+            { label: "断面", value: SECTION_LABEL[band.kind] },
+            { label: "号", value: `${band.gou} 号 ・ 内径 ${bandInnerDiameter(band.gou).toFixed(1)} mm` },
+            { label: "上（見える側）", value: `${band.top.width} × ${band.top.thickness} mm` },
+            { label: "下（手のひら側）", value: `${band.bottom.width} × ${band.bottom.thickness} mm` },
+            { label: "地金", value: `${band.metalLabel} ・ 約 ${bandWeight.toFixed(1)} g` },
+          ],
+          problems: probs.map((p) => `${p.title}（${p.current} → ${p.required}）`),
+          methodLabel: method === "hand" ? "鍛造" : "鋳造",
+          steps: bandHowTo(band, method, bandWeight, alloyOf(bandMetal)),
+          patternSvg: "",
+        }),
+      );
+    });
+  }
+  if (!session?.built || !stone) return toast("指輪が組み上がるまで、少し待ってください");
+  askPrint(true, (pick) => {
     const svg = sheet();
-    if (!svg) return;
+    if (!svg || !session?.built) return;
+    const b = session.built;
+    const probs = grouped(b);
     const r = b.ring;
     const st = r.setting;
     openPrint(
@@ -2204,32 +2235,43 @@ function renderBuild() {
         imageDataUrl: viewer.snapshot(),
         specs: [
           { label: "石", value: `${stone!.measured.longMm.toFixed(2)} × ${stone!.measured.widthMm.toFixed(2)} × ${stone!.depthMm.toFixed(2)} mm` },
-          { label: "号", value: `${session!.state.gou} 号 ・ 内径 ${r.shank.innerDiameterMm.toFixed(1)} mm` },
+          { label: "号", value: `${session.state.gou} 号 ・ 内径 ${r.shank.innerDiameterMm.toFixed(1)} mm` },
           { label: "留め方", value: st.style === "bezel" ? `覆輪 ・ 壁 ${st.bezel?.wallMm.toFixed(2)} mm` : `爪 ${st.prongs.length} ・ ø ${st.prongs[0]?.diameterMm.toFixed(2)} mm` },
           { label: "腕", value: `${r.shank.widthMm.toFixed(1)} × ${r.shank.thicknessMm.toFixed(1)} mm` },
           { label: "石と指のすき間", value: `${r.culetGapMm.toFixed(2)} mm` },
-          { label: "地金", value: `${METAL_LABEL[session!.state.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g` },
+          { label: "地金", value: `${METAL_LABEL[session.state.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g` },
         ],
         problems: probs.map(({ p }) => `${SHORT[p.check] ?? p.where}（${p.current} → ${p.required}）`),
         methodLabel: method === "hand" ? "鍛造" : "鋳造",
-        steps,
+        steps: howToMake(howInput(b), method),
         patternSvg: pick.pattern ? svg : "",
         includeSteps: pick.steps,
         includeDetails: pick.details,
         drawingHtml: pick.drawing ? solitaireDrawing(b, probs.map(({ p }) => SHORT[p.check] ?? p.where)) : "",
       }),
     );
-  }));
-  box.querySelector(".p-stl")!.addEventListener("click", () => {
-    const r = b.ring.ringPositions;
-    const all = new Float32Array(r.setting.length + r.shank.length);
-    all.set(r.setting, 0);
-    all.set(r.shank, r.setting.length);
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([toStl(all)], { type: "model/stl" }));
-    a.download = `継ぐ_${stone!.shapeName}_${session!.state.gou}号.stl`;
-    a.click();
   });
+}
+/** STL を書き出す。どの場面からでも。作れない所があれば、書き出したうえで知らせる */
+function exportStl() {
+  const save = (positions: Float32Array, name: string, problems: number) => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([toStl(positions)], { type: "model/stl" }));
+    a.download = name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+    toast(`STL を書き出しました：${name}${problems ? `（作れない所が ${problems} あります。確かめるで直せます）` : ""}`);
+  };
+  if (kind === "band") {
+    if (bandPositions) save(bandPositions, `継ぐ_${bandName()}_${band.gou}号.stl`, checkBand(band).length);
+    return;
+  }
+  if (!session?.built || !stone) return toast("指輪が組み上がるまで、少し待ってください");
+  const r = session.built.ring.ringPositions;
+  const all = new Float32Array(r.setting.length + r.shank.length);
+  all.set(r.setting, 0);
+  all.set(r.shank, r.setting.length);
+  save(all, `継ぐ_${stone.shapeName}_${session.state.gou}号.stl`, grouped(session.built).length);
 }
 
 async function addRuleFromWords(said: string) {
@@ -2815,36 +2857,8 @@ function renderBandBuild() {
   box.querySelectorAll<HTMLButtonElement>(".method button").forEach((b) => b.addEventListener("click", () => ((method = b.dataset.m as Method), renderBandBuild())));
   box.querySelector(".to-check")?.addEventListener("click", () => setMode("refine"));
   bindTerms(box);
-  box.querySelector(".p-instr")!.addEventListener("click", () => askPrint(false, (pick) =>
-    openPrint(
-      sheetHtml({
-        includeSteps: pick.steps,
-        includeDetails: pick.details,
-        drawingHtml: pick.drawing ? bandDrawing(probs.map((p) => p.title)) : "",
-        title: bandName(),
-        date: today(),
-        imageDataUrl: viewer.snapshot(),
-        specs: [
-          { label: "断面", value: SECTION_LABEL[band.kind] },
-          { label: "号", value: `${band.gou} 号 ・ 内径 ${bandInnerDiameter(band.gou).toFixed(1)} mm` },
-          { label: "上（見える側）", value: `${band.top.width} × ${band.top.thickness} mm` },
-          { label: "下（手のひら側）", value: `${band.bottom.width} × ${band.bottom.thickness} mm` },
-          { label: "地金", value: `${band.metalLabel} ・ 約 ${bandWeight.toFixed(1)} g` },
-        ],
-        problems: probs.map((p) => `${p.title}（${p.current} → ${p.required}）`),
-        methodLabel: method === "hand" ? "鍛造" : "鋳造",
-        steps,
-        patternSvg: "",
-      }),
-    ),
-  ));
-  box.querySelector(".p-stl")!.addEventListener("click", () => {
-    if (!bandPositions) return;
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([toStl(bandPositions)], { type: "model/stl" }));
-    a.download = `継ぐ_${bandName()}_${band.gou}号.stl`;
-    a.click();
-  });
+  box.querySelector(".p-instr")!.addEventListener("click", () => printSheet());
+  box.querySelector(".p-stl")!.addEventListener("click", () => exportStl());
 }
 
 async function makeBand() {
