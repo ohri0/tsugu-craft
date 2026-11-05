@@ -51,8 +51,8 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
       <div class="keep-name"><h2 class="keep-title"></h2><button type="button" class="linklike rename">名前を変える</button></div>
       <p class="lead">工房の決まり。設計の確かめと、学ぶ人への答えに使います。</p>
     </header>
-    <ul class="rule-cards"></ul>
     <div class="block ask-card iv-card" hidden></div>
+    <ul class="rule-cards"></ul>
     <section class="public-rules" hidden><h3 class="pub-sec-h public-sum"></h3><p class="small muted">公開の資料から入れた目安です。出どころのリンクつき。職人が確かめると、職人の決まりに置き換わります（目安・最後は職人が決める）。</p><ul class="rule-cards pub"></ul></section>
     <div class="block inbox-block" hidden>
       <h3>届いている質問 <small class="inbox-count"></small></h3>

@@ -7,6 +7,7 @@ import { MAIN, addWorkshop, setActive } from "../rules/workshops";
 import { printHtml } from "../ui/print";
 import { summarize, sweepDesigns, sweepOne, type SweepDesign, type SweepResult } from "./sweep";
 import { SAMPLE_DESIGNS, SAMPLE_MAKER, SAMPLE_NOTE, isSample, outlineThumb, sampleState, sampleStone, tuneSample, fixProngSize } from "./samples";
+import { ringGaps } from "../rules/gaps";
 import { MAKING_STEPS, isCheckRule, makingRulesFor, stepsOfRule } from "../rules/making";
 import "./pro.css";
 import { findCorners } from "../geometry/corners";
@@ -43,7 +44,7 @@ import { NOTE, type AlloyId } from "./process";
 import type { Step } from "./howto";
 import { MAKE_BAND, SECTION_LABEL, bandHowTo, bandInnerDiameter, bandMesh, bandPrompt, checkBand, parseBand, type Band, type BandDraft, type SectionKind } from "./band";
 import { BAND_THIN_STEP_MM, COLLAR_STEP_MM, metalIdOf } from "./session";
-import { GUIDES, minProngMm } from "../rules/guides";
+import { GUIDES, minProngMm, stoneSizeMm } from "../rules/guides";
 import { callTool } from "../rebuild/run";
 import { dimsSvg, flatDims, gizmoSvg, type Dim, type Rect } from "./dims";
 import { bindSlider, sliderHtml, type SliderSpec } from "./slider";
@@ -1293,6 +1294,31 @@ function switchLedger(id: string) {
   const label = ws.active === MAIN ? `${bookLabel(store.mainLedger())}の帳面` : `${ws.list.find((w) => w.id === ws.active)?.name ?? "工房"}の帳面`;
   toast(`${label}で確かめ直しました`);
 }
+const ASK_LATER_KEY = "tsugu.askLater";
+
+/**
+ * Claude が聞きに来る：確かめる場面で、今の設計に関わる「帳面に足りない所」を 1 つ出す（2026-11-05 作者：帳面まで見に行くのは遠い）。
+ * 今の石の大きさの爪の点がなければそれを、なければ次の質問を。撮影（?rec）では、?ask があるときだけ出す
+ */
+function askNudgeHtml(b: Built): string {
+  const q = new URLSearchParams(location.search);
+  if (q.has("rec") && !q.has("ask")) return "";
+  try {
+    if (sessionStorage.getItem(ASK_LATER_KEY)) return "";
+  } catch {
+    /* 読めなければ、出す */
+  }
+  const gaps = ringGaps(store.ledger());
+  if (!gaps.length) return "";
+  const size = stoneSizeMm(b.ring.params.stone.longMm, b.ring.params.stone.widthMm);
+  const near = gaps
+    .filter((g) => g.stoneMm !== undefined && Math.abs(g.stoneMm - size) <= 1.5)
+    .sort((x, y) => Math.abs(x.stoneMm! - size) - Math.abs(y.stoneMm! - size))[0];
+  const g = near ?? gaps[0];
+  const why = near ? `この指輪の石（${size.toFixed(1)} mm）に近い大きさの決まりが、帳面に足りません。` : "帳面に足りない所があります。";
+  return `<section class="ask-nudge"><small>Claude から質問</small><b>${esc(g.question)}</b><p>${why}</p><div class="row"><a class="primary" href="app.html#ledger/ask?gap=${encodeURIComponent(g.id)}">答える</a><button type="button" class="ghost-d ask-later">あとで</button></div></section>`;
+}
+
 function workshopTable(): string {
   if (!session?.built) return "";
   const state = session.snapshot();
@@ -1525,6 +1551,7 @@ function renderCheck() {
   box.innerHTML = `
     ${lastRule ? `<section class="rule-flash"><small>${esc(lastRule.by)}の決まりで、確かめ直しました</small><b>${lastRule.spoken ? `「${esc(lastRule.quote)}」` : esc(lastRule.quote)}</b><span>作れない所 <em>${lastRule.before}</em> → <em class="${lastRule.after ? "ng" : "ok"}">${lastRule.after}</em>${lastRule.after && probs.length < lastRule.after ? ` → 直して <em class="${probs.length ? "ng" : "ok"}">${probs.length}</em>` : ""}</span></section>` : ""}
     <section class="big-verdict ${probs.length ? "ng" : "ok"}"><b>${probs.length ? "このままでは作れません" : "このまま作れます"}</b><small>${probs.length ? `直す所 ${probs.length}` : `爪・留まり・すき間・角、すべて目安の内側`}</small></section>
+    ${askNudgeHtml(b)}
     ${workshopBarHtml()}
     ${compareHtml()}
     ${MULTI_STONE_UI ? stonesSectionHtml(b) : ""}
@@ -1581,6 +1608,14 @@ function renderCheck() {
   box.querySelector(".compare-btn")?.addEventListener("click", () => setCompare(true));
   box.querySelector(".sweep-btn")?.addEventListener("click", () => openSweep());
   box.querySelector(".compare-back")?.addEventListener("click", () => setCompare(false));
+  box.querySelector(".ask-later")?.addEventListener("click", () => {
+    try {
+      sessionStorage.setItem(ASK_LATER_KEY, "1");
+    } catch {
+      /* 覚えられなくても、今は閉じる */
+    }
+    box.querySelector(".ask-nudge")?.remove();
+  });
   box.querySelector(".past-fix")?.addEventListener("click", () => {
     if (askConfirm("今の設計と、これまでの作品を、まとめて直しますか？\n爪の太さなどが変わります。")) fixPastWorks();
   });

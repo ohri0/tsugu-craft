@@ -424,6 +424,29 @@ describe("腕の間に挟む石座：爪の外側は、上の輪の高さでも�
   }, 60000);
 });
 
+describe("腕の間に挟む石座：太い爪の先は、外へふくらまない（2026-11-05 作者：曲がっているだけなので、こぶにはならない）", () => {
+  it("爪 1.41 mm でも、縁のまわりの外側の線は、まっすぐな傾きのまま", () => {
+    const ring = buildRing(params({ stone: stoneFrom(triangle(200, 200, 160, 140), 8.88, 4.24), orientation: "across", solder: false, shank: { gou: 11, metal: "k18y" } }, { prongCount: undefined, prongDiameterMm: 1.41, solid: true }));
+    const st = ring.setting;
+    const pos = st.positions;
+    const pr = st.prongs[0];
+    const L = Math.hypot(pr.point.x, pr.point.y);
+    const [ux, uy] = [pr.point.x / L, pr.point.y / L];
+    const r = pr.diameterMm / 2;
+    const out = (z0: number) => {
+      let m = -Infinity;
+      for (let i = 0; i < pos.length; i += 3) {
+        if (Math.abs(pos[i + 2] - z0) > 0.05) continue;
+        if (Math.abs(-(pos[i] * uy - pos[i + 1] * ux)) > r * 1.3 + 0.4) continue;
+        m = Math.max(m, pos[i] * ux + pos[i + 1] * uy);
+      }
+      return m;
+    };
+    // 爪の傾きは 0.2 mm 上がると約 0.04 mm 外へ。こぶがあると、ここで 0.1 mm 以上とぶ
+    for (let z = -0.8; z < 0; z += 0.2) expect(out(z + 0.2) - out(z)).toBeLessThan(0.08);
+  }, 60000);
+});
+
 describe("腕の間に挟む石座：爪の下の端（職人 2026-11-05：輪に埋まっている。丸い先が輪の下に出ることはない）", () => {
   const tri = stoneFrom(triangle(200, 200, 160, 140), 8.88, 4.24);
   const cases: [string, StoneParams, "along" | "across"][] = [

@@ -1208,6 +1208,10 @@ function solidHead(f: Frame, plans: ProngPlan[], v: Vertical, tz: number, wire: 
 const BETWEEN_PRONG_EMBED = 0.15;
 /** 下の輪の外の線が、爪の内の端からこれより離れていたら、爪に届いていないとみなす（mm） */
 const COLLAR_REACH_MM = 0.02;
+/** 下の輪の線をならすとき、これより向きが変わる所は角として動かさない（ラジアン。形を作るための決まり） */
+const LINE_CORNER_RAD = 0.5;
+/** 下の輪の線をならす回数（形を作るための決まり） */
+const LINE_SMOOTH_PASSES = 30;
 /** 上の輪と爪をつなぐ管の先が、爪の中心を越える長さ（爪の太さに対する割合。形を作るための決まり） */
 const BRIDGE_PAST_CENTER = 0.1;
 /** 上の輪と爪がこれだけ重なっていれば、つなぐ管を足さない（mm。形を作るための決まり） */
@@ -1465,6 +1469,55 @@ function collarDirections(f: Frame, depth: number): { m: Point[]; w: Point[] } {
 function normalizePoint(p: Point): Point {
   const d = Math.hypot(p.x, p.y) || 1;
   return { x: p.x / d, y: p.y / d };
+}
+
+/**
+ * 閉じた線の細かな波をならす（写真から読んだ輪郭の波が、磨いた面に筋として映る）。角（向きが大きく変わる所）は動かさない。
+ * 押す・戻すを交互にして、線全体が縮まないようにする（Taubin）
+ */
+function smoothLine(poly: readonly Point[]): Point[] {
+  const n = poly.length;
+  const dirAt = (i: number) => Math.atan2(poly[(i + 1) % n].y - poly[i].y, poly[(i + 1) % n].x - poly[i].x);
+  const turn = (i: number) => {
+    let t = 0;
+    // 少し広い幅で向きの変わりを見る（1 点ずつだと波も角に見える）
+    for (let k = -2; k < 2; k++) {
+      let d = dirAt((i + k + n) % n) - dirAt((i + k - 1 + n) % n);
+      d = Math.atan2(Math.sin(d), Math.cos(d));
+      t += d;
+    }
+    return Math.abs(t);
+  };
+  const locked = poly.map((_, i) => turn(i) > LINE_CORNER_RAD);
+  let cur = [...poly];
+  const pass = (w: number) => {
+    cur = cur.map((p, i) => {
+      if (locked[i]) return p;
+      const a = cur[(i + n - 1) % n];
+      const b = cur[(i + 1) % n];
+      return { x: p.x + w * ((a.x + b.x) / 2 - p.x), y: p.y + w * ((a.y + b.y) / 2 - p.y) };
+    });
+  };
+  for (let it = 0; it < LINE_SMOOTH_PASSES; it++) {
+    pass(0.6);
+    pass(-0.62);
+  }
+  return cur;
+}
+
+/** 閉じた線の角を落として細かくする（Chaikin。1 回で点が 2 倍。線はほとんど動かない） */
+function chaikin(poly: readonly Point[], times: number): Point[] {
+  let cur = [...poly];
+  for (let t = 0; t < times; t++) {
+    const next: Point[] = [];
+    for (let i = 0; i < cur.length; i++) {
+      const a = cur[i];
+      const b = cur[(i + 1) % cur.length];
+      next.push({ x: a.x * 0.75 + b.x * 0.25, y: a.y * 0.75 + b.y * 0.25 }, { x: a.x * 0.25 + b.x * 0.75, y: a.y * 0.25 + b.y * 0.75 });
+    }
+    cur = next;
+  }
+  return cur;
 }
 
 /** 閉じた線が、自分と交わるか */
@@ -1936,7 +1989,11 @@ function solidBetween(f: Frame, plans: ProngPlan[], b: BetweenSolid) {
     const zMid = top[2] + 0.45 * (b.tz - top[2]);
     const dir = sub(top, line[line.length - 2]);
     const mid = add(top, scale(dir, (zMid - top[2]) / (dir[2] || 1)));
-    const tip = at(f, s, b.tz - r * 0.6, cl + r * 0.75);
+    // 爪の先は、まっすぐな線より外へ出さない。太い爪は先の高さが低く、石の面から離して置くと、線より外へふくらんでこぶになった（2026-11-05 作者：曲がっているだけなので、そうはならない）
+    const tip0 = at(f, s, b.tz - r * 0.6, cl + r * 0.75);
+    const lineAt = add(top, scale(dir, (tip0[2] - top[2]) / (dir[2] || 1)));
+    const past = (tip0[0] - lineAt[0]) * s.n.x + (tip0[1] - lineAt[1]) * s.n.y;
+    const tip: V3 = past > 0 ? [tip0[0] - s.n.x * past, tip0[1] - s.n.y * past, tip0[2]] : tip0;
     // 管の丸い先は、下の輪の下の面より下まで伸ばして、指の面で切り落とす（爪の下の端が輪の下の面にそろう）
     const low = sub(line[0], line[1]);
     const lowLen = Math.hypot(low[0], low[1], low[2]) || 1;
@@ -1952,7 +2009,8 @@ function solidBetween(f: Frame, plans: ProngPlan[], b: BetweenSolid) {
   tubes.push({ pts: ring, radii: ring.map(() => b.wire / 2), owner: RING_OWNER });
   for (const [p0, p1, rb] of b.bridges) tubes.push({ pts: [p0, p1], radii: [rb, rb], owner: RING_OWNER });
   // 下の輪（板を丸めた円すいの輪）：上の端の外の線からの距離を、円すいの傾きで高さに合わせて直し、厚み wall の殻。上は平ら、下は指の面
-  const dOut = polygonDistance(b.outer, cell / 2);
+  // 縁の点をつないだ線は折れ線なので、そのままだと面の向きが線分ごとに変わり、磨いた金に縦の筋が出る（2026-11-05 作者）。線をならして細かくしてから測る
+  const dOut = polygonDistance(chaikin(smoothLine(b.outer), 2), cell / 4);
   const tanC = collarTaperTan(b);
   const xs = b.outer.map((p) => p.x);
   const ys = b.outer.map((p) => p.y);
