@@ -170,6 +170,17 @@ const $ = <T extends HTMLElement = HTMLElement>(s: string) => document.querySele
 const viewer = new Viewer($(".gl"));
 viewer.setDark(true);
 viewer.wireArm = !filming();
+/** 形の配列が GPU へ届かず 3D の絵が乱れているときは、壊れた絵のまま「作れます」と出さない（組み直すたびに札を書き直すので、そのあとでも呼ぶ） */
+function markDrawFault() {
+  if (!viewer.drawFault) return;
+  const chip = $(".verdict-chip");
+  chip.className = "verdict-chip ng";
+  chip.textContent = "3D の絵が乱れています";
+}
+viewer.onDrawFault(() => {
+  markDrawFault();
+  setStatus("3D の絵が乱れています。このブラウザが形のデータを正しく受け取れませんでした。形の数字と STL は正しいです。ブラウザを新しくするか、別のブラウザで開いてみてください。");
+});
 
 // ---- 寸法の線と軸の印（3D を描き直すたびに合わせる） ----
 let dims: Dim[] = [];
@@ -934,6 +945,7 @@ function onBuilt(b: Built, _why: string, refined = false) {
   chip.hidden = false;
   chip.className = `verdict-chip ${n ? "ng" : "ok"}`;
   chip.textContent = n ? `作れない所 ${grouped(b).length}` : "作れます";
+  markDrawFault();
   $(".word-name").textContent = r.stones.length > 1 ? `${stone.shapeName}の${layoutName()}の指輪` : `${stone.shapeName}の一粒石の指輪`;
   drawStoneTags();
   if (presentOn) renderPresent();
@@ -2837,6 +2849,7 @@ function showBand(live = false) {
   chip.hidden = false;
   chip.className = `verdict-chip ${probs.length ? "ng" : "ok"}`;
   chip.textContent = probs.length ? `作れない所 ${probs.length}` : "作れます";
+  markDrawFault();
   $(".word-name").textContent = bandName();
   const rows: [string, string][] = [
     ["断面", SECTION_LABEL[band.kind]],
