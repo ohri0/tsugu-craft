@@ -256,6 +256,89 @@ export class Viewer {
     const p = new THREE.Vector3();
     return this.rayAt(cx, cy).ray.intersectPlane(new THREE.Plane(new THREE.Vector3(1, 0, 0), -x0), p) ? [p.x, p.y, p.z - lift] : null;
   }
+  /** 測る点や爪を選ぶ相手（形の面だけ。赤い印や線は選ばない） */
+  private pickable(): THREE.Mesh[] {
+    const out: THREE.Mesh[] = [];
+    this.content.traverse((o) => {
+      if (o instanceof THREE.Mesh && !o.userData.marker && o.geometry.type === "BufferGeometry") out.push(o);
+    });
+    return out;
+  }
+  /** 画面の点のまわり（真ん中と、半径 rPx の 2 周）から出る光線の順に呼ぶ。f が値を返したら止める */
+  private aroundRays<T>(cx: number, cy: number, rPx: number, f: (ray: THREE.Raycaster, px: number) => T | null): T | null {
+    const hitAt = (x: number, y: number, px: number) => f(this.rayAt(x, y), px);
+    let got = hitAt(cx, cy, 0);
+    if (got !== null || rPx <= 0) return got;
+    for (const [rr, n] of [[0.5, 8], [1, 12]] as const) {
+      for (let i = 0; i < n; i++) {
+        const th = ((i + 0.5) / n) * Math.PI * 2;
+        got = hitAt(cx + Math.cos(th) * rPx * rr, cy + Math.sin(th) * rPx * rr, rPx * rr);
+        if (got !== null) return got;
+      }
+    }
+    return null;
+  }
+  /**
+   * 測る点を探す：画面の点の先にある面の点と、その三角形の 3 つの頂点（画面の 3D と同じ座標）。
+   * 真ん中に面がなければ、半径 rPx の中を探す（形のふちを押しても拾えるように）
+   */
+  pickSurface(cx: number, cy: number, rPx = 0): { point: [number, number, number]; tri: [[number, number, number], [number, number, number], [number, number, number]]; stone: boolean } | null {
+    const meshes = this.pickable();
+    return this.aroundRays(cx, cy, rPx, (ray) => {
+      const hit = ray.intersectObjects(meshes, false)[0];
+      if (!hit?.face) return null;
+      const m = hit.object as THREE.Mesh;
+      const pos = m.geometry.getAttribute("position");
+      const dz = m.position.z;
+      const v = (i: number): [number, number, number] => [pos.getX(i) + m.position.x, pos.getY(i) + m.position.y, pos.getZ(i) + dz];
+      return { point: [hit.point.x, hit.point.y, hit.point.z], tri: [v(hit.face.a), v(hit.face.b), v(hit.face.c)], stone: isStone(m.userData.render ?? m.material) };
+    });
+  }
+  /** 形のそれぞれ（石・石座・腕）の三角形の点と、置いた高さ。形の端の点を探すのに使う */
+  meshPositions(): { positions: ArrayLike<number>; lift: number }[] {
+    return this.pickable().map((m) => ({ positions: m.geometry.getAttribute("position").array, lift: m.position.z }));
+  }
+  /**
+   * 爪を探す：画面の点の先の、石座の三角形の番号の候補（近い順）。半径 rPx の中で見る。石や腕が先に当たった光線は数えない。
+   * accept（石座の三角形の番号 → 値、爪でなければ null）が値を返した最初のものを返す
+   */
+  pickSetting<T>(cx: number, cy: number, rPx: number, accept: (face: number) => T | null): T | null {
+    const meshes = this.pickable();
+    const setting = this.settingMesh;
+    if (!setting) return null;
+    return this.aroundRays(cx, cy, rPx, (ray) => {
+      const hit = ray.intersectObjects(meshes, false)[0];
+      if (!hit || hit.object !== setting || hit.faceIndex == null) return null;
+      return accept(hit.faceIndex);
+    });
+  }
+  /** 中身の形が変わるたびに増える番号（引いた寸法が古くなったかを見るため） */
+  contentVersion = 0;
+  /** 今の石座の形（爪を選ぶ相手） */
+  private settingMesh: THREE.Mesh | null = null;
+  /** 選んだ爪を明るく見せる形（中身の外に置く：影・図面・箱に入らない） */
+  private prongMark: THREE.Mesh | null = null;
+  /** 石座の三角形の範囲を、明るく見せる（爪を選んだとき）。null で消す */
+  markSetting(range: { start: number; count: number } | null) {
+    if (this.prongMark) {
+      this.scene.remove(this.prongMark);
+      this.prongMark.geometry.dispose();
+      (this.prongMark.material as THREE.Material).dispose();
+      this.prongMark = null;
+    }
+    const m = this.settingMesh;
+    this.dirty = true;
+    if (!range || !m || !range.count) return;
+    const pos = m.geometry.getAttribute("position").array as Float32Array;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute("position", new THREE.BufferAttribute(pos.slice(range.start * 9, (range.start + range.count) * 9), 3));
+    const nor = m.geometry.getAttribute("normal")?.array as Float32Array | undefined;
+    if (nor) g.setAttribute("normal", new THREE.BufferAttribute(nor.slice(range.start * 9, (range.start + range.count) * 9), 3));
+    // 地金の色の上に、うすい青を重ねる（形は見える。線は隠さない）
+    this.prongMark = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0x409cff, transparent: true, opacity: 0.32, side: THREE.DoubleSide, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }));
+    this.prongMark.position.copy(m.position);
+    this.scene.add(this.prongMark);
+  }
   /** ドラッグで回すのを止める・戻す（石を動かしている間） */
   setOrbit(on: boolean) {
     this.controls.enabled = on;
@@ -527,6 +610,9 @@ export class Viewer {
   }
 
   private clear() {
+    this.contentVersion++;
+    this.settingMesh = null;
+    this.markSetting(null);
     this.warnMat = null;
     this.live = null;
     this.traceParts = null;
@@ -632,6 +718,7 @@ export class Viewer {
     setting.position.z = lift;
     shank.position.z = lift;
     this.content.add(setting, shank);
+    this.settingMesh = setting;
     this.metalMat = metal;
     this.traceParts = [settingGeo, shank.geometry];
     this.traceTint.copy(metal.color);
@@ -671,6 +758,7 @@ export class Viewer {
   updateShank(shank: ShankResult, problems: Problem[]) {
     const L = this.live;
     if (!L) return;
+    this.contentVersion++;
     const old = L.shank.geometry;
     L.shank.geometry = shank.normals ? smoothGeometry(shank.positions, shank.normals) : metalGeometry(shank.positions);
     old.dispose();
@@ -931,8 +1019,11 @@ export class Viewer {
     this.alignGrid(view);
     this.updateGrid();
     this.syncLights();
+    // 選んだ爪の印は、Claude に渡す画像に入れない
+    if (this.prongMark) this.prongMark.visible = false;
     this.renderer.render(this.scene, this.camera);
     const url = this.renderer.domElement.toDataURL("image/png");
+    if (this.prongMark) this.prongMark.visible = true;
     this.cams.restore(keep, this.controls.target);
     this.useCamera();
     this.alignGrid(grid);

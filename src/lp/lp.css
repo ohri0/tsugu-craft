@@ -136,11 +136,13 @@ figcaption { font-size: 15px; line-height: 1.7; margin-top: 12px; color: var(--w
 .lede { font: 400 clamp(25px, 3vw, 40px)/1.6 var(--mincho); letter-spacing: 0.04em; text-wrap: balance; word-break: keep-all; overflow-wrap: anywhere; }
 
 /* ---- 言葉で ---- */
-.word { display: grid; grid-template-columns: minmax(0, 56fr) minmax(0, 44fr); background: #000; align-items: center; min-height: 92vh; }
-.word-ring img { width: 100%; }
-.word-t { display: flex; flex-direction: row-reverse; gap: clamp(20px, 3vw, 44px); align-items: flex-start; padding: var(--gut); }
+.word { background: #000; padding-bottom: clamp(64px, 10vh, 112px); }
+.word-rings { display: grid; grid-template-columns: 1fr 1fr; max-width: 1440px; margin: 0 auto; }
+.word-rings img { width: 100%; }
+.word-rings figcaption { text-align: center; margin-top: 0; }
+.word-t { display: flex; flex-direction: row-reverse; justify-content: center; gap: clamp(28px, 5vw, 72px); align-items: flex-start; padding: clamp(40px, 7vh, 72px) var(--gut) 0; }
 .word-q { font-size: clamp(30px, 3.5vw, 52px); line-height: 1.3; }
-.word-b { display: grid; gap: 22px; align-content: start; max-width: 25em; }
+.word-b { display: grid; gap: 22px; align-content: start; max-width: 30em; }
 
 /* ---- 聞く ---- */
 .ask-in { display: flex; flex-direction: row-reverse; justify-content: center; align-items: flex-start; gap: clamp(32px, 6vw, 84px); padding: clamp(84px, 14vh, 144px) var(--gut); }
@@ -206,8 +208,13 @@ figcaption { font-size: 15px; line-height: 1.7; margin-top: 12px; color: var(--w
 /* ---- 石なし ---- */
 .band { background: #000; padding: var(--gap-sec) var(--gut); }
 .band-t { max-width: 40em; margin: 0 auto 48px; display: grid; gap: 18px; }
-.band-p { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(12px, 2vw, 28px); align-items: center; max-width: 1320px; margin: 0 auto; }
-.band-p figcaption { text-align: center; font: 400 17px/1.6 var(--mincho); color: var(--white); }
+.band-p { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(24px, 3vw, 44px); max-width: 1180px; margin: 0 auto; }
+.band-p img { width: 100%; }
+/* 数が奇数のとき、最後の 1 本は同じ大きさのまま真ん中に */
+.band-p figure:last-child:nth-child(odd) { grid-column: 1 / -1; justify-self: center; width: calc((100% - clamp(24px, 3vw, 44px)) / 2); }
+.band-p figcaption { margin-top: 0; text-align: center; font-size: 15.5px; color: var(--white-2); }
+.band-p figcaption b { display: block; font: 400 21px/1.6 var(--mincho); color: var(--white); letter-spacing: 0.06em; }
+.band-n { max-width: 1180px; margin: 28px auto 0; text-align: center; }
 
 /* ---- 学ぶ ---- */
 .wait { padding: clamp(40px, 6vh, 64px) var(--gut) var(--gap-sec); background: var(--char); max-width: none; display: grid; gap: 24px; justify-items: center; text-align: left; }
@@ -330,8 +337,8 @@ figcaption { font-size: 15px; line-height: 1.7; margin-top: 12px; color: var(--w
   .d1 .door-h { font-size: 36px; }
   .door-draw { left: var(--gut); right: var(--gut); top: 470px; width: auto; transform: none; }
   .door-tsuba { right: -42%; width: 128vw; }
-  .word { display: flex; flex-direction: column; }
-  .word-t { padding: 0 var(--gut) clamp(64px, 10vh, 96px); }
+  .word-rings { grid-template-columns: 1fr; }
+  .word-t { padding: 32px var(--gut) 0; }
   .word-q { font-size: 28px; }
   .ask-in { flex-direction: column; align-items: flex-end; }
   .ask-b { max-width: none; }
@@ -340,8 +347,8 @@ figcaption { font-size: 15px; line-height: 1.7; margin-top: 12px; color: var(--w
   .tension { display: block; }
   .ten-ring { position: static; }
   .ten-b { padding-top: 16px; }
-  .band-p { grid-template-columns: 1fr 1fr; }
-  .band-grid { grid-column: 1 / -1; }
+  .band-p { grid-template-columns: minmax(0, 1fr); }
+  .band-p figure:last-child:nth-child(odd) { width: auto; }
   .learn-sec { grid-template-columns: minmax(0, 1fr); }
   .learn-b { flex-direction: column; align-items: flex-end; }
   .learn-b > div { width: 100%; }

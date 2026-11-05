@@ -974,7 +974,7 @@ html.fit .ask-nudge small { font-size: 12px; }
   html.fit .kinds button { grid-template-columns: 24px 1fr; gap: 6px; min-height: 52px; padding: 4px 6px; border-color: var(--line); }
   html.fit .kinds b { font-size: 13px; line-height: 1.25; }
   /* 細いスマホ（320 〜 375 px）でも道具の帯が横に収まるように */
-  html.fit .tool, html.fit .tool.t-dims-more { width: min(44px, calc((100vw - 22px) / 8)); }
+  html.fit .tool, html.fit .tool.t-dims-more { width: min(44px, calc((100vw - 22px) / 9)); }
 }
 /* 細いスマホ：表示の切り替えと「作れます」の札が重ならないように */
 @media (max-width: 380px) {
@@ -1094,4 +1094,84 @@ html.fit .command { flex: 1 1 320px; min-width: 0; }
 .tn-more li b { font-weight: 600; margin-right: 6px; }
 @media (max-width: 760px) {
   html.fit .tn-more summary { min-height: 44px; display: flex; align-items: center; }
+}
+
+/* 寸法を引く：線と札、吸いつく印、引いた寸法の欄（2026-11-06） */
+.measures .dim-line, .measures .dim-leader { stroke: #ffb020; stroke-width: 1.2; }
+.measures .dim-arrow { fill: #ffb020; }
+.gl[data-backdrop="gray"] ~ .measures :is(.dim-line, .dim-leader) { stroke: #a45f00; }
+.gl[data-backdrop="gray"] ~ .measures .dim-arrow { fill: #a45f00; }
+.measures .dim-tag { stroke: #ffb020; }
+.measures .dim.sel .dim-tag { fill: #ffb020; }
+.measures .dim.sel .dim-text { fill: #111; }
+.measures .dim[data-key] :is(.dim-tag, .dim-text) { pointer-events: auto; cursor: pointer; }
+.ms-pt { fill: #ffb020; stroke: #111; stroke-width: 1; }
+.ms-pt.now { fill: #fff; stroke: #a45f00; }
+.ms-snap { fill: none; stroke: #ffb020; stroke-width: 1.6; }
+.gl[data-backdrop="gray"] ~ .measures .ms-snap { stroke: #a45f00; }
+.ms-snap-name { font-size: 11px; fill: #fff; stroke: #111; stroke-width: 3; paint-order: stroke; stroke-linejoin: round; }
+.ms-panel { position: absolute; z-index: 7; left: 12px; top: 44px; width: 268px; padding: 8px 10px; border-radius: 10px; background: rgba(20, 20, 22, 0.94); border: 1px solid var(--line-2); font-size: 12px; color: var(--fg); }
+.ms-panel[hidden] { display: none; }
+.ms-say { margin: 0 0 6px; font-weight: 600; }
+.ms-say small { display: block; margin-top: 2px; font-weight: 400; font-size: 11px; color: var(--fg-3); }
+.ms-list { list-style: none; margin: 0 0 6px; padding: 0; display: grid; gap: 2px; max-height: 148px; overflow-y: auto; }
+.ms-list li { display: grid; grid-template-columns: 1fr 28px; align-items: stretch; border-radius: 6px; }
+.ms-list li.sel { background: var(--accent-weak); }
+.ms-row { display: grid; grid-template-columns: 16px 1fr; column-gap: 4px; text-align: left; border: 0; background: transparent; color: var(--fg); padding: 3px 4px; font-size: 12px; border-radius: 6px; }
+.ms-row b { font-weight: 600; color: #ffb020; }
+.ms-row span { font-variant-numeric: tabular-nums; }
+.ms-row small { grid-column: 2; font-size: 10.5px; color: var(--fg-3); }
+.ms-del { border: 0; background: transparent; color: var(--fg-2); font-size: 15px; border-radius: 6px; }
+.ms-del:hover { background: var(--hover); color: var(--fg); }
+.ms-act { display: flex; gap: 6px; justify-content: flex-end; }
+.ms-act:empty { display: none; }
+.ms-act button { height: 26px; padding: 0 10px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--panel-2); color: var(--fg); font-size: 11px; }
+.drawing-on .ms-panel, .pro.presenting .ms-panel, .drawing-on .prong-pop, .pro.presenting .prong-pop { display: none !important; }
+/* 爪を押して直す欄（2026-11-06） */
+.prong-pop { position: absolute; z-index: 7; right: 12px; top: 44px; width: 318px; max-height: calc(100% - 56px); overflow-y: auto; padding: 10px 12px; border-radius: 10px; background: rgba(20, 20, 22, 0.96); border: 1px solid var(--line-2); font-size: 12px; color: var(--fg); }
+.prong-pop[hidden] { display: none; }
+.prong-pop header { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+.prong-pop header b { font-size: 13px; }
+.prong-pop header small { color: var(--fg-3); font-size: 11px; }
+.pp-x { margin-left: auto; width: 26px; height: 26px; border: 0; border-radius: 6px; background: transparent; color: var(--fg-2); font-size: 16px; }
+.pp-x:hover { background: var(--hover); color: var(--fg); }
+.prong-pop .pick { grid-template-columns: 64px 1fr; }
+.prong-pop .pick button { white-space: normal; height: auto; min-height: 22px; }
+.prong-pop .slider { grid-template-columns: 64px 26px 1fr 26px 66px; gap: 4px; }
+.prong-pop .slider .sl-step { width: 26px; height: 26px; font-size: 14px; }
+.prong-pop .slider .sl-num { height: 26px; padding: 0 5px; }
+.prong-pop .slider .sl-num input { font-size: 12px; }
+.pp-strong { width: 100%; height: 28px; margin: 2px 0 6px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--panel-2); color: var(--fg); font-size: 12px; }
+.pp-bad { margin: 4px 0; padding: 0 0 0 14px; color: var(--ng); font-size: 11px; line-height: 1.5; }
+.pp-ok { margin: 4px 0; color: var(--ok, #6fcf8e); font-size: 11px; }
+.pp-foot { display: flex; justify-content: flex-end; }
+.prong-pop .pp-reset { font-size: 11px; }
+.prong-pop .hint { margin-top: 4px; }
+.prong-hint { margin: 2px 0 8px; }
+/* スマホ：欄は画面の下から。指で押せる大きさに。指輪は上に見えたまま */
+@media (pointer: coarse), (max-width: 820px) {
+  /* 3D の所は狭いので、欄は 3D にかぶせず、下のタブの上に出す（爪の先や石の先が隠れて押せなかった） */
+  html.fit .ms-panel { background: #141416; position: fixed; left: 0; right: 0; top: auto; bottom: calc(52px + env(safe-area-inset-bottom)); width: auto; padding: 6px 10px; border-radius: 12px 12px 0 0; border-width: 1px 0 0; z-index: 21; display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: 8px; }
+  html.fit .ms-panel[hidden] { display: none; }
+  html.fit .ms-list { grid-column: 1 / -1; order: -1; width: 100%; }
+  html.fit .ms-say { margin: 0; font-size: 13px; }
+  html.fit .ms-say small { display: none; }
+  html.fit .ms-list { max-height: 92px; }
+  html.fit .ms-row { padding: 2px 4px; }
+  html.fit .ms-row small { display: none; }
+  html.fit .ms-row { grid-template-rows: auto; }
+  html.fit .ms-list li { grid-template-columns: 1fr 44px; min-height: 44px; }
+  html.fit .ms-del { font-size: 18px; }
+  html.fit .ms-row { align-items: center; font-size: 13px; }
+  html.fit .ms-act { grid-column: 2; }
+  html.fit .ms-act button { height: 44px; font-size: 13px; }
+  html.fit .prong-pop { background: #141416; position: fixed; left: 0; right: 0; top: auto; bottom: calc(52px + env(safe-area-inset-bottom)); width: auto; max-height: min(52svh, 420px); border-radius: 12px 12px 0 0; border-width: 1px 0 0; z-index: 21; font-size: 13px; }
+  html.fit .prong-pop .pick { grid-template-columns: 72px 1fr; }
+  html.fit .prong-pop .slider { grid-template-columns: 44px 1fr 72px 44px; }
+  html.fit .prong-pop .slider .sl-step { width: 44px; height: 44px; }
+  html.fit .prong-pop .slider .sl-num { height: 44px; }
+  html.fit .prong-pop .slider .sl-num input { font-size: 16px; }
+  html.fit .pp-x { width: 44px; height: 44px; font-size: 20px; }
+  html.fit .pp-strong { height: 44px; font-size: 14px; }
+  html.fit .prong-pop .pp-reset { min-height: 44px; font-size: 13px; }
 }

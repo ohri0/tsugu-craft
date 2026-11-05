@@ -154,23 +154,21 @@ const SHOTS = {
     await look(p, MACRO, 0.42, await stoneZ(p));
     await shot(p, 'ring-red');
   },
-  // 「ゴシックな感じ」で本物の Claude が組んだ時の数字（docs/LOG.md 2026-11-05）を、Claude を呼ばずに同じ道具で組む
+  // 「ゴシックな感じ」の見本：本物の Claude が組んだ時の考え（稜線・下へ細く・尖ったアーチの彫り）と同じ形を、人が数字を整えた物（src/lp/gothic-showcase.json）。Claude は呼ばない
   async gothic() {
-    const p = await stage(1000, 1200);
-    await p.evaluate(() => window.__studio.loadPreset({ id: 'marquise', name: 'マーキス', longMm: 10, widthMm: 5, depthMm: 3.2 }));
-    await p.waitForTimeout(3000);
-    await p.evaluate(() => window.__studio.session.setSetting({ prong_count: 6, reason: '撮る' }));
-    await p.evaluate(() => window.__studio.session.setShank({
-      width_mm: 2.6, thickness_mm: 2.0, metal: 'k18wg',
-      section_curve: { points: [{ x: 1, y: 0 }, { x: 1, y: 0.45 }, { x: 0.82, y: 0.62 }, { x: 0.42, y: 0.8 }, { x: 0, y: 1 }, { x: 0, y: 1 }, { x: 0, y: 1 }] },
-      stations: [{ at_deg: 180, width_mm: 1.9, thickness_mm: 1.4 }],
-      relief: { pattern: 'arch', count: 7, depth_mm: 0.18, from_deg: 30, to_deg: 100, columns: 2 },
-      reason: '撮る',
-    }));
-    await p.waitForTimeout(6000);
-    console.log('gothic', await numbers(p));
-    await look(p, { x: 0.86, y: -0.28, z: 0.42 }, 0.74);
-    await shot(p, 'ring-gothic');
+    const show = require('../src/lp/gothic-showcase.json');
+    const STONES = { oval: { id: 'oval', name: 'オーバル', longMm: 8, widthMm: 6, depthMm: 3.7 }, marquise: { id: 'marquise', name: 'マーキス', longMm: 10, widthMm: 5, depthMm: 3.2 } };
+    for (const [name, item, dir, zoom] of [['ring-gothic-heavy', show.heavy, { x: 0.62, y: -0.72, z: 0.36 }, 0.72], ['ring-gothic-slim', show.slim, { x: 0.62, y: -0.72, z: 0.36 }, 0.72]]) {
+      const p = await stage(1000, 1200);
+      await p.evaluate((st) => window.__studio.loadPreset(st), STONES[item.stone]);
+      await p.waitForTimeout(3000);
+      await p.evaluate((st) => { const s = window.__studio.session; Object.assign(s.state, st); s.build('撮る'); }, item.state);
+      await p.waitForTimeout(9000);
+      console.log(name, await numbers(p));
+      await look(p, dir, zoom);
+      await shot(p, name);
+      await p.context().close();
+    }
   },
   // テンション：石を腕の力で挟む
   async tension() {
@@ -180,20 +178,6 @@ const SHOTS = {
     console.log('tension', await numbers(p));
     await look(p, WHOLE, 0.9);
     await shot(p, 'ring-tension');
-  },
-  // 石なしの指輪：断面の見本から 2 つ
-  async band() {
-    for (const [name, sec] of [['band-a', 'yamagata'], ['band-b', 'dan']]) {
-      const p = await stage(1000, 1000);
-      await p.evaluate(() => document.querySelector('.kinds [data-kind="band"]').click());
-      await p.waitForTimeout(2500);
-      const ok = await p.evaluate((s) => { const b = document.querySelector(`.bs-grid [data-sec="${s}"]`); if (b) b.click(); return !!b; }, sec);
-      console.log(name, sec, ok, await p.evaluate(() => [...document.querySelectorAll('.bs-grid [data-sec]')].map((b) => b.dataset.sec).join(',')));
-      await p.waitForTimeout(3000);
-      await look(p, { x: 0.72, y: -0.6, z: 0.42 }, 0.8);
-      await shot(p, name);
-      await p.context().close();
-    }
   },
   // 地金のみの指輪の見せ場：アプリの断面の編集で作った形（数字は src/lp/band-showcase.json。studio.html?band=<id> で同じ形が開く）
   async bandShow() {
@@ -275,17 +259,6 @@ const SHOTS = {
     const v = await p.locator('.thread').boundingBox();
     const m = await p.locator('.thread .a-meta').last().boundingBox();
     await shot(p, 'learn', { fullPage: true, clip: { x: 0, y: v.y - 8, width: PHONE_W, height: m.y + m.height - v.y + 32 } });
-  },
-  // 石なしの指輪：断面の見本の欄
-  async bandPanel() {
-    const p = await studioNow(1440, 1000);
-    await p.evaluate(() => document.querySelector('.kinds [data-kind="band"]').click());
-    await p.waitForTimeout(2500);
-    await p.evaluate(() => window.__studio.viewer.setDisplayMode('render'));
-    await p.evaluate(() => document.querySelector('.bs-grid [data-sec="yamagata"]')?.click());
-    await p.waitForTimeout(2500);
-    await p.locator('.bs-grid').screenshot({ path: `${WORK}/band-grid.png`, scale: 'device' });
-    made.push('band-grid');
   },
   // 途切れた技：自分の技を組み立て直す（作り話の例で、流れと案の見え方）
   async restore() {

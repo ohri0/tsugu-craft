@@ -3,7 +3,7 @@
 import { buildRing, type RingDesign, type StonePlace } from "../geometry/ring";
 import { layoutRow, layoutTrio, scaleStone } from "../geometry/multi";
 import { PRESETS, presetOutline } from "./presets";
-import { autoOrientation, tAtOutlineIndex, type JoinStyle, type ProngTip, type SolidQuality } from "../geometry/setting";
+import { autoOrientation, tAtOutlineIndex, type JoinStyle, type ProngLook, type ProngTip, type SolidQuality } from "../geometry/setting";
 import type { SectionCurve, SectionPoint, ShankSection, ShankStation } from "../geometry/shank";
 import type { ReliefParams } from "../geometry/shank-relief";
 import type { TensionGrip, TensionInfo } from "../geometry/tension";
@@ -65,6 +65,10 @@ export interface RingState {
   prongPositions?: number[];
   /** 爪の先の形を、この設計で選んだとき（なければ今の帳面のベーシックの形。帳面になければ丸い爪） */
   prongTip?: ProngTip;
+  /** 全部の爪の形の直し（先の反り・長さ・土台・先の力強さ。太さと先の形は prongMm・prongTip に置く） */
+  prongLook?: ProngLook;
+  /** 爪ごとの形の直し（爪の順に。直していない爪は null）。爪の数が変わると使わない */
+  prongEdits?: (ProngLook | null)[];
   height: HeightOption;
   orientation: "along" | "across";
   /** 向きを人が選んだか（選んでいなければ、尖った角が腕に当たらない向きを自動で選ぶ） */
@@ -130,6 +134,9 @@ export const LAYOUT_LABEL: Record<StoneLayout | "free", string> = { solo: "一�
 /** つまみや Claude の set_setting が止まってから、細かい一体の形を作り直すまでの待ち（ms）。作り直しは重いので、続けて押している間は始めない */
 export const FINAL_DELAY_MS = 500;
 
+/** 爪の形の直しの「直していない」値（全部の爪にそろえるとき、この値なら残さない） */
+export const PRONG_LOOK_NONE: Partial<Record<keyof ProngLook, number>> = { flareMm: 0, tipLengthMm: 0, baseScale: 1, tipScale: 1 };
+
 // 石座の付け方の既定は「腕の間に挟む」（職人の言う基本の作り方。作者が決めた 2026-11-04）。「腕の上にのせる」も選べる。石がいくつもの指輪は、形の方で腕の上にのせる
 export const DEFAULT_STATE: RingState = { style: "prong", height: "standard", orientation: "along", metal: "k18yg", gou: 11, position: "top", join: "between" };
 
@@ -175,6 +182,8 @@ export function carryDesign(prev: RingState, base: RingState, same: { shape?: bo
   }
   if (same.shape && same.size) {
     out.prongMm = prev.prongMm;
+    out.prongLook = prev.prongLook && { ...prev.prongLook };
+    out.prongEdits = prev.prongEdits && structuredClone(prev.prongEdits);
     out.collarHeightMm = prev.collarHeightMm;
     out.collarWallMm = prev.collarWallMm;
   }
@@ -190,7 +199,8 @@ export function tuneProngMm(s: RingSession): void {
   s.solid = false;
   for (let i = 0; i < 4; i++) {
     const b = s.build("爪の太さを決める");
-    if (!b.problems.some((p) => p.check === "hold" || p.check === "prong-thin")) break;
+    // 1 本ずつ太さを決めた爪は、手で決めた太さのまま（全体の太さでは直らない）
+    if (!b.problems.some((p) => p.check === "hold" || (p.check === "prong-thin" && !(p.target.kind === "prong" && s.state.prongEdits?.[p.target.index]?.diameterMm)))) break;
     const cur = b.ring.setting.prongs[0]?.diameterMm ?? b.ring.setting.standardProngMm;
     s.state.prongMm = Math.ceil(cur * 1.08 * 100) / 100;
   }
@@ -523,6 +533,8 @@ export class RingSession implements ToolHost<RingState> {
         // V 字の爪は、形の出来がまだ足りないので画面では使わない（作者と決めた。2026-11-04）
         vAtCorners: false,
         prongTip,
+        prongLook: s.style === "prong" ? s.prongLook : undefined,
+        prongEdits: s.style === "prong" ? (s.prongEdits ?? undefined) : undefined,
         join: s.join ?? "between", // 前に残した設計（付け方の記録がない）も、既定の「腕の間に挟む」で
         collarHeightMm: s.collarHeightMm,
         collarWallMm: s.collarWallMm,
@@ -560,6 +572,11 @@ export class RingSession implements ToolHost<RingState> {
       }
       // それでもだめなら、腕の上にのせる（職人 2026-11-05。別の留め方をすすめる一言は画面が出す）
       if (!done) ring = buildRing({ ...ringParams, setting: { ...ringParams.setting, join: "on" as const } });
+    }
+    // 爪の数が変わると、1 本ずつの直しはどの爪のものか分からなくなるので消す（形にも使っていない）
+    if (s.prongEdits && s.style === "prong" && s.prongEdits.length !== ring.setting.prongs.length) {
+      s.prongEdits = undefined;
+      this.editsDropped = true;
     }
     const problems = checkRing(ring, { position: s.position, guides, guidesFor: (i) => (i === 0 ? guides : slotGuides[i - 1]) }).map((p) => ({ ...p, rule: ruleForCheck(ledger, p.check) }));
     return { ring, problems };
@@ -611,7 +628,11 @@ export class RingSession implements ToolHost<RingState> {
       s.prongPositions = undefined;
     }
     if (input.prong_positions) s.prongPositions = input.prong_positions;
-    if (input.prong_mm !== undefined) s.prongMm = input.prong_mm;
+    if (input.prong_mm !== undefined) {
+      s.prongMm = input.prong_mm;
+      // 全部の爪の太さを決めたので、1 本ずつの太さは残さない（残すと「太くする」で直らない爪が出る）
+      this.clearEditKeys(["diameterMm"]);
+    }
     if (input.height) {
       s.height = input.height;
       s.culetGapMm = undefined;
@@ -626,7 +647,10 @@ export class RingSession implements ToolHost<RingState> {
       s.joinSet = true;
     }
     if (input.tension_grip) s.tensionGrip = input.tension_grip;
-    if (input.prong_tip) s.prongTip = input.prong_tip;
+    if (input.prong_tip) {
+      s.prongTip = input.prong_tip;
+      this.clearEditKeys(["tip"]);
+    }
     const b = this.build(input.reason);
     if (b.ring.setting.style === "tension") {
       return {
@@ -644,6 +668,95 @@ export class RingSession implements ToolHost<RingState> {
       },
       ...(input.v_corners ? { note: "V 字の爪は形の出来がまだ足りないので、今は作れない。尖った角には丸い爪を立てた形で出している" } : {}),
     };
+  }
+
+  // ---- 爪を押して直す ----
+
+  /** 爪の数が変わって、1 本ずつの直しを消したか（一度読むと false に戻る。画面が知らせるため） */
+  private editsDropped = false;
+  takeEditsDropped(): boolean {
+    const d = this.editsDropped;
+    this.editsDropped = false;
+    return d;
+  }
+
+  /** 1 本ずつの直しから、その項目を消す。何も残らなければ、直しそのものを消す */
+  private clearEditKeys(keys: (keyof ProngLook)[]): void {
+    const s = this.state;
+    if (!s.prongEdits) return;
+    const next = s.prongEdits.map((e) => {
+      if (!e) return null;
+      const c = { ...e };
+      for (const k of keys) delete c[k];
+      return Object.keys(c).length ? c : null;
+    });
+    s.prongEdits = next.some(Boolean) ? next : undefined;
+  }
+
+  /** 爪 i の今の形（どの項目も値が入った形）。画面の欄に出す */
+  prongLookAt(i: number): Required<ProngLook> {
+    const p = this.built?.ring.setting.prongs[i];
+    const l = p?.look ?? {};
+    return { diameterMm: p?.diameterMm ?? 0, tip: p?.tip ?? "round", flareMm: l.flareMm ?? 0, tipLengthMm: l.tipLengthMm ?? 0, baseScale: l.baseScale ?? 1, tipScale: l.tipScale ?? 1 };
+  }
+
+  /**
+   * 爪の形を直す。index が数なら、その爪だけ。null なら全部の爪（その項目の 1 本ずつの直しは消して、そろえる）。
+   * 太さと先の形を全部にそろえるときは、今までの爪の太さ・先の形の欄と同じ所（prongMm・prongTip）に置く
+   */
+  setProngLook(index: number | null, patch: ProngLook, why = "手で"): Built {
+    const s = this.state;
+    if (index === null) {
+      const look: ProngLook = { ...s.prongLook };
+      for (const [k, v] of Object.entries(patch) as [keyof ProngLook, never][]) {
+        if (k === "diameterMm") s.prongMm = v;
+        else if (k === "tip") s.prongTip = v;
+        else if (v === PRONG_LOOK_NONE[k]) delete look[k];
+        else look[k] = v;
+      }
+      s.prongLook = Object.keys(look).length ? look : undefined;
+      this.clearEditKeys(Object.keys(patch) as (keyof ProngLook)[]);
+    } else {
+      const n = this.built?.ring.setting.prongs.length ?? 0;
+      const list: (ProngLook | null)[] = s.prongEdits?.length === n ? [...s.prongEdits] : Array.from({ length: n }, () => null);
+      list[index] = { ...list[index], ...patch };
+      s.prongEdits = list;
+    }
+    return this.build(why);
+  }
+
+  /** 爪 i の形を、全部の爪にそろえる（1 本ずつの直しは消える） */
+  alignProngs(i: number, why = "手で"): Built {
+    const { diameterMm, tip, flareMm, tipLengthMm, baseScale, tipScale } = this.prongLookAt(i);
+    const s = this.state;
+    s.prongEdits = undefined;
+    s.prongLook = undefined;
+    return this.setProngLook(null, { diameterMm, tip, flareMm, tipLengthMm, baseScale, tipScale }, why);
+  }
+
+  /** 爪の形の直しを消す。index が数なら、その爪だけ。null なら全部（太さと先の形は残す） */
+  resetProngLook(index: number | null, why = "手で"): Built {
+    const s = this.state;
+    if (index === null) {
+      s.prongLook = undefined;
+      s.prongEdits = undefined;
+    } else if (s.prongEdits) {
+      const list = [...s.prongEdits];
+      list[index] = null;
+      s.prongEdits = list.some(Boolean) ? list : undefined;
+    }
+    return this.build(why);
+  }
+
+  /** 先の反りと長さの直しを消す（爪の先の高さが目安を外れたときの直し方） */
+  resetProngTips(why = "直し方から"): Built {
+    const s = this.state;
+    if (s.prongLook) {
+      const { flareMm: _f, tipLengthMm: _t, ...rest } = s.prongLook;
+      s.prongLook = Object.keys(rest).length ? rest : undefined;
+    }
+    this.clearEditKeys(["flareMm", "tipLengthMm"]);
+    return this.build(why);
   }
 
   /**
