@@ -1,4 +1,4 @@
-// テンション（挟む）：職人の値（くぼみ 1 mm・溝 0.5 mm）どおりに腕の両はしが彫れているか。形は閉じた 1 つの形か。確かめ・道具・作り方。
+// テンション（挟む）：職人の値（くぼみ 0.8 mm・溝 0.5 mm）どおりに腕の両はしが彫れているか。形は閉じた 1 つの形か。確かめ・道具・作り方。
 import { describe, expect, it } from "vitest";
 import repo from "../ledger/jewelry.json";
 import { parseToolCall } from "../src/claude/tools";
@@ -81,16 +81,16 @@ function hitY(p: Float32Array, x: number, z: number, y0: number, dir: 1 | -1): n
 }
 
 describe("テンションの形（職人の値）", () => {
-  it("目安の値は guides の 1 か所（くぼみ 1 mm・溝 0.5 mm・丸線 φ4）", () => {
-    expect(GUIDES.tension.cornerPitMm).toBe(1);
+  it("目安の値は guides の 1 か所（くぼみ 0.8 mm・溝 0.5 mm・丸線 φ4）", () => {
+    expect(GUIDES.tension.cornerPitMm).toBe(0.8);
     expect(GUIDES.tension.edgeGrooveMm).toBe(0.5);
     expect(GUIDES.tension.wireMm).toBe(4);
   });
 
-  it("三角の既定：開きは石が入る寸法（7.52 − 1.0 − 0.5 ＝ 6.02 mm）。プリロードは入れない", () => {
+  it("三角の既定：開きは石が入る寸法（7.52 − 0.8 − 0.5 ＝ 6.22 mm）。プリロードは入れない", () => {
     const info = ringOf(triangle).setting.tension!;
     expect(info.mode).toBe("corner-edge");
-    expect(info.gapMm).toBeCloseTo(6.02, 2);
+    expect(info.gapMm).toBeCloseTo(6.22, 2);
     expect(info.ends[0].kind).toBe("pit");
     expect(info.ends[1].kind).toBe("groove");
     expect(info.ends[1].straight).toBe(true);
@@ -101,7 +101,7 @@ describe("テンションの形（職人の値）", () => {
     expect(shape).toEqual({ open: 0, flipped: 0, shared: 0, degenerate: 0, shells: 1 });
   });
 
-  it("形から測って、くぼみは 1 mm、溝は 0.5 mm（底まではすき間を足した深さ）、開きは 6.02 mm", () => {
+  it("形から測って、くぼみは 0.8 mm、溝は 0.5 mm（底まではすき間を足した深さ）、開きは 6.22 mm", () => {
     const ring = ringOf(triangle);
     const info = ring.setting.tension!;
     const p = ring.ringPositions.shank;
@@ -110,7 +110,7 @@ describe("テンションの形（職人の値）", () => {
     const plain = info.ends[0].openTopZ + 0.3;
     expect(hitY(p, 0, plain, 0, 1)!).toBeCloseTo(info.gapMm / 2, 2);
     expect(hitY(p, 0, plain, 0, -1)!).toBeCloseTo(-info.gapMm / 2, 2);
-    expect(hitY(p, 0, info.girdleZ, 0, 1)! - info.gapMm / 2).toBeCloseTo(1 + clear, 1);
+    expect(hitY(p, 0, info.girdleZ, 0, 1)! - info.gapMm / 2).toBeCloseTo(GUIDES.tension.cornerPitMm + clear, 1);
     expect(-hitY(p, 0, info.girdleZ, 0, -1)! - info.gapMm / 2).toBeCloseTo(0.5 + clear, 2);
   });
 
@@ -261,13 +261,13 @@ describe("テンションの参考の計算（開ける量）", () => {
     expect(elasticOpeningMm(20, 4, 100, 500)).toBeCloseTo(4 * elasticOpeningMm(10, 4, 100, 500), 9);
   });
 
-  it("既定（φ4・11 号・K18）：R は指の半径 ＋ 太さ ÷ 2。要る量は くぼみ 1 ＋ 溝 0.5 ＝ 1.5 mm", () => {
+  it("既定（φ4・11 号・K18）：R は指の半径 ＋ 太さ ÷ 2。要る量は くぼみ 0.8 ＋ 溝 0.5 ＝ 1.3 mm", () => {
     const ring = ringOf(triangle);
     const o = tensionOpening(ring.setting, ring.shank)!;
     expect(o.radiusMm).toBeCloseTo(ring.shank.innerRadiusMm + 2, 9);
     expect(o.wireMm).toBe(4);
-    expect(o.needMm).toBeCloseTo(1.5, 9);
-    expect(o.needText).toContain("角のくぼみ 1.00 mm");
+    expect(o.needMm).toBeCloseTo(1.3, 9);
+    expect(o.needText).toContain("角のくぼみ 0.80 mm");
     expect(o.needText).toContain("辺の溝 0.50 mm");
     const m = GUIDES.tension.spring.metals.k18y;
     const hard = o.states.find((x) => x.state === "hardened")!;
@@ -333,7 +333,7 @@ describe("設計の場と道具", () => {
     s.setShank({ section: "hirauchi", width_mm: 3, thickness_mm: 1.5, reason: "前の腕" });
     const res = s.setSetting({ style: "tension", reason: "挟む" });
     expect(res.setting.style).toBe("tension");
-    expect(res.setting.tension!.gap_mm).toBeCloseTo(6.02, 2);
+    expect(res.setting.tension!.gap_mm).toBeCloseTo(6.22, 2);
     expect(res.setting.prong_count).toBeNull();
     expect(s.built!.ring.shank.section).toBe("maru");
     expect(s.built!.ring.shank.widthMm).toBe(4);
@@ -372,7 +372,7 @@ describe("帳面と作り方", () => {
     const hard = rules.find((r) => r.id === "rule-tension-hard-ishikawa")!;
     expect(depth.source).toEqual({ kind: "craftsman", name: "石川" });
     expect(depth.date).toBe("2026-11-05");
-    expect(depth.quote).toContain("角はくぼみに 1 mm くらい");
+    expect(depth.quote).toContain("角はくぼみに 0.8 ミリとかで");
     expect(depth.quote).toContain("辺は溝に 0.5 mm");
     expect(hard.quote).toContain("硬い状態でないと取れる");
   });
@@ -386,7 +386,7 @@ describe("帳面と作り方", () => {
     const ids = howTo("hand").map((s) => s.id);
     expect(ids).toEqual(["material", "bend", "harden", "tension_cut", "tension_close", "tension_set", "finish"]);
     const cut = howTo("hand").find((s) => s.id === "tension_cut")!;
-    expect(cut.specs.map((x) => x.value).join(" ")).toContain("1.00 mm");
+    expect(cut.specs.map((x) => x.value).join(" ")).toContain("0.80 mm");
     expect(cut.specs.map((x) => x.value).join(" ")).toContain("0.50 mm");
   });
 
