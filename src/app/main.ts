@@ -9,6 +9,7 @@ import { mountKeep } from "./keep";
 import { mountWaza } from "./waza";
 import { redirectHash } from "./routes";
 import { onStoreChange, store } from "./store";
+import { passwordButton } from "./password";
 import { groupQuestions } from "../rules/teacher-queue";
 
 type ViewId = "ledger" | "learn" | "waza";
@@ -48,6 +49,9 @@ app.innerHTML = `
     <div class="sheet-actions"><button value="ok" class="primary">始める</button></div>
   </form>
 </dialog>`;
+
+// 合言葉を入れる場所（撮影の絵は前のまま）
+if (!filming()) document.querySelector(".bar-r")?.prepend(passwordButton());
 
 const screens = Object.fromEntries(VIEWS.map((v) => [v.id, document.getElementById(`screen-${v.id}`)!])) as Record<ViewId, HTMLElement>;
 const askRoot = screens.learn.querySelector<HTMLElement>(".learn-ask")!;

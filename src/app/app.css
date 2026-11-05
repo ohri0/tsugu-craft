@@ -78,6 +78,9 @@ button:disabled { opacity: 0.4; cursor: default; }
 .nav a[aria-current="page"] { background: var(--panel-2); color: var(--fg); box-shadow: 0 0 0 1px var(--line-2), 0 1px 2px rgba(0, 0, 0, 0.4); }
 .badge { position: absolute; top: -5px; right: -4px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--ng); color: #fff; font: 600 10px/16px var(--mono); font-style: normal; text-align: center; }
 .bar-r { justify-self: end; display: flex; align-items: center; gap: 4px; }
+.pw-state { white-space: nowrap; font-size: 12px; }
+.pw-state[data-state="none"] { color: var(--accent, #6ea8fe); }
+.pw-state[data-state="wrong"] { color: #ff8a80; border-color: #ff8a80; }
 .to-studio { min-height: 26px; padding: 0 11px; display: inline-flex; align-items: center; border-radius: 6px; color: var(--fg-2); font-size: 12px; text-decoration: none; }
 .to-studio:hover { background: var(--hover); color: var(--fg); }
 .help { min-height: 26px; padding: 0 11px; background: transparent; border-color: transparent; color: var(--fg-2); }
