@@ -371,9 +371,9 @@ ITEMS = [
     {"img": "public/heritage/tachi.jpg", "area": [540, 110, 520, 330]},
     {"img": "public/heritage/kazari-tachi.jpg", "area": [40, 600, 1020, 250]}]
 kind(T, 8, "imgs", border=False, items=ITEMS)
-head(T, 8, ["彫金・金工は、", "*ジュエリーと同じ技。"])
+head(T, 8, ["こうした彫金の技も、", "*継ぐで、次へ残せる。"], ["指輪も、同じ彫金の技で作る。"])
 low(T, 8, "鐔・太刀：メトロポリタン美術館（CC0）／飾太刀：東京国立博物館 ColBase（CC BY 4.0）")
-say(28, T + 1, "彫金・金工は、ジュエリーと同じ技。")
+say(28, T + 1, "こうした彫金の技も、継ぐで、次へ残せる。")
 T += 8
 # 同じ絵のまま、2 秒でゆっくり黒くなる（絵の中は動かさない。出る時刻をはじめから止める）
 ITEMS_STILL = [dict(it, at=-10) for it in ITEMS]
