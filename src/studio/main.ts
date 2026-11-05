@@ -323,9 +323,14 @@ document.querySelector(".shoot-help-btn")?.addEventListener("click", (e) => {
   const h = $(".shoot-help");
   h.hidden = !h.hidden;
 });
-/** same：今の石と同じ形か・同じ大きさか（長辺や深さの数字を直しただけのとき。引き継ぐ物が増える） */
-async function loadStone(img: ImageData, label: string, longMm: number, depthMm: number, opts: { intro?: boolean; same?: { shape?: boolean; size?: boolean } } = {}) {
+/**
+ * same：今の石と同じ形か・同じ大きさか（長辺や深さの数字を直しただけのとき。引き継ぐ物が増える）。
+ * shapeName：押した石の名前（「エメラルド」を押したのに、形から読んで「四角」と出ていた）
+ */
+async function loadStone(img: ImageData, label: string, longMm: number, depthMm: number, opts: { intro?: boolean; same?: { shape?: boolean; size?: boolean }; shapeName?: string } = {}) {
   stopIntro();
+  // 数字を直しただけなら、前の名前のまま
+  const keepName = opts.same && stone ? stone.shapeName : undefined;
   // 長辺や深さを直しただけなら、写真を読み直さない（輪郭の点がそろったままで、爪の位置がずれない）
   const extraction = opts.same && stone ? stone.extraction : extractStone(img);
   const measured = measureOutline({ outlinePx: extraction.outlinePx, longMm });
@@ -337,7 +342,7 @@ async function loadStone(img: ImageData, label: string, longMm: number, depthMm:
     measured,
     longMm,
     depthMm,
-    shapeName: nameShape(measured.outlineMm, corners).name,
+    shapeName: opts.shapeName ?? keepName ?? nameShape(measured.outlineMm, corners).name,
     cornerIdx: corners.map((c) => ({ index: outlineIndexAtT(measured.outlineMm, c.t), angle: Math.round(c.angleDeg) })),
   };
   $<HTMLInputElement>(".in-long").value = String(longMm);
@@ -776,7 +781,8 @@ async function loadPreset(p: StonePreset) {
   g.fillStyle = grad;
   g.fill();
   document.querySelectorAll<HTMLButtonElement>(".presets button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.preset === p.id)));
-  await loadStone(g.getImageData(0, 0, W, W), `${p.name}の石`, p.longMm, p.depthMm, { intro: false });
+  // 撮影は前の名前のまま（台本の絵がそろうように）
+  await loadStone(g.getImageData(0, 0, W, W), `${p.name}の石`, p.longMm, p.depthMm, { intro: false, shapeName: filming() ? undefined : p.name });
   setStatus(`${p.name}（${p.longMm} × ${p.widthMm} mm、深さは例）。ノギスの値があれば、長辺と深さを直してください。`);
 }
 document.querySelectorAll<HTMLButtonElement>(".presets button").forEach((b) => b.addEventListener("click", () => void loadPreset(PRESETS.find((p) => p.id === b.dataset.preset)!)));
