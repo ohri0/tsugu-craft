@@ -149,6 +149,7 @@ app.innerHTML = `
       <section class="sec"><h4>Claude の作業</h4>
         <p class="make-note" hidden></p>
         <ol class="worklog"><li class="note">下の欄に希望を書いて「生む」。Claude が組み、作れるか確かめて直します。</li></ol>
+        ${filming() ? "" : `<button type="button" class="next-btn make-next">作れるか確かめる・手で変える →</button>`}
         <button type="button" class="link reset-design">はじめの設計に戻す</button>
       </section>
     </div>
@@ -1145,7 +1146,7 @@ async function make() {
   const wish = $<HTMLInputElement>(".wish").value.trim();
   const pass = store.password() || (await askPassword(true));
   if (!pass) {
-    setStatus("生むには Claude が要ります。合言葉がないので、希望の言葉は使えません。形は今の案（決まりごとから作った案）のままです。「確かめる」の「手で変える」で変えられます。");
+    setStatus("生むには Claude が要ります。合言葉がないので、希望の言葉は使えません。形は今の案（決まりごとから作った案）のままです。", { links: [{ label: "手で変える →", run: toManual }] });
     return;
   }
   making = true;
@@ -1192,6 +1193,13 @@ async function make() {
     ],
   });
 }
+
+/** 手で変える欄を開いて、確かめるへ（合言葉がなくても、ここから続けられる） */
+function toManual() {
+  manualOpen = true;
+  setMode("refine");
+}
+document.querySelector(".make-next")?.addEventListener("click", toManual);
 
 function showCannot(text: string) {
   let el = document.querySelector<HTMLElement>(".cannot-chip");
@@ -2724,7 +2732,7 @@ function renderBandCheck() {
   box.innerHTML = `
     <section class="big-verdict ${probs.length ? "ng" : "ok"}"><b>${probs.length ? "このままでは作れません" : "このまま作れます"}</b><small>${probs.length ? `直す所 ${probs.length}` : "厚み・幅、どちらも目安の内側"}</small></section>
     ${probs.length ? `<ul class="probs">${probs.map((p, i) => `<li><div class="p-head"><b>${esc(p.title)}</b></div><p class="p-num">${esc(p.current)} <span>→</span> ${esc(p.required)}</p><div class="p-act"><button type="button" class="fix-go" data-i="${i}">${esc(p.fix.label)}</button><details><summary>なぜ</summary><p>${esc(p.why)}</p></details></div></li>`).join("")}</ul>` : ""}
-    <details class="manual" ${probs.length ? "" : "open"}><summary>手で変える</summary><div class="band-ctrl-2"></div></details>
+    <details class="manual" ${manualOpen ?? !probs.length ? "open" : ""}><summary>手で変える</summary><div class="band-ctrl-2"></div></details>
     <button type="button" class="next-btn to-build">作り方を見る →</button>`;
   bandControls(box.querySelector(".band-ctrl-2")!);
   box.querySelectorAll<HTMLButtonElement>(".fix-go").forEach((b) =>
@@ -2789,7 +2797,7 @@ async function makeBand() {
   const wish = $<HTMLInputElement>(".wish").value.trim();
   const pass = store.password() || (await askPassword(true));
   if (!pass) {
-    setStatus("生むには Claude が要ります。合言葉がなくても、「形」の数字を変えて手で作れます。");
+    setStatus("生むには Claude が要ります。合言葉がなくても、「形」の数字を変えて手で作れます。", { links: [{ label: "手で変える →", run: toManual }] });
     return;
   }
   making = true;
