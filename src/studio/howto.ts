@@ -4,7 +4,7 @@
 // 手順は宝飾の一般的な作り方の例で、作者（宝飾の彫金職人）が確かめて直す。温度や縮みの量のように、
 // 形から出せず出典もない数字は書かない（鋳造所・職人の値を使う、と書く）。
 import type { PlacedStone, RingDesign } from "../geometry/ring";
-import { SHANK_SECTION_LABEL } from "../geometry/shank";
+import { SHANK_SECTION_LABEL, shankSizeWords } from "../geometry/shank";
 import { perimeter } from "../geometry/polygon";
 import { GUIDES } from "../rules/guides";
 import type { AlloyId, Detail } from "./process";
@@ -171,7 +171,7 @@ function tensionSteps(o: HowToInput, method: Method): Step[] {
   const r = o.ring;
   const sh = r.shank;
   const info = r.setting.tension!;
-  const line = `${SHANK_SECTION_LABEL[sh.section]} ${sh.section === "maru" ? `ø ${mm(sh.widthMm)}` : `${mm(sh.widthMm)} × ${mm(sh.thicknessMm)}`}`;
+  const line = `${SHANK_SECTION_LABEL[sh.section]} ${sh.section === "maru" ? `ø ${mm(sh.widthMm)}` : sh.along ? shankSizeWords(sh, 2) : `${mm(sh.widthMm)} × ${mm(sh.thicknessMm)}`}`;
   const head: Spec[] = [
     { label: "石", value: `${o.longMm.toFixed(2)} × ${o.widthMm.toFixed(2)} × ${o.depthMm.toFixed(2)} mm` },
     { label: "号", value: `${sh.gou} 号（内径 ${mm(sh.innerDiameterMm)}）` },
@@ -293,7 +293,7 @@ function soloSteps(o: HowToInput, method: Method): Step[] {
       ...castSteps({
         modelSpecs: [
           ...head,
-          { label: "腕", value: `${SHANK_SECTION_LABEL[sh.section]} ・ 幅 ${mm(sh.widthMm)} × 厚み ${mm(sh.thicknessMm)}` },
+          { label: "腕", value: `${SHANK_SECTION_LABEL[sh.section]} ・ ${sh.along ? shankSizeWords(sh, 2) : `幅 ${mm(sh.widthMm)} × 厚み ${mm(sh.thicknessMm)}`}` },
           ...(r.notchDepthMm > 0 ? [{ label: "ザグり", value: `腕の上 深さ ${mm(r.notchDepthMm, 2)}・丸いくぼみ 直径 約 ${mm(r.shank.notchBallDiameterMm, 1)}（3D データに入っている）` }] : []),
           ...(bm
             ? [
@@ -322,7 +322,7 @@ function soloSteps(o: HowToInput, method: Method): Step[] {
       materialText: "腕の線と、石座の材料を用意する。",
       materialSpecs: [
         ...head,
-        { label: "腕の線", value: `${SHANK_SECTION_LABEL[sh.section]} ${mm(sh.widthMm)} × ${mm(sh.thicknessMm)} ・ 長さ 約 ${mm(m.shankLength)}` },
+        { label: "腕の線", value: `${SHANK_SECTION_LABEL[sh.section]} ${sh.along ? shankSizeWords(sh, 2) : `${mm(sh.widthMm)} × ${mm(sh.thicknessMm)}`} ・ 長さ 約 ${mm(m.shankLength)}` },
         ...settingSpecs,
         ...(m.galleryWire && s.style !== "bezel" ? [{ label: "支えの輪", value: `ø ${mm(m.galleryWire, 2)} ・ 長さ 約 ${mm(m.girdleLen)}（石の縁の周）` }] : []),
       ],
@@ -377,7 +377,7 @@ function betweenHandSteps(o: HowToInput, bm: NonNullable<ReturnType<typeof betwe
   return [
     ...forgeSteps({
       materialText: "腕の線と、石座の材料（下の輪の板・上の輪の丸線・爪の線）を用意する。",
-      materialSpecs: [...head, { label: "腕の線", value: `${SHANK_SECTION_LABEL[sh.section]} ${mm(sh.widthMm)} × ${mm(sh.thicknessMm)} ・ 長さ 約 ${mm(m.shankLength)}` }, sheet, wire, ...settingSpecs],
+      materialSpecs: [...head, { label: "腕の線", value: `${SHANK_SECTION_LABEL[sh.section]} ${sh.along ? shankSizeWords(sh, 2) : `${mm(sh.widthMm)} × ${mm(sh.thicknessMm)}`} ・ 長さ 約 ${mm(m.shankLength)}` }, sheet, wire, ...settingSpecs],
       alloy: o.alloy ?? null,
       innerMm: sh.innerDiameterMm,
       gou: sh.gou,

@@ -4,10 +4,10 @@ import { buildRing, type RingDesign, type StonePlace } from "../geometry/ring";
 import { layoutRow, layoutTrio, scaleStone } from "../geometry/multi";
 import { PRESETS, presetOutline } from "./presets";
 import { autoOrientation, tAtOutlineIndex, type JoinStyle, type SolidQuality } from "../geometry/setting";
-import type { SectionCurve, SectionPoint, ShankSection } from "../geometry/shank";
+import type { SectionCurve, SectionPoint, ShankSection, ShankStation } from "../geometry/shank";
 import type { StoneParams } from "../geometry/stone";
 import { FIXES, checkRing, cornerDistances, holdRatio, tensionNotes, tensionOpening, tensionOpeningText, type FixId, type Problem } from "../rules/checks";
-import { GUIDES, requiredHold, stoneSizeMm, type HeightOption, type MetalId, type StonePosition } from "../rules/guides";
+import { GUIDES, requiredHold, stoneSizeMm, type Guides, type HeightOption, type MetalId, type StonePosition } from "../rules/guides";
 import { effectiveGuides, prongMinOverride, ruleForCheck, type Ledger, type Rule } from "../rules/ledger";
 import type {
   CheckResult,
@@ -19,6 +19,7 @@ import type {
   SetSettingResult,
   SetShankInput,
   SetShankResult,
+  ShankStationInput,
   SetStonesInput,
   SetStonesResult,
   StoneLayout,
@@ -72,6 +73,8 @@ export interface RingState {
   sectionPoints?: SectionPoint[];
   /** 手で描いた腕の断面の線（なめらかな線の制御点と節。shankSection が free のとき。sectionPoints より先に使う。作品といっしょに残る） */
   sectionCurve?: SectionCurve;
+  /** 腕の場所ごとの形（なければ、どこも同じ形。shankWidthMm・shankThicknessMm・断面が、いちばん上の形。テンションと石を並べた指輪では使わない） */
+  shankStations?: ShankStation[];
   /** 尖った角を V 字の爪で包むか（なければ包まない：丸い爪を角に立てる普通の爪留め。作者の判断） */
   vCorners?: boolean;
   /** 石の一番下と指のすき間（mm）を直接決める（高さの選択より優先。職人の決まりに合わせて直すとき） */
@@ -138,6 +141,7 @@ export function carryDesign(prev: RingState, base: RingState, same: { shape?: bo
     shankSection: prev.shankSection,
     sectionPoints: prev.sectionPoints && structuredClone(prev.sectionPoints),
     sectionCurve: prev.sectionCurve && structuredClone(prev.sectionCurve),
+    shankStations: prev.shankStations && structuredClone(prev.shankStations),
     beforeTension: prev.beforeTension && structuredClone(prev.beforeTension),
   };
   if (prev.orientationSet) {
@@ -211,6 +215,51 @@ export function metalIdOf(m: Metal): MetalId {
 
 export const METAL_LABEL: Record<Metal, string> = { pt900: "Pt900", k18yg: "K18 イエロー", k18wg: "K18 ホワイト", k18pg: "K18 ピンク", sv925: "SV925" };
 
+/** 道具の入力の、腕の場所の形 → 設計に残す形 */
+export function stationFrom(st: ShankStationInput): ShankStation {
+  return {
+    atDeg: st.at_deg,
+    widthMm: st.width_mm,
+    thicknessMm: st.thickness_mm,
+    ...(st.section ? { section: st.section } : {}),
+    ...(st.section_curve ? { section: "free" as const, curve: { points: st.section_curve.points.map((p) => ({ x: p.x, y: p.y })), knots: st.section_curve.knots ? [...st.section_curve.knots] : undefined } } : {}),
+    ...(st.sway_mm ? { swayMm: st.sway_mm } : {}),
+  };
+}
+
+/** 設計に残した腕の場所の形 → 道具の入力の形 */
+export function stationTo(st: ShankStation): ShankStationInput {
+  return {
+    at_deg: st.atDeg,
+    width_mm: st.widthMm,
+    thickness_mm: st.thicknessMm,
+    ...(st.curve ? { section_curve: { points: st.curve.points.map((p) => ({ x: p.x, y: p.y })), knots: st.curve.knots } } : st.section && st.section !== "free" ? { section: st.section } : {}),
+    ...(st.swayMm ? { sway_mm: st.swayMm } : {}),
+  };
+}
+
+/**
+ * 腕の確かめの直し方（厚くする・幅を広げる）の入力。場所ごとの形があるときは、足りない場所だけ上げる。
+ * いちばん上がもう足りていれば、いちばん上は変えない
+ */
+export function bandFixInput(id: "thickerBand" | "widerBand", s: RingState, g: Guides = GUIDES): Pick<SetShankInput, "thickness_mm" | "width_mm" | "stations"> {
+  const stations = s.shankStations?.length ? s.shankStations : null;
+  if (id === "thickerBand") {
+    const min = g.band.minThicknessMm;
+    const top = s.shankThicknessMm;
+    return {
+      ...(!stations || top === undefined || top < min ? { thickness_mm: min } : {}),
+      ...(stations ? { stations: stations.map((st) => stationTo({ ...st, thicknessMm: Math.max(st.thicknessMm, min) })) } : {}),
+    };
+  }
+  const min = g.band.minWidthMm;
+  const top = s.shankWidthMm;
+  return {
+    ...(!stations || top === undefined || top < min ? { width_mm: min } : {}),
+    ...(stations ? { stations: stations.map((st) => stationTo({ ...st, widthMm: Math.max(st.widthMm, min) })) } : {}),
+  };
+}
+
 /** 確かめの結果に、根拠の決まりを添えたもの */
 export type Cited = Problem & { rule?: Rule };
 
@@ -269,9 +318,9 @@ function hintFor(id: FixId, s: RingState, std: number): FixOption["tool_hint"] {
       // 爪の本数を自動に戻すと、尖った角に 1 本ずつ置く（V 字の爪は画面では使わない）
       return { tool: "set_setting", input: { style: "prong", v_corners: false, prong_count: 0 } };
     case "thickerBand":
-      return { tool: "set_shank", input: { thickness_mm: GUIDES.band.minThicknessMm } };
+      return { tool: "set_shank", input: bandFixInput("thickerBand", s) };
     case "widerBand":
-      return { tool: "set_shank", input: { width_mm: GUIDES.band.minWidthMm } };
+      return { tool: "set_shank", input: bandFixInput("widerBand", s) };
     case "spreadStones":
       return s.layout === "trio" || s.layout === "row" ? { tool: "set_stones", input: { layout: s.layout, spread_mm: Math.round(((s.spreadMm ?? 0) + SPREAD_STEP_MM) * 100) / 100 } } : undefined;
     case "smallerStones":
@@ -419,6 +468,7 @@ export class RingSession implements ToolHost<RingState> {
         section: s.shankSection,
         sectionPoints: s.shankSection === "free" ? s.sectionPoints : undefined,
         sectionCurve: s.shankSection === "free" ? s.sectionCurve : undefined,
+        stations: s.style === "tension" ? undefined : s.shankStations,
       },
       orientation: s.orientation,
     };
@@ -513,6 +563,7 @@ export class RingSession implements ToolHost<RingState> {
         where: s.position,
         note: "標準の 4 本爪・標準の太さ・標準の高さ ＝ 1.0×。爪を片持ちの棒と見なした目安の比べで、強度計算の代わりではない",
       },
+      ...(input.v_corners ? { note: "V 字の爪は形の出来がまだ足りないので、今は作れない。尖った角には丸い爪を立てた形で出している" } : {}),
     };
   }
 
@@ -536,10 +587,13 @@ export class RingSession implements ToolHost<RingState> {
 
   setShank(input: SetShankInput): SetShankResult {
     const s = this.state;
+    // テンションの腕は丸線のまま（石を挟む溝が腕の形で決まる）。断面の線と場所ごとの形は使わない
+    const free = s.style !== "tension";
     if (input.width_mm !== undefined) s.shankWidthMm = input.width_mm;
     if (input.thickness_mm !== undefined) s.shankThicknessMm = input.thickness_mm;
     if (input.gou !== undefined) s.gou = input.gou;
     if (input.metal) s.metal = input.metal;
+    if (input.stations && free) s.shankStations = input.stations.length ? input.stations.map(stationFrom) : undefined;
     if (input.section) {
       s.shankSection = input.section;
       if (input.section !== "free") {
@@ -552,24 +606,38 @@ export class RingSession implements ToolHost<RingState> {
       s.sectionPoints = input.section_points.map((p) => ({ x: p.x, y: p.y }));
       s.sectionCurve = undefined;
     }
-    if (input.section_curve) {
+    if (input.section_curve && free) {
       s.shankSection = "free";
       s.sectionCurve = { points: input.section_curve.points.map((p) => ({ x: p.x, y: p.y })), knots: input.section_curve.knots ? [...input.section_curve.knots] : undefined };
       s.sectionPoints = undefined;
     }
     const b = this.build(input.reason);
     const sh = b.ring.shank;
+    const r2 = (v: number) => Math.round(v * 100) / 100;
+    const notes = [
+      s.metal === "k18wg" || s.metal === "k18pg" ? "見た目と重さは K18 イエローで出している" : "",
+      !free && (input.section_curve || input.stations) ? "テンションの腕は丸線のままなので、断面の線と場所ごとの形は使っていない" : "",
+      free && s.shankStations?.length && s.shankSection === "maru" ? "丸線の腕には場所ごとの形を使えない。使うなら断面を変える" : "",
+      free && s.shankStations?.length && b.ring.stones.length > 1 ? "石を並べた指輪の腕はどこも同じ形にしている" : "",
+    ].filter(Boolean);
     return {
       shank: {
-        width_mm: Math.round(sh.widthMm * 100) / 100,
-        thickness_mm: Math.round(sh.thicknessMm * 100) / 100,
+        width_mm: r2(sh.widthMm),
+        thickness_mm: r2(sh.thicknessMm),
         section: sh.section,
         gou: s.gou,
-        inner_diameter_mm: Math.round(sh.innerDiameterMm * 100) / 100,
+        inner_diameter_mm: r2(sh.innerDiameterMm),
         metal: s.metal,
+        ...(sh.along && s.shankStations?.length
+          ? {
+              stations: s.shankStations.map((st) => ({ at_deg: st.atDeg, width_mm: r2(st.widthMm), thickness_mm: r2(st.thicknessMm) })),
+              min_width_mm: r2(sh.minWidthMm ?? sh.widthMm),
+              min_thickness_mm: r2(sh.minThicknessMm ?? sh.thicknessMm),
+            }
+          : {}),
       },
       weight_g: Math.round(b.ring.metalWeightG * 10) / 10,
-      note: s.metal === "k18wg" || s.metal === "k18pg" ? "見た目と重さは K18 イエローで出している" : undefined,
+      note: notes.length ? notes.join("。") : undefined,
     };
   }
 

@@ -6,6 +6,7 @@
 import { MAKING_STEPS, MAKING_STEP_IDS, type MakingStepId } from "../rules/making.js";
 import { GUIDE_NOTE, GUIDES } from "../rules/guides.js";
 import { PARAMS, type ParamId } from "../rules/ledger.js";
+import { SECTION_INPUT, sectionCurveProblem } from "../geometry/section-input.js";
 import type { ClaudeTool } from "./wire.js";
 
 export const TOOL_NAMES = ["set_setting", "set_shank", "check", "look", "propose_rule", "ask_teacher", "set_stones"] as const;
@@ -118,17 +119,41 @@ export interface SetStonesResult {
   note: string;
 }
 
-/** 腕の断面。free は画面で手で描いた形（Claude の道具からは選ばない） */
+/** 腕の断面。free は線で決めた形（Claude は section_curve を書くと free になる。section では選ばない） */
 export type ShankSectionChoice = "kouman" | "hirauchi" | "hangouman" | "kaku" | "maru" | "free";
 
+/** 断面の線：なめらかな線の制御点（右の端の内側 → 上 → 左の端の内側。x −1〜1・y 0〜1）。節は画面で描いたときだけ（Claude は書かない） */
+export interface SectionCurveInput {
+  points: { x: number; y: number }[];
+  knots?: number[];
+}
+
+/** 腕の場所の形（石座のそばより下の場所）。左右は同じ */
+export interface ShankStationInput {
+  /** いちばん上から指のまわりに測った角度（度）。180 がいちばん下（手のひら側） */
+  at_deg: number;
+  width_mm: number;
+  thickness_mm: number;
+  /** この場所の断面（なければ、ひとつ上の場所と同じ） */
+  section?: "kouman" | "hirauchi" | "hangouman" | "kaku";
+  /** この場所の断面の線（section より先に使う） */
+  section_curve?: SectionCurveInput;
+  /** 腕を指の向きへ寄せる量（mm）。片方の肩が指先の側へ寄ると、もう片方は付け根の側へ寄る（S の字の流れ） */
+  sway_mm?: number;
+}
+
 export interface SetShankInput {
+  /** いちばん上（石座のそば）の幅 */
   width_mm?: number;
+  /** いちばん上（石座のそば）の厚み */
   thickness_mm?: number;
   section?: ShankSectionChoice;
   /** 手で描いた断面の点（画面だけが使う。片側、真ん中のいちばん上 → 端の内側、0〜1） */
   section_points?: { x: number; y: number }[];
-  /** 手で描いた断面の線（画面だけが使う。なめらかな線の制御点：右の端の内側 → 左の端の内側、x −1〜1・y 0〜1、と節） */
-  section_curve?: { points: { x: number; y: number }[]; knots?: number[] };
+  /** いちばん上（石座のそば）の断面の線 */
+  section_curve?: SectionCurveInput;
+  /** 石座のそばより下の場所の形（小さい角度から順に）。空の並びは、どこも同じ形に戻す */
+  stations?: ShankStationInput[];
   gou?: number;
   metal?: Metal;
   reason: string;
@@ -175,12 +200,19 @@ export interface SetSettingResult {
 }
 
 export interface ShankState {
+  /** いちばん上（石座のそば）の幅 */
   width_mm: number;
+  /** いちばん上（石座のそば）の厚み */
   thickness_mm: number;
   section: ShankSectionChoice;
   gou: number;
   inner_diameter_mm: number;
   metal: Metal;
+  /** 場所ごとの形（どこも同じ形ならなし）：置いた場所の角度と、そこの幅・厚み */
+  stations?: { at_deg: number; width_mm: number; thickness_mm: number }[];
+  /** ぐるりと見て、いちばん細い幅といちばん薄い厚み（確かめの目安と比べる数） */
+  min_width_mm?: number;
+  min_thickness_mm?: number;
 }
 
 export interface SetShankResult {
@@ -258,6 +290,9 @@ export const INPUT_BOUNDS = {
   count: [GUIDES.multi.rowCount[0], GUIDES.multi.rowCount[2]],
   side_mm: [1.5, 12],
   spread_mm: [0, 3],
+  at_deg: [15, 180],
+  sway_mm: [-2, 2],
+  stations: [0, 4],
 } as const;
 
 // ---- 道具の定義（Claude に見せる説明つき） ----
@@ -266,6 +301,30 @@ const h = GUIDES.height;
 const heightText = `low＝低め（石の一番下と指のすき間が最低の ${h.minFingerGapMm} mm）、standard＝標準（＋${h.options.standard} mm）、high＝高め（＋${h.options.high} mm）。高いほど光が入り石が大きく見えるが、引っかかりやすく、爪が長くなって弱くなる`;
 const range = (k: keyof typeof INPUT_BOUNDS, unit = "") =>
   `${INPUT_BOUNDS[k][0]}〜${INPUT_BOUNDS[k][1]}${unit}`;
+
+/** 断面の線の入力の形（set_shank のいちばん上の断面と、場所ごとの断面で同じ） */
+const SECTION_CURVE_SCHEMA = {
+  type: "object",
+  description:
+    "断面の線。なめらかな線（3 次の B スプライン）の制御点で書く。線は点を通らず、点のつくる折れ線の内側を通る（最初と最後の点は通る）。" +
+    "指の側（内側）はいつも平らで、ここには外側の線だけを書く。x は幅の位置（−1 が左の端・1 が右の端）、y は高さ（0 が指の側、1 がいちばん厚い所）。実際の大きさは幅と厚みの数で決まり、線は幅いっぱい・厚みいっぱいに伸ばされる。" +
+    `右の端の内側（x > 0, y ＝ 0）から、上を通って、左の端の内側（x < 0, y ＝ 0）へ順に、${SECTION_INPUT.minPoints}〜${SECTION_INPUT.maxPoints} 個。` +
+    "稜線や角を立てたい所は、同じ点を 3 回続けて書く（そこで線が折れて、点を通る）。2 回なら少し丸い角。くぼみは、両わきより低い点を置く。左右はちがってもよい。" +
+    "例：真ん中に稜線が立つ断面 [{x:1,y:0},{x:1,y:0.35},{x:0.55,y:0.55},{x:0,y:1},{x:0,y:1},{x:0,y:1},{x:-0.55,y:0.55},{x:-1,y:0.35},{x:-1,y:0}]",
+  properties: {
+    points: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: { x: { type: "number" }, y: { type: "number" } },
+        required: ["x", "y"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["points"],
+  additionalProperties: false,
+} as const;
 
 export const TOOLS: ClaudeTool[] = [
   {
@@ -288,7 +347,7 @@ export const TOOLS: ClaudeTool[] = [
           type: "array",
           items: { type: "integer" },
           description:
-            "爪を置く場所。石の輪郭の点の番号（読み取りで渡した番号）で書く。尖った角の番号に置いた爪は、角を包む V 字の爪になる。省くと、尖った角を先に守り、残りを縁に均等に配る。爪留めのときだけ使う",
+            "爪を置く場所。石の輪郭の点の番号（読み取りで渡した番号）で書く。省くと、尖った角を先に守り、残りを縁に均等に配る。爪留めのときだけ使う。番号は機械のためのもので、人に見える文には書かない",
         },
         prong_count: {
           type: "integer",
@@ -301,7 +360,7 @@ export const TOOLS: ClaudeTool[] = [
         v_corners: {
           type: "boolean",
           description:
-            "尖った角を V 字の爪で包むか。true＝角の先を V の字の爪で包む（角が欠けにくく、角の形がくっきり見える）、false＝角に丸い爪を立てる普通の爪留め（既定）。尖った角のある石の爪留めのときだけ使う",
+            "尖った角を V 字の爪で包むか。今は形の出来が足りないので、true にしても V 字にならず、丸い爪を角に立てる普通の爪留めになる（結果の note で知らせる）",
         },
         height: { type: "string", enum: ["low", "standard", "high"], description: `石座の高さ。${heightText}` },
         orientation: {
@@ -327,7 +386,9 @@ export const TOOLS: ClaudeTool[] = [
   {
     name: "set_shank",
     description:
-      "腕（リングの輪の部分）を変える。書いた項目だけが変わり、省いた項目は今のまま。変えたあとの寸法と、指輪のおおよその重さを返す。",
+      "腕（リングの輪の部分）を変える。書いた項目だけが変わり、省いた項目は今のまま。変えたあとの寸法と、指輪のおおよその重さを返す。" +
+      "腕の形は自由に決められる：断面の線（section_curve）と、腕の場所ごとの幅・厚み・断面・流れ（stations）。" +
+      "内径は号で決まり、形を変えても変わらない。腕の端と石座のつなぎは、石座のそばの形でできる。丸線の腕とテンションには、section_curve と stations は使えない。",
     strict: true,
     input_schema: {
       type: "object",
@@ -336,12 +397,33 @@ export const TOOLS: ClaudeTool[] = [
           type: "string",
           enum: ["kouman", "hirauchi", "hangouman", "kaku", "maru"],
           description:
-            "腕の断面。kouman＝甲丸（内側が平らで外側が丸い。既定）、hirauchi＝平打ち（外側が平らで角が丸い）、hangouman＝半甲丸（端に少し壁があり、上がゆるい丸み）、kaku＝角（四角に近く、角だけ少し丸い。厚みを書かなければ幅と同じ）、maru＝丸線（内側も丸い。厚みを書かなければ幅と同じ）",
+            "腕の断面（決まった形。自由な形は section_curve）。kouman＝甲丸（内側が平らで外側が丸い。既定）、hirauchi＝平打ち（外側が平らで角が丸い）、hangouman＝半甲丸（端に少し壁があり、上がゆるい丸み）、kaku＝角（四角に近く、角だけ少し丸い。厚みを書かなければ幅と同じ）、maru＝丸線（内側も丸い。厚みを書かなければ幅と同じ）",
         },
-        width_mm: { type: "number", description: `腕の幅（mm、${range("width_mm", " mm")}）。目安の初期値は ${GUIDES.shank.widthMm} mm` },
+        section_curve: { ...SECTION_CURVE_SCHEMA, description: `いちばん上（石座のそば）の${SECTION_CURVE_SCHEMA.description}` },
+        width_mm: { type: "number", description: `いちばん上（石座のそば）の腕の幅（mm、${range("width_mm", " mm")}）。目安の初期値は ${GUIDES.shank.widthMm} mm` },
         thickness_mm: {
           type: "number",
-          description: `腕の厚み（mm、${range("thickness_mm", " mm")}）。目安の初期値は ${GUIDES.shank.thicknessMm} mm`,
+          description: `いちばん上（石座のそば）の腕の厚み（mm、${range("thickness_mm", " mm")}）。目安の初期値は ${GUIDES.shank.thicknessMm} mm`,
+        },
+        stations: {
+          type: "array",
+          description:
+            `腕の場所ごとの形（${range("stations", " か所")}、角度の小さい順。空の並びは、どこも同じ形に戻す）。左右は同じ。いちばん上の形は width_mm・thickness_mm・断面で決まり、ここにはそれより下の場所を書く。間はなめらかにつながる。` +
+            "肩を細く・太くする、下を薄く軽くする、上は稜線で下は指に沿う丸みにする、腕を S の字に流す、などに使う。石座のそばは、腕の端が石座に当たるので、いちばん上の形のまま保たれる（石の大きさで約 20〜40° まで）。" +
+            `どの場所も確かめの目安（幅 ${GUIDES.band.minWidthMm} mm・厚み ${GUIDES.band.minThicknessMm} mm 以上）を check で見る。`,
+          items: {
+            type: "object",
+            properties: {
+              at_deg: { type: "number", description: `いちばん上から指のまわりに測った角度（度、${range("at_deg")}）。90 が指の真横、180 がいちばん下（手のひら側）` },
+              width_mm: { type: "number", description: `この場所の幅（mm、${range("width_mm", " mm")}）` },
+              thickness_mm: { type: "number", description: `この場所の厚み（mm、${range("thickness_mm", " mm")}）` },
+              section: { type: "string", enum: ["kouman", "hirauchi", "hangouman", "kaku"], description: "この場所の断面（決まった形）。省くと、ひとつ上の場所と同じ" },
+              section_curve: { ...SECTION_CURVE_SCHEMA, description: "この場所の断面の線。書き方はいちばん上の section_curve と同じ。section より先に使う" },
+              sway_mm: { type: "number", description: `腕を指の向きへ寄せる量（mm、${range("sway_mm", " mm")}）。片方の肩が指先の側へ寄ると、もう片方は付け根の側へ寄り、腕が S の字に流れる。いちばん下（180°）では 0` },
+            },
+            required: ["at_deg", "width_mm", "thickness_mm"],
+            additionalProperties: false,
+          },
         },
         gou: { type: "integer", description: `指輪のサイズ（日本の号数、${range("gou", " 号")}）。号数から内径が決まる` },
         metal: {
@@ -490,7 +572,7 @@ export type ParsedToolCall =
 export type ParseResult = { ok: true; call: ParsedToolCall } | { ok: false; error: string };
 
 interface PropSchema {
-  type: "string" | "number" | "integer" | "array" | "boolean";
+  type: "string" | "number" | "integer" | "array" | "boolean" | "object";
   enum?: readonly string[];
   items?: { type: "integer" } | { type: "object" };
 }
@@ -506,6 +588,8 @@ const BOUND_OF: Record<string, keyof typeof INPUT_BOUNDS> = {
   count: "count",
   side_mm: "side_mm",
   spread_mm: "spread_mm",
+  at_deg: "at_deg",
+  sway_mm: "sway_mm",
 };
 
 function checkNumber(key: string, v: unknown, integer: boolean): string | null {
@@ -533,13 +617,58 @@ function checkProp(key: string, s: PropSchema, v: unknown): string | null {
       return checkNumber(key, v, true);
     case "array":
       if (!Array.isArray(v)) return `${key} は番号の並びで書いてください`;
+      // 場所ごとの形は checkStations が見る
+      if (key === "stations") return null;
       if (s.items?.type === "object") return checkSizeSteps(key, v);
       for (const item of v) {
         const e = checkNumber(key, item, true);
         if (e) return e;
       }
       return null;
+    case "object":
+      // 断面の線は checkSectionCurve が見る
+      return typeof v === "object" && v !== null && !Array.isArray(v) ? null : `${key} の形が正しくありません`;
   }
+}
+
+/** 断面の線：{points} の形と、線が壊れていないか */
+function checkSectionCurve(v: unknown): string | null {
+  const c = v as { points?: unknown } | null;
+  if (typeof c !== "object" || c === null || Array.isArray(c)) return "断面の線は {points: [{x, y}, …]} の形で書いてください";
+  for (const k of Object.keys(c)) if (k !== "points") return `断面の線に ${k} という項目はありません（points だけ書いてください）`;
+  return sectionCurveProblem(c.points);
+}
+
+/** 腕の場所ごとの形：数の範囲、角度の順、いちばん下の流れ、断面の線 */
+function checkStations(v: unknown): string | null {
+  if (!Array.isArray(v)) return "腕の場所ごとの形は、場所の並びで書いてください";
+  const [, most] = INPUT_BOUNDS.stations;
+  if (v.length > most) return `腕の場所は ${most} か所までです（今は ${v.length} か所）`;
+  let prev = 0;
+  const allowed = new Set(["at_deg", "width_mm", "thickness_mm", "section", "section_curve", "sway_mm"]);
+  for (const st of v as Record<string, unknown>[]) {
+    if (typeof st !== "object" || st === null || Array.isArray(st)) return "腕の場所は {at_deg, width_mm, thickness_mm} の形で書いてください";
+    for (const k of Object.keys(st)) if (!allowed.has(k)) return `腕の場所に ${k} という項目はありません`;
+    for (const k of ["at_deg", "width_mm", "thickness_mm"]) {
+      if (st[k] === undefined) return `腕の場所に ${k} がありません`;
+      const e = checkNumber(k, st[k], false);
+      if (e) return e;
+    }
+    const at = st.at_deg as number;
+    if (at <= prev) return `腕の場所は、角度の小さい順に書いてください（${prev}° の次が ${at}°）`;
+    prev = at;
+    if (st.sway_mm !== undefined) {
+      const e = checkNumber("sway_mm", st.sway_mm, false);
+      if (e) return e;
+      if (at >= 180 && st.sway_mm !== 0) return "いちばん下（180°）では、腕を指の向きへ寄せられません（sway_mm は 0）";
+    }
+    if (st.section !== undefined && !["kouman", "hirauchi", "hangouman", "kaku"].includes(st.section as string)) return `場所ごとの断面は kouman / hirauchi / hangouman / kaku のどれかです（今は ${String(st.section)}）`;
+    if (st.section_curve !== undefined) {
+      const e = checkSectionCurve(st.section_curve);
+      if (e) return `${at}° の場所の${e}`;
+    }
+  }
+  return null;
 }
 
 /** 石の大きさの段：大きさは 0.5〜30 mm で小さい順、値は 0〜100 */
@@ -584,6 +713,21 @@ export function parseToolCall(name: string, input: unknown): ParseResult {
   if (name === "ask_teacher") {
     for (const key of ["question", "why_unanswered"] as const) {
       if (typeof record[key] === "string" && record[key].trim() === "") return { ok: false, error: `${key} を短く書いてください` };
+    }
+  }
+  // 理由だけでは形は変わらない（何も変えずに「変えた」と思って次へ進まないように）
+  if ((name === "set_shank" || name === "set_setting") && !Object.keys(record).some((k) => k !== "reason" && record[k] !== undefined)) {
+    return { ok: false, error: "変える項目が 1 つもありません。理由だけでは形は変わりません。変える数や形を項目に書いてください" };
+  }
+  if (name === "set_shank") {
+    if (record.section !== undefined && record.section_curve !== undefined) return { ok: false, error: "断面は、決まった形（section）か線（section_curve）のどちらかを書いてください" };
+    if (record.section_curve !== undefined) {
+      const e = checkSectionCurve(record.section_curve);
+      if (e) return { ok: false, error: e };
+    }
+    if (record.stations !== undefined) {
+      const e = checkStations(record.stations);
+      if (e) return { ok: false, error: e };
     }
   }
   if (typeof record.reason === "string" && record.reason.trim() === "") {

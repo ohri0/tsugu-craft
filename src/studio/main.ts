@@ -15,6 +15,7 @@ import { measureOutline, type StoneOutline } from "../geometry/measure";
 import { outlineIndexAtT, type JoinStyle, type SettingResult } from "../geometry/setting";
 import { nameShape } from "../geometry/shape";
 import { runClaude, type LogEntry } from "../claude/loop";
+import { cannotFrom, hasJapanese, plainWords, ruleTitles, toolLogLine, withoutCannot, type RuleTitles, type StoneWords } from "../claude/words";
 import { designPrompt, keepPrompt } from "../claude/prompt";
 import { TOOLS, type ProposeRuleInput, type ProposeRuleResult, type ToolHost, type Metal } from "../claude/tools";
 import type { ClaudeContentBlockParam } from "../claude/wire";
@@ -31,7 +32,8 @@ import { bindVoice } from "../app/voice";
 import { bookLabel, bookTitle, masterName, sourceName } from "../app/master";
 import { toStl } from "../cad/solid";
 import { buildStone } from "../geometry/stone";
-import { LAYOUT_LABEL, METAL_LABEL, RingSession, SLOT_SHAPE_LABEL, STONE_LONG_RANGE, carryDesign, fitStoneDepth, fitStoneLong, tuneProngMm, underLedger, type Built, type SlotShape } from "./session";
+import { LAYOUT_LABEL, METAL_LABEL, RingSession, SLOT_SHAPE_LABEL, STONE_LONG_RANGE, bandFixInput, carryDesign, fitStoneDepth, fitStoneLong, stationFrom, tuneProngMm, underLedger, type Built, type SlotShape } from "./session";
+import { bindShankLine, sectionBinding, shankLineHtml } from "./shank-line";
 import { howToMake, placeText, type Method } from "./howto";
 import { sheetHtml } from "./sheet";
 import { whyHtml } from "./why";
@@ -49,7 +51,7 @@ import { callTool } from "../rebuild/run";
 import { dimsSvg, flatDims, gizmoSvg, type Dim, type Rect, type V3 } from "./dims";
 import { bindSlider, sliderHtml, type SliderSpec } from "./slider";
 import { bindSectionEditor, sectionEditorHtml, startShape } from "./section-edit";
-import { SHANK_SECTIONS, SHANK_SECTION_LABEL, type ShankSection } from "../geometry/shank";
+import { SHANK_SECTIONS, SHANK_SECTION_LABEL, shankSizeWords, type ShankSection } from "../geometry/shank";
 import { placePoint, rebuildShank } from "../geometry/ring";
 import { TENSION_OPENING_NOTE, TENSION_SHORT_TEXT, checkShank, tensionNotes, tensionOpening, type Problem } from "../rules/checks";
 import { presentHtml, STONE_SIZES, type PresentGroup } from "./present";
@@ -91,7 +93,6 @@ interface Stone {
 let stone: Stone | null = null;
 let sketch: { dataUrl: string; base64: string; media: "image/jpeg" | "image/png" } | null = null;
 let session: RingSession | null = null;
-let reason = "";
 let undoClaude: (() => boolean) | null = null;
 
 // 字・押す所・色の直し（pro.css の html.fit）。撮影では付けない（動画の絵を前のままにする）
@@ -152,6 +153,7 @@ app.innerHTML = `
       <section class="sec"><h4>Claude の作業</h4>
         <p class="make-note" hidden></p>
         <ol class="worklog"><li class="note">下の欄に希望を書いて「生む」。Claude が組み、作れるか確かめて直します。</li></ol>
+        <div class="cannot-note" hidden><p></p><button type="button" class="cn-close" aria-label="まだできないことの札を閉じる">×</button></div>
         ${filming() ? "" : `<button type="button" class="next-btn make-next">作れるか確かめる・手で変える →</button>`}
         <button type="button" class="link reset-design">はじめの設計に戻す</button>
       </section>
@@ -368,7 +370,6 @@ async function loadStone(img: ImageData, label: string, longMm: number, depthMm:
   const plan = rulePlans(session.stone, corners)[0];
   session.state.style = plan.design.style;
   session.state.height = plan.design.height;
-  reason = `${plan.name}：${plan.reason}（決まりごとから）`;
   if (prev) session.state = carryDesign(prev, session.state, opts.same);
   // 深さだけを直したときは、手で決めた爪の太さをそのままにする（足りなければ確かめが知らせる）
   if (!(opts.same?.shape && opts.same.size)) tuneProngs();
@@ -675,7 +676,7 @@ function renderPresent() {
       stone: `${stone.shapeName} ${session.stone.longMm.toFixed(2)} × ${session.stone.widthMm.toFixed(2)} mm${r.stones.length > 1 ? ` ほか ${r.stones.length - 1} 石` : ""}`,
       prongLabel: st.tension ? "留め方" : undefined,
       prong: st.tension ? tensionWord(st) : st.style === "bezel" ? `覆輪 ・ 壁 ${st.bezel?.wallMm.toFixed(2)} mm` : `ø ${st.prongs[0]?.diameterMm.toFixed(2)} mm × ${st.prongs.length}`,
-      shank: `${SHANK_SECTION_LABEL[r.shank.section]} ${r.shank.widthMm.toFixed(1)} × ${r.shank.thicknessMm.toFixed(1)} mm`,
+      shank: `${SHANK_SECTION_LABEL[r.shank.section]} ${shankSizeWords(r.shank)}`,
       metal: `${METAL_LABEL[session.state.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g`,
       gou: `${session.state.gou} 号（内径 ${(r.shank.innerRadiusMm * 2).toFixed(1)} mm）`,
       verdict: { ok: n === 0, text: n === 0 ? "作れます" : `作れない所 ${n}` },
@@ -924,7 +925,7 @@ function onBuilt(b: Built, _why: string, refined = false) {
     ["石", `${stone.shapeName} ・ ${stone.measured.longMm.toFixed(2)} × ${stone.measured.widthMm.toFixed(2)} × ${stone.depthMm.toFixed(2)} mm`],
     ...(r.stones.length > 1 ? ([["石の並び", `${layoutName()} ・ ${r.stones.length} 石（${r.stones.map((x) => x.params.longMm.toFixed(1)).join(" ・ ")} mm）`]] as [string, string][]) : []),
     ["留め方", st.tension ? tensionWord(st) : st.style === "bezel" ? `覆輪 ・ 壁 ${st.bezel?.wallMm.toFixed(2)} mm` : `爪 ${st.prongs.length}${st.prongs.some((p) => p.isV) ? `（V 字 ${st.prongs.filter((p) => p.isV).length}）` : ""} ・ ø ${st.prongs[0]?.diameterMm.toFixed(2)} mm`],
-    ["号 ・ 腕", `${s.gou} 号 ・ ${SHANK_SECTION_LABEL[r.shank.section]} ${r.shank.widthMm.toFixed(1)} × ${r.shank.thicknessMm.toFixed(1)} mm`],
+    ["号 ・ 腕", `${s.gou} 号 ・ ${SHANK_SECTION_LABEL[r.shank.section]} ${shankSizeWords(r.shank)}`],
     ["石と指のすき間", `${r.culetGapMm.toFixed(2)} mm`],
     ["地金", `${METAL_LABEL[s.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g`],
   ];
@@ -1163,8 +1164,9 @@ $(".act-stl").addEventListener("click", () => exportStl());
 }
 
 // ---- 生む。：Claude が組んで、確かめて、直す ----
-const TOOL_WORD: Record<string, string> = { set_setting: "石座", set_shank: "腕", check: "確かめ", look: "見る" };
 function logLine(e: LogEntry) {
+  // 道具の合間のメモが英語だけで届いたときは、出さない
+  if (e.kind === "note" && !hasJapanese(e.text)) return;
   const ol = $(".worklog");
   ol.hidden = false;
   const li = document.createElement("li");
@@ -1172,32 +1174,25 @@ function logLine(e: LogEntry) {
   ol.appendChild(li);
   ol.scrollTop = ol.scrollHeight;
 }
+/** 帳面の決まりの題（決まりの印を、人に読める名前にする） */
+function titlesNow(): RuleTitles {
+  return ruleTitles(store.ledger().rules);
+}
+/** 今の石の、爪の位置を言葉にするのに要る所 */
+function stoneWords(): StoneWords | undefined {
+  return stone ? { outlineMm: stone.measured.outlineMm, corners: stone.cornerIdx.map((c) => c.index) } : undefined;
+}
 function logLineTo(li: HTMLLIElement, e: LogEntry) {
+  const titles = titlesNow();
   if (e.kind === "note") {
     li.className = "note";
-    li.textContent = e.text.replace(/\*\*/g, "").split("\n")[0].slice(0, 120);
+    // 最後のまとめは何行かある。全部読めるように（「まだできないこと」は札に出すので、ここには出さない）
+    li.textContent = plainWords(withoutCannot(e.text), titles);
   } else {
-    const input = e.input as Record<string, unknown>;
-    const res = e.result as Record<string, unknown> | undefined;
+    const line = toolLogLine(e, { stone: stoneWords(), titles });
     li.className = `wl-tool ${e.tool}`;
-    let text = "";
-    if (e.tool === "check") {
-      const probs = (res?.problems as unknown[] | undefined)?.length ?? 0;
-      text = probs ? `確かめ：作れない所 ${probs}` : "確かめ：すべて決まりの内側";
-      li.classList.add(probs ? "ng" : "ok");
-    } else if (e.tool === "look") text = `見る：${{ top: "上から", side: "横から", front: "正面から", angle: "斜めから" }[String(input.view)] ?? ""}`;
-    else {
-      const parts = Object.entries(input)
-        .filter(([k]) => k !== "reason")
-        .map(([k, v]) => {
-          const name = { style: "留め方", prong_count: "爪", prong_mm: "爪の太さ", v_corners: "角の V 字の爪", height: "高さ", orientation: "向き", join: "腕への付け方", prong_positions: "爪の位置", section: "腕の断面", section_points: "腕の断面", section_curve: "腕の断面", width_mm: "幅", thickness_mm: "厚み", gou: "号", metal: "地金" }[k] ?? k;
-          const val =
-            k === "style" && v === "tension" ? "テンション" : k === "section" ? (SHANK_SECTION_LABEL[v as ShankSection] ?? v) : k === "section_points" || k === "section_curve" ? "手で描いた形" : k === "v_corners" ? (v ? "あり" : "なし") : Array.isArray(v) ? v.join("・") : v;
-          return `${name} ${val}`;
-        });
-      text = `${TOOL_WORD[e.tool] ?? e.tool}：${parts.join("、")}${input.reason ? ` ― ${String(input.reason)}` : ""}`;
-    }
-    li.textContent = text;
+    if (line.mark) li.classList.add(line.mark);
+    li.textContent = line.text;
   }
 }
 
@@ -1234,9 +1229,10 @@ async function make() {
     type: "text",
     text:
       "この石で指輪を組み、check で確かめ、作れない所があれば直してください。\n" +
-      "この道具で変えられるのは、石座（留め方・爪の本数と太さと位置・角の V 字の爪・高さ・向き・腕への付け方）と腕（断面・幅・厚み・号・地金）だけです。" +
-      "希望や絵のうち、これで表せないこと（透かし・彫り・飾りの模様・ゴシック調などの装飾、石の数を増やす など）は、できたふりをせず、最後に「まだできないこと：」の行に正直に書いてください。すべて表せたときは「まだできないこと：なし」と書いてください。\n" +
-      "最後に、やったこと・確かめたこと・残っていること・まだできないことを、それぞれ短く 1 行ずつ書いてください。",
+      "この道具で変えられるのは、石座（留め方・爪の本数と太さと位置・高さ・向き・腕への付け方）と腕（断面の線・場所ごとの幅と厚みと断面・腕の流れ・号・地金）です。雰囲気の言葉は、腕の断面と線にも訳してください。\n" +
+      "希望や絵のうち、これで表せないこと（穴を開ける透かし、彫りの模様、飾りの模様、石の数を増やす など）は、できたふりをせず、「まだできないこと：」の行に正直に短く書いてください。この行には、希望や絵で求められたのに形にできなかったことだけを書きます（帳面の決まりで気づいたことは「残っていること」へ）。すべて表せたときは「まだできないこと：なし」と書いてください。\n" +
+      "最後の返事は、次の 4 行だけにしてください。前置き・見出し・箇条書きは書きません。1 行は 100 字ほどまで。\n" +
+      "やったこと：…\n確かめたこと：…\n残っていること：…\nまだできないこと：…",
   });
   const r = await runClaude({
     host: session,
@@ -1255,10 +1251,8 @@ async function make() {
     setStatus(`Claude につながりませんでした${r.error?.message ? `（${r.error.message}）` : ""}。決まりごとから作った案を出しています。`);
     return;
   }
-  reason = r.finalText.replace(/\*\*/g, "");
   // 表せなかった希望を、目立つ所に出す（できたふりをさせない）
-  const cannot = /まだできないこと[：:]\s*(.+)/.exec(reason)?.[1]?.trim() ?? "";
-  showCannot(cannot && !/^(なし|ありません|特になし)/.test(cannot) ? cannot : "");
+  showCannot(cannotFrom(r.finalText, titlesNow()));
   setStatus(r.remaining !== undefined ? `今日あと ${r.remaining} 回` : "", {
     links: [
       { label: "確かめる →", run: () => setMode("refine") },
@@ -1280,16 +1274,17 @@ function toManual() {
 }
 document.querySelector(".make-next")?.addEventListener("click", toManual);
 
+/**
+ * 表せなかった希望の札。Claude の作業の欄の中に、ふつうの行として出す（全文が読め、閉じられる）。
+ * 前は 3D の下に浮かせていて、スマホでは入力欄に重なり、下が切れて読めなかった（2026-11-05 作者）
+ */
 function showCannot(text: string) {
-  let el = document.querySelector<HTMLElement>(".cannot-chip");
-  if (!el) {
-    el = document.createElement("p");
-    el.className = "cannot-chip";
-    $(".pro").appendChild(el);
-  }
+  const el = $(".cannot-note");
   el.hidden = !text;
-  el.textContent = text ? `まだできないこと：${text}` : "";
+  el.querySelector("p")!.textContent = text ? `まだできないこと：${text}` : "";
+  if (text) requestAnimationFrame(() => el.scrollIntoView({ block: "nearest" }));
 }
+$(".cn-close").addEventListener("click", () => showCannot(""));
 
 // ---- 確かめる。：作れるか。直す所は短く ----
 const SHORT: Record<string, string> = {
@@ -1721,6 +1716,7 @@ function renderCheck() {
       </div>
       ${pick("腕の断面", s.shankSection ?? "kouman", [...(s.style === "tension" || s.shankSection === "maru" ? [["maru", SHANK_SECTION_LABEL.maru] as [ShankSection, string]] : []), ...SHANK_SECTIONS.map((k) => [k, SHANK_SECTION_LABEL[k]] as [ShankSection, string]), ...(s.shankSection === "free" ? [["free", SHANK_SECTION_LABEL.free] as [ShankSection, string]] : [])])}
       ${s.style === "tension" ? "" : sectionEditorHtml()}
+      ${shankLineHtml(s)}
     </details>
     ${pastCheckHtml()}
     ${probs.length ? `<button type="button" class="next-btn claude-fix">Claude に直してもらう</button>` : ""}
@@ -1804,9 +1800,27 @@ function renderCheck() {
       stoneLive = requestAnimationFrame(() => resizeStone(v, false));
     },
   );
+  // 腕の線：肩と下の幅・厚み・断面
+  bindShankLine(box, session!, renderCheck);
   // 腕の断面：点を動かしている間は 3D の腕だけ変え（パネルは描き直さない）、離したときに確かめ直す
   const sh = b.ring.shank;
-  if (s.style !== "tension") bindSectionEditor(
+  const place = s.style !== "tension" ? sectionBinding(s) : null;
+  // 図で描く相手が肩や下のとき：動かしている間も離したときも、その場所の断面だけを変える
+  if (place) bindSectionEditor(
+    box,
+    place.start,
+    (sec) => {
+      holdPanel = true;
+      const cur = session!.built!;
+      const stations = place.apply(sec).stations!.map(stationFrom);
+      viewer.updateShank(rebuildShank(cur.ring, { ...cur.ring.params.shank, stations }), cur.problems);
+    },
+    (sec) => {
+      holdPanel = false;
+      session!.setShank({ ...place.apply(sec), reason: "断面を手で描いた" });
+    },
+  );
+  else if (s.style !== "tension") bindSectionEditor(
     box,
     startShape(s.shankSection ?? "kouman", s.sectionCurve, s.sectionPoints, sh.widthMm, sh.thicknessMm),
     (sec) => {
@@ -2116,10 +2130,10 @@ function applyFix(id: string, sess: RingSession = session!, prob?: Problem) {
       session!.setSetting({ style: "prong", v_corners: false, prong_count: 0, reason: "直し方から" });
       break;
     case "thickerBand":
-      session!.setShank({ thickness_mm: GUIDES.band.minThicknessMm, reason: "直し方から" });
+      session!.setShank({ ...bandFixInput("thickerBand", s), reason: "直し方から" });
       break;
     case "widerBand":
-      session!.setShank({ width_mm: GUIDES.band.minWidthMm, reason: "直し方から" });
+      session!.setShank({ ...bandFixInput("widerBand", s), reason: "直し方から" });
       break;
     case "thickerWire": {
       // テンションの腕の線を 1 歩太く（幅と厚みを同じだけ）
@@ -2782,7 +2796,9 @@ async function fixWithClaude() {
     speed: "fast",
     maxTurns: 6,
     onLog: (e) => {
-      if (e.kind === "note") fixLog.push({ text: e.text.replace(/\*\*/g, "").split("\n")[0].slice(0, 120), cls: "note" });
+      if (e.kind === "note") {
+        if (hasJapanese(e.text)) fixLog.push({ text: plainWords(withoutCannot(e.text), titlesNow()), cls: "note" });
+      }
       else {
         const li = document.createElement("li");
         logLineTo(li, e);

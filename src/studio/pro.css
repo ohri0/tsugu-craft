@@ -107,7 +107,12 @@ line.ax-z { stroke: #4ea1ff; } text.ax-z { fill: #4ea1ff; }
 .verdict-chip::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .verdict-chip.ok { color: var(--ok); }
 .verdict-chip.ng { color: #ff6b61; }
-.cannot-chip { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); max-width: min(560px, 90%); margin: 0; padding: 7px 12px; border-radius: var(--r); background: rgba(20, 20, 22, 0.9); border: 1px solid rgba(255, 214, 10, 0.4); color: var(--warn); font-size: 12px; z-index: 5; }
+.cannot-note { position: relative; margin: 8px 0 0; padding: 10px 44px 10px 12px; border-radius: 8px; background: rgba(255, 214, 10, 0.08); border: 1px solid rgba(255, 214, 10, 0.4); color: var(--warn); font-size: 13px; line-height: 1.65; }
+.cannot-note[hidden] { display: none; }
+.shank-line { margin-top: 10px; display: grid; gap: 8px; }
+.shank-line .sl-note { display: block; color: var(--fg-3); font-size: 11px; line-height: 1.6; }
+.cannot-note p { margin: 0; overflow-wrap: anywhere; }
+.cannot-note .cn-close { position: absolute; top: 0; right: 0; width: 44px; height: 44px; border: 0; background: transparent; color: var(--warn); font-size: 18px; line-height: 1; cursor: pointer; }
 
 /* 最初の見せ場：写真に輪郭が描かれる */
 .intro-stage { position: absolute; inset: 0; z-index: 10; display: grid; place-items: center; background: #111113; transition: opacity 1.2s ease; }
@@ -199,7 +204,7 @@ line.ax-z { stroke: #4ea1ff; } text.ax-z { fill: #4ea1ff; }
 .worklog { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; font-size: 12px; max-height: 340px; overflow-y: auto; }
 .worklog li { display: grid; grid-template-columns: 12px 1fr; gap: 6px; padding: 4px 0; color: var(--fg); line-height: 1.5; }
 .worklog li::before { content: "›"; font-family: var(--mono); color: var(--fg-3); }
-.worklog li.note { color: var(--fg-2); }
+.worklog li.note { color: var(--fg-2); white-space: pre-line; }
 .worklog li.note::before { content: "–"; }
 .worklog li.wl-tool { font-size: 12px; }
 .worklog li { min-width: 0; overflow-wrap: break-word; }

@@ -337,7 +337,9 @@ function tensionRing(p: RingParams): RingDesign {
  * 腕は石ごとに、その石の真下をザグり、下の輪の座を作る（buildShank の seats）。ロウの丸みも石ごと。
  * 一粒の指輪の肩（石座の足を受ける広い所）は、石を並べるときは作らない（腕はどこも同じ幅）
  */
-function buildMulti(p: RingParams): RingDesign {
+function buildMulti(p0: RingParams): RingDesign {
+  // 石を並べた指輪の腕は、どこも同じ形（場所ごとの形は使わない。ザグりと座が腕のあちこちに来るため）
+  const p: RingParams = { ...p0, shank: { ...p0.shank, stations: undefined } };
   const plain = buildShank(p.shank);
   const outerR = plain.outerRadiusMm;
   const wantSolder = p.solder ?? (p.setting.solid === true && p.setting.solidQuality !== "preview");
@@ -466,7 +468,7 @@ export function rebuildShank(ring: RingDesign, shank: ShankParams): ShankResult 
   if (collar) return buildShank({ ...shank, head: undefined }, undefined, { gap: { outline: collar.outer } });
   if (ring.stones.length > 1 || ring.stones[0]?.phi) {
     const seats = ring.stones.map((st, i) => ({ phi: st.phi, cut: i === 0 ? ring.seatCut : st.seatCut, rail: st.rail }));
-    return buildShank({ ...shank, head: undefined }, undefined, { notchStepMm: BALL_CUT.dragStepMm, seats });
+    return buildShank({ ...shank, head: undefined, stations: undefined }, undefined, { notchStepMm: BALL_CUT.dragStepMm, seats });
   }
   const opts = { notchStepMm: BALL_CUT.dragStepMm, rail: railInRing(ring.setting, ring.transform) };
   if (ring.setting.normals) return buildShank(shank, ring.seatCut, opts);

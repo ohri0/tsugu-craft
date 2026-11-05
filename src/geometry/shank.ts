@@ -8,11 +8,12 @@ import { meshVolume } from "./stone";
 import { BALL_CUT, ballCut, type BallCut, type SeatCut } from "./notch";
 import { railSeatZ, type Rail } from "./joint";
 import { adaptiveSample, sampleCurve, uniformKnots, validKnots } from "./bspline";
+import { makeLoft, type Loft, type LoftPlace } from "./shank-loft";
 
 /** 腕の断面：甲丸・平打ち・半甲丸・角、丸線（内側も丸い）、と手で描いた形 */
 export type ShankSection = "kouman" | "hirauchi" | "hangouman" | "kaku" | "maru" | "free";
 export const SHANK_SECTIONS = ["kouman", "hirauchi", "hangouman", "kaku"] as const;
-export const SHANK_SECTION_LABEL: Record<ShankSection, string> = { kouman: "甲丸", hirauchi: "平打ち", hangouman: "半甲丸", kaku: "角", maru: "丸線", free: "手で描く" };
+export const SHANK_SECTION_LABEL: Record<ShankSection, string> = { kouman: "甲丸", hirauchi: "平打ち", hangouman: "半甲丸", kaku: "角", maru: "丸線", free: "自由な線" };
 
 /** 断面の点（幅の位置 x：真ん中 0〜端 1、高さ y：内側 0〜いちばん厚い所 1） */
 export interface SectionPoint {
@@ -43,6 +44,25 @@ export interface ShankParams {
    * なければ、どこも同じ幅（いちばん上で広げない）
    */
   head?: ShankHead;
+  /**
+   * 腕の場所ごとの形（なければ、どこも同じ形）。widthMm・thicknessMm・断面は、いちばん上（石座のそば）の形で、ここにはそれより下の場所を書く。
+   * 丸線の腕・テンション・石を並べた指輪では使わない（どこも同じ形）
+   */
+  stations?: readonly ShankStation[];
+}
+
+/** 腕の場所の形（左右は同じ。shank-loft.ts がなめらかにつなぐ） */
+export interface ShankStation {
+  /** いちばん上から指のまわりに測った角度（度。180 がいちばん下） */
+  atDeg: number;
+  widthMm: number;
+  thicknessMm: number;
+  /** この場所の断面（なければ、ひとつ上の場所と同じ）。丸線は使えない */
+  section?: Exclude<ShankSection, "maru">;
+  /** この場所の断面の線（section が free のとき。section を書かずに curve だけでもよい） */
+  curve?: SectionCurve;
+  /** 腕を指の向きへ寄せる量（mm）。右の肩が指先の側へ寄ると、左の肩は付け根の側へ寄る（S の字の流れ）。いちばん下では 0 */
+  swayMm?: number;
 }
 
 export interface ShankHead {
@@ -97,6 +117,12 @@ export interface ShankResult {
    * 切っていなければ null
    */
   ends: { y: number; topZ: number; bottomZ: number }[] | null;
+  /** 腕の場所ごとの形（どこも同じ形ならなし）。いちばん上から下へ */
+  along?: { atDeg: number; widthMm: number; thicknessMm: number; outlineMm: [number, number][] }[];
+  /** ぐるりと見て、いちばん細い幅（どこも同じ形ならなし。確かめに使う） */
+  minWidthMm?: number;
+  /** ぐるりと見て、いちばん薄い厚み（どの場所でも、いちばん厚い所の厚み。どこも同じ形ならなし） */
+  minThicknessMm?: number;
 }
 
 /**
@@ -153,6 +179,28 @@ export const SECTION_SHAPE = {
 export interface SectionCurve {
   points: SectionPoint[];
   knots?: number[];
+}
+
+/** いちばん上の形のまま保つ所に、石座の外へ足す余白（形を作るための決まり。ロウの丸みがこの中に収まるように。度） */
+const HOLD_MARGIN_RAD = (5 * Math.PI) / 180;
+
+/** 腕の場所ごとの形を作る（使わない腕なら null） */
+function loftOf(p: ShankParams, section: ShankSection, w: number, t: number, outer: [number, number][]): Loft | null {
+  if (!p.stations?.length || section === "maru") return null;
+  // 断面を書いていない場所は、ひとつ上の場所と同じ断面
+  let prev = outer;
+  const places: LoftPlace[] = p.stations.map((st) => {
+    if (st.curve?.points.length) prev = sectionOutline("free", undefined, st.curve);
+    else if (st.section) prev = sectionOutline(st.section);
+    return { at: (Math.min(180, Math.max(0, st.atDeg)) * Math.PI) / 180, widthMm: st.widthMm, thicknessMm: st.thicknessMm, outline: prev, swayMm: st.swayMm ?? 0 };
+  });
+  return makeLoft({ widthMm: w, thicknessMm: t, outline: outer }, places);
+}
+
+/** 腕の場所ごとの形を、結果に入れる */
+function loftResult(loft: Loft | null): Pick<ShankResult, "along" | "minWidthMm" | "minThicknessMm"> {
+  if (!loft) return {};
+  return { along: loft.samples(), ...loft.extremes() };
 }
 
 /** 片側の点（真ん中 → 端）を折り返して、左右の点の列（右の端 → 左の端）にする */
@@ -277,9 +325,26 @@ export function buildShank(p: ShankParams, cut?: SeatCut, opts: { notchStepMm?: 
   });
   if (opts.gap) return openBand(p, { section, w, t, metal, dIn, r, outer, gap: opts.gap });
   const active = work.filter((wk) => wk.regions.length);
-  let outerRows = outer;
+  // 腕の場所ごとの形：削る所と肩の中は、いちばん上の形のまま
+  const loft = loftOf(p, section, w, t, outer);
+  if (loft) {
+    let hold = p.head ? (p.head.spanMm / 2 + p.head.taperMm) / (r + t) : 0;
+    for (const wk of active)
+      for (const g of wk.regions) {
+        const y = Math.max(Math.abs(g.yMin), Math.abs(g.yMax));
+        hold = Math.max(hold, Math.abs(wk.phi) + Math.asin(Math.min(1, y / (r + t))) + HOLD_MARGIN_RAD);
+      }
+    loft.setHold(hold);
+  }
+  const topRows = loft ? loft.rows[0] : outer;
+  let outerRows = topRows;
   let phis = Array.from({ length: AROUND }, (_, k) => (k / AROUND) * Math.PI * 2);
-  if (active.length) ({ outerRows, phis } = refineAround(outer, phis, r, t, widthAt, active, step));
+  if (active.length) {
+    const trace: { j: number; s: number }[] = [];
+    ({ outerRows, phis } = refineAround(topRows, phis, r, t, widthAt, active, step, trace));
+    loft?.refine(trace);
+  }
+  const frames = loft ? phis.map((phi) => loft.frame(phi)) : null;
   // 断面（ξ：幅の中の位置 −1〜1、ρ：指の軸からの距離）。内側の平らな所を −1 → +1、外側を +1 → −1
   const section2: [number, number][] = [];
   const xR = outer[0][0];
@@ -289,9 +354,12 @@ export function buildShank(p: ShankParams, cut?: SeatCut, opts: { notchStepMm?: 
   for (let i = 0; i < flat; i++) section2.push([xL + ((xR - xL) * i) / flat, r]);
   for (const [xi, eta] of outerRows.slice(0, -1)) section2.push([xi, r + t * eta]);
   // 断面の点ごとに、指のまわりを 1 周する輪
-  const rings: V3[][] = section2.map(([xi, rho], i) =>
-    phis.map((phi) => {
-      const x = (xi * widthAt(phi)) / 2;
+  const rings: V3[][] = section2.map(([xi, rho0], i) =>
+    phis.map((phi, pk) => {
+      // 腕の場所ごとの形なら、その場所の断面。肩はその上に足す
+      const lofted = loft && frames ? loft.point(i, flat, frames[pk], r, shoulderWidth(frames[pk].w, r + t, p.head)(phi)) : null;
+      const x = lofted ? lofted[0] : (xi * widthAt(phi)) / 2;
+      const rho = lofted ? lofted[1] : rho0;
       let y = rho * Math.sin(phi);
       let z = rho * Math.cos(phi);
       // 外側の点だけ削る。指の側（内径の円）より下へは下げない
@@ -332,7 +400,7 @@ export function buildShank(p: ShankParams, cut?: SeatCut, opts: { notchStepMm?: 
     volumeMm3,
     weightG: weightG(volumeMm3, metal),
     outlineMm: outer.map(([xi, eta]) => [(xi * w) / 2, eta * t] as [number, number]),
-    sideWidthMm: widthAt(-Math.PI / 2),
+    sideWidthMm: loft ? loft.frame(-Math.PI / 2).w : widthAt(-Math.PI / 2),
     notchDepthMm,
     notchBallDiameterMm: ball ? 2 * ball.radiusMm : 0,
     notchBall: ball ? { cx: ball.cx, cy: ball.cy, bottomZ: ball.bottomZ, radiusMm: ball.radiusMm } : null,
@@ -340,6 +408,7 @@ export function buildShank(p: ShankParams, cut?: SeatCut, opts: { notchStepMm?: 
     head: p.head && p.head.widthMm > w ? p.head : null,
     railSeatDepthMm: work.reduce((m, wk) => wk.railBoxes.reduce((mm, b) => Math.max(mm, b.depth ?? 0), m), 0),
     ends: null,
+    ...loftResult(loft),
   };
 }
 
@@ -377,13 +446,15 @@ function openBand(
 ): ShankResult {
   const { w, t, r, outer } = c;
   const ov = c.gap.overlapMm ?? BAND_GAP_OVERLAP_MM;
+  const loft = loftOf(p, c.section, w, t, outer);
+  const topRows = loft ? loft.rows[0] : outer;
   // 断面（ξ、ρ）：内側の平らな所を −1 → +1、外側を +1 → −1（閉じた断面の線）
   const sec: [number, number][] = [];
-  const xR = outer[0][0];
-  const xL = outer[outer.length - 1][0];
+  const xR = topRows[0][0];
+  const xL = topRows[topRows.length - 1][0];
   const flat = xR - xL > 1e-9 ? FLAT : 0;
   for (let i = 0; i < flat; i++) sec.push([xL + ((xR - xL) * i) / flat, r]);
-  for (const [xi, eta] of outer.slice(0, -1)) sec.push([xi, r + t * eta]);
+  for (const [xi, eta] of topRows.slice(0, -1)) sec.push([xi, r + t * eta]);
   // 断面の点ごとの、端の角度（＋の側の端 φS、−の側の端 φE ＝ 2π ＋ asin(…)）
   const ends = sec.map(([xi, rho]) => {
     const x = (xi * w) / 2;
@@ -410,12 +481,16 @@ function openBand(
     const asin = (y: number) => Math.asin(Math.max(-1, Math.min(1, y / rho)));
     return { x, rho, s: asin(yP), e: 2 * Math.PI + asin(yM) };
   });
+  // 腕の場所ごとの形：腕の端（石座の下の輪に当たる所）とロウの丸みは、いちばん上の形のまま
+  if (loft) loft.setHold(ends.reduce((m, q) => Math.max(m, Math.abs(q.s), Math.abs(2 * Math.PI - q.e)), 0) + HOLD_MARGIN_RAD);
   const loops: V3[][] = [];
   for (let k = 0; k <= AROUND; k++) {
     const u = k / AROUND;
-    loops.push(ends.map(({ x, rho, s, e }) => {
+    loops.push(ends.map(({ x, rho, s, e }, i) => {
       const phi = s + (e - s) * u;
-      return [x, rho * Math.sin(phi), rho * Math.cos(phi)] as V3;
+      if (!loft) return [x, rho * Math.sin(phi), rho * Math.cos(phi)] as V3;
+      const [xx, rr] = loft.point(i, flat, loft.frame(phi), r);
+      return [xx, rr * Math.sin(phi), rr * Math.cos(phi)] as V3;
     }));
   }
   const tris: number[] = [];
@@ -455,7 +530,7 @@ function openBand(
     volumeMm3,
     weightG: weightG(volumeMm3, c.metal),
     outlineMm: outer.map(([xi, eta]) => [(xi * w) / 2, eta * t] as [number, number]),
-    sideWidthMm: w,
+    sideWidthMm: loft ? loft.frame(-Math.PI / 2).w : w,
     notchDepthMm: 0,
     notchBallDiameterMm: 0,
     notchBall: null,
@@ -463,6 +538,7 @@ function openBand(
     head: null,
     railSeatDepthMm: 0,
     ends: [endAt(1), endAt(-1)],
+    ...loftResult(loft),
   };
 }
 
@@ -551,6 +627,8 @@ function refineAround(
   widthAt: (phi: number) => number,
   seats: readonly SeatWork[],
   step: number,
+  /** 行ごとに、元の線のどこか（腕の場所ごとの形で、ほかの場所の断面にも同じ行を足すため） */
+  trace?: { j: number; s: number }[],
 ): { outerRows: [number, number][]; phis: number[] } {
   const top = r + t;
   const margin = 2 * step;
@@ -580,14 +658,19 @@ function refineAround(
     const [x0, e0] = outer[j];
     const [x1, e1] = outer[j + 1];
     outerRows.push(outer[j]);
+    trace?.push({ j, s: 0 });
     const zTop = r + t * Math.max(e0, e1);
     const near = seats.some((sd) => sd.regions.some((g) => Math.max(x0, x1) * half0 >= g.xMin - margin && Math.min(x0, x1) * half0 <= g.xMax + margin && zTop >= g.zMin - 0.05 * t));
     if (!near) continue;
     const length = Math.hypot((x1 - x0) * half0, (e1 - e0) * t);
     const cuts = centers.filter((c) => c.jC === j).map((c) => (c.xiC - x0) / (x1 - x0));
-    for (const s of splitParams(length, cuts, step)) outerRows.push([x0 + (x1 - x0) * s, e0 + (e1 - e0) * s]);
+    for (const s of splitParams(length, cuts, step)) {
+      outerRows.push([x0 + (x1 - x0) * s, e0 + (e1 - e0) * s]);
+      trace?.push({ j, s });
+    }
   }
   outerRows.push(outer[outer.length - 1]);
+  trace?.push({ j: outer.length - 1, s: 0 });
   // 指のまわり：上から見て（その石の座標で）、削る所の y の幅にかかる、石の側の区間
   const phis: number[] = [];
   const n = phis0.length;
@@ -635,6 +718,18 @@ export function shoulderWidth(w: number, outerR: number, head: ShankHead | undef
     const k = s <= 0 ? 1 : s >= head.taperMm ? 0 : 0.5 * (1 + Math.cos((Math.PI * s) / head.taperMm));
     return w + (head.widthMm - w) * k;
   };
+}
+
+/**
+ * 腕の大きさの言葉（画面・図面・指示書）。場所ごとの形なら、石座のそばと、いちばん下を書く。
+ * mm は単位の前の数の小数の桁
+ */
+export function shankSizeWords(sh: Pick<ShankResult, "widthMm" | "thicknessMm" | "along">, digits = 1): string {
+  const f = (v: number) => v.toFixed(digits);
+  const top = `${f(sh.widthMm)} × ${f(sh.thicknessMm)} mm`;
+  const low = sh.along?.[sh.along.length - 1];
+  if (!low || (Math.abs(low.widthMm - sh.widthMm) < 0.005 && Math.abs(low.thicknessMm - sh.thicknessMm) < 0.005)) return top;
+  return `石座のそば ${top} → 下 ${f(low.widthMm)} × ${f(low.thicknessMm)} mm`;
 }
 
 /** 体積（mm³）から重さ（g）の見積もり。1 cm³ ＝ 1000 mm³ */
