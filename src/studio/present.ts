@@ -6,6 +6,8 @@ export interface PresentInfo {
   /** 石のない指輪にはない */
   stone?: string;
   prong?: string;
+  /** prong の欄の名前（なければ「爪」） */
+  prongLabel?: string;
   shank: string;
   metal: string;
   gou: string;
@@ -27,7 +29,7 @@ export function presentHtml(info: PresentInfo, groups: PresentGroup[], active: s
   return `<div class="pr-tabs" role="tablist">${groups.map((x) => `<button type="button" role="tab" data-g="${x.key}" aria-selected="${x.key === g.key}">${esc(x.label)}</button>`).join("")}</div>
     ${g ? `<div class="pr-opt" role="group" aria-label="${esc(g.label)}">${g.options.map((o) => `<button type="button" data-g="${g.key}" data-v="${esc(o.v)}" aria-pressed="${o.v === g.on}">${esc(o.label)}</button>`).join("")}</div>` : ""}
     ${info.quote ? `<p class="pr-q">「${esc(info.quote.text)}」<small>${esc(info.quote.by)}</small></p>` : ""}
-    <div class="pr-grid">${info.stone ? cell("石", info.stone) : ""}${info.prong ? cell("爪", info.prong) : ""}${cell("腕", info.shank)}${cell("地金", info.metal)}${cell("号", info.gou)}${cell("確かめ", info.verdict.text, info.verdict.ok ? "ok" : "ng")}</div>`;
+    <div class="pr-grid">${info.stone ? cell("石", info.stone) : ""}${info.prong ? cell(info.prongLabel ?? "爪", info.prong) : ""}${cell("腕", info.shank)}${cell("地金", info.metal)}${cell("号", info.gou)}${cell("確かめ", info.verdict.text, info.verdict.ok ? "ok" : "ng")}</div>`;
 }
 
 /** 見せる表示で選べる石の大きさ（長辺 mm）。カラットとの換算は資料ごとに食いちがうので mm で出す。

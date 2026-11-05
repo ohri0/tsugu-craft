@@ -7,7 +7,7 @@ import { findThinSpots, type ThinSpot } from "../geometry/section-thin";
 import { stoneSpaces } from "../geometry/multi";
 import { tipMeasures, type SettingResult } from "../geometry/setting";
 import type { TensionEnd } from "../geometry/tension";
-import { GUIDE_NOTE, GUIDES, type Guides, type StonePosition } from "./guides";
+import { GUIDE_NOTE, GUIDES, type Guides, type MetalId, type StonePosition } from "./guides";
 import { prongMinOverride } from "./ledger";
 
 /** 画面に必ず添える、留まりの注意 */
@@ -382,6 +382,66 @@ export function tensionNotes(s: Pick<SettingResult, "tension" | "corners">, wire
   if (info.ends.some((e) => e.depthMm < t.weakGrooveMm + 1e-9)) notes.push(`溝が ${mm(t.weakGrooveMm)} くらいでは抜ける、と職人は言います`);
   if (wireMm < t.minWireMm) notes.push(`腕の太さ ${mm(wireMm)}：${mm(t.minWireMm)} より細いと弱い、という職人の声が資料にあります（掲示板の 1 人の声）`);
   return notes;
+}
+
+/**
+ * 開いた輪を、まっすぐ押し開くとき、地金が戻れる範囲（耐力を超えない範囲）で開ける量（mm）。
+ * 切れ目のある輪の曲げ：開く量 δ ＝ 3π F R³ ÷（E I）、いちばん大きい曲げ（開きの反対側）M ＝ 2 F R、σ ＝ M（d ÷ 2）÷ I。
+ * F と I を消すと δ ≒ 3π R² σ ÷（E d）。I が消えるので、断面の形によらず、高さ d で決まる。
+ * 前提：細い輪の近似（R が d より十分大きい。太い輪では内側の曲げが強くなるので、実際は少なめになりやすい）、まっすぐ押し開く（ねじらない）、端の溝は無視。
+ * radiusMm：中心の半径 R。wireMm：線の高さ d。youngGpa：ヤング率 E。proofMpa：耐力 σ
+ */
+export function elasticOpeningMm(radiusMm: number, wireMm: number, youngGpa: number, proofMpa: number): number {
+  return (3 * Math.PI * radiusMm * radiusMm * proofMpa) / (youngGpa * 1000 * wireMm);
+}
+
+export type HardState = "hardened" | "annealed";
+export const HARD_STATE_LABEL: Record<HardState, string> = { hardened: "加工硬化", annealed: "焼きなまし" };
+
+export interface TensionOpening {
+  metal: MetalId;
+  metalName: string;
+  /** 中心の半径 R ＝ 指の半径 ＋ 太さ ÷ 2（mm）と、線の太さ d（mm） */
+  radiusMm: number;
+  wireMm: number;
+  young: { gpa: number; provisional: boolean; basis: string };
+  /** 石を入れるのに要る量（両はしの深さの和。mm）と、その内わけの言葉 */
+  needMm: number;
+  needText: string;
+  states: { state: HardState; label: string; proofMpa: number; provisional: boolean; basis: string; openMm: number; enough: boolean }[];
+  /** 硬い状態で足りるか（この留め方の条件は硬い状態） */
+  enough: boolean;
+}
+
+/** 式の前提（画面の注。elasticOpeningMm のコメントと同じ） */
+export const TENSION_OPENING_NOTE = "開ける量 ≒ 3π × R² × σ ÷（E × d）。細い輪の近似（太い輪では実際は少なめになりやすい）・まっすぐ押し開く・端の溝は無視、という前提の計算です";
+/** 足りないときの言葉 */
+export const TENSION_SHORT_TEXT = "まっすぐ開くだけでは入らない見込み。斜めに入れる・熱で広げるなど、職人が決める";
+
+/**
+ * 参考の計算：地金が戻れる範囲で開ける量と、石を入れるのに要る量を並べる。合否にはしない（確かめの問題には入れない）。
+ * 石にかかる力は出さない（信じられる出典がない）。テンションでなければ null
+ */
+export function tensionOpening(s: Pick<SettingResult, "tension">, sh: Pick<ShankResult, "innerRadiusMm" | "thicknessMm" | "metal">, g: Guides = GUIDES): TensionOpening | null {
+  const info = s.tension;
+  if (!info) return null;
+  const m = g.tension.spring.metals[sh.metal];
+  const radiusMm = sh.innerRadiusMm + sh.thicknessMm / 2;
+  const wireMm = sh.thicknessMm;
+  const needMm = info.ends[0].depthMm + info.ends[1].depthMm;
+  const needText = `${info.ends.map((e) => `${endName(e)} ${e.depthMm.toFixed(2)} mm`).join(" ＋ ")} ＝ ${needMm.toFixed(2)} mm`;
+  const states = (["hardened", "annealed"] as const).map((state) => {
+    const v = m[state];
+    const openMm = elasticOpeningMm(radiusMm, wireMm, m.young.gpa, v.proofMpa);
+    return { state, label: HARD_STATE_LABEL[state], proofMpa: v.proofMpa, provisional: v.provisional, basis: v.basis, openMm, enough: openMm >= needMm };
+  });
+  return { metal: sh.metal, metalName: m.name, radiusMm, wireMm, young: m.young, needMm, needText, states, enough: states[0].enough };
+}
+
+/** 参考の計算を、1 つの文に（Claude の確かめの注に添える） */
+export function tensionOpeningText(o: TensionOpening): string {
+  const open = o.states.map((x) => `${x.label} 約 ${x.openMm.toFixed(2)} mm${x.provisional || o.young.provisional ? "（仮）" : ""}`).join("、");
+  return `参考の計算（合否にしない）：${o.metalName} φ${o.wireMm.toFixed(1)} mm で、地金が戻れる範囲で開ける量は ${open}。石を入れるのに要る量は ${o.needText}。${o.enough ? "" : `${TENSION_SHORT_TEXT}。`}${TENSION_OPENING_NOTE}。${GUIDE_NOTE}`;
 }
 
 /** となりの石・石座の間（石を並べた指輪だけ）。数字は GUIDES.multi（仮の目安） */

@@ -51,7 +51,7 @@ import { bindSlider, sliderHtml, type SliderSpec } from "./slider";
 import { bindSectionEditor, sectionEditorHtml, startShape } from "./section-edit";
 import { SHANK_SECTIONS, SHANK_SECTION_LABEL, type ShankSection } from "../geometry/shank";
 import { placePoint, rebuildShank } from "../geometry/ring";
-import { checkShank, tensionNotes, type Problem } from "../rules/checks";
+import { TENSION_OPENING_NOTE, TENSION_SHORT_TEXT, checkShank, tensionNotes, tensionOpening, type Problem } from "../rules/checks";
 import { presentHtml, STONE_SIZES, type PresentGroup } from "./present";
 import { MAX_SECONDS, playVoice, putVoice, startRecording, voiceIds } from "./voice-notes";
 import { clearDesign, introSeen, loadDesign, loadPhotoUrl, markIntroSeen, saveDesign, savePhoto, tabBox, type KeptStone } from "./keep-design";
@@ -673,6 +673,7 @@ function renderPresent() {
   const html = presentHtml(
     {
       stone: `${stone.shapeName} ${session.stone.longMm.toFixed(2)} × ${session.stone.widthMm.toFixed(2)} mm${r.stones.length > 1 ? ` ほか ${r.stones.length - 1} 石` : ""}`,
+      prongLabel: st.tension ? "留め方" : undefined,
       prong: st.tension ? tensionWord(st) : st.style === "bezel" ? `覆輪 ・ 壁 ${st.bezel?.wallMm.toFixed(2)} mm` : `ø ${st.prongs[0]?.diameterMm.toFixed(2)} mm × ${st.prongs.length}`,
       shank: `${SHANK_SECTION_LABEL[r.shank.section]} ${r.shank.widthMm.toFixed(1)} × ${r.shank.thicknessMm.toFixed(1)} mm`,
       metal: `${METAL_LABEL[session.state.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g`,
@@ -1637,6 +1638,23 @@ function joinPickHtml(pick: <T extends string | number>(name: string, cur: T, li
 function wireSlider(b: Built): SliderSpec {
   return { cls: "r-wire", label: "腕の線の太さ", min: 2.5, max: 5, step: 0.1, value: b.ring.shank.thicknessMm, unit: "mm" };
 }
+/** テンションの参考の計算（合否にしない）：地金が戻れる範囲で開ける量と、石を入れるのに要る量 */
+function tensionCalcHtml(b: Built): string {
+  const o = tensionOpening(b.ring.setting, b.ring.shank, session!.guides());
+  if (!o) return "";
+  const k18Other = session!.state.metal === "k18wg" || session!.state.metal === "k18pg";
+  const row = (x: (typeof o.states)[number]) => {
+    const kari = x.provisional || o.young.provisional;
+    return `<tr><th>${esc(x.label)}の状態</th><td class="${x.enough ? "" : "short"}">約 ${x.openMm.toFixed(2)} mm${kari ? "（仮）" : ""}</td></tr>`;
+  };
+  const basis = o.states.map((x) => `${x.label}の耐力 ${x.proofMpa} MPa${x.provisional ? "（仮）" : ""}：${x.basis}`).join("。");
+  return `<div class="tension-calc"><b>参考の計算（合否にしません）</b>
+    <table><tbody><tr><th colspan="2">地金が戻れる範囲で開ける量（${esc(o.metalName)} ・ φ${o.wireMm.toFixed(1)} mm）</th></tr>${o.states.map(row).join("")}
+    <tr><th>石を入れるのに要る量</th><td>${o.needMm.toFixed(2)} mm</td></tr></tbody></table>
+    <small>${esc(o.needText)}</small>
+    ${o.enough ? "" : `<p class="short">${esc(TENSION_SHORT_TEXT)}</p>`}
+    <small>${esc(TENSION_OPENING_NOTE)}。R ${o.radiusMm.toFixed(2)} mm（指の半径 ＋ 太さ ÷ 2）・d ${o.wireMm.toFixed(1)} mm。ヤング率 E ${o.young.gpa} GPa${o.young.provisional ? "（仮）" : ""}：${esc(o.young.basis)}。${esc(basis)}。${k18Other ? "K18 ホワイト・ピンクも K18 イエローの値で計算しています。" : ""}${esc(GUIDE_NOTE)}</small></div>`;
+}
 function gouSlider(gou: number): SliderSpec {
   return { cls: "r-gou", label: "号", min: 5, max: 25, step: 1, value: gou, unit: "号" };
 }
@@ -1684,7 +1702,7 @@ function renderCheck() {
       const zaguri = r.notchDepthMm > 0 ? `<p class="look-note"><b>ザグり</b>石の先が当たる所を、腕の上で自動でザグりました（深さ ${r.notchDepthMm.toFixed(2)} mm、丸いビット 直径 約 ${r.shank.notchBallDiameterMm.toFixed(1)} mm）。<small>石の先〜指 ${r.culetGapMm.toFixed(2)} mm、腕の厚み ${r.shank.thicknessMm.toFixed(1)} mm。石とのすき間 ${GUIDES.bezel.clearanceMm} mm を残しています。3D・図面・重さ・STL に入っています（作り方の「石座を腕に付ける」）</small></p>` : "";
       const small = r.setting.style === "prong" && r.setting.join === "on" && !session?.state.joinSet || r.setting.prongsOnArm > 0;
       const tension = r.setting.tension
-        ? `<p class="look-note"><b>テンション（腕のばねで石を挟む）</b>${r.setting.tension.ends.map((e) => `${e.kind === "pit" ? "角のくぼみ" : "辺の溝"} ${e.depthMm.toFixed(2)} mm`).join("、")}。開き ${r.setting.tension.gapMm.toFixed(2)} mm（図面は石が入る寸法。どこまで詰めるかは職人が決める）。${GUIDE_NOTE}</p><ul class="tension-notes">${tensionNotes(r.setting, r.shank.thicknessMm, session!.guides()).map((n) => `<li>${esc(n)}</li>`).join("")}</ul>`
+        ? `<p class="look-note"><b>テンション（腕のばねで石を挟む）</b>${r.setting.tension.ends.map((e) => `${e.kind === "pit" ? "角のくぼみ" : "辺の溝"} ${e.depthMm.toFixed(2)} mm`).join("、")}。開き ${r.setting.tension.gapMm.toFixed(2)} mm（図面は石が入る寸法。どこまで詰めるかは職人が決める）。${GUIDE_NOTE}</p><ul class="tension-notes">${tensionNotes(r.setting, r.shank.thicknessMm, session!.guides()).map((n) => `<li>${esc(n)}</li>`).join("")}</ul>${tensionCalcHtml(b)}`
         : "";
       return tension + (small ? `<p class="look-note"><b>この石は、別の留め方がおすすめ</b>この大きさ・形では、爪を腕から避けたり、下の輪に収めたりできません。おちょこ留めや、腕に下穴を開けて留めるミル留め・パヴェのような留め方をすすめます。覆輪にする、腕を細くするのも手です。この爪留めのままなら、腕の上にのせる形になります（職人の言葉）<small>覆輪と腕の太さは「手で変える」で選べます。ほかの留め方は、まだ形にできません</small></p>` : "") + (note ? `<p class="look-note"><b>見た目の注意</b>${esc(note)}<small>作れますが、形に対して不自然に見えることがあります（確かめの決まりではありません）</small></p>` : "") + zaguri;
     })()}
@@ -3023,7 +3041,7 @@ function solitaireDrawing(b: Built, problems: string[], sess: RingSession = sess
             { a: [0, -ri, lift], b: [0, ri, lift], label: `内径 ø${(ri * 2).toFixed(1)}` },
             ...(r.setting.tension ? [{ a: [0, -r.setting.tension.gapMm / 2, top] as V3, b: [0, r.setting.tension.gapMm / 2, top] as V3, ext: [0, 0, 3] as V3, label: `開き ${r.setting.tension.gapMm.toFixed(2)}` }] : []),
             { a: [0, 0, 0], b: [0, 0, top], ext: [0, box.max[1] + 3, 0], label: `全高 ${top.toFixed(1)}` },
-            { a: [0, 0, fingerTop], b: [0, 0, top], ext: [0, box.min[1] - 3, 0], label: `指から石の上まで ${(top - fingerTop).toFixed(1)}`, bad: bad.has("tip-height") },
+            { a: [0, 0, fingerTop], b: [0, 0, top], ext: [0, box.min[1] - 3, 0], label: `${r.setting.tension ? "指から腕の上まで" : "指から石の上まで"} ${(top - fingerTop).toFixed(1)}`, bad: bad.has("tip-height") },
             { a: [0, 0, 0], b: [0, 0, r.shank.thicknessMm], ext: [0, box.min[1] - 3, 0], label: `厚み ${r.shank.thicknessMm.toFixed(1)}` },
           ];
         if (v === "side")

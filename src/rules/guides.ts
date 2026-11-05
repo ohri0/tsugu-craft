@@ -184,6 +184,14 @@ export const GUIDES = {
    * - cornerMaxDeg：内角がこれより鋭いものを「角」と数える（hold.cornerSetMatch と同じ値）。
    * - liftEnds・liftBlendDeg：縁を腕の太さの中ほどに置くと石の先が指に当たるとき、腕の両はしを指の丸みからなめらかに持ち上げるか、と、持ち上げる所の長さ（度）。
    * - thinLipMm：彫り口の上下や両わきに残る地金がこれより薄いと、注意を出す（覆輪の壁の最低を借りた）。
+   * spring：参考の計算（地金が戻れる範囲で開ける量）に使う地金の値。合否には使わない。provisional の値は画面にも「仮」と出す。
+   * 出どころは .claude/skills/jeweler-guides/SKILL.md の「テンション」の節。
+   * - young：ヤング率。K18 は地金会社の表の 18 ct 3N・4N の値。K18 の値の出典は、これ 1 つ。
+   * - hvToProofMpa：硬さ HV から耐力（MPa）を出す目安の倍率。貴金属の硬い状態の表（Pt 2.96・Au 2.89・PtIr10 2.93・PtRh10 3.28）から丸めた。測った耐力ではない。
+   * - K18 の加工硬化：地金会社の表の 3N の加工 75 % の硬さ HV 250 × hvToProofMpa。別の資料の引張りの強さ 810〜880 MPa より低いので、矛盾はない。
+   * - K18 の焼きなまし：検索の要約に 1 件あるだけの 180 MPa（状態の書き方なし。原文で確かめられない）。
+   * - Pt900：Pt/Ir 900/100 の値。日本に多い Pd 入りの値は見つからない。
+   * - シルバーの加工硬化：地金会社の表の加工 75 % の硬さ HV 155 × hvToProofMpa。
    */
   tension: {
     cornerPitMm: 1.0,
@@ -197,6 +205,29 @@ export const GUIDES = {
     liftEnds: true,
     liftBlendDeg: 70,
     thinLipMm: 0.45,
+    spring: {
+      hvToProofMpa: 3,
+      metals: {
+        k18y: {
+          name: "K18",
+          young: { gpa: 94, provisional: false, basis: "地金会社の表の 18 ct 3N・4N の値" },
+          hardened: { proofMpa: 750, provisional: true, basis: "硬さ HV 250 からの換算の目安。耐力を測った値ではない" },
+          annealed: { proofMpa: 180, provisional: true, basis: "資料の要約に 1 件だけ。原文で確かめられない" },
+        },
+        pt900: {
+          name: "Pt900",
+          young: { gpa: 220, provisional: true, basis: "Pt/Ir 900/100 の値。資料により 160〜220 GPa。Pd 入りの値は見つからない" },
+          hardened: { proofMpa: 630, provisional: true, basis: "Pt/Ir 900/100 の値。Pd 入りの値は見つからない" },
+          annealed: { proofMpa: 220, provisional: true, basis: "Pt/Ir 900/100 の値。Pd 入りの値は見つからない" },
+        },
+        sv925: {
+          name: "SV925",
+          young: { gpa: 80, provisional: false, basis: "地金会社の表の Ag925 の値" },
+          hardened: { proofMpa: 465, provisional: true, basis: "硬さ HV 155 からの換算の目安。耐力を測った値ではない" },
+          annealed: { proofMpa: 124, provisional: false, basis: "材料の解説の頁の値" },
+        },
+      },
+    },
   },
   shank: {
     widthMm: 2.2,

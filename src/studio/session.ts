@@ -6,7 +6,7 @@ import { PRESETS, presetOutline } from "./presets";
 import { autoOrientation, tAtOutlineIndex, type JoinStyle, type SolidQuality } from "../geometry/setting";
 import type { SectionCurve, SectionPoint, ShankSection } from "../geometry/shank";
 import type { StoneParams } from "../geometry/stone";
-import { FIXES, checkRing, cornerDistances, holdRatio, tensionNotes, type FixId, type Problem } from "../rules/checks";
+import { FIXES, checkRing, cornerDistances, holdRatio, tensionNotes, tensionOpening, tensionOpeningText, type FixId, type Problem } from "../rules/checks";
 import { GUIDES, requiredHold, stoneSizeMm, type HeightOption, type MetalId, type StonePosition } from "../rules/guides";
 import { effectiveGuides, prongMinOverride, ruleForCheck, type Ledger, type Rule } from "../rules/ledger";
 import type {
@@ -702,6 +702,7 @@ export class RingSession implements ToolHost<RingState> {
     const b = this.built ?? this.build();
     const std = b.ring.setting.standardProngMm;
     const failed = new Set(b.problems.map((p) => p.check));
+    const opening = tensionOpening(b.ring.setting, b.ring.shank, this.guides());
     return {
       problems: b.problems.map((p) => ({
         check: CHECK_NAME[p.check] ?? p.check,
@@ -714,7 +715,7 @@ export class RingSession implements ToolHost<RingState> {
       passed: Object.entries(CHECK_NAME)
         .filter(([k]) => !failed.has(k as Problem["check"]) && (b.ring.setting.style === "tension" ? TENSION_CHECKS.has(k) : !k.startsWith("tension-") && (b.ring.stones.length > 1 || !k.endsWith("-space")) && (b.ring.setting.collar !== null || (k !== "collar-wall" && k !== "band-end"))))
         .map(([, v]) => v),
-      note: `数字は目安・最後は職人が決める。石の一番下と指のすき間は ${b.ring.culetGapMm.toFixed(2)} mm、地金は約 ${b.ring.metalWeightG.toFixed(1)} g。${tensionNotes(b.ring.setting, b.ring.shank.thicknessMm, this.guides()).join(" ")}`.trim(),
+      note: `数字は目安・最後は職人が決める。石の一番下と指のすき間は ${b.ring.culetGapMm.toFixed(2)} mm、地金は約 ${b.ring.metalWeightG.toFixed(1)} g。${tensionNotes(b.ring.setting, b.ring.shank.thicknessMm, this.guides()).join(" ")}${opening ? ` ${tensionOpeningText(opening)}` : ""}`.trim(),
     };
   }
 

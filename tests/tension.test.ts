@@ -6,7 +6,7 @@ import type { Point } from "../src/geometry/polygon";
 import { buildRing, type RingParams } from "../src/geometry/ring";
 import type { ShankSection } from "../src/geometry/shank";
 import type { StoneParams } from "../src/geometry/stone";
-import { checkRing, tensionNotes } from "../src/rules/checks";
+import { TENSION_SHORT_TEXT, checkRing, elasticOpeningMm, tensionNotes, tensionOpening, tensionOpeningText } from "../src/rules/checks";
 import { GUIDES } from "../src/rules/guides";
 import { activeRules, seedLedger, type Ledger } from "../src/rules/ledger";
 import { howToMake } from "../src/studio/howto";
@@ -250,6 +250,68 @@ describe("テンションの確かめ", () => {
   });
 });
 
+describe("テンションの参考の計算（開ける量）", () => {
+  it("式：開ける量 ≒ 3π R² σ ÷（E d）", () => {
+    // R 10 mm・d 4 mm・E 100 GPa・σ 500 MPa：3π × 100 × 500 ÷（100000 × 4）＝ 1.178 mm
+    expect(elasticOpeningMm(10, 4, 100, 500)).toBeCloseTo((3 * Math.PI * 100 * 500) / (100000 * 4), 9);
+    expect(elasticOpeningMm(10, 4, 100, 500)).toBeCloseTo(1.178, 3);
+    // 太いほど減る（太さに反比例）・半径の 2 乗に比例
+    expect(elasticOpeningMm(10, 2, 100, 500)).toBeCloseTo(2 * elasticOpeningMm(10, 4, 100, 500), 9);
+    expect(elasticOpeningMm(20, 4, 100, 500)).toBeCloseTo(4 * elasticOpeningMm(10, 4, 100, 500), 9);
+  });
+
+  it("既定（φ4・11 号・K18）：R は指の半径 ＋ 太さ ÷ 2。要る量は くぼみ 1 ＋ 溝 0.5 ＝ 1.5 mm", () => {
+    const ring = ringOf(triangle);
+    const o = tensionOpening(ring.setting, ring.shank)!;
+    expect(o.radiusMm).toBeCloseTo(ring.shank.innerRadiusMm + 2, 9);
+    expect(o.wireMm).toBe(4);
+    expect(o.needMm).toBeCloseTo(1.5, 9);
+    expect(o.needText).toContain("角のくぼみ 1.00 mm");
+    expect(o.needText).toContain("辺の溝 0.50 mm");
+    const m = GUIDES.tension.spring.metals.k18y;
+    const hard = o.states.find((x) => x.state === "hardened")!;
+    expect(hard.openMm).toBeCloseTo(elasticOpeningMm(o.radiusMm, 4, m.young.gpa, m.hardened.proofMpa), 9);
+    expect(hard.openMm).toBeCloseTo(1.94, 2);
+    expect(o.states.find((x) => x.state === "annealed")!.openMm).toBeCloseTo(0.47, 2);
+  });
+
+  it("K18 の耐力は出典がないので「仮」。ヤング率は表の値", () => {
+    const m = GUIDES.tension.spring.metals.k18y;
+    expect(m.young.provisional).toBe(false);
+    expect(m.hardened.provisional).toBe(true);
+    expect(m.annealed.provisional).toBe(true);
+    const ring = ringOf(triangle);
+    expect(tensionOpeningText(tensionOpening(ring.setting, ring.shank)!)).toContain("（仮）");
+  });
+
+  it("足りないときは、職人が決める言葉を出す。足りるときは出さない", () => {
+    const ring = ringOf(triangle);
+    expect(tensionOpening(ring.setting, ring.shank)!.enough).toBe(true);
+    expect(tensionOpeningText(tensionOpening(ring.setting, ring.shank)!)).not.toContain(TENSION_SHORT_TEXT);
+    const pt = buildRing({ stone: triangle, setting: { style: "tension" }, shank: { ...phi4, metal: "pt900" } });
+    const o = tensionOpening(pt.setting, pt.shank)!;
+    expect(o.enough).toBe(false);
+    expect(tensionOpeningText(o)).toContain(TENSION_SHORT_TEXT);
+  });
+
+  it("合否にしない：足りなくても「作れない」は増えない。石にかかる力の数字は出さない", () => {
+    const pt = buildRing({ stone: triangle, setting: { style: "tension" }, shank: { ...phi4, metal: "pt900" } });
+    expect(tensionOpening(pt.setting, pt.shank)!.enough).toBe(false);
+    expect(checkRing(pt)).toEqual([]);
+    const text = tensionOpeningText(tensionOpening(pt.setting, pt.shank)!);
+    expect(text).not.toMatch(/\d\s*N\b/);
+    expect(text).toContain("目安・最後は職人が決める");
+    expect(text).toContain("細い輪の近似");
+    expect(text).toContain("まっすぐ押し開く");
+    expect(text).toContain("端の溝は無視");
+  });
+
+  it("爪留めには出さない", () => {
+    const r = buildRing({ stone: stones()[0][1], setting: { style: "prong", join: "between" }, shank: { gou: 11 } });
+    expect(tensionOpening(r.setting, r.shank)).toBeNull();
+  });
+});
+
 describe("設計の場と道具", () => {
   const empty = seedLedger() as Ledger;
   const session = () => {
@@ -292,6 +354,7 @@ describe("設計の場と道具", () => {
     expect(c.passed).toContain("溝の高さが腕に収まるか");
     expect(c.passed).not.toContain("爪の太さ");
     expect(c.note).toContain("加工硬化");
+    expect(c.note).toContain("参考の計算");
   });
 
   it("爪留めの確かめの一覧に、テンションの確かめは出ない", () => {
