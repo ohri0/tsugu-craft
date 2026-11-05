@@ -1,12 +1,14 @@
 // 合言葉：公開ページで Claude を使うための言葉。初めて Claude を使うときに一度だけ聞き、このブラウザに残す。
 // 「合言葉なしで使う」を選んだら、この画面を開いている間は聞かない（Claude なしで動く所だけ使える）。
+import { isMihon } from "./mihon";
 import { store } from "./store";
 
 let skipped = false;
 
 /** force：「合言葉なしで使う」を選んだあとでも、人がボタンを押して Claude を頼んだときは聞き直す */
 export function askPassword(force = false): Promise<string> {
-  if (skipped && !force) return Promise.resolve("");
+  // 見本は Claude を呼ばない。合言葉を聞かない
+  if (isMihon() || (skipped && !force)) return Promise.resolve("");
   return new Promise((resolve) => {
     const dlg = document.createElement("dialog");
     dlg.className = "sheet";

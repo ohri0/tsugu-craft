@@ -6,6 +6,7 @@ import { askGapPrompt, askGapUser, ASK_GAP, gapRulePrompt, gapRuleUser, GAP_RULE
 import { callTool } from "../rebuild/run";
 import { freshGap, valueText, type AnswerResult, type Gap, type RuleDraft } from "../rules/gaps";
 import { PARAMS, type ParamId } from "../rules/ledger";
+import { isMihon } from "./mihon";
 import { askPassword, resetPassword } from "./password";
 import { esc, store, today } from "./store";
 import { bindVoice, canListen } from "./voice";
@@ -41,9 +42,10 @@ const KIND: Record<Gap["kind"], string> = {
   provisional: "仮の目安のまま",
   public: "公開情報のまま",
   open: "資料にない",
+  asked: "学ぶ人から",
 };
 
-export function mountInterview(root: HTMLElement, target: InterviewTarget, opts: { onApplied?: (title: string) => void } = {}): Interview {
+export function mountInterview(root: HTMLElement, target: InterviewTarget, opts: { onApplied?: (title: string) => void; example?: (gap: Gap) => string } = {}): Interview {
   let current: string | undefined;
   /** いま描いた一覧の質問（帳面が変わって新しく出た質問を見つけるため） */
   let known: Set<string> | null = null;
@@ -81,7 +83,7 @@ export function mountInterview(root: HTMLElement, target: InterviewTarget, opts:
     const my = ++seq;
     root.innerHTML = `
       <div class="iv-head">
-        <p class="eyebrow">Claude から質問が 1 つあります <span class="iv-mode">${claude ? "Claude が聞いています" : "Claude なし"}</span></p>
+        <p class="eyebrow">${gap.kind === "asked" ? "学ぶ人から質問が届いています" : "Claude から質問が 1 つあります"} <span class="iv-mode">${isMihon() ? "見本（Claude は呼びません）" : claude ? "Claude が聞いています" : "Claude なし"}</span></p>
         <span class="iv-count">まだ決まっていない所 ${gaps.length}</span>
       </div>
       <p class="iv-q" aria-live="polite">${esc(gap.question)}</p>
@@ -93,13 +95,14 @@ export function mountInterview(root: HTMLElement, target: InterviewTarget, opts:
         </div>
         <div class="row">
           <button type="button" class="primary make">決まりにする</button>
+          ${opts.example ? `<button type="button" class="ghost use-example">作り話の例を入れる</button>` : ""}
           <button type="button" class="ghost skip">とばす</button>
           <label class="iv-name">答える人<input value="${esc(name)}" aria-label="答える人の名前"></label>
         </div>
         <p class="small box-status"></p>
         <div class="proposal-slot"></div>
       </div>
-      <p class="iv-foot">${claude ? "問いは Claude が言い直し、答えは Claude が決まりにまとめます。職人が言っていない数字は入れません（入っていたら Claude なしの案に戻します）。" : `問いは決まった文で、答えの数字を読んで決まりにします。<button type="button" class="linklike use-claude">合言葉を入れて Claude に聞いてもらう</button>`}</p>`;
+      <p class="iv-foot"${isMihon() ? " hidden" : ""}>${claude ? "問いは Claude が言い直し、答えは Claude が決まりにまとめます。職人が言っていない数字は入れません（入っていたら Claude なしの案に戻します）。" : `問いは決まった文で、答えの数字を読んで決まりにします。<button type="button" class="linklike use-claude">合言葉を入れて Claude に聞いてもらう</button>`}</p>`;
     const $ = <T extends HTMLElement = HTMLElement>(s: string) => root.querySelector<T>(s)!;
     const field = $<HTMLTextAreaElement>("textarea");
     const st = (t: string) => ($(".box-status").textContent = t);
@@ -114,6 +117,9 @@ export function mountInterview(root: HTMLElement, target: InterviewTarget, opts:
       if (!rest.length) skipped.clear();
       render();
     });
+    root.querySelector(".use-example")?.addEventListener("click", () => {
+      field.value = opts.example!(gap);
+    });
     root.querySelector(".use-claude")?.addEventListener("click", async () => {
       if (await askPassword(true)) render();
     });
@@ -121,7 +127,8 @@ export function mountInterview(root: HTMLElement, target: InterviewTarget, opts:
       voice.stop();
       void answer(gap, field.value.trim(), st);
     });
-    if (claude) void rephrase(gap, my);
+    // 学ぶ人から届いた質問は、その人の言葉のまま聞く
+    if (claude && gap.kind !== "asked") void rephrase(gap, my);
   }
 
   async function rephrase(gap: Gap, my: number) {
@@ -155,7 +162,7 @@ export function mountInterview(root: HTMLElement, target: InterviewTarget, opts:
       return;
     }
     let draft: RuleDraft | undefined = local.ok ? local.draft : undefined;
-    let note = "Claude なし：答えの数字を読んで決まりにしました。";
+    let note = isMihon() ? "見本：Claude を呼ばず、答えをそのまま案にしました。" : "Claude なし：答えの数字を読んで決まりにしました。";
     if (store.password()) {
       st("Claude が決まりにまとめています…");
       const r = await callTool<GapRuleOut>({
@@ -206,8 +213,8 @@ export function mountInterview(root: HTMLElement, target: InterviewTarget, opts:
       <p class="iv-rule"><b>${esc(d.title)}</b>${d.value !== undefined && !d.bySize ? `<span class="val">${esc(valueText(d.value, unitOf(d.param)))}</span>` : ""}</p>
       <p class="iv-text">${esc(d.text)}</p>
       <blockquote>「${esc(d.quote ?? "")}」</blockquote>
-      <p class="small muted">${esc(src)} ・ ${esc(d.date)}${d.replaces ? " ・ 今の決まりを置き換えます（前の決まりは履歴に残ります）" : ""}</p>
-      <div class="row"><button type="button" class="primary" data-a="ok">帳面に入れる</button><button type="button" class="ghost" data-a="no">言い直す</button></div>
+      <p class="small muted">${esc(isMihon() ? "作り話の例" : src)} ・ ${esc(d.date)}${d.replaces ? " ・ 今の決まりを置き換えます（前の決まりは履歴に残ります）" : ""}</p>
+      <div class="row"><button type="button" class="primary" data-a="ok">これでいい（帳面に入れる）</button><button type="button" class="ghost" data-a="no">言い直す</button></div>
     </div>`;
     slot.querySelector('[data-a="ok"]')!.addEventListener("click", () => {
       if (!askConfirm(`この決まりを帳面に入れますか？\n「${d.title}」\n設計の確かめと、学ぶ人への答えに使われます。`)) return;

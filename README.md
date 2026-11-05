@@ -209,6 +209,10 @@ Claude Desktop に足す（設定の「開発者」→ 設定ファイル `claud
 | `public/lp/*.webp`（入口のページと README の写真：hero・hero-phone・before・after・fixpop・spike・zaguri・trio-round・trio-pear・c-stone5・c-stone10・c-hira・c-free・c-bezel・c-pt・ledger・ledger-pub・waza・tech・rebuild・make・draw と、それぞれ半分の幅の `-sm`） | 継ぐの画面を撮ったもの（`scripts/lp-shots.cjs`） | このリポジトリの作品の一部 |
 | `samples/triangle_closeup_2026-11-02.jpg`・`public/stones/triangle.jpg`（同じ写真） | 作者が撮った石の写真（撮影情報は消してある） | このリポジトリの作品の一部 |
 
+## 見本の動画
+
+`public/mihon/` の動画と手の記録は、`scripts/make-mihon.ts` がこのリポジトリの中で描いて作った作り話です（手は絵で、人の手を撮っていません）。
+
 ## ライセンス
 
 [MIT](LICENSE)。コードと帳面（`ledger/`）の中身をふくむ。上の表の、外から借りた画像は、それぞれの利用条件に従う。

@@ -10,7 +10,12 @@ import { createRecord, importRecord, type SkillRecord } from "../craft/record";
 import { comparePose, poseSummary, poseTrack, type Moment, type PoseComparison, type PoseTrack, type Side } from "../craft/pose";
 import { RED_PEN, marksSvg, parseRedPen, redPenPrompt, type RedPen } from "../claude/redpen";
 import { callTool } from "../rebuild/run";
-import { activeRules, ledgerText, type Rule } from "../rules/ledger";
+import { WAZA_ORDER } from "../rules/flow";
+import type { HowtoId } from "../rules/howto-steps";
+import { activeRules, ledgerText, sourceLabel, type Rule } from "../rules/ledger";
+import { isTechId, techLedgerText } from "../rules/techniques";
+import { flowStrip, isMihonSource, san, techName, techPicker } from "./flow-view";
+import { clipUrl, flowUI, isMihon, MIHON_CLIPS, MIHON_NAME } from "./mihon";
 import { findRules } from "../rules/search";
 import { addQuestion } from "../rules/teacher-queue";
 import { savedRecords } from "../ui/motion-ui";
@@ -37,6 +42,17 @@ interface SampleManifest {
 const clock = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
 
 async function loadSamples(): Promise<{ master: Example; learner?: Example } | null> {
+  // 見本：学ぶ人の動画だけを使う（手本は職人の段で「残す」と出る）。絵で描いた作り話の動き
+  if (isMihon()) {
+    try {
+      const c = MIHON_CLIPS.learner;
+      const record = importRecord(await (await fetch(c.record)).text());
+      const learner: Example = { id: "mihon-learner", record: { ...record, title: "学ぶ人の動画（作り話）" }, videoUrl: clipUrl(c), sample: true };
+      return { master: learner, learner };
+    } catch {
+      return null;
+    }
+  }
   try {
     const res = await fetch("samples/manifest.json", { cache: "no-store" });
     if (!res.ok) return null;
@@ -60,9 +76,11 @@ async function localExamples(): Promise<Example[]> {
   return out;
 }
 
-export function mountSee(root: HTMLElement): { refresh(): void } {
+export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: string): void; flow(): void } {
+  const flow = flowUI();
   root.innerHTML = `
-  <section class="view see">
+  <section class="view see${flow ? " in-flow" : ""}">
+    ${flow ? `<div class="fl-slot"></div><div class="tech-pick-slot"></div>` : ""}
     <a class="back" href="#learn">← 職人に聞く</a>
     <header class="view-head">
       <h2>手の動きで比べる</h2>
@@ -99,30 +117,77 @@ export function mountSee(root: HTMLElement): { refresh(): void } {
   const lv = $<HTMLVideoElement>(".lv");
   const status = (t: string) => ($(".status").textContent = t);
 
+  let seq = 0;
   let examples: Example[] = [];
   let sampleLearner: Example | undefined;
   let current: Example | null = null;
   let masterTrack: { left: PoseTrack; right: PoseTrack } | null = null;
   let learner: { record: SkillRecord; videoUrl: string } | null = null;
   let cmp: PoseComparison | null = null;
+  /** いま比べている技（なければ全部の手本を出す。前の #learn/hands のまま） */
+  let tech: HowtoId | undefined;
+
+  /** 職人の呼び名 */
+  const masterOf = () => (isMihon() ? MIHON_NAME : masterName(store.mainLedger()));
+  /** その技の決まり */
+  const rulesNow = (): Rule[] => (tech && tech !== "ring" ? (activeRules(store.techLedger(tech)) as unknown as Rule[]) : activeRules(store.ledger()));
+  const textNow = (): string => (tech && tech !== "ring" ? techLedgerText(store.techLedger(tech)) : ledgerText(store.ledger()));
+
+  function renderFlow() {
+    if (!flow) return;
+    const id = tech ?? "ring";
+    $(".fl-slot").innerHTML = flowStrip(id, { at: "hands", compact: true });
+    $<HTMLAnchorElement>(".back").href = `#learn/${id}`;
+    if (!$(".tech-pick-slot").childElementCount) {
+      $(".tech-pick-slot").innerHTML = techPicker(id, WAZA_ORDER, "どの技を比べますか");
+      $<HTMLSelectElement>(".tech-pick-slot select").addEventListener("change", (e) => (location.hash = `#learn/hands/${(e.target as HTMLSelectElement).value}`));
+    }
+    $<HTMLSelectElement>(".tech-pick-slot select").value = id;
+  }
+
+  /** 別の技へ（前の結果は消す） */
+  function route(next?: string) {
+    const id = next && (next === "ring" || isTechId(next)) ? (next as HowtoId) : undefined;
+    if (id !== tech) {
+      tech = id;
+      current = null;
+      learner = null;
+      cmp = null;
+      $(".result").hidden = true;
+    }
+    void refresh();
+  }
 
   // ---- 手本 ----
   async function refresh() {
-    const name = masterName(store.ledger());
-    $(".see-title").textContent = `${name}さんの手本の動画と、あなたの手の動きを比べます。`;
+    renderFlow();
+    const name = masterOf();
+    const my = ++seq;
+    $(".see-title").textContent = tech ? `${san(name)}の手本（${techName(tech)}）と、あなたの手の動きを比べます。` : `${name}さんの手本の動画と、あなたの手の動きを比べます。`;
     const samples = await loadSamples();
-    const local = await localExamples();
-    examples = [...(samples ? [samples.master] : []), ...local];
+    const local = (await localExamples()).filter((e) => !tech || (e.record.technique ?? "ring") === tech);
+    if (my !== seq) return;
+    const mihon = isMihon();
+    examples = [...(samples && !mihon && (!tech || tech === "ring") ? [samples.master] : []), ...local];
     sampleLearner = samples?.learner;
     $(".try-sample").hidden = !sampleLearner;
+    // 見本は、撮らずに作り話の動画で比べる
+    root.querySelectorAll<HTMLElement>(".cta .row label").forEach((l) => (l.hidden = mihon));
+    if (mihon) {
+      $(".try-sample").classList.replace("ghost", "primary");
+      $(".try-sample").textContent = "作り話の動画で比べる";
+      $(".cta b").textContent = "学ぶ人の手を、手本と比べる";
+      $(".cta small").textContent = "本当は、自分の手を撮ります。見本では、絵で描いた動画を使います。";
+    }
     if (!examples.length) {
-      $(".examples").innerHTML = `<div class="no-example"><p>手本の動画は、まだありません。</p><div class="row"><a class="primary btnlike" href="#ledger/motion">職人が手本を撮る</a></div></div>`;
+      const toMaster = tech ? `#waza/${tech}?step=model` : "#ledger/motion";
+      $(".examples").innerHTML = `<div class="no-example"><p>${tech ? `${esc(techName(tech))}の手本は、まだありません。` : "手本の動画は、まだありません。"}</p><div class="row"><a class="primary btnlike" href="${toMaster}">職人が手本を残す</a></div></div>`;
       $(".master-stage").hidden = true;
       $(".cta").hidden = true;
       return;
     }
     $(".examples").innerHTML = `<div class="ex-list">${examples
-      .map((e, i) => `<button type="button" class="ex" data-i="${i}" aria-pressed="false"><b>${esc(e.record.title)}</b><small>${esc(e.record.craftsman || name)}さん ・ ${clock(e.record.durationS)}${e.record.notes.length ? ` ・ 言葉 ${e.record.notes.length}` : ""}${e.sample ? " ・ 見本" : ""}</small></button>`)
+      .map((e, i) => `<button type="button" class="ex" data-i="${i}" aria-pressed="false"><b>${esc(e.record.title)}</b><small>${esc(e.record.craftsman === MIHON_NAME ? "作り話の例" : `${e.record.craftsman || name}さん`)} ・ ${clock(e.record.durationS)}${e.record.notes.length ? ` ・ 言葉 ${e.record.notes.length}` : ""}${e.sample ? " ・ 見本" : ""}</small></button>`)
       .join("")}</div>`;
     root.querySelectorAll<HTMLButtonElement>(".ex").forEach((b) => b.addEventListener("click", () => choose(examples[Number(b.dataset.i)])));
     if (!current || !examples.some((e) => e.id === current!.id)) choose(examples[0]);
@@ -137,7 +202,7 @@ export function mountSee(root: HTMLElement): { refresh(): void } {
     $(".cta").hidden = false;
     $(".result").hidden = true;
     cmp = null;
-    $(".master-meta").textContent = `${e.record.craftsman || masterName(store.ledger())}さん ・ ${e.record.date} ・ 線は手の骨組み（動画から読んだ手の点）`;
+    $(".master-meta").textContent = `${e.record.craftsman === MIHON_NAME ? "作り話の例・絵で描いた手" : `${e.record.craftsman || masterOf()}さん`} ・ ${e.record.date} ・ 線は手の骨組み（動画から読んだ手の点）`;
     $(".pins").innerHTML = e.record.notes
       .map((n, i) => `<button type="button" class="pin" data-i="${i}" style="left:${((100 * n.t) / Math.max(1, e.record.durationS)).toFixed(2)}%" title="${esc(n.text)}"></button>`)
       .join("");
@@ -253,17 +318,26 @@ export function mountSee(root: HTMLElement): { refresh(): void } {
     }
     cmp = cands.sort((a, b) => Math.abs(Math.log(b.ratio)) - Math.abs(Math.log(a.ratio)))[0];
     renderResult();
+    if (flow) store.flowMark("compared", tech ?? "ring");
   }
 
   function holdRule(): Rule | undefined {
+    // 手のふらつきの話なので、指輪の帳面は「金属を持つ手」の決まり。ほかの技は、職人の言葉があればそれを、なければ出さない（関係のない決まりを出さない）
+    if (tech && tech !== "ring") return rulesNow().filter((r) => r.source.kind === "craftsman" && r.quote && /手|持|握|つま|力/.test(`${r.title}${r.text}${r.quote}`)).pop();
     const rules = activeRules(store.ledger());
     return findRules("金属を持つ手 すり板 押し付けて 動かさない", rules, 0.2, 1)[0];
+  }
+
+  /** 引用の下の名前（見本は作り話、資料は出どころ） */
+  function quoteWho(rule: Rule): string {
+    if (isMihonSource(rule)) return `作り話の例 ・ ${MIHON_NAME}`;
+    return rule.source.kind === "craftsman" ? `${rule.source.name}さん` : sourceLabel(rule.source);
   }
 
   function renderResult() {
     if (!cmp || !current || !learner) return;
     const c = cmp;
-    const name = current.record.craftsman || masterName(store.ledger());
+    const name = current.record.craftsman || masterOf();
     const rule = holdRule();
     const r = c.ratio;
     const head = r >= 1.3 ? `手が、手本の <em>${r.toFixed(1)} 倍</em> 動いています` : r <= 0.77 ? `手本より、手の動きが小さいです` : `手本とほぼ同じ動きです`;
@@ -275,11 +349,12 @@ export function mountSee(root: HTMLElement): { refresh(): void } {
         <p class="eyebrow">比べた結果 ・ ${c.side === "right" ? "画面の右の手" : "画面の左の手"}</p>
         <h3>${head}</h3>
         <div class="bars">
-          <div><span>${esc(name)}さん</span><i style="--w:${((100 * c.masterWobble) / max).toFixed(1)}%" class="gold"></i></div>
+          <div><span>${esc(san(name))}</span><i style="--w:${((100 * c.masterWobble) / max).toFixed(1)}%" class="gold"></i></div>
           <div><span>あなた</span><i style="--w:${((100 * c.learnerWobble) / max).toFixed(1)}%" class="red"></i></div>
         </div>
         <p class="small">手のひらの中心が、前後 1 秒の真ん中の位置からどれだけ離れたか（ふらつき）の平均。手本 ${c.masterWobble.toFixed(2)}・あなた ${c.learnerWobble.toFixed(2)}（手のひらの長さを 1 として）。</p>
-        ${rule ? `<blockquote>「${esc(rule.quote || rule.text)}」<small>${esc(rule.source.kind === "craftsman" ? `${rule.source.name}さん` : "")} ・ ${esc(rule.title)}</small></blockquote>` : ""}
+        ${isMihon() ? `<p class="small muted">絵で描いた作り話の動きを比べた結果です。</p>` : ""}
+        ${rule ? `<blockquote>「${esc(rule.quote || rule.text)}」<small>${esc(quoteWho(rule))} ・ ${esc(rule.title)}</small></blockquote>` : ""}
       </div>
       <div class="heat">
         <p class="small">あなたの動画で、手本より大きく揺れた所（赤いほど違う）</p>
@@ -305,18 +380,18 @@ export function mountSee(root: HTMLElement): { refresh(): void } {
     if (!current || !learner || !cmp) return;
     root.querySelectorAll<HTMLButtonElement>(".mk").forEach((b) => b.classList.toggle("on", Number(b.dataset.m) === i));
     const box = $(".moment");
-    const name = current.record.craftsman || masterName(store.ledger());
+    const name = current.record.craftsman || masterOf();
     box.innerHTML = `
       <div class="pair">
-        <figure><div class="shot"><canvas class="cm"></canvas><div class="pen pen-m"></div></div><figcaption>${esc(name)}さん ・ ${m.masterT !== null ? clock(m.masterT) : "-"}<small>いちばん似た形のこま</small></figcaption></figure>
+        <figure><div class="shot"><canvas class="cm"></canvas><div class="pen pen-m"></div></div><figcaption>${esc(san(name))} ・ ${m.masterT !== null ? clock(m.masterT) : "-"}<small>いちばん似た形のこま</small></figcaption></figure>
         <figure><div class="shot"><canvas class="cl"></canvas><div class="pen pen-l"></div></div><figcaption>あなた ・ ${clock(m.t)}<small>違いがいちばん大きいこま</small></figcaption></figure>
       </div>
       <p class="legend"><i class="gold"></i>手本の手の通った跡 <i class="red"></i>あなたの手の通った跡（前後 1 秒）${m.angleDiff !== null && Math.abs(m.angleDiff) >= 8 ? ` ・ 手の向きが手本より ${Math.abs(m.angleDiff).toFixed(0)}° ${m.angleDiff > 0 ? "左に回っています" : "右に回っています"}` : ""}</p>
       <div class="pen-note" hidden></div>
       <div class="row moment-actions">
-        <button type="button" class="primary pen-go">Claude に赤ペンを頼む</button>
+        ${isMihon() ? "" : `<button type="button" class="primary pen-go">Claude に赤ペンを頼む</button>`}
         <button type="button" class="ghost play-both">並べて再生</button>
-        <button type="button" class="ghost ask-master">この瞬間を${esc(name)}さんに聞く</button>
+        <button type="button" class="ghost ask-master">この瞬間を${esc(san(name))}に聞く</button>
       </div>`;
     const side = cmp.side;
     const lt = poseTrack(learner.record.landmarksSampled, side);
@@ -337,18 +412,19 @@ export function mountSee(root: HTMLElement): { refresh(): void } {
     mvid.preload = "auto";
     await shoot(mvid, current.videoUrl, box.querySelector(".cm")!, mt, m.masterT ?? 0, "rgba(233,196,106,0.9)", "#e9c46a");
     await shoot(lv, learner.videoUrl, box.querySelector(".cl")!, lt, m.t, "rgba(255,255,255,0.85)", "#e0412b");
-    box.querySelector(".pen-go")!.addEventListener("click", () => void redPen(m, box));
+    box.querySelector(".pen-go")?.addEventListener("click", () => void redPen(m, box));
     box.querySelector(".ask-master")!.addEventListener("click", () => {
       store.setQueue(
         addQuestion(store.queue(), {
           question: `この瞬間（${clock(m.t)}）の手の動きで、どこを直せばいい？`,
-          whyUnanswered: `手の点から分かったのは「${poseSummary(cmp!)}」まで。何を見て直すかは${name}さんに聞きたい`,
+          whyUnanswered: `手の点から分かったのは「${poseSummary(cmp!)}」まで。何を見て直すかは${san(name)}に聞きたい`,
           context: `学ぶ人の動画 ${clock(m.t)}、手本の似た形 ${m.masterT !== null ? clock(m.masterT) : "-"}`,
           date: today(),
+          ...(tech && tech !== "ring" ? { technique: tech } : {}),
         }).queue,
       );
       const b = box.querySelector<HTMLButtonElement>(".ask-master")!;
-      b.textContent = `${name}さんに回しました（帳面に届きます）`;
+      b.textContent = `${san(name)}に回しました（帳面に届きます）`;
       b.disabled = true;
     });
     box.querySelector(".play-both")!.addEventListener("click", async () => {
@@ -376,7 +452,7 @@ export function mountSee(root: HTMLElement): { refresh(): void } {
 
   async function redPen(m: Moment, box: HTMLElement) {
     if (!current || !learner || !cmp) return;
-    const name = current.record.craftsman || masterName(store.ledger());
+    const name = current.record.craftsman || masterOf();
     const pass = store.password() || (await askPassword(true));
     const note = box.querySelector<HTMLElement>(".pen-note")!;
     note.hidden = false;
@@ -396,11 +472,10 @@ export function mountSee(root: HTMLElement): { refresh(): void } {
     };
     const cm = box.querySelector<HTMLCanvasElement>(".cm")!;
     const cl = box.querySelector<HTMLCanvasElement>(".cl")!;
-    const ledger = store.ledger();
-    const rules = activeRules(ledger);
+    const rules = rulesNow();
     const notesNear = current.record.notes.filter((n) => m.masterT !== null && Math.abs(n.t - m.masterT) < 4).map((n) => `${clock(n.t)}「${n.text}」`);
     const r = await callTool<RedPen>({
-      system: redPenPrompt(name, ledgerText(ledger)),
+      system: redPenPrompt(name, textNow()),
       user: [
         { type: "text", text: `1 枚目：${name}さんの手本（${m.masterT !== null ? clock(m.masterT) : "-"}）` },
         { type: "image", source: { type: "base64", media_type: "image/jpeg", data: img(cm) } },
@@ -427,11 +502,11 @@ export function mountSee(root: HTMLElement): { refresh(): void } {
     box.querySelector(".pen-l")!.innerHTML = marksSvg(pen.marks, "you", aspectOf(cl));
     const rule = rules.find((q) => q.id === pen.rule_id);
     note.innerHTML = `<div class="pen-card"><p class="pen-comment">${esc(pen.comment)}</p>
-      ${rule ? `<blockquote>「${esc(rule.quote || rule.text)}」<small>${esc(rule.source.kind === "craftsman" ? `${rule.source.name}さん` : "")} ・ ${esc(rule.title)}</small></blockquote>` : ""}
+      ${rule ? `<blockquote>「${esc(rule.quote || rule.text)}」<small>${esc(quoteWho(rule))} ・ ${esc(rule.title)}</small></blockquote>` : ""}
       ${pen.ask_master ? `<p class="small">画像からは分からないこと：${esc(pen.ask_master)} <button type="button" class="ghost tiny send-ask">${esc(name)}さんに聞く</button></p>` : ""}
       <p class="small muted">赤ペン：Claude ・ 手本と見比べた見た目の違いだけ。最後は職人が決めます。</p></div>`;
     note.querySelector(".send-ask")?.addEventListener("click", (e) => {
-      store.setQueue(addQuestion(store.queue(), { question: pen.ask_master, whyUnanswered: "画像からは判断できない（赤ペンから）", context: `学ぶ人の動画 ${clock(m.t)}`, date: today() }).queue);
+      store.setQueue(addQuestion(store.queue(), { question: pen.ask_master, whyUnanswered: "画像からは判断できない（赤ペンから）", context: `学ぶ人の動画 ${clock(m.t)}`, date: today(), ...(tech && tech !== "ring" ? { technique: tech } : {}) }).queue);
       const b = e.currentTarget as HTMLButtonElement;
       b.textContent = "回しました";
       b.disabled = true;
@@ -448,5 +523,5 @@ export function mountSee(root: HTMLElement): { refresh(): void } {
   $(".try-sample").addEventListener("click", () => sampleLearner && void readLearner(sampleLearner));
 
   void refresh();
-  return { refresh: () => void refresh() };
+  return { refresh: () => void refresh(), route, flow: renderFlow };
 }

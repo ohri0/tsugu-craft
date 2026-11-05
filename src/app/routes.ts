@@ -21,3 +21,11 @@ export function redirectHash(hash: string): string | null {
       return null;
   }
 }
+
+/** 学ぶの中の場所：#learn（聞く）・#learn/kebori（その技で聞く）・#learn/hands（手を比べる）・#learn/hands/kebori（その技の手本と比べる） */
+export function parseLearn(sub: string, isTech: (s: string) => boolean): { hands: boolean; tech?: string } {
+  const [head, next] = sub.split("?")[0].split("/");
+  const hands = head === "hands";
+  const name = hands ? next : head;
+  return { hands, ...(name && isTech(name) ? { tech: name } : {}) };
+}

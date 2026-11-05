@@ -3,23 +3,28 @@
 // Claude につながらないときは、目安帳から近い決まりを探して出す（デモが止まらないように）。
 import { parseAskAnswer, type AskAnswer } from "../claude/answer";
 import { runClaude } from "../claude/loop";
-import { askPrompt } from "../claude/prompt";
+import { askPrompt, askPromptText } from "../claude/prompt";
 import { TOOLS, type ToolHost } from "../claude/tools";
 import type { ClaudeMessageParam } from "../claude/wire";
-import { activeRules, sourceLabel, type Rule } from "../rules/ledger";
+import { LEARN_SUGGEST, openQuestions, WAZA_ORDER } from "../rules/flow";
+import type { HowtoId } from "../rules/howto-steps";
+import { sourceLabel, type Rule } from "../rules/ledger";
+import { isTechId, techLedgerText } from "../rules/techniques";
 import { findRules, prongSizeAnswer } from "../rules/search";
-import { addQuestion, groupQuestions } from "../rules/teacher-queue";
+import { addQuestion } from "../rules/teacher-queue";
+import { flowStrip, isMihonSource, techName, techPicker, techRules } from "./flow-view";
+import { flowUI, isMihon, MIHON_NAME, MIHON_UNKNOWN } from "./mihon";
 import { esc, store, today } from "./store";
 import { bindVoice } from "./voice";
 import { askPassword, resetPassword } from "./password";
 import { bookLabel, masterName, ruleQuote } from "./master";
 import { getVideo } from "./video-store";
 
-const SUGGEST = ["9 mm くらいの石の爪は、何 mm にする？", "三角の石は、爪 3 本で留まる？", "エメラルドはロウ付けの前に外す？", "ロウはどの順に使う？", "10 号の内径は？"];
-
-export function mountAsk(root: HTMLElement): { refresh(): void } {
+export function mountAsk(root: HTMLElement): { refresh(): void; route(tech?: string): void } {
+  const flow = flowUI();
   root.innerHTML = `
-  <section class="view ask">
+  <section class="view ask${flow ? " in-flow" : ""}">
+    ${flow ? `<div class="fl-slot"></div><div class="tech-pick-slot"></div>` : ""}
     <header class="view-head learn-head">
       <div><h2>職人に聞く</h2><p class="lead">帳面の決まりから、理由つきで答えます。</p></div>
       <a class="ghost btnlike to-hands" href="#learn/hands">手の動きで比べる ›</a>
@@ -48,22 +53,57 @@ export function mountAsk(root: HTMLElement): { refresh(): void } {
   const status = (t: string) => ($(".status").textContent = t);
   let messages: ClaudeMessageParam[] = [];
   let busy = false;
+  /** いま学んでいる技 */
+  let tech: HowtoId = "ring";
+
+  /** 答える人の呼び名（指輪の帳面は工房の名前、ほかの技も同じ工房の職人に回す） */
+  const whoLabel = () => (isMihon() ? MIHON_NAME : bookLabel(store.ledger()));
+  const rulesNow = (): Rule[] => techRules(tech) as unknown as Rule[];
 
   function refresh() {
     const ledger = store.ledger();
-    const label = bookLabel(ledger);
-    const all = activeRules(ledger);
+    const label = whoLabel();
+    const all = rulesNow();
     const mine = all.filter((r) => r.source.kind === "craftsman");
     $(".avatar").textContent = label.slice(0, 1);
-    $(".master-title").textContent = `${label}の技`;
-    $(".master-sub").textContent = `宝飾の彫金 ・ 職人：${masterName(ledger)}`;
-    $(".master-lead").textContent = `下の例を押すか、書いて聞いてください。帳面の決まり ${all.length} から答えます。答えられないことは${label}に回します。`;
-    const open = groupQuestions(store.queue()).filter((g) => !g.answeredRuleId).length;
-    $(".master-stats").innerHTML = `<span><b>${all.length}</b>決まり</span><span><b>${mine.length}</b>職人</span><span><b>${open}</b>質問中</span>`;
+    $(".master-title").textContent = flow ? label : `${label}の技`;
+    $(".master-sub").textContent = flow ? (isMihon() ? "作り話の例" : `職人：${masterName(store.mainLedger())}`) : `宝飾の彫金 ・ 職人：${masterName(ledger)}`;
+    const unknown = flow && !mine.length ? "この技の職人の言葉は、まだありません。今は資料の決まりから答えます。" : "";
+    $(".master-lead").textContent = `${unknown}下の例を押すか、書いて聞いてください。帳面の決まり ${all.length} から答えます。答えられないことは${label}に回します。`;
+    const open = openQuestions(store.queue(), tech).length;
+    $(".master-stats").innerHTML = `<span><b>${all.length}</b>決まり</span><span><b>${mine.length}</b>${isMihon() ? "残した" : "職人"}</span><span><b>${open}</b>質問中</span>`;
+    if (flow) {
+      $(".fl-slot").innerHTML = flowStrip(tech, { at: "ask", compact: true });
+      $(".to-hands").setAttribute("href", `#learn/hands/${tech}`);
+      if (!$(".tech-pick-slot").childElementCount) {
+        $(".tech-pick-slot").innerHTML = techPicker(tech, WAZA_ORDER, "どの技を学びますか");
+        $<HTMLSelectElement>(".tech-pick-slot select").addEventListener("change", (e) => (location.hash = `#learn/${(e.target as HTMLSelectElement).value}`));
+      }
+      $<HTMLSelectElement>(".tech-pick-slot select").value = tech;
+    }
   }
 
-  $(".chips").innerHTML = SUGGEST.map((s) => `<button type="button" class="chip">${esc(s)}</button>`).join("");
-  root.querySelectorAll<HTMLButtonElement>(".chip").forEach((b) => b.addEventListener("click", () => void ask(b.textContent ?? "")));
+  function renderChips() {
+    const list = [...LEARN_SUGGEST[tech], ...(isMihon() && tech === "kebori" ? [MIHON_UNKNOWN] : [])];
+    $(".chips").innerHTML = list.map((s) => `<button type="button" class="chip">${esc(s)}</button>`).join("");
+    root.querySelectorAll<HTMLButtonElement>(".chip").forEach((b) => b.addEventListener("click", () => void ask(b.textContent ?? "")));
+  }
+  renderChips();
+
+  /** 別の技へ。話の流れは技ごとに分ける（ちがう技の帳面の話が混ざらないように） */
+  function route(next?: string) {
+    const id = (next && (next === "ring" || isTechId(next)) ? next : flow && (store.lastTech() === "ring" || isTechId(store.lastTech())) ? store.lastTech() : "ring") as HowtoId;
+    if (next) store.setLastTech(id);
+    if (id !== tech) {
+      tech = id;
+      messages = [];
+      thread.querySelectorAll(".q, .a").forEach((el) => el.remove());
+      $(".empty").hidden = false;
+      status("");
+      renderChips();
+    }
+    refresh();
+  }
 
   function bubble(cls: string, html: string): HTMLElement {
     $(".empty").hidden = true;
@@ -75,22 +115,39 @@ export function mountAsk(root: HTMLElement): { refresh(): void } {
     return el;
   }
 
+  /** 決まりの出どころ（見本は作り話と書く。公開の資料はリンクつき） */
+  function srcLine(r: Rule): string {
+    if (isMihonSource(r)) return `作り話の例 ・ ${esc(MIHON_NAME)}`;
+    return r.source.kind === "public" && r.source.url ? `<a href="${esc(r.source.url)}" target="_blank" rel="noopener">${esc(sourceLabel(r.source))}</a>` : esc(sourceLabel(r.source));
+  }
+
   function ruleBlock(r: Rule): string {
     const q = ruleQuote(r);
     return `<div class="evidence">
       ${q ? `<blockquote>「${esc(q)}」</blockquote>` : ""}
       <p class="ev-rule">決まり：${esc(r.title)}</p>
       <div class="ev-video" data-rule="${esc(r.id)}" hidden></div>
-      <p class="ev-src">${r.source.kind === "public" && r.source.url ? `<a href="${esc(r.source.url)}" target="_blank" rel="noopener">${esc(sourceLabel(r.source))}</a>` : esc(sourceLabel(r.source))}${r.unverified ? " ・ 未確認" : ""} ・ ${esc(r.date)}</p>
+      <p class="ev-src">${srcLine(r)}${r.unverified ? " ・ 未確認" : ""} ・ ${esc(r.date)}</p>
     </div>`;
   }
 
+  /** 答えのすぐ下に、もとにした言葉（職人の言葉はそのまま、資料は出どころ）。押さなくても見える */
+  function voiceBlock(rules: Rule[], short: string): string {
+    const r = rules.find((x) => x.source.kind === "craftsman" && ruleQuote(x)) ?? rules[0];
+    if (!flow || !r) return "";
+    const q = r.source.kind === "craftsman" ? ruleQuote(r) : "";
+    // 答えが職人の言葉そのままなら、同じ文を二度出さない
+    return `<div class="a-voice${q ? " quoted" : ""}">${q && q !== short.trim() ? `<blockquote>「${esc(q)}」</blockquote>` : ""}<small>${srcLine(r)}${r.unverified ? " ・ 未確認" : ""} ・ ${esc(r.date)}</small></div>`;
+  }
+
   function answerCard(a: AskAnswer, rules: Rule[], via: "claude" | "local", asked: boolean): string {
-    const name = bookLabel(store.ledger());
+    const name = whoLabel();
     return `<p class="a-short">${esc(a.short)}</p>
+      ${voiceBlock(rules, a.short)}
       ${a.why || rules.length ? `<button type="button" class="why-btn" aria-expanded="false">なぜ？</button>
       <div class="a-why" hidden>${a.why ? `<p>${esc(a.why)}</p>` : ""}${rules.map(ruleBlock).join("")}</div>` : ""}
-      <p class="a-meta">${asked ? `<span class="tag gold">${esc(name)}に回しました ・ 帳面に届きます</span>` : ""}${via === "local" ? `<span class="tag">Claude なし ・ 帳面から探しました</span>` : ""}${rules.length ? `<span>決まり ${rules.length} つから</span>` : ""}</p>`;
+      <p class="a-meta">${asked ? `<span class="tag gold">${esc(name)}に回しました ・ 帳面に届きます</span>` : ""}${via === "local" && !isMihon() ? `<span class="tag">Claude なし ・ 帳面から探しました</span>` : ""}${rules.length ? `<span>決まり ${rules.length} つから</span>` : ""}</p>
+      ${asked && flow ? `<a class="linklike to-master" href="#waza/${tech}?step=answer">職人の画面で、届いた質問を見る ›</a>` : ""}`;
   }
 
   /** 職人が動画で見せた答えがあれば、なぜ？の中に出す */
@@ -99,7 +156,7 @@ export function mountAsk(root: HTMLElement): { refresh(): void } {
       const blob = await getVideo(`rule:${box.dataset.rule}`);
       if (!blob) continue;
       box.hidden = false;
-      box.innerHTML = `<p class="small">職人：${esc(masterName(store.ledger()))}が見せた動画</p><video src="${URL.createObjectURL(blob)}" controls playsinline muted></video>`;
+      box.innerHTML = `<p class="small">職人：${esc(masterName(store.mainLedger()))}が見せた動画</p><video src="${URL.createObjectURL(blob)}" controls playsinline muted></video>`;
     }
   }
 
@@ -116,15 +173,17 @@ export function mountAsk(root: HTMLElement): { refresh(): void } {
   }
 
   function sendToMaster(question: string, why: string): string {
-    const { queue, item } = addQuestion(store.queue(), { question, whyUnanswered: why, date: today() });
+    const { queue, item } = addQuestion(store.queue(), { question, whyUnanswered: why, date: today(), ...(tech === "ring" ? {} : { technique: tech }) });
     store.setQueue(queue);
     return item.id;
   }
 
   function localAnswer(question: string, el: HTMLElement, reason: string) {
-    const rules = activeRules(store.ledger());
-    const sized = prongSizeAnswer(question, rules);
-    const found = findRules(question, rules);
+    const rules = rulesNow();
+    const sized = tech === "ring" ? prongSizeAnswer(question, rules) : null;
+    // 技の帳面は、職人の言葉を資料より先に出す（文字の重なりだけだと、言葉の多い資料が勝ってしまう）
+    const hits = findRules(question, rules, 0.3, tech === "ring" ? 2 : 8);
+    const found = tech === "ring" ? hits : [...hits.filter((r) => r.source.kind === "craftsman"), ...hits.filter((r) => r.source.kind !== "craftsman")].slice(0, 2);
     if (sized) {
       el.innerHTML = answerCard({ short: sized.short, why: sized.why, ruleIds: [sized.rule.id] }, [sized.rule], "local", false);
     } else if (found.length) {
@@ -132,7 +191,7 @@ export function mountAsk(root: HTMLElement): { refresh(): void } {
       el.innerHTML = answerCard({ short: r.text, why: r.reason, ruleIds: found.map((x) => x.id) }, found, "local", false);
     } else {
       sendToMaster(question, "帳面に近い決まりがなかった");
-      const name = bookLabel(store.ledger());
+      const name = whoLabel();
       el.innerHTML = answerCard({ short: `${name}に聞いておきます。答えが届いたら、ここで答えられるようになります。`, why: "", ruleIds: [] }, [], "local", true);
     }
     wireWhy(el);
@@ -144,12 +203,13 @@ export function mountAsk(root: HTMLElement): { refresh(): void } {
     if (!question || busy) return;
     busy = true;
     field.value = "";
+    if (flow) store.flowMark("asked", tech);
     bubble("q", esc(question));
     const el = bubble("a", `<p class="thinking"><span></span><span></span><span></span></p>`);
     const ledger = store.ledger();
     const password = store.password() || (await askPassword());
     if (!password) {
-      localAnswer(question, el, "合言葉がないので、Claude なしで帳面から探しました。");
+      localAnswer(question, el, isMihon() ? "" : "合言葉がないので、Claude なしで帳面から探しました。");
       busy = false;
       return;
     }
@@ -171,7 +231,7 @@ export function mountAsk(root: HTMLElement): { refresh(): void } {
     const r = await runClaude({
       host,
       messages,
-      system: askPrompt(ledger, masterName(ledger)),
+      system: tech === "ring" ? askPrompt(ledger, masterName(ledger)) : askPromptText(techLedgerText(store.techLedger(tech)), masterName(store.mainLedger()), techName(tech)),
       tools: TOOLS.filter((t) => t.name === "ask_teacher"),
       password,
       maxTurns: 3,
@@ -183,7 +243,7 @@ export function mountAsk(root: HTMLElement): { refresh(): void } {
       return;
     }
     messages = r.messages;
-    const rules = activeRules(store.ledger());
+    const rules = rulesNow();
     const a = parseAskAnswer(r.finalText, rules.map((x) => x.id));
     el.innerHTML = answerCard(a, a.ruleIds.map((id) => rules.find((x) => x.id === id)!).filter(Boolean), "claude", asked);
     wireWhy(el);
@@ -207,5 +267,5 @@ export function mountAsk(root: HTMLElement): { refresh(): void } {
   bindVoice($<HTMLButtonElement>(".voice"), field, { onError: status });
 
   refresh();
-  return { refresh };
+  return { refresh, route };
 }
