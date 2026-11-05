@@ -276,6 +276,12 @@ export function removeRule<P extends string = ParamId>(ledger: Ledger<P>, id: st
   return { ...ledger, rules: ledger.rules.filter((r) => r.id !== id), removed: [...new Set([...(ledger.removed ?? []), id])] };
 }
 
+/** 決まりを直す（職人が言葉や数字を直す）。id と出どころは変えない。ない決まりなら、そのまま返す */
+export function editRule<P extends string = ParamId>(ledger: Ledger<P>, id: string, patch: Partial<Pick<Rule<P>, "title" | "text" | "quote" | "value" | "bySize">>): Ledger<P> {
+  if (!ledger.rules.some((r) => r.id === id)) return ledger;
+  return { ...ledger, rules: ledger.rules.map((r) => (r.id === id ? { ...r, ...patch } : r)) };
+}
+
 /** 決まりを外す（最後に足した決まりだけ。置き換えた決まりは元に戻る） */
 export function removeLastRule<P extends string = ParamId>(ledger: Ledger<P>): Ledger<P> {
   return { ...ledger, rules: ledger.rules.slice(0, -1) };

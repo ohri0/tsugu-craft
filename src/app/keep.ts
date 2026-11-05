@@ -9,7 +9,7 @@ import { TOOLS, type ProposeRuleInput, type ProposeRuleResult, type ToolHost } f
 import { summarizeMetrics } from "../craft/motion";
 import { bookHtml } from "../rules/book";
 import { ringGaps } from "../rules/gaps";
-import { activeRules, addRule, removeRule, sourceLabel, type Rule } from "../rules/ledger";
+import { activeRules, addRule, editRule, removeRule, sourceLabel, type Rule } from "../rules/ledger";
 import { MAIN } from "../rules/workshops";
 import { groupQuestions, markAnswered, removeQuestions, type QuestionGroup } from "../rules/teacher-queue";
 import { mountMotion, savedRecords } from "../ui/motion-ui";
@@ -98,16 +98,89 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
     );
   }
 
-  /** 決まりを消す（まちがえて入れた決まり・いらない資料の決まり）。前の決まりを置き換えていたら、前の決まりに戻る */
-  function bindRuleDelete() {
-    root.querySelectorAll<HTMLButtonElement>("[data-del-rule]").forEach((b) =>
+  /** 札の「編集」：直すことも消すこともできる窓を開く（2026-11-05 作者：消すだけでなく編集に） */
+  function bindRuleEdit() {
+    root.querySelectorAll<HTMLButtonElement>("[data-edit-rule]").forEach((b) =>
       b.addEventListener("click", () => {
-        const r = store.ledger().rules.find((x) => x.id === b.dataset.delRule);
-        if (!r || !confirm(`この決まりを帳面から消しますか？\n「${r.title}」\n設計の確かめと、学ぶ人への答えに使われなくなります。`)) return;
-        store.setLedger(removeRule(store.ledger(), r.id));
-        refresh();
+        const r = store.ledger().rules.find((x) => x.id === b.dataset.editRule);
+        if (r) openRuleEditor(r);
       }),
     );
+  }
+
+  function openRuleEditor(r: Rule) {
+    // 資料の決まりは、資料に書いてあることなので言葉を変えない（直すなら職人の決まりとして足す）。消すことはできる
+    const mine = r.source.kind === "craftsman";
+    const points = mine && r.bySize?.every((s) => s.upToMm !== null) ? r.bySize : null;
+    const hasValue = mine && !r.bySize && r.value !== undefined;
+    const dlg = document.createElement("dialog");
+    dlg.className = "sheet rule-edit";
+    dlg.innerHTML = `<form method="dialog">
+      <h3>${mine ? "決まりを編集" : "資料の決まり"}</h3>
+      ${
+        mine
+          ? `<label>見出し<input class="re-title" value="${esc(r.title)}"></label>
+      <label>決まり<textarea class="re-text" rows="5">${esc(r.text)}</textarea></label>
+      <label>職人の言葉<textarea class="re-quote" rows="2">${esc(r.quote ?? "")}</textarea></label>
+      ${hasValue ? `<label>確かめに使う数字<input class="re-value" type="number" inputmode="decimal" step="0.01" min="0" value="${r.value}"></label>` : ""}
+      ${
+        points
+          ? `<fieldset class="re-points"><legend>確かめに使う数字（mm）</legend>${points
+              .map((s, i) => `<label>石 ${s.upToMm} mm<input class="re-point" data-i="${i}" type="number" inputmode="decimal" step="0.01" min="0" value="${s.value}"></label>`)
+              .join("")}</fieldset>`
+          : ""
+      }
+      ${hasValue || points ? `<p class="small muted">数字を変えたら、上の「決まり」の文も合わせて直してください。</p>` : ""}`
+          : `<p class="rc-title">${esc(r.title)}</p><p>${esc(r.text)}</p><p class="small muted">資料に書いてあることなので、言葉は変えません。ちがうと思ったら、消して、職人の決まりとして足してください。</p>`
+      }
+      <p class="re-err" role="alert" hidden></p>
+      <div class="sheet-actions re-actions">
+        <button type="button" class="ghost danger re-del">消す</button>
+        <span class="re-right"><button type="button" class="ghost re-cancel">${mine ? "やめる" : "閉じる"}</button>${mine ? `<button type="submit" class="primary re-save">保存</button>` : ""}</span>
+      </div>
+    </form>`;
+    document.body.appendChild(dlg);
+    const q = <T extends HTMLElement>(s: string) => dlg.querySelector<T>(s)!;
+    dlg.addEventListener("close", () => dlg.remove());
+    q(".re-cancel").addEventListener("click", () => dlg.close());
+    // 消す：確かめてから。前の決まりを置き換えていたら、前の決まりに戻る
+    q(".re-del").addEventListener("click", () => {
+      if (!confirm(`この決まりを帳面から消しますか？\n「${r.title}」\n設計の確かめと、学ぶ人への答えに使われなくなります。`)) return;
+      store.setLedger(removeRule(store.ledger(), r.id));
+      dlg.close();
+      refresh();
+    });
+    if (mine) {
+      q("form").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const err = q(".re-err");
+        const fail = (m: string) => {
+          err.textContent = m;
+          err.hidden = false;
+        };
+        const title = q<HTMLInputElement>(".re-title").value.trim();
+        const text = q<HTMLTextAreaElement>(".re-text").value.trim();
+        if (!title || !text) return fail("見出しと決まりは、空にできません。");
+        const patch: Partial<Pick<Rule, "title" | "text" | "quote" | "value" | "bySize">> = { title, text, quote: q<HTMLTextAreaElement>(".re-quote").value.trim() || undefined };
+        if (hasValue) {
+          const v = Number(q<HTMLInputElement>(".re-value").value);
+          if (!Number.isFinite(v) || v <= 0) return fail("数字は 0 より大きくしてください。");
+          patch.value = v;
+        }
+        if (points) {
+          const vs = [...dlg.querySelectorAll<HTMLInputElement>(".re-point")].map((x) => Number(x.value));
+          if (vs.some((v) => !Number.isFinite(v) || v <= 0)) return fail("数字は 0 より大きくしてください。");
+          patch.bySize = points.map((s, i) => ({ ...s, value: vs[i] }));
+        }
+        store.setLedger(editRule(store.ledger(), r.id, patch));
+        dlg.close();
+        refresh();
+      });
+    }
+    dlg.showModal();
+    // 開いただけでスマホのキーボードが出ないように、はじめは窓そのものに合わせる
+    dlg.tabIndex = -1;
+    dlg.focus();
   }
 
   // ---- 職人の決まり（札） ----
@@ -117,7 +190,7 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
       <p class="rc-title">${esc(r.title)}</p>
       <p class="rc-text">${esc(r.text)}</p>
       ${r.quote ? `<blockquote>「${esc(r.quote)}」</blockquote>` : ""}
-      <p class="rc-meta"><span>${who ? `職人：${esc(who)}` : ""} ・ ${esc(r.date)}</span><span class="rc-acts"><span class="rc-video" data-rule="${esc(r.id)}"></span><button type="button" class="linklike rc-del" data-del-rule="${esc(r.id)}">消す</button></span></p>
+      <p class="rc-meta"><span>${who ? `職人：${esc(who)}` : ""} ・ ${esc(r.date)}</span><span class="rc-acts"><span class="rc-video" data-rule="${esc(r.id)}"></span><button type="button" class="linklike rc-del" data-edit-rule="${esc(r.id)}">編集</button></span></p>
     </li>`;
   }
 
@@ -137,10 +210,10 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
     const item = (r: Rule) => `<li class="rule-card">
       <p class="rc-title">${esc(r.title)}${r.unverified ? ` <span class="tag warn">未確認</span>` : ""}${r.source.kind === "provisional" ? ` <span class="tag">仮</span>` : ""}</p>
       <p class="rc-text">${esc(r.text)}</p>
-      <p class="rc-meta"><span>${src(r)} ・ ${esc(r.date)}</span><button type="button" class="linklike rc-del" data-del-rule="${esc(r.id)}">消す</button></p>
+      <p class="rc-meta"><span>${src(r)} ・ ${esc(r.date)}</span><button type="button" class="linklike rc-del" data-edit-rule="${esc(r.id)}">編集</button></p>
     </li>`;
     $(".rule-cards.pub").innerHTML = others.map(item).join("");
-    bindRuleDelete();
+    bindRuleEdit();
   }
 
   /** 職人が動画で見せた答えがあれば、札に再生のボタンを出す */

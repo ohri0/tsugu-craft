@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { buildRing } from "../src/geometry/ring";
 import { checkRing } from "../src/rules/checks";
 import { GUIDES } from "../src/rules/guides";
-import { activeRules, addRule, effectiveGuides, ledgerText, parseSizeSteps, removeLastRule, ruleForCheck, seedLedger, valueFor } from "../src/rules/ledger";
+import { activeRules, addRule, effectiveGuides, ledgerText, parseSizeSteps, removeLastRule, ruleForCheck, seedLedger, valueFor, editRule } from "../src/rules/ledger";
 import { triangleStone } from "./helpers/stones";
 
 const ring = () => buildRing({ stone: triangleStone(), setting: { style: "prong", height: "standard" }, shank: { gou: 11 } });
@@ -145,3 +145,25 @@ describe("石の大きさで割合で変わる決まり（点をまっすぐつ�
     expect(valueFor(r, 8.2)).toBeCloseTo(0.7, 5);
   });
 });
+
+describe("決まりの編集（2026-11-05 作者：消すだけでなく編集に）", () => {
+  it("言葉と数字を直せる。id と出どころは変わらない。ほかの決まりも変わらない", () => {
+    const l = addRule(seedLedger(), { title: "すき間", text: "2.5 mm", reason: "汗", param: "height.minFingerGapMm", value: 2.5, source: { kind: "craftsman", name: "石川" }, date: "2026-11-05" });
+    const r = l.rules[l.rules.length - 1];
+    const e = editRule(l, r.id, { title: "指とのすき間", text: "2 mm", value: 2 });
+    const n = e.rules.find((x) => x.id === r.id)!;
+    expect([n.title, n.text, n.value]).toEqual(["指とのすき間", "2 mm", 2]);
+    expect(n.source).toEqual(r.source);
+    expect(e.rules.filter((x) => x.id !== r.id)).toEqual(l.rules.filter((x) => x.id !== r.id));
+  });
+  it("数字を直すと、確かめの目安に効く", () => {
+    const l = addRule(seedLedger(), { title: "すき間", text: "2.5 mm", reason: "汗", param: "height.minFingerGapMm", value: 2.5, source: { kind: "craftsman", name: "石川" }, date: "2026-11-05" });
+    const r = l.rules[l.rules.length - 1];
+    expect(effectiveGuides(editRule(l, r.id, { value: 2 })).height.minFingerGapMm).toBe(2);
+  });
+  it("ない決まりを直しても、何も起きない", () => {
+    const l = seedLedger();
+    expect(editRule(l, "ない", { title: "x" })).toBe(l);
+  });
+});
+
