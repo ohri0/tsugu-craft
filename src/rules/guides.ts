@@ -175,7 +175,8 @@ export const GUIDES = {
    * - cornerPitMm：片方の腕の端に掘るくぼみへ、石の角の先を入れる深さ。職人の言葉「角はくぼみに 1 mm くらい」（はじめ 0.8 mm、同じ日に 1 mm へ決め直した）。
    * - edgeGrooveMm：もう片方の腕の端の、まっすぐな溝へ、石の辺を入れる深さ。職人の言葉「辺は溝に 0.5 mm」。
    * - wireMm：腕の丸線の太さ。職人が本物の指輪に使う φ4 mm の丸線。
-   * - girdleAtWire：石の縁の高さ（腕の太さのどこか。0.5 は真ん中）。職人が見せた写真の見本から。
+   * - girdleAtWire：石の縁の高さ（腕の太さのどこか。0.5 は真ん中）。職人：止める位置はもっと上（2026-11-05）。0.6 は仮（上げるほど、くぼみの両わきの地金が薄くなる）。
+   * - culetGapMm：石の先と指のすき間。職人：石の先が指に当たると痛い。0.5 mm は仮。
    * - weakGrooveMm：これより浅い溝は抜けやすい、という注意。職人の言葉「0.3 mm くらいでは絶対抜ける」。
    * - minWireMm：これより細い線は注意（作れないとは言わない）。資料は職人の掲示板の声（TS14）。
    * 開きは図面では石が入る寸法のまま（石の高さ − くぼみ − 溝）。プリロードは図面に入れない（職人が地金を硬くしながら詰める）。
@@ -197,7 +198,8 @@ export const GUIDES = {
     cornerPitMm: 1.0,
     edgeGrooveMm: 0.5,
     wireMm: 4,
-    girdleAtWire: 0.5,
+    girdleAtWire: 0.6,
+    culetGapMm: 0.5,
     weakGrooveMm: 0.3,
     minWireMm: 3,
     clearanceMm: 0.04,

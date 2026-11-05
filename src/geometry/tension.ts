@@ -320,7 +320,7 @@ export function buildTensionBand(p: ShankParams, stone: StoneParams, o: TensionO
   // 石の高さ：縁を腕の太さの中ほどに。石の先が指に近すぎるときは、その分だけ上げる
   const h = stoneHeights(stone);
   const k = stoneKnots(h);
-  const minGap = o.culetGapMm ?? GUIDES.height.minFingerGapMm;
+  const minGap = o.culetGapMm ?? g.culetGapMm;
   const yIn = Math.min(planeAbs, rc * 0.95);
   const zMid = Math.sqrt(Math.max(0, rc * rc - yIn * yIn)) + (g.girdleAtWire - 0.5) * t;
   const zNeed = r + minGap - h.culetZ;

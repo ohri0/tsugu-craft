@@ -141,12 +141,13 @@ describe("テンションの形（職人の値）", () => {
     expect(info.clearanceMm).toBe(GUIDES.tension.clearanceMm);
   });
 
-  it("石の先と指のすき間は既存の決まり（0.3 mm 以上）。足りないときは腕の両はしを持ち上げ、縁は腕の太さの中ほど", () => {
+  it("石の先と指のすき間は 0.5 mm 以上（石の先が指に当たると痛い。職人 2026-11-05）。足りないときは腕の両はしを持ち上げ、縁は腕の太さの上寄り", () => {
     const ring = ringOf(triangle);
     const info = ring.setting.tension!;
-    expect(ring.culetGapMm).toBeGreaterThanOrEqual(GUIDES.height.minFingerGapMm - 1e-9);
+    expect(ring.culetGapMm).toBeGreaterThanOrEqual(GUIDES.tension.culetGapMm - 1e-9);
     expect(info.liftMm).toBeGreaterThan(0);
-    expect((info.ends[0].wireTopZ + info.ends[0].wireBottomZ) / 2).toBeCloseTo(info.girdleZ, 0);
+    const e = info.ends[0];
+    expect(e.wireBottomZ + (e.wireTopZ - e.wireBottomZ) * GUIDES.tension.girdleAtWire).toBeCloseTo(info.girdleZ, 0);
     // 指に当たる所はない：腕の内側はどこも指の円より外
     const p = ring.ringPositions.shank;
     let min = Infinity;

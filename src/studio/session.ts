@@ -397,7 +397,7 @@ export class RingSession implements ToolHost<RingState> {
         style: s.style,
         height: s.height,
         // テンションには高さの選び方がない。石の先と指のすき間は、今の帳面の最低か、直し方で決めた値
-        culetGapMm: s.style === "tension" ? Math.max(s.culetGapMm ?? 0, guides.height.minFingerGapMm) : s.culetGapMm,
+        culetGapMm: s.style === "tension" ? Math.max(s.culetGapMm ?? 0, guides.height.minFingerGapMm, GUIDES.tension.culetGapMm) : s.culetGapMm,
         prongCount: s.prongCount,
         prongDiameterMm: s.prongMm,
         minProngMm: prongMinOverride(guides),
