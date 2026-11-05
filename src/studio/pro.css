@@ -855,3 +855,18 @@ dialog.sheet input:focus { border-color: var(--accent); }
 .ask-nudge .row { display: flex; gap: 8px; margin-top: 4px; }
 .ask-nudge .primary { display: inline-flex; align-items: center; justify-content: center; min-height: 34px; padding: 0 16px; border-radius: 6px; background: var(--accent); color: #fff; text-decoration: none; font-weight: 600; font-size: 13px; }
 
+/* 図面を大きく見る */
+.sheet-big { position: absolute; right: 12px; bottom: 12px; z-index: 2; min-height: 44px; padding: 0 16px; border: 1px solid var(--line-2); border-radius: var(--r); background: rgba(28, 28, 30, 0.9); color: var(--fg); font-size: 14px; font-weight: 600; }
+.sheet-full { position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column; background: #1c1c1e; }
+.sf-bar { flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 12px calc(8px); padding-top: max(8px, env(safe-area-inset-top)); border-bottom: 1px solid var(--line); }
+.sf-bar button { min-width: 44px; min-height: 44px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--panel-2); color: var(--fg); font-size: 18px; }
+.sf-bar .sf-close { margin-left: auto; padding: 0 16px; font-size: 14px; font-weight: 600; }
+.sf-pct { min-width: 48px; text-align: center; font-size: 13px; color: var(--fg-2); }
+.sf-scroll { flex: 1; min-height: 0; overflow: auto; -webkit-overflow-scrolling: touch; background: #fff; }
+.sf-size { position: relative; overflow: hidden; }
+.sf-size iframe { position: absolute; left: 0; top: 0; border: 0; background: #fff; transform-origin: 0 0; pointer-events: none; }
+
+/* 生むの次の一歩・記録を開く・工房の帳面へ */
+.w-unsample { margin: 8px 14px 0; }
+.w-open { display: block; min-height: 44px; margin-top: 2px; padding: 0; font-size: 14px; text-align: left; }
+.ws-edit { font-size: 13px; }

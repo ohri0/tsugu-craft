@@ -8,6 +8,8 @@ import { withDetails } from "./steps";
 import type { Tip } from "./tips";
 import type { StoneParams } from "../geometry/stone";
 import type { RingState } from "./session";
+import type { Band } from "./band";
+import type { Metal } from "../claude/tools";
 
 export interface WorkRecord {
   id: string;
@@ -28,7 +30,9 @@ export interface WorkRecord {
   /** 話したことを Claude が工程ごとに分けたコツ */
   tips?: Tip[];
   /** 組み直せる設計（一粒石の指輪）。新しい決まりで確かめ直すのに使う */
-  design?: { stone: StoneParams; state: RingState };
+  design?: { stone: StoneParams; state: RingState; look?: { color: { r: number; g: number; b: number }; colorless: boolean } };
+  /** 組み直せる設計（甲丸・平打ちの指輪）。「この形を開く」に使う */
+  bandDesign?: { band: Band; metal: Metal };
   /** 図面（drawingPage の HTML。正面・側面・上面と寸法）。古い記録にはない */
   drawing?: string;
   /** 新しい決まりで直した記録（いつ・誰の決まりで・何を） */

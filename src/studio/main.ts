@@ -2963,6 +2963,7 @@ interface WorkData {
   problems: string[];
   steps: ReturnType<typeof howToMake>;
   design?: WorkRecord["design"];
+  bandDesign?: WorkRecord["bandDesign"];
   /** 図面（いま 3D に出ている形から描く。見本のように 3D に出ていない物は、帳面を開くときに描く） */
   drawing?: () => string;
 }
@@ -2973,7 +2974,7 @@ function solitaireData(sess: RingSession = session!, info: StoneInfo = currentSt
   return {
     title: `${info.shapeName}の一粒石の指輪`,
     kind: "一粒石の指輪",
-    design: { stone: structuredClone(sess.stone), state: sess.snapshot() },
+    design: { stone: structuredClone(sess.stone), state: sess.snapshot(), look: sess === session && stone ? { color: stone.extraction.color, colorless: stone.extraction.colorless } : undefined },
     specs: [
       { label: "石", value: `${info.longMm.toFixed(2)} × ${info.widthMm.toFixed(2)} × ${info.depthMm.toFixed(2)} mm` },
       { label: "号", value: `${sess.state.gou} 号 ・ 内径 ${r.shank.innerDiameterMm.toFixed(1)} mm` },
@@ -2991,6 +2992,7 @@ function bandData(): WorkData {
   return {
     title: bandName(),
     kind: bandName(),
+    bandDesign: { band: structuredClone(band), metal: bandMetal },
     specs: [
       { label: "断面", value: SECTION_LABEL[band.kind] },
       { label: "号", value: `${band.gou} 号 ・ 内径 ${bandInnerDiameter(band.gou).toFixed(1)} mm` },
@@ -3089,6 +3091,7 @@ function openSaveWork(slot: HTMLElement, data: WorkData) {
       maker,
       tips,
       design: data.design,
+      bandDesign: data.bandDesign,
       drawing: safeDrawing(data.drawing),
     });
     if (!ok) {
@@ -3135,6 +3138,63 @@ function addSampleWorks(): number {
   }
   return n;
 }
+/**
+ * 記録の形を開き直す（記録はそのまま。開いた形を直しても、記録は変わらない）。
+ * 記録に写真はないので、石の写真の欄には輪郭から描いた絵を出す
+ */
+function openWork(w: WorkRecord) {
+  if (!w.design && !w.bandDesign) return;
+  if (!askConfirm(`この形を開きますか？\n「${w.title}」\n今の設計は、この形に変わります（記録は変わりません）。`)) return;
+  if (w.bandDesign) {
+    band = structuredClone(w.bandDesign.band);
+    setBandMetal(w.bandDesign.metal);
+    setKind("band");
+  } else if (w.design) {
+    stopIntro();
+    const st = w.design.stone;
+    const W = 720;
+    const k = 260 / st.longMm;
+    const c = document.createElement("canvas");
+    c.width = c.height = W;
+    const g = c.getContext("2d", { willReadFrequently: true })!;
+    g.fillStyle = "#f6f5f2";
+    g.fillRect(0, 0, W, W);
+    g.beginPath();
+    st.outlineMm.forEach((q, i) => (i ? g.lineTo(W / 2 + q.x * k, W / 2 - q.y * k) : g.moveTo(W / 2 + q.x * k, W / 2 - q.y * k)));
+    g.closePath();
+    g.fillStyle = "#a9b0b7";
+    g.fill();
+    const look = w.design.look ?? { color: { r: 200, g: 220, b: 240 }, colorless: true };
+    const measured: StoneOutline = { outlineMm: [...st.outlineMm], longMm: st.longMm, widthMm: st.widthMm, widthFromPhotoMm: st.widthMm, widthFromPhoto: false, mmPerPx: 1 / k, imageAngle: 0 };
+    const corners = findCorners(measured.outlineMm);
+    stone = {
+      photo: g.getImageData(0, 0, W, W),
+      label: `記録：${w.title}`,
+      extraction: { outlinePx: st.outlineMm.map((q) => ({ x: W / 2 + q.x * k, y: W / 2 - q.y * k })), color: look.color, colorless: look.colorless } as Extraction,
+      measured,
+      longMm: st.longMm,
+      depthMm: st.depthMm,
+      shapeName: w.title.replace(/^見本：/, "").replace(/の一粒石の指輪.*$/, "") || nameShape(measured.outlineMm, corners).name,
+      cornerIdx: corners.map((x) => ({ index: outlineIndexAtT(measured.outlineMm, x.t), angle: Math.round(x.angleDeg) })),
+    };
+    keptPhoto = null;
+    compare = null;
+    undoClaude = null;
+    document.querySelectorAll<HTMLButtonElement>(".presets button").forEach((x) => x.setAttribute("aria-pressed", "false"));
+    $<HTMLInputElement>(".in-long").value = String(Number(st.longMm.toFixed(2)));
+    $<HTMLInputElement>(".in-depth").value = String(Number(st.depthMm.toFixed(2)));
+    $(".stone-sub").textContent = `${stone.shapeName}・${st.longMm.toFixed(2)} × ${st.widthMm.toFixed(2)} mm`;
+    drawThumb();
+    session = newSession(measured, st.depthMm);
+    session.state = structuredClone(w.design.state);
+    setKind("solitaire");
+  }
+  lastRule = null;
+  pastCheck = null;
+  setMode("refine");
+  $(".studio-refine").scrollTop = 0;
+  toast(`開きました：${w.title}`);
+}
 function renderWorks() {
   const box = $(".works-panel");
   const works = loadWorks();
@@ -3144,7 +3204,7 @@ function renderWorks() {
     ${works.some(isSample) ? `<button type="button" class="ghost-d w-unsample">見本の作品を消す</button>` : ""}
     <ul class="works-list">${works
       .map(
-        (w) => `<li><img alt="" src="${w.image}"><div><b>${esc(w.title)}</b><small>${esc(w.date)}${w.maker ? ` ・ ${esc(w.maker)}` : ""} ・ ${esc(w.methodLabel)}</small>${w.note ? (isSample(w) ? `<p class="sample-note">${esc(w.note)}</p>` : `<p>「${esc(w.note)}」</p>`) : ""}${(w.revisions ?? []).map((r) => `<p class="rev">${esc(r.by)}さんの決まりで直した：${esc(r.change)}</p>`).join("")}<span class="${w.problems.length ? "ng" : "ok"}">${w.problems.length ? "作れない所あり" : "作れる形"}</span></div><button type="button" class="w-del" data-id="${w.id}" aria-label="消す">×</button></li>`,
+        (w) => `<li><img alt="" src="${w.image}"><div><b>${esc(w.title)}</b><small>${esc(w.date)}${w.maker ? ` ・ ${esc(w.maker)}` : ""} ・ ${esc(w.methodLabel)}</small>${w.note ? (isSample(w) ? `<p class="sample-note">${esc(w.note)}</p>` : `<p>「${esc(w.note)}」</p>`) : ""}${(w.revisions ?? []).map((r) => `<p class="rev">${esc(r.by)}の決まりで直した：${esc(r.change)}</p>`).join("")}<span class="${w.problems.length ? "ng" : "ok"}">${w.problems.length ? "作れない所あり" : "作れる形"}</span>${!filming() && (w.design || w.bandDesign) ? `<button type="button" class="link w-open" data-id="${w.id}">この形を開く →</button>` : ""}</div><button type="button" class="w-del" data-id="${w.id}" aria-label="消す">×</button></li>`,
       )
       .join("")}</ul>
     <nav class="places-sm" aria-label="ほかの場所"><small>ほかの場所</small><a href="app.html#ledger">帳面<span>職人の決まりと、Claude からの質問</span></a><a href="app.html#learn">学ぶ<span>次の人が、職人の決まりに聞く</span></a><a href="app.html#waza">技<span>彫金・金工の技と、途切れた技を組み立て直す</span></a></nav>`;
@@ -3158,6 +3218,12 @@ function renderWorks() {
     for (const w of loadWorks()) if (isSample(w)) removeWork(w.id);
     renderWorks();
   });
+  box.querySelectorAll<HTMLButtonElement>(".w-open").forEach((b) =>
+    b.addEventListener("click", () => {
+      const w = loadWorks().find((x) => x.id === b.dataset.id);
+      if (w) openWork(w);
+    }),
+  );
   box.querySelectorAll<HTMLButtonElement>(".w-del").forEach((b) =>
     b.addEventListener("click", () => {
       if (!askConfirm("この記録を消しますか？\n消すと戻せません。")) return;
