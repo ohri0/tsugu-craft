@@ -40,13 +40,26 @@ export interface Loft {
   /** 断面の行を細かくする（行 j と j ＋ 1 の間の割合 s の所に行を足す。どの場所も同じように） */
   refine(trace: readonly { j: number; s: number }[]): void;
   frame(phi: number): LoftFrame;
-  /** 断面の点 i（内側の平らな行 flat 本 ＋ 外側の行）の、指の向きの位置 x と、指の軸からの距離 ρ */
+  /** 断面の点 i（内側の平らな行 flat 本 ＋ 外側の行。外側の行は小数でもよい）の、指の向きの位置 x と、指の軸からの距離 ρ */
   point(i: number, flat: number, f: LoftFrame, innerR: number, wOverride?: number): [number, number];
+  /** 外側の行 r（小数）での、面の外向きの向き（断面の面の上。x と ρ の成分。長さ 1） */
+  normalAt(r: number, f: LoftFrame): [number, number];
+  /** 外側の行の区間 seg（行 seg と seg ＋ 1 の間）の割合 s での、線の進む向き（x と ρ の成分。長さ 1）。折れ目（稜線）の向こうの線は見ない */
+  tangentIn(seg: number, s: number, f: LoftFrame): [number, number];
+  /** 行 seg と seg ＋ 1 の間の長さ（mm） */
+  rowMmAt(seg: number, f: LoftFrame): number;
+  /** その行が折れ目（稜線）か */
+  isCrease(row: number): boolean;
+  /** その場所の、外の面の線の長さの半分（mm） */
+  arcHalf(f: LoftFrame): number;
   /** 腕のまわりの見本：場所ごとの幅・厚み・断面（確かめと画面に使う） */
   samples(): { atDeg: number; widthMm: number; thicknessMm: number; outlineMm: [number, number][] }[];
   /** ぐるりと見て、いちばん細い幅といちばん薄い厚み（どの場所でも、いちばん厚い所の厚み） */
   extremes(): { minWidthMm: number; minThicknessMm: number };
 }
+
+/** 線の向きがこれより急に変わる行を、折れ目（稜線）とみなす（度。形を作るための決まり） */
+const CREASE_DEG = 28;
 
 /** 場所と場所の間の、いちばん狭い角度（形を作るための決まり。急に変わって段に見えないように） */
 const MIN_GAP_RAD = (6 * Math.PI) / 180;
@@ -158,15 +171,57 @@ export function makeLoft(top: { widthMm: number; thicknessMm: number; outline: S
     const u = smooth(Math.min(1, Math.max(0, (a - xs[k]) / span)));
     return { w: wAt(a), t: tAt(a), sway: side * swayAt(a), k, u };
   };
-  const rowAt = (i: number, f: LoftFrame): [number, number] => {
+  const rowInt = (i: number, f: LoftFrame): [number, number] => {
     const a = rows[f.k][i];
     const b = rows[f.k + 1][i];
     return [a[0] + (b[0] - a[0]) * f.u, a[1] + (b[1] - a[1]) * f.u];
+  };
+  const rowAt = (i: number, f: LoftFrame): [number, number] => {
+    const j = Math.floor(i);
+    const s = i - j;
+    const a = rowInt(j, f);
+    if (s === 0) return a;
+    const b = rowInt(j + 1, f);
+    return [a[0] + (b[0] - a[0]) * s, a[1] + (b[1] - a[1]) * s];
+  };
+  /** 行 j での線の向き（mm の比で。両どなりの行から） */
+  const tangent = (j: number, f: LoftFrame): [number, number] => {
+    const n = rows[0].length;
+    const a = rowInt(Math.max(0, j - 1), f);
+    const b = rowInt(Math.min(n - 1, j + 1), f);
+    return [((b[0] - a[0]) * f.w) / 2, (b[1] - a[1]) * f.t];
+  };
+  /** 折れ目の行（どこかの場所で、線の向きが CREASE_DEG より急に変わる行）。行が変わるたびに作り直す */
+  let crease: boolean[] | null = null;
+  const creaseOf = (): boolean[] => {
+    if (crease) return crease;
+    const n = rows[0].length;
+    const out = new Array<boolean>(n).fill(false);
+    const cosMax = Math.cos((CREASE_DEG * Math.PI) / 180);
+    for (const line of rows) {
+      for (let j = 1; j + 1 < n; j++) {
+        const ax = (line[j][0] - line[j - 1][0]) * top.widthMm;
+        const ay = (line[j][1] - line[j - 1][1]) * top.thicknessMm * 2;
+        const bx = (line[j + 1][0] - line[j][0]) * top.widthMm;
+        const by = (line[j + 1][1] - line[j][1]) * top.thicknessMm * 2;
+        const la = Math.hypot(ax, ay);
+        const lb = Math.hypot(bx, by);
+        if (la > 1e-9 && lb > 1e-9 && (ax * bx + ay * by) / (la * lb) < cosMax) out[j] = true;
+      }
+    }
+    crease = out;
+    return out;
+  };
+  const segDir = (seg: number, f: LoftFrame): [number, number] => {
+    const a = rowInt(seg, f);
+    const b = rowInt(seg + 1, f);
+    return [((b[0] - a[0]) * f.w) / 2, (b[1] - a[1]) * f.t];
   };
   const loft: Loft = {
     rows,
     setHold,
     refine(trace) {
+      crease = null;
       for (let k = 0; k < rows.length; k++) {
         const old = rows[k];
         rows[k] = trace.map(({ j, s }) => {
@@ -175,6 +230,23 @@ export function makeLoft(top: { widthMm: number; thicknessMm: number; outline: S
           return [a[0] + (b[0] - a[0]) * s, a[1] + (b[1] - a[1]) * s] as [number, number];
         });
       }
+    },
+    isCrease: (row) => creaseOf()[row] ?? false,
+    rowMmAt(seg, f) {
+      const d = segDir(seg, f);
+      return Math.hypot(d[0], d[1]);
+    },
+    tangentIn(seg, sf, f) {
+      const c = creaseOf();
+      const here = segDir(seg, f);
+      const a = c[seg] ? here : tangent(seg, f);
+      const b = c[seg + 1] ? here : tangent(seg + 1, f);
+      const la = Math.hypot(a[0], a[1]) || 1;
+      const lb = Math.hypot(b[0], b[1]) || 1;
+      const tx = (a[0] / la) * (1 - sf) + (b[0] / lb) * sf;
+      const ty = (a[1] / la) * (1 - sf) + (b[1] / lb) * sf;
+      const l = Math.hypot(tx, ty) || 1;
+      return [tx / l, ty / l];
     },
     frame(phi) {
       const sn = Math.sin(phi);
@@ -189,6 +261,26 @@ export function makeLoft(top: { widthMm: number; thicknessMm: number; outline: S
       }
       const [xi, eta] = rowAt(i - flat, f);
       return [(xi * w) / 2 + f.sway, innerR + f.t * eta];
+    },
+    normalAt(r, f) {
+      const j = Math.min(rows[0].length - 2, Math.floor(r));
+      const s = r - j;
+      const a = tangent(j, f);
+      const b = tangent(j + 1, f);
+      const tx = a[0] + (b[0] - a[0]) * s;
+      const ty = a[1] + (b[1] - a[1]) * s;
+      const l = Math.hypot(tx, ty) || 1;
+      // 線は右の端から上を通って左の端へ進むので、進む向きを右へ 90° 回すと外向き
+      return [ty / l, -tx / l];
+    },
+    arcHalf(f) {
+      let len = 0;
+      for (let i = 0; i + 1 < rows[0].length; i++) {
+        const a = rowInt(i, f);
+        const b = rowInt(i + 1, f);
+        len += Math.hypot(((b[0] - a[0]) * f.w) / 2, (b[1] - a[1]) * f.t);
+      }
+      return len / 2;
     },
     samples() {
       const ats: number[] = [];

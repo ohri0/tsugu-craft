@@ -522,7 +522,8 @@ export class RingSession implements ToolHost<RingState> {
         sectionPoints: s.shankSection === "free" ? s.sectionPoints : undefined,
         sectionCurve: s.shankSection === "free" ? s.sectionCurve : undefined,
         stations: s.style === "tension" ? undefined : s.shankStations,
-        relief: s.style === "tension" ? undefined : s.shankRelief,
+        // 動かしている間は彫らない（止まったら細かく作り直す。確かめの数は同じ）
+        relief: s.style === "tension" || !s.shankRelief ? undefined : quality === "preview" ? { ...s.shankRelief, draft: true } : s.shankRelief,
       },
       orientation: s.orientation,
     };

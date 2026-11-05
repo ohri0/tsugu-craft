@@ -3,13 +3,13 @@
 // y は x と z の両方に直角（右手系）。指の軸は x 軸そのもので、腕は y–z の面にある円。
 // 腕の内側のいちばん上（指のいちばん上）は z ＝ 内径 ÷ 2 の所。
 import { GUIDES, innerDiameterMm, type MetalId } from "../rules/guides";
-import { closedPart, ringsToTube, stackLoops, type V3 } from "./mesh";
+import { closedPart, pushTri, ringsToTube, stackLoops, type V3 } from "./mesh";
 import { meshVolume } from "./stone";
 import { BALL_CUT, ballCut, type BallCut, type SeatCut } from "./notch";
 import { railSeatZ, type Rail } from "./joint";
 import { adaptiveSample, sampleCurve, uniformKnots, validKnots } from "./bspline";
 import { makeLoft, type Loft, type LoftFrame, type LoftPlace } from "./shank-loft";
-import { RELIEF_LABEL, RELIEF_STEP_MM, reliefPattern, rowTrace, rowsV, type ReliefParams } from "./shank-relief";
+import { RELIEF_LABEL, RELIEF_MESH, adaptivePatch, makeReliefField, rowTrace, rowsV, type ReliefParams } from "./shank-relief";
 
 /** 腕の断面：甲丸・平打ち・半甲丸・角、丸線（内側も丸い）、と手で描いた形 */
 export type ShankSection = "kouman" | "hirauchi" | "hangouman" | "kaku" | "maru" | "free";
@@ -126,6 +126,8 @@ export interface ShankResult {
   minWidthMm?: number;
   /** ぐるりと見て、いちばん薄い厚み（どの場所でも、いちばん厚い所の厚み。どこも同じ形ならなし） */
   minThicknessMm?: number;
+  /** 面の向き（彫りのある腕だけ。positions と同じ並び）。あれば、画面はこの向きで光を当てる（線の縁がなめらかに見える） */
+  normals?: Float32Array;
   /** 腕の彫り（なければなし）。peakUnderMm：彫る所の、いちばん厚い所から彫りの深さを引いた厚み。localUnderMm：彫った所の、指の側までの地金のいちばん薄い所 */
   relief?: ReliefParams & { fromDegUsed: number; toDegUsed: number; peakUnderMm: number; localUnderMm: number };
 }
@@ -198,21 +200,181 @@ function reliefOf(p: ShankParams, loft: Loft, flat: number, r: number, t: number
   const v = rowsV(loft.rows[0], p.widthMm ?? GUIDES.shank.widthMm, t);
   const a0 = Math.max((rel.fromDeg * Math.PI) / 180, holdRad + (RELIEF_MARGIN_DEG * Math.PI) / 180);
   const a1 = Math.max(a0 + 0.05, Math.min(Math.PI, (rel.toDeg * Math.PI) / 180));
-  const count = Math.max(1, Math.round(rel.count));
-  const cols = Math.max(1, Math.round(rel.columns ?? 1));
-  /** その点の深さ（mm） */
-  const depth = (i: number, phi: number, f: LoftFrame): number => {
-    if (i < flat) return 0;
-    const a = Math.abs(Math.atan2(Math.sin(phi), Math.cos(phi)));
-    if (a <= a0 || a >= a1) return 0;
-    const u = ((a - a0) / (a1 - a0)) * count;
-    const mmU = ((a1 - a0) / count) * (r + f.t);
-    const d = rel.depthMm * reliefPattern(rel.kind, u, v[i - flat], cols, mmU, f.w / 2);
-    if (d <= 0) return 0;
-    // 薄い所では浅くして、指の側までの地金を残す
-    return Math.min(d, Math.max(0, loft.point(i, flat, f, 0)[1] - GUIDES.band.relief.keepMm));
+  const field = makeReliefField(rel, {
+    a0,
+    a1,
+    v,
+    innerR: r,
+    at: (a) => {
+      const f = loft.frame(a);
+      return { w: f.w, t: f.t, arc: loft.arcHalf(f) };
+    },
+  });
+  const keep = GUIDES.band.relief.keepMm;
+  /** 彫ったあとの点（x、ρ）。面の向きに沈める（急な面でも同じ深さに見え、腕の輪郭が欠けない）。薄い所では浅くして、指の側までの地金を残す */
+  const surface = (i: number, phi: number, f: LoftFrame, wOverride?: number): [number, number] => {
+    const q = loft.point(i, flat, f, r, wOverride);
+    if (i < flat) return q;
+    const d0 = field.depth(i - flat, phi);
+    if (d0 <= 0) return q;
+    const [nx, nr] = loft.normalAt(i - flat, f);
+    const d = Math.min(d0, Math.max(0, (q[1] - r - keep) / Math.max(nr, 0.35)));
+    return [q[0] - d * nx, q[1] - d * nr];
   };
-  return { a0, a1, count, cols, depth };
+  const mesh = rel.fine ? RELIEF_MESH.fine : RELIEF_MESH.normal;
+  /** その角度での、幅・厚み・流れの変わり方（角度あたり）。近い角度は使い回す */
+  const slopes = new Map<number, { dw: number; dt: number; ds: number }>();
+  const slopeAt = (phi: number) => {
+    const id = Math.round(phi * 2000);
+    let q = slopes.get(id);
+    if (!q) {
+      const eps = 0.01;
+      const fa = loft.frame(phi - eps);
+      const fb = loft.frame(phi + eps);
+      q = { dw: (fb.w - fa.w) / (2 * eps), dt: (fb.t - fa.t) / (2 * eps), ds: (fb.sway - fa.sway) / (2 * eps) };
+      slopes.set(id, q);
+    }
+    return q;
+  };
+  /** 外の面の向き（3 次元）。seg：行の区間、sf：その中の割合。彫りの深さの傾きぶん傾ける */
+  const normalOuter = (seg: number, sf: number, phi: number): V3 => {
+    const f = loft.frame(phi);
+    const [tx, tp] = loft.tangentIn(seg, sf, f);
+    const sn = Math.sin(phi);
+    const cs = Math.cos(phi);
+    const q = loft.point(flat + seg + sf, flat, f, r);
+    // 指のまわりの向き（場所で形が変わるぶんもふくむ）
+    const sl = slopeAt(phi);
+    const dx = ((q[0] - f.sway) / Math.max(f.w, 1e-6)) * sl.dw + sl.ds;
+    const dr = ((q[1] - r) / Math.max(f.t, 1e-6)) * sl.dt;
+    const cx = dx;
+    const cy = dr * sn + q[1] * cs;
+    const cz = dr * cs - q[1] * sn;
+    const lc = Math.hypot(cx, cy, cz) || 1;
+    const ux = cx / lc;
+    const uy = cy / lc;
+    const uz = cz / lc;
+    const rx = tx;
+    const ry = tp * sn;
+    const rz = tp * cs;
+    // 外向き：線の進む向きと指のまわりの向きに直角で、断面の外向きの側
+    let nx = ry * uz - rz * uy;
+    let ny = rz * ux - rx * uz;
+    let nz = rx * uy - ry * ux;
+    if (nx * tp + (ny * -tx * sn + nz * -tx * cs) < 0) {
+      nx = -nx;
+      ny = -ny;
+      nz = -nz;
+    }
+    // 彫りの傾き
+    const pa = phi < 0 ? phi + Math.PI * 2 : phi > Math.PI * 2 ? phi - Math.PI * 2 : phi;
+    const aa = pa > Math.PI ? Math.PI * 2 - pa : pa;
+    if (aa > field.a0 && aa < field.a1) {
+      const rm = loft.rowMmAt(seg, f) || 1;
+      const stepR = Math.min(0.5, mesh.normalMm / rm);
+      const stepPhi = mesh.normalMm / lc;
+      const rr = seg + sf;
+      const gr = (field.depth(rr + stepR, phi) - field.depth(rr - stepR, phi)) / (2 * stepR * rm);
+      const gc = (field.depth(rr, phi + stepPhi) - field.depth(rr, phi - stepPhi)) / (2 * stepPhi * lc);
+      if (gr !== 0 || gc !== 0) {
+        nx += gr * rx + gc * ux;
+        ny += gr * ry + gc * uy;
+        nz += gr * rz + gc * uz;
+      }
+    }
+    const l = Math.hypot(nx, ny, nz) || 1;
+    return [nx / l, ny / l, nz / l];
+  };
+  return { a0, a1, field, surface, normalOuter, mesh };
+}
+
+/**
+ * 彫りのある腕の、格子の三角形と面の向きを作る（彫る所は飛ばす）。
+ * k：断面の点の番号（内側の平らな行 flat 本 ＋ 外側の行、m 本で 1 周）、j：指のまわりの列（cols 本。wrap なら 1 周）。
+ * tubeOrder：ringsToTube の向き（false は stackLoops の向き）
+ */
+function reliefGrid(o: {
+  m: number;
+  cols: number;
+  wrap: boolean;
+  flat: number;
+  tubeOrder: boolean;
+  at: (k: number, j: number) => V3;
+  phiAt: (k: number, j: number) => number;
+  skip: (k: number, j: number) => boolean;
+  normalOuter: (seg: number, sf: number, phi: number) => V3;
+  isCrease: (row: number) => boolean;
+  tris: number[];
+  normals: number[];
+}): void {
+  const { m, cols, flat } = o;
+  const cache = new Map<number, V3>();
+  /** 点 (k, j) の面の向き。quad：四角が断面のどの区間か（k の行が折れ目なら、四角の側の向きを使う） */
+  const vn = (k: number, j: number, quad: number): V3 => {
+    const phi = o.phiAt(k, j);
+    if (quad < flat) return [0, -Math.sin(phi), -Math.cos(phi)];
+    const seg = quad - flat;
+    const kk = k === 0 ? m : k;
+    const sf = kk - flat - seg;
+    const row = kk - flat;
+    const id = (kk * 200003 + j) * 2 + (o.isCrease(row) && sf === 1 ? 1 : 0);
+    let q = cache.get(id);
+    if (!q) {
+      q = o.normalOuter(seg, sf, phi);
+      cache.set(id, q);
+    }
+    return q;
+  };
+  const jEnd = o.wrap ? cols : cols - 1;
+  for (let k = 0; k < m; k++)
+    for (let j = 0; j < jEnd; j++) {
+      if (o.skip(k, j)) continue;
+      const k2 = (k + 1) % m;
+      const j2 = (j + 1) % cols;
+      const a = o.at(k, j);
+      const b = o.at(k, j2);
+      const c = o.at(k2, j2);
+      const d = o.at(k2, j);
+      const na = vn(k, j, k);
+      const nb = vn(k, j2, k);
+      const nc = vn(k2, j2, k);
+      const nd = vn(k2, j, k);
+      if (o.tubeOrder) {
+        pushTri(o.tris, a, b, c);
+        pushTri(o.tris, a, c, d);
+        pushTri(o.normals, na, nb, nc);
+        pushTri(o.normals, na, nc, nd);
+      } else {
+        pushTri(o.tris, a, d, c);
+        pushTri(o.tris, a, c, b);
+        pushTri(o.normals, na, nd, nc);
+        pushTri(o.normals, na, nc, nb);
+      }
+    }
+}
+
+/** 彫りのある腕の positions と normals（裏返すときは、面の向きの並びも同じに） */
+function closedWithNormals(tris: number[], normals: number[]): { positions: Float32Array; normals: Float32Array } {
+  const flipped = meshVolume(new Float32Array(tris)) < 0;
+  const n = new Float32Array(normals);
+  if (flipped) {
+    for (let i = 0; i < n.length; i += 9)
+      for (let c = 0; c < 3; c++) {
+        const v = n[i + 3 + c];
+        n[i + 3 + c] = n[i + 6 + c];
+        n[i + 6 + c] = v;
+      }
+  }
+  return { positions: closedPart(tris), normals: n };
+}
+
+/** 彫る所の行の範囲（外側の行の番号）。外に、深さ 0 の行を 2 本ずつ残す（いちばん外の升は分けないので） */
+function patchRows(field: ReturnType<typeof makeReliefField>, rows: number): [number, number] {
+  let lo = 0;
+  while (lo < rows - 1 && !field.rowMayCarve(lo)) lo++;
+  let hi = rows - 1;
+  while (hi > lo && !field.rowMayCarve(hi)) hi--;
+  return [Math.max(0, lo - 2), Math.min(rows - 2, hi + 2)];
 }
 
 /** 角度の並びに、彫る所（左右）の細かい角度を足す。phis は 0〜2π の小さい順 */
@@ -248,7 +410,7 @@ function loftResult(p: ShankParams, loft: Loft | null): Pick<ShankResult, "along
 }
 
 /** 彫りの下に残る地金を測る（確かめに使う） */
-function reliefResult(p: ShankParams, loft: Loft, flat: number, rel: NonNullable<ReturnType<typeof reliefOf>>): NonNullable<ShankResult["relief"]> {
+function reliefResult(p: ShankParams, loft: Loft, flat: number, rel: NonNullable<ReturnType<typeof reliefOf>>, radius: number): NonNullable<ShankResult["relief"]> {
   const n = loft.rows[0].length;
   let peakUnder = Infinity;
   let localUnder = Infinity;
@@ -262,9 +424,10 @@ function reliefResult(p: ShankParams, loft: Loft, flat: number, rel: NonNullable
     if (Math.abs(top - f.t) < 0.005 * f.t) top = f.t;
     peakUnder = Math.min(peakUnder, top - p.relief!.depthMm);
     for (let i = 0; i < n; i++) {
-      const d = rel.depth(i + flat, phi, f);
-      if (d <= 0) continue;
-      localUnder = Math.min(localUnder, loft.point(i + flat, flat, f, 0)[1] - d);
+      if (rel.field.depth(i, phi) <= 0) continue;
+      const q = rel.surface(i + flat, phi, f);
+      // 薄くて彫らなかった所は数えない
+      if (q[1] < loft.point(i + flat, flat, f, radius)[1] - 1e-9) localUnder = Math.min(localUnder, q[1] - radius);
     }
   }
   return { ...p.relief!, fromDegUsed: (rel.a0 * 180) / Math.PI, toDegUsed: (rel.a1 * 180) / Math.PI, peakUnderMm: peakUnder, localUnderMm: Number.isFinite(localUnder) ? localUnder : peakUnder };
@@ -403,8 +566,8 @@ export function buildShank(p: ShankParams, cut?: SeatCut, opts: { notchStepMm?: 
         hold = Math.max(hold, Math.abs(wk.phi) + Math.asin(Math.min(1, y / (r + t))) + HOLD_MARGIN_RAD);
       }
     loft.setHold(hold);
-    // 彫りは細かい格子がいる。腕の幅の向きの行を細かくする
-    if (p.relief) loft.refine(rowTrace(loft.rows[0], w, t, RELIEF_STEP_MM));
+    // 彫りの土台の升の大きさまで、腕の幅の向きの行を細かくする
+    if (p.relief && !p.relief.draft) loft.refine(rowTrace(loft.rows[0], w, t, RELIEF_MESH.baseMm));
   }
   const topRows = loft ? loft.rows[0] : outer;
   let outerRows = topRows;
@@ -422,16 +585,18 @@ export function buildShank(p: ShankParams, cut?: SeatCut, opts: { notchStepMm?: 
   const flat = xR - xL > 1e-9 ? FLAT : 0;
   for (let i = 0; i < flat; i++) section2.push([xL + ((xR - xL) * i) / flat, r]);
   for (const [xi, eta] of outerRows.slice(0, -1)) section2.push([xi, r + t * eta]);
-  const relief = loft && p.relief ? reliefOf(p, loft, flat, r, t, hold) : null;
-  if (relief) phis = refinePhis(phis, relief.a0, relief.a1, RELIEF_STEP_MM / (r + t));
+  const reliefAll = loft && p.relief ? reliefOf(p, loft, flat, r, t, hold) : null;
+  const relief = p.relief?.draft ? null : reliefAll;
+  const baseStep = RELIEF_MESH.baseMm / (r + t);
+  if (relief) phis = refinePhis(phis, relief.a0 - baseStep, relief.a1 + baseStep, baseStep);
   const frames = loft ? phis.map((phi) => loft.frame(phi)) : null;
   // 断面の点ごとに、指のまわりを 1 周する輪
   const rings: V3[][] = section2.map(([xi, rho0], i) =>
     phis.map((phi, pk) => {
       // 腕の場所ごとの形なら、その場所の断面。肩はその上に足す
-      const lofted = loft && frames ? loft.point(i, flat, frames[pk], r, shoulderWidth(frames[pk].w, r + t, p.head)(phi)) : null;
+      const lofted = loft && frames ? (relief ? relief.surface(i, phi, frames[pk], shoulderWidth(frames[pk].w, r + t, p.head)(phi)) : loft.point(i, flat, frames[pk], r, shoulderWidth(frames[pk].w, r + t, p.head)(phi))) : null;
       const x = lofted ? lofted[0] : (xi * widthAt(phi)) / 2;
-      const rho = lofted ? lofted[1] - (relief && frames ? relief.depth(i, phi, frames[pk]) : 0) : rho0;
+      const rho = lofted ? lofted[1] : rho0;
       let y = rho * Math.sin(phi);
       let z = rho * Math.cos(phi);
       // 外側の点だけ削る。指の側（内径の円）より下へは下げない
@@ -456,8 +621,76 @@ export function buildShank(p: ShankParams, cut?: SeatCut, opts: { notchStepMm?: 
   const ball = balls[0] ?? null;
   const notchDepthMm = balls.reduce((m, b) => Math.max(m, r + t - b.bottomZ), 0);
   const tris: number[] = [];
-  ringsToTube(rings, tris);
-  const positions = closedPart(tris);
+  const reliefNormals: number[] = [];
+  if (relief && loft) {
+    // 彫る所だけ、深さが変わる所を細かく分けた網目にする。ほかはこれまでの格子
+    const [pr0, pr1] = patchRows(relief.field, outerRows.length);
+    const near = (target: number) => {
+      let best = 0;
+      phis.forEach((q, k) => {
+        if (Math.abs(q - target) < Math.abs(phis[best] - target)) best = k;
+      });
+      return best;
+    };
+    const arms: [number, number][] = [
+      [near(relief.a0 - baseStep), near(relief.a1 + baseStep)],
+      [near(Math.PI * 2 - relief.a1 - baseStep), near(Math.PI * 2 - relief.a0 + baseStep)],
+    ];
+    const skip = (k: number, j: number) => k - flat >= pr0 && k - flat < pr1 && arms.some(([c0, c1]) => j >= c0 && j < c1);
+    reliefGrid({
+      m: section2.length,
+      cols: phis.length,
+      wrap: true,
+      flat,
+      tubeOrder: true,
+      at: (k, j) => rings[k][j],
+      phiAt: (_k, j) => phis[j],
+      skip,
+      normalOuter: relief.normalOuter,
+      isCrease: (row) => loft.isCrease(row),
+      tris,
+      normals: reliefNormals,
+    });
+    const rowLen = (kk: number) => {
+      const f = loft.frame(relief.a0);
+      const q0 = loft.point(flat + kk, flat, f, r);
+      const q1 = loft.point(flat + kk + 1, flat, f, r);
+      return Math.hypot(q1[0] - q0[0], q1[1] - q0[1]);
+    };
+    for (const [c0, c1] of arms)
+      adaptivePatch(
+        {
+          r0: pr0,
+          r1: pr1,
+          c0,
+          c1,
+          tubeOrder: true,
+          minCellMm: relief.mesh.minCellMm,
+          tolMm: relief.mesh.tolMm,
+          depth: (rr, cc) => {
+            const j = Math.floor(cc);
+            return relief.field.depth(rr, phis[j] + (phis[j + 1] - phis[j]) * (cc - j));
+          },
+          vertex: (rr, cc) => {
+            const j = Math.floor(cc);
+            const phi = cc === j ? phis[j] : phis[j] + (phis[j + 1] - phis[j]) * (cc - j);
+            const f = loft.frame(phi);
+            const q = relief.surface(flat + rr, phi, f, shoulderWidth(f.w, r + t, p.head)(phi));
+            return [q[0], q[1] * Math.sin(phi), q[1] * Math.cos(phi)];
+          },
+          rowMm: rowLen,
+          colMm: (j) => (phis[j + 1] - phis[j]) * (r + t),
+          normal: (seg, rr, cc) => {
+            const j = Math.floor(cc);
+            return relief.normalOuter(seg, rr - seg, phis[j] + (phis[j + 1] - phis[j]) * (cc - j));
+          },
+        },
+        tris,
+        reliefNormals,
+      );
+  } else ringsToTube(rings, tris);
+  const lit = relief ? closedWithNormals(tris, reliefNormals) : null;
+  const positions = lit ? lit.positions : closedPart(tris);
   const volumeMm3 = meshVolume(positions);
   return {
     positions,
@@ -481,7 +714,8 @@ export function buildShank(p: ShankParams, cut?: SeatCut, opts: { notchStepMm?: 
     railSeatDepthMm: work.reduce((m, wk) => wk.railBoxes.reduce((mm, b) => Math.max(mm, b.depth ?? 0), m), 0),
     ends: null,
     ...loftResult(p, loft),
-    ...(relief && loft ? { relief: reliefResult(p, loft, flat, relief) } : {}),
+    ...(reliefAll && loft ? { relief: reliefResult(p, loft, flat, reliefAll, r) } : {}),
+    ...(lit ? { normals: lit.normals } : {}),
   };
 }
 
@@ -520,8 +754,8 @@ function openBand(
   const { w, t, r, outer } = c;
   const ov = c.gap.overlapMm ?? BAND_GAP_OVERLAP_MM;
   const loft = loftOf(p, c.section, w, t, outer);
-  // 彫りは細かい格子がいる。腕の幅の向きの行を細かくする
-  if (loft && p.relief) loft.refine(rowTrace(loft.rows[0], w, t, RELIEF_STEP_MM));
+  // 彫りの土台の升の大きさまで、腕の幅の向きの行を細かくする
+  if (loft && p.relief && !p.relief.draft) loft.refine(rowTrace(loft.rows[0], w, t, RELIEF_MESH.baseMm));
   const topRows = loft ? loft.rows[0] : outer;
   // 断面（ξ、ρ）：内側の平らな所を −1 → +1、外側を +1 → −1（閉じた断面の線）
   const sec: [number, number][] = [];
@@ -559,19 +793,37 @@ function openBand(
   // 腕の場所ごとの形：腕の端（石座の下の輪に当たる所）とロウの丸みは、いちばん上の形のまま
   const holdRad = ends.reduce((m, q) => Math.max(m, Math.abs(q.s), Math.abs(2 * Math.PI - q.e)), 0) + HOLD_MARGIN_RAD;
   if (loft) loft.setHold(holdRad);
-  const relief = loft && p.relief ? reliefOf(p, loft, flat, r, t, holdRad) : null;
-  // 腕の端から端までの割合 u の並び。彫る所は細かく
+  const reliefAll = loft && p.relief ? reliefOf(p, loft, flat, r, t, holdRad) : null;
+  const relief = p.relief?.draft ? null : reliefAll;
+  // 腕の端から端までの割合 u の並び。彫る所は土台の升の大きさに
   let us = Array.from({ length: AROUND + 1 }, (_, k) => k / AROUND);
+  let arms: [number, number][] = [];
+  const s0 = ends.reduce((m, q) => m + q.s, 0) / ends.length;
+  const e0 = ends.reduce((m, q) => m + q.e, 0) / ends.length;
+  const baseStep = RELIEF_MESH.baseMm / (r + t);
   if (relief) {
-    const s0 = ends.reduce((m, q) => m + q.s, 0) / ends.length;
-    const e0 = ends.reduce((m, q) => m + q.e, 0) / ends.length;
+    // 行ごとに腕の端の角度が少しちがうので、余白はそのぶん広く
+    const slip = ends.reduce((m, q) => Math.max(m, Math.abs(q.s - s0), Math.abs(q.e - e0)), 0) + baseStep;
     const toU = (phi: number) => (phi - s0) / (e0 - s0);
-    const n = Math.ceil((relief.a1 - relief.a0) / (RELIEF_STEP_MM / (r + t)));
+    const from = relief.a0 - slip;
+    const to = relief.a1 + slip;
+    const n = Math.ceil((to - from) / baseStep);
     for (let k = 0; k <= n; k++) {
-      const a = relief.a0 + ((relief.a1 - relief.a0) * k) / n;
+      const a = from + ((to - from) * k) / n;
       us.push(toU(a), toU(Math.PI * 2 - a));
     }
     us = [...new Set(us.map((v) => Math.round(v * 1e7) / 1e7))].filter((v) => v >= 0 && v <= 1).sort((x, y) => x - y);
+    const near = (target: number) => {
+      let best = 0;
+      us.forEach((q, k) => {
+        if (Math.abs(q - target) < Math.abs(us[best] - target)) best = k;
+      });
+      return best;
+    };
+    arms = [
+      [near(toU(from)), near(toU(to))],
+      [near(toU(Math.PI * 2 - to)), near(toU(Math.PI * 2 - from))],
+    ];
   }
   const loops: V3[][] = [];
   for (const u of us) {
@@ -579,13 +831,72 @@ function openBand(
       const phi = s + (e - s) * u;
       if (!loft) return [x, rho * Math.sin(phi), rho * Math.cos(phi)] as V3;
       const f = loft.frame(phi);
-      const [xx, rr0] = loft.point(i, flat, f, r);
-      const rr = rr0 - (relief ? relief.depth(i, phi, f) : 0);
+      const [xx, rr] = relief ? relief.surface(i, phi, f) : loft.point(i, flat, f, r);
       return [xx, rr * Math.sin(phi), rr * Math.cos(phi)] as V3;
     }));
   }
   const tris: number[] = [];
-  stackLoops(loops, tris);
+  const reliefNormals: number[] = [];
+  if (relief && loft) {
+    const [pr0, pr1] = patchRows(relief.field, topRows.length);
+    const skip = (i: number, k: number) => i - flat >= pr0 && i - flat < pr1 && arms.some(([c0, c1]) => k >= c0 && k < c1);
+    reliefGrid({
+      m: sec.length,
+      cols: loops.length,
+      wrap: false,
+      flat,
+      tubeOrder: false,
+      at: (i, k) => loops[k][i],
+      phiAt: (i, k) => ends[i].s + (ends[i].e - ends[i].s) * us[k],
+      skip,
+      normalOuter: relief.normalOuter,
+      isCrease: (row) => loft.isCrease(row),
+      tris,
+      normals: reliefNormals,
+    });
+    const phiAt = (rr: number, cc: number) => {
+      const k = Math.floor(cc);
+      const u = cc === k ? us[k] : us[k] + (us[k + 1] - us[k]) * (cc - k);
+      const j = Math.floor(rr);
+      const fr = rr - j;
+      const q0 = ends[flat + j];
+      if (fr === 0) return q0.s + (q0.e - q0.s) * u;
+      const q1 = ends[flat + j + 1];
+      const ss = q0.s + (q1.s - q0.s) * fr;
+      const ee = q0.e + (q1.e - q0.e) * fr;
+      return ss + (ee - ss) * u;
+    };
+    const rowLen = (kk: number) => {
+      const f = loft.frame(relief.a0);
+      const q0 = loft.point(flat + kk, flat, f, r);
+      const q1 = loft.point(flat + kk + 1, flat, f, r);
+      return Math.hypot(q1[0] - q0[0], q1[1] - q0[1]);
+    };
+    for (const [c0, c1] of arms)
+      adaptivePatch(
+        {
+          r0: pr0,
+          r1: pr1,
+          c0,
+          c1,
+          tubeOrder: false,
+          minCellMm: relief.mesh.minCellMm,
+          tolMm: relief.mesh.tolMm,
+          depth: (rr, cc) => relief.field.depth(rr, phiAt(rr, cc)),
+          vertex: (rr, cc) => {
+            const phi = phiAt(rr, cc);
+            const f = loft.frame(phi);
+            const q = relief.surface(flat + rr, phi, f);
+            return [q[0], q[1] * Math.sin(phi), q[1] * Math.cos(phi)];
+          },
+          rowMm: rowLen,
+          colMm: (k) => (us[k + 1] - us[k]) * (e0 - s0) * (r + t),
+          normal: (seg, rr, cc) => relief.normalOuter(seg, rr - seg, phiAt(rr, cc)),
+        },
+        tris,
+        reliefNormals,
+      );
+  } else stackLoops(loops, tris);
   // 両端のふた：断面の真ん中の点から扇に
   const cap = (loop: V3[], flip: boolean) => {
     const m: V3 = [0, 0, 0];
@@ -595,11 +906,22 @@ function openBand(
       const b = loop[(i + 1) % loop.length];
       if (flip) tris.push(...m, ...b, ...a);
       else tris.push(...m, ...a, ...b);
+      if (relief) {
+        // ふたは石座の下の輪の中に隠れる面。面の向きはそのまま
+        const ux = a[0] - m[0], uy = a[1] - m[1], uz = a[2] - m[2];
+        const vx = b[0] - m[0], vy = b[1] - m[1], vz = b[2] - m[2];
+        const sgn = flip ? -1 : 1;
+        const nx = (uy * vz - uz * vy) * sgn, ny = (uz * vx - ux * vz) * sgn, nz = (ux * vy - uy * vx) * sgn;
+        const l = Math.hypot(nx, ny, nz) || 1;
+        const q: V3 = [nx / l, ny / l, nz / l];
+        pushTri(reliefNormals, q, q, q);
+      }
     }
   };
   cap(loops[0], false);
   cap(loops[loops.length - 1], true);
-  const positions = closedPart(tris);
+  const lit = relief ? closedWithNormals(tris, reliefNormals) : null;
+  const positions = lit ? lit.positions : closedPart(tris);
   const volumeMm3 = meshVolume(positions);
   // 腕の端の、腕の真ん中（x ＝ 0）での位置と、上と下の z
   const endAt = (sgn: 1 | -1) => {
@@ -630,7 +952,8 @@ function openBand(
     railSeatDepthMm: 0,
     ends: [endAt(1), endAt(-1)],
     ...loftResult(p, loft),
-    ...(relief && loft ? { relief: reliefResult(p, loft, flat, relief) } : {}),
+    ...(reliefAll && loft ? { relief: reliefResult(p, loft, flat, reliefAll, r) } : {}),
+    ...(lit ? { normals: lit.normals } : {}),
   };
 }
 

@@ -84,7 +84,7 @@ export function shankLineHtml(s: RingState): string {
         : ""
     }
     <div class="pick"><span>腕の彫り</span><div>${toggle("relief", "none", !s.shankRelief, "なし")}${RELIEF_KINDS.map((k) => toggle("relief", k, s.shankRelief?.kind === k, RELIEF_LABEL[k])).join("")}</div></div>
-    ${s.shankRelief ? `<div class="sliders">${reliefSpecs(s.shankRelief).map(sliderHtml).join("")}</div><small class="sl-note">面に彫る浅い模様です（穴は開きません）。薄い所では自動で浅くなります。形の案で、仕上げは職人が決めます。</small>` : ""}
+    ${s.shankRelief ? `<div class="sliders">${reliefSpecs(s.shankRelief).map(sliderHtml).join("")}</div><small class="sl-note">面に彫る細い線の模様です（穴は開きません）。腕の縁と石座のそばには彫らず、はじめと終わりはなめらかに消えます。薄い所では自動で浅くなります。形の案で、仕上げは職人が決めます。</small>` : ""}
   </section>`;
 }
 
