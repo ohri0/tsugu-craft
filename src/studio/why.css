@@ -25,6 +25,9 @@
 .ff-back { fill: none; stroke: var(--t-shu); stroke-width: 1; opacity: 0.26; }
 .ff-tip { fill: none; stroke: var(--t-shu); stroke-width: 1; opacity: 0.8; }
 .ff-mark { fill: none; stroke: var(--t-shu); stroke-width: 1.2; stroke-dasharray: 100; stroke-dashoffset: 100; animation: ff-draw 7s ease-in-out infinite; }
+.ff-box { fill: none; stroke: currentColor; stroke-width: 0.8; opacity: 0.75; }
+.ff-faint { fill: none; stroke: var(--t-shu); stroke-width: 0.5; opacity: 0.32; }
+.ff-labels .ff-in { font-size: 22px; letter-spacing: 0.1em; }
 .ff-say { font-family: var(--t-mincho); font-size: 16px; fill: var(--t-shu); }
 .ff-note { font-family: var(--t-sans); font-size: 15px; fill: currentColor; }
 /* 朱の線を、制作からデザイン・設計へ、線の上に約 1.1 秒で引く。しばらく残して、薄く消える */
@@ -63,9 +66,10 @@
 .why p.wy-src.wy-w { margin: 0 auto 20px; }
 .lf { position: relative; max-width: 860px; margin: 44px auto 12px; padding: 0 clamp(20px, 5vw, 32px); }
 .lf-lab { margin: 0 !important; font: 400 16px/1.6 var(--t-mincho) !important; letter-spacing: 0.1em; }
-.lf-track { position: relative; height: 66px; border-bottom: 1px solid rgba(244, 241, 234, 0.5); }
-.lf-tick { position: absolute; bottom: -8px; width: 1px; height: 22px; background: var(--t-white); font-style: normal; }
-.lf-tick b { position: absolute; bottom: 26px; left: 0; transform: translateX(-50%); white-space: nowrap; font: 400 16px/1.2 var(--t-mincho); }
+.lf-track { position: relative; height: 86px; border-bottom: 1px solid rgba(244, 241, 234, 0.4); }
+.lf-band { position: absolute; bottom: -6px; width: clamp(56px, 14%, 120px); height: 11px; transform: translateX(-50%); background: linear-gradient(90deg, transparent, rgba(244, 241, 234, 0.95) 34%, rgba(244, 241, 234, 0.95) 66%, transparent); font-style: normal; }
+.lf-band b { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: grid; justify-items: center; gap: 3px; white-space: nowrap; font: 400 16px/1.2 var(--t-mincho); }
+.lf-band small { font: 400 14.5px/1.2 var(--t-sans); opacity: 0.86; }
 .lf-life { position: relative; height: 3px; margin-top: 26px; background: var(--t-white); }
 .lf-axis { position: relative; height: 30px; margin-top: 8px; font-size: 14.5px; }
 .lf-axis span { position: absolute; transform: translateX(-50%); }

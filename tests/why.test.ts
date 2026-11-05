@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { LIFE, chances, whyHtml } from "../src/studio/why";
 
 describe("なぜ継ぐ", () => {
-  it("20 年ごとの作り直しに関われるのは、多い人で 3 回（国土交通白書と同じ。回り合わせが悪いと 2 回）", () => {
+  it("20 年ごとの作り直しに関われるのは、多い人で 3 回ほど（国土交通白書と同じ。回り合わせが悪いと 2 回）", () => {
     expect(chances(LIFE.start, LIFE.end, LIFE.cycle, LIFE.first)).toBe(3);
     expect(chances(LIFE.start, LIFE.end, LIFE.cycle, 12)).toBe(2);
   });
@@ -10,7 +10,7 @@ describe("なぜ継ぐ", () => {
     const html = whyHtml();
     expect(html).not.toContain("10 年近く");
     expect(html).not.toContain("2 回ほど");
-    expect(html).toContain("多い人で 3 回");
+    expect(html).toContain("多い人で 3 回ほど");
   });
   it("行き来の図は「デザイン・設計（CAD）」と「制作」の 2 つ。戻りは制作から「デザイン・設計」へ", () => {
     const html = whyHtml();
@@ -21,6 +21,19 @@ describe("なぜ継ぐ", () => {
     const k = /class="ff-mark" pathLength="100" d="([^"]+)"/.exec(html);
     expect(m?.[1]).toBeTruthy();
     expect(k?.[1]).toBe(m?.[1]);
+  });
+  it("継ぐの枠が「デザイン・設計」と職人の判断を包み、制作へまっすぐ。戻りはなくなるとは言わない", () => {
+    const html = whyHtml();
+    expect(html).toContain("ff-box");
+    expect(html).toContain("職人の判断</text>");
+    expect(html).toContain("戻りは極限まで少なくなります");
+    expect(html).toContain("人の仕事のまま");
+  });
+  it("20 年の図：各回は端のぼやけた帯。年数を書かない", () => {
+    const html = whyHtml();
+    expect(html.match(/class="lf-band"/g)?.length).toBe(3);
+    expect(html).toContain("<small>制作</small>");
+    expect(html).not.toMatch(/作るのに \d+ 年|\d+ 年かけ|\d+ 年近く/);
   });
   it("公に知られた例（式年遷宮）は出典つきの絵と一緒に出す（作者が決めた。2026-11-03）", () => {
     const html = whyHtml();

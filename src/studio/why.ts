@@ -34,32 +34,38 @@ export function flowBeforeSvg(): string {
   </svg>`;
 }
 
-/** 継ぐがあるとき：流れは同じ。デザイン・設計のそばで、職人の決まりがその場で確かめる。設計も制作も残る */
+/**
+ * 継ぐがあるとき：継ぐの枠が「デザイン・設計」と職人の判断を包み、そこから制作へまっすぐ 1 本（作者の声）。
+ * 戻りは極限まで少なくなるが、なくなるとは言わないので、ごく細く薄い線を残す
+ */
 export function flowAfterSvg(): string {
-  return `<svg class="ff" viewBox="0 0 360 150" role="img" aria-label="デザイン・設計（CAD）から制作への流れはそのまま。デザインと設計の時に、継ぐが職人の決まりで確かめる">
+  return `<svg class="ff" viewBox="0 0 360 150" role="img" aria-label="継ぐの枠の中に、デザイン・設計（CAD）と職人の判断がある。そこから制作へまっすぐ進む。戻りはごく細い線だけ">
+    <path class="ff-faint" d="M326 66C316 14 262 6 214 18"/>
+    <rect class="ff-box" x="4" y="18" width="226" height="126"/>
     <g class="ff-labels">
-      <text x="118" y="132" text-anchor="middle">デザイン・設計<tspan>（CAD）</tspan></text>
-      <text x="326" y="132" text-anchor="middle">制作</text>
-      <text x="118" y="40" text-anchor="middle">継ぐ</text>
+      <text class="ff-in" x="117" y="52" text-anchor="middle">継ぐ</text>
+      <text x="117" y="92" text-anchor="middle">デザイン・設計<tspan>（CAD）</tspan></text>
+      <text x="117" y="126" text-anchor="middle">職人の判断</text>
+      <text x="326" y="92" text-anchor="middle">制作</text>
     </g>
-    <path class="ff-go" d="M226 126H296M292 122l4 4-4 4"/>
-    <path class="ff-go" d="M118 54V108"/>
-    <text class="ff-note" x="146" y="36">描いている間に、</text>
-    <text class="ff-note" x="146" y="60">職人の決まりで確かめる</text>
+    <path class="ff-go" d="M230 86H296M292 82l4 4-4 4"/>
   </svg>`;
 }
 
-/** 20 年ごとの作り直しと、職人の一生。線と字は HTML（スマホでも PC でも字の大きさが変わらない） */
+/**
+ * 20 年ごとの作り直しと、職人の一生。線と字は HTML（スマホでも PC でも字の大きさが変わらない）。
+ * 各回は点でなく、端がぼやけた帯（1 回作るのに何年もかかる。具体的な年数は聞いていないので、長さが年数に読めないようにぼかす。年数は書かない）
+ */
 function lifeHtml(): string {
   const at = (age: number) => `${(((age - 15) / 55) * 100).toFixed(2)}%`;
   const marks: string[] = [];
   let n = 0;
   for (let y = LIFE.first; y <= LIFE.end; y += LIFE.cycle) {
     n++;
-    marks.push(`<i class="lf-tick" style="left:${at(y)}"><b>${n} 回目</b></i>`);
+    marks.push(`<i class="lf-band" style="left:${at(y)}"><b>${n} 回目<small>制作</small></b></i>`);
   }
   const axis = [20, 40, 60].map((a) => `<span style="left:${at(a)}">${a} 歳</span>`).join("");
-  return `<div class="lf" role="img" aria-label="20 年ごとの作り直しに、22 歳から 65 歳まで働く職人が関われるのは、多くて 3 回（図は例）">
+  return `<div class="lf" role="img" aria-label="20 年ごとの作り直しに、22 歳から 65 歳まで働く職人が関われるのは、多くて 3 回ほど（図は例）">
     <p class="lf-lab">20 年ごとの作り直し</p>
     <div class="lf-track">${marks.join("")}</div>
     <div class="lf-life" style="left:${at(LIFE.start)};width:calc(${at(LIFE.end)} - ${at(LIFE.start)})"></div>
@@ -86,7 +92,7 @@ export function whyHtml(opts: { standalone?: boolean } = {}): string {
         <figure><figcaption>これまで</figcaption>${flowBeforeSvg()}</figure>
         <figure><figcaption>継ぐがあると</figcaption>${flowAfterSvg()}</figure>
       </div>
-      <p>設計も制作も、人の仕事のままです。継ぐは、作れるかどうかの判断を、描いている人の手元に渡します。</p>
+      <p>継ぐの中で、デザインと設計を、職人の判断で確かめながら進めます。だから制作まで進み、戻りは極限まで少なくなります。設計も制作も、人の仕事のままです。</p>
     </div>
   </section>
 
@@ -94,10 +100,10 @@ export function whyHtml(opts: { standalone?: boolean } = {}): string {
     <div class="wy-w">
       <h3>20 年に一度の技は、<wbr>繰り返しでは<wbr>覚えられない。</h3>
       <p>何年もかけて作り、20 年に一度しか作り直さない技があります。たとえば伊勢神宮の式年遷宮では、社殿も、御装束神宝と呼ばれる品々も、すべて新しく作り直されます。</p>
-      <p>神宮によると、御装束神宝は 714 種、1,576 点。国の白書によると、遷宮に関わる技能者が携われるのは、多い人で 3 回です。繰り返して覚えることはできません。</p>
+      <p>神宮によると、御装束神宝は 714 種、1,576 点。国の白書によると、遷宮に関わる技能者が携われるのは、多い人で 3 回ほどです。繰り返して覚えることはできません。</p>
     </div>
     ${lifeHtml()}
-    <p class="wy-src wy-w">図は例です。出典：<a href="https://www.isejingu.or.jp/sengu/the63rd/about.html" target="_blank" rel="noopener">神宮「第 63 回 式年遷宮」</a>／<a href="${HAKUSHO_URL}" target="_blank" rel="noopener">国土交通白書 平成 26 年版のコラム</a>（3 回は、社殿を作る技能者の話です）</p>
+    <p class="wy-src wy-w">図は例です。出典：<a href="https://www.isejingu.or.jp/sengu/the63rd/about.html" target="_blank" rel="noopener">神宮「第 63 回 式年遷宮」</a>／<a href="${HAKUSHO_URL}" target="_blank" rel="noopener">国土交通白書 平成 26 年版のコラム</a>（3 回ほどは、社殿を作る技能者の話です）</p>
     <figure class="wy-photo">
       <img src="/heritage/naiku-1953.jpg" alt="1953 年の内宮を空から撮った写真。上が新しい殿舎、下がそれまでの殿舎" loading="lazy" decoding="async" />
       <figcaption>1953 年の内宮。上が新しい殿舎、下がそれまでの殿舎。本田照夫 撮影／Wikimedia Commons・パブリックドメイン</figcaption>
