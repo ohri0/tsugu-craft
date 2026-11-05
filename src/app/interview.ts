@@ -4,7 +4,7 @@
 import { askConfirm } from "./confirm";
 import { askGapPrompt, askGapUser, ASK_GAP, gapRulePrompt, gapRuleUser, GAP_RULE, parseAskGap, parseGapRule, type GapRuleOut } from "../claude/gap";
 import { callTool } from "../rebuild/run";
-import { valueText, type AnswerResult, type Gap, type RuleDraft } from "../rules/gaps";
+import { freshGap, valueText, type AnswerResult, type Gap, type RuleDraft } from "../rules/gaps";
 import { PARAMS, type ParamId } from "../rules/ledger";
 import { askPassword, resetPassword } from "./password";
 import { esc, store, today } from "./store";
@@ -45,6 +45,10 @@ const KIND: Record<Gap["kind"], string> = {
 
 export function mountInterview(root: HTMLElement, target: InterviewTarget, opts: { onApplied?: (title: string) => void } = {}): Interview {
   let current: string | undefined;
+  /** いま描いた一覧の質問（帳面が変わって新しく出た質問を見つけるため） */
+  let known: Set<string> | null = null;
+  /** いま描いた中身（同じなら描き直さない。描き直すと Claude の言い直しをまた呼んでしまう） */
+  let drawn = "";
   /** この画面を開いている間、とばした所 */
   const skipped = new Set<string>();
   let asked = "";
@@ -60,10 +64,14 @@ export function mountInterview(root: HTMLElement, target: InterviewTarget, opts:
     return gaps.find((g) => !skipped.has(g.id)) ?? gaps[0];
   }
 
+  const keyOf = (gaps: Gap[]) => JSON.stringify(gaps.map((g) => [g.id, g.question]));
+
   function render() {
     const gaps = target.gaps();
     const gap = pick();
     current = gap?.id;
+    known = new Set(gaps.map((g) => g.id));
+    drawn = keyOf(gaps);
     const claude = !!store.password();
     if (!gap) {
       root.innerHTML = `<div class="iv-head"><p class="eyebrow">Claude からの質問</p></div><p class="iv-done">今は聞くことはありません。</p>`;
@@ -221,6 +229,11 @@ export function mountInterview(root: HTMLElement, target: InterviewTarget, opts:
       // 答えている途中（文字が入っている）なら描き直さない
       const t = root.querySelector<HTMLTextAreaElement>("textarea");
       if (t && t.value.trim()) return;
+      const gaps = target.gaps();
+      if (keyOf(gaps) === drawn) return;
+      // 決まりを消すと、その所の質問がまた要る。前の質問に留まらず、新しく出た質問をすぐ出す（読み直すまで出なかった）
+      const fresh = freshGap(known, gaps);
+      if (fresh) current = fresh.id;
       render();
     },
     listen() {

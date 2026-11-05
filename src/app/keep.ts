@@ -9,7 +9,7 @@ import { keepPrompt } from "../claude/prompt";
 import { TOOLS, type ProposeRuleInput, type ProposeRuleResult, type ToolHost } from "../claude/tools";
 import { summarizeMetrics } from "../craft/motion";
 import { bookHtml } from "../rules/book";
-import { ringGaps } from "../rules/gaps";
+import { freshGap, ringGaps } from "../rules/gaps";
 import { activeRules, addRule, editRule, removeRule, sourceLabel, type Rule } from "../rules/ledger";
 import { MAIN } from "../rules/workshops";
 import { groupQuestions, markAnswered, removeQuestions, type QuestionGroup } from "../rules/teacher-queue";
@@ -72,6 +72,9 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
   const $ = <T extends HTMLElement = HTMLElement>(s: string) => root.querySelector<T>(s)!;
   /** 聞き取りを開いているときの部品（開いていなければ null） */
   let interview: Interview | null = null;
+  /** 質問の札：いま描いた一覧と、留めている質問（決まりを消して新しく出た質問。「あとで」で外す） */
+  let askKnown: Set<string> | null = null;
+  let askPinned: string | undefined;
 
   function refresh() {
     const ledger = store.ledger();
@@ -80,7 +83,8 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
     // 名前を変えられるのは、はじめの帳面（ほかの工房の帳面の名前はスタジオで足したときの名前）
     $(".rename").hidden = store.workshops().active !== MAIN;
     renderCards();
-    if (!interview) renderAskCard();
+    if (interview) interview.refresh();
+    else renderAskCard();
     const groups = groupQuestions(store.queue()).filter((g) => !g.answeredRuleId);
     $(".inbox-block").hidden = !groups.length;
     $(".inbox-count").textContent = groups.length ? `${groups.length} 件` : "";
@@ -234,11 +238,15 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
   function renderAskCard(gapId?: string) {
     const box = $(".iv-card");
     const gaps = ringGaps(store.ledger());
+    // 決まりを消して新しく出た質問は、すぐ見せる（読み直すまで順番の後ろに隠れていた）
+    const fresh = freshGap(askKnown, gaps);
+    if (fresh) askPinned = fresh.id;
+    askKnown = new Set(gaps.map((g) => g.id));
     if (!gaps.length) {
       box.hidden = true;
       return;
     }
-    const q = (gapId && gaps.find((g) => g.id === gapId)) || gaps[laterCount() % gaps.length];
+    const q = (gapId && gaps.find((g) => g.id === gapId)) || (askPinned && gaps.find((g) => g.id === askPinned)) || gaps[laterCount() % gaps.length];
     box.hidden = false;
     box.innerHTML = `
       <p class="eyebrow">Claude から質問が 1 つあります</p>
@@ -251,6 +259,7 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
     });
     box.querySelector(".later")!.addEventListener("click", () => {
       setLater(laterCount() + 1);
+      askPinned = undefined;
       renderAskCard();
     });
   }
