@@ -5,6 +5,7 @@ import { openEdges } from "../src/cad/solid";
 import { buildRing } from "../src/geometry/ring";
 import { buildShank, sectionOutline, type ShankParams, type ShankStation } from "../src/geometry/shank";
 import { commonRows, pchip } from "../src/geometry/shank-loft";
+import { makeReliefField, reliefPattern } from "../src/geometry/shank-relief";
 import { sectionCurveProblem } from "../src/geometry/section-input";
 import { checkRing, checkShank } from "../src/rules/checks";
 import { GUIDES, innerDiameterMm } from "../src/rules/guides";
@@ -409,3 +410,102 @@ describe("腕の彫り", () => {
     expect(s.built!.ring.shank.relief).toBeUndefined();
   });
 });
+
+describe("腕の彫りの仕上がり（作者の声：縁がギザギザ、ブロックが貼りついたよう、2026-11-05）", () => {
+  // 入口の絵と同じ数：稜線の断面、肩へ向かって細く、稜線の両側に窓
+  const gothicRidge = [{ x: 1, y: 0 }, { x: 1, y: 0.28 }, { x: 0.74, y: 0.44 }, { x: 0.4, y: 0.68 }, { x: 0, y: 1 }, { x: 0, y: 1 }, { x: 0, y: 1 }, { x: -0.4, y: 0.68 }, { x: -0.74, y: 0.44 }, { x: -1, y: 0.28 }, { x: -1, y: 0 }];
+  const gothic: ShankParams = {
+    gou: 11,
+    widthMm: 2.1,
+    thicknessMm: 1.9,
+    section: "free",
+    sectionCurve: { points: gothicRidge },
+    stations: [
+      { atDeg: 80, widthMm: 2.3, thicknessMm: 1.6, curve: { points: gothicRidge } },
+      { atDeg: 180, widthMm: 2.6, thicknessMm: 1.3, section: "hangouman" },
+    ],
+    relief: { kind: "arch", count: 3, depthMm: 0.25, fromDeg: 24, toDeg: 118, columns: 2 },
+  };
+
+  it("どの石でも、閉じた 1 つの形で、内径は変わらず、断面のとがりの確かめも通る", () => {
+    for (const id of ["round", "oval", "pear", "marquise"]) {
+      for (const join of ["between", "on"] as const) {
+        const r = buildRing({ stone: presetStone(id), setting: { style: "prong", height: "standard", join }, shank: gothic });
+        expect(openEdges(r.shank.positions), `${id} ${join}`).toBe(0);
+        expect(components(r.shank.positions), `${id} ${join}`).toBe(1);
+        expect(innerRadius(r.shank.positions), `${id} ${join}`).toBeCloseTo(innerDiameterMm(11) / 2, 3);
+        expect(checkShank(r.shank).map((q) => q.check), `${id} ${join}`).toEqual([]);
+      }
+    }
+  }, 120000);
+
+  it("重くなりすぎない。細かい網目は、入口の絵のときだけ", () => {
+    const normal = buildShank(gothic);
+    expect(normal.positions.length / 9).toBeLessThan(140000);
+    const fine = buildShank({ ...gothic, relief: { ...gothic.relief!, fine: true } });
+    expect(fine.positions.length).toBeGreaterThan(normal.positions.length);
+    expect(openEdges(fine.positions)).toBe(0);
+  });
+
+  it("面の向きは、三角形と同じ並びで、長さ 1。外を向いている", () => {
+    const sh = buildShank(gothic);
+    const n = sh.normals!;
+    expect(n.length).toBe(sh.positions.length);
+    const p = sh.positions;
+    let outward = 0;
+    let total = 0;
+    for (let i = 0; i < p.length; i += 9 * 37) {
+      for (const c of [0, 3, 6]) expect(Math.hypot(n[i + c], n[i + c + 1], n[i + c + 2])).toBeCloseTo(1, 3);
+      const ux = p[i + 3] - p[i], uy = p[i + 4] - p[i + 1], uz = p[i + 5] - p[i + 2];
+      const vx = p[i + 6] - p[i], vy = p[i + 7] - p[i + 1], vz = p[i + 8] - p[i + 2];
+      const fx = uy * vz - uz * vy, fy = uz * vx - ux * vz, fz = ux * vy - uy * vx;
+      if (Math.hypot(fx, fy, fz) < 1e-9) continue;
+      total++;
+      if (fx * n[i] + fy * n[i + 1] + fz * n[i + 2] > 0) outward++;
+    }
+    expect(outward / total).toBeGreaterThan(0.985);
+  });
+
+  it("動かしている間は彫らない。確かめに使う数は同じ", () => {
+    const draft = buildShank({ ...gothic, relief: { ...gothic.relief!, draft: true } });
+    const full = buildShank(gothic);
+    expect(draft.normals).toBeUndefined();
+    expect(draft.positions.length).toBeLessThan(full.positions.length / 2);
+    expect(draft.relief!.peakUnderMm).toBeCloseTo(full.relief!.peakUnderMm, 2);
+  });
+
+  it("腕の縁には彫らない", () => {
+    for (const kind of ["arch", "diamond", "wave", "beads", "lines", "leaf"] as const) {
+      for (let u = 0; u < 6; u += 0.013) {
+        // 外の面の線の長さの半分 1.5 mm のとき、縁から 0.12 mm の内までは、どの模様も深さ 0
+        expect(reliefPattern(kind, u, 1.5 - 0.1, 4, 1.5, 1), kind).toBe(0);
+        expect(reliefPattern(kind, u, -1.5 + 0.1, 4, 1.5, 2), kind).toBe(0);
+      }
+    }
+  });
+
+  it("はじめと終わりは、深さが 0 まで なめらかに消える。腕が細くなる所では、窓も短くなる", () => {
+    const v = Array.from({ length: 41 }, (_, i) => 1 - i / 20);
+    const at = (a: number) => ({ w: 3 - a * 0.5, t: 1.8, arc: (3 - a * 0.5) * 0.75 });
+    const a0 = 0.5;
+    const a1 = 2;
+    const field = makeReliefField({ kind: "arch", count: 4, depthMm: 0.25, fromDeg: 0, toDeg: 180 }, { a0, a1, v, innerR: 8, at });
+    // 真ん中の行から少しずらした所で、腕に沿って深さを見る
+    const along = (phi: number) => {
+      let m = 0;
+      for (let r = 0; r <= 40; r += 0.25) m = Math.max(m, field.depth(r, phi));
+      return m;
+    };
+    expect(field.depth(20, a0)).toBe(0);
+    expect(field.depth(20, a1)).toBe(0);
+    expect(along(a0 + 0.004)).toBeLessThan(0.01);
+    expect(along(a1 - 0.004)).toBeLessThan(0.01);
+    let peak = 0;
+    for (let a = a0; a < a1; a += 0.005) peak = Math.max(peak, along(a));
+    expect(peak).toBeGreaterThan(0.2);
+    expect(peak).toBeLessThanOrEqual(0.25 + 1e-9);
+    // 左の腕も右の腕も同じ深さ
+    expect(field.depth(10, Math.PI * 2 - 1.3)).toBeCloseTo(field.depth(10, 1.3), 9);
+  });
+});
+

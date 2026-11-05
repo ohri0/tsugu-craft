@@ -627,7 +627,7 @@ export class Viewer {
     }
     if (cursor < total) settingGeo.addGroup(cursor * 3, (total - cursor) * 3, 0);
     const setting = new THREE.Mesh(settingGeo, [metal, warn]);
-    const shank = new THREE.Mesh(metalGeometry(ring.ringPositions.shank), badShank ? warn : metal);
+    const shank = new THREE.Mesh(ring.shank.normals ? smoothGeometry(ring.ringPositions.shank, ring.shank.normals) : metalGeometry(ring.ringPositions.shank), badShank ? warn : metal);
     shank.userData.arm = true;
     setting.position.z = lift;
     shank.position.z = lift;
@@ -672,7 +672,7 @@ export class Viewer {
     const L = this.live;
     if (!L) return;
     const old = L.shank.geometry;
-    L.shank.geometry = metalGeometry(shank.positions);
+    L.shank.geometry = shank.normals ? smoothGeometry(shank.positions, shank.normals) : metalGeometry(shank.positions);
     old.dispose();
     const ud = L.shank.userData;
     if (ud.edges) {

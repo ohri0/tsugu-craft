@@ -523,19 +523,19 @@ export const TOOLS: ClaudeTool[] = [
         relief: {
           type: "object",
           description:
-            "腕の外の面に彫る浅い模様（穴は開かない）。左右の腕に同じように彫る。石座のそば（腕の端）には彫らない。平らな面やゆるい丸みの面でよく見え、薄い所では自動で浅くなる。" +
+            "腕の外の面に彫る、細い線の模様（穴は開かない）。左右の腕に同じように彫る。石座のそば（腕の端）と腕の縁には彫らない。はじめと終わりはなめらかに消え、腕が細くなる所では模様も小さくなる。薄い所では自動で浅くなる。" +
             `彫った所の下に残る厚みは check が見る（${GUIDES.band.relief.minUnderMm} mm 以上。仮の目安）。作者が彫る本物の彫りの代わりではなく、形の案。`,
           properties: {
             pattern: {
               type: "string",
               enum: ["none", "arch", "diamond", "wave", "beads", "lines", "leaf"],
-              description: "模様。arch＝先の尖ったアーチが腕に沿って並ぶ、diamond＝菱の格子、wave＝腕に沿う波の線、beads＝丸い粒のくぼみの列、lines＝腕を横切る筋、leaf＝葉とつる、none＝彫りをなくす",
+              description: "模様。arch＝先の鋭く尖った縦長の窓が腕に沿って並ぶ（幅があれば、中に 2 つの小窓と丸窓）、diamond＝菱の格子、wave＝腕に沿う波の線、beads＝丸い粒のくぼみの列、lines＝腕を横切る筋、leaf＝葉とつる、none＝彫りをなくす",
             },
             count: { type: "integer", description: `片側の腕に並べる数（${range("relief_count", " つ")}）。省くと 4` },
             depth_mm: { type: "number", description: `彫りの深さ（mm、${range("relief_depth", " mm")}）。省くと ${GUIDES.band.relief.depthMm} mm` },
             from_deg: { type: "number", description: `彫り始める場所（いちばん上からの角度、度、${range("relief_deg")}）。省くと 25` },
             to_deg: { type: "number", description: `彫り終わる場所（度、${range("relief_deg")}）。省くと 100。指の真横が 90` },
-            columns: { type: "integer", description: `幅の向きに並べる数（${range("relief_columns", " 列")}）。省くと 1。真ん中に稜線のある断面では 2 にすると稜線の両側に並ぶ` },
+            columns: { type: "integer", description: `幅の向きに並べる数（${range("relief_columns", " 列")}）。省くと 1。真ん中に稜線のある断面では 2 にすると稜線の両側に並ぶ。尖った窓は、面が広いと自動で列が増える（縦に細長いまま）` },
           },
           required: ["pattern"],
           additionalProperties: false,
