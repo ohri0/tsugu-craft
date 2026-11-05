@@ -16,6 +16,6 @@ describe("前の画面の名前を、新しい場所へ送る", () => {
     expect(redirectHash("#waza/ring?gap=abc")).toBeNull();
   });
   it("今の場所は、そのまま", () => {
-    for (const h of ["", "#ledger", "#learn", "#learn/hands", "#waza", "#waza/ring", "#waza/mokume", "#waza/rebuild"]) expect(redirectHash(h)).toBeNull();
+    for (const h of ["", "#ledger", "#learn", "#learn/hands", "#waza", "#waza/ring", "#waza/mokume", "#waza/rebuild", "#waza/restore", "#waza/restore/r1"]) expect(redirectHash(h)).toBeNull();
   });
 });
