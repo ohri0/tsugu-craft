@@ -848,18 +848,21 @@ def stone(s, t, f):
     d = s["voice"][0]["dur"]
     mid = a0 + d * 0.5
     m = meta("photo9")["marks"]
+    # 写真と輪郭のあとは、組み上がったあとの絵（黒の地）へ重ねてつなぐ（組んでいる間の方眼の画面は見せない）
+    last_photo = PHOTO_LAST  # 写真が薄れて方眼が見えはじめる前の、最後のこま（撮ったこまで測った）
     if t < mid:
-        pts = [(0, m["photo"] + 10), (a0 + d * 0.28, m["stone"]), (mid, m["sheet"] - 4)]
-        i = ramp_frame(pts, t)
-        return shot("photo9", int(i), None)
+        pts = [(0, m["photo"] + 10), (mid, last_photo)]
+        return shot("photo9", int(ramp_frame(pts, t)), None)
     pts = [(mid, m["stoneCard"]), (mid + 0.5, m["stoneCard"] + 24), (mid + 1.1, m["pear"] - 2), (mid + 1.2, m["pear"]), (s["len"], m["pear"] + 49)]
-    k = sm((t - mid) / 0.3)
-    i = ramp_frame(pts, t)
-    r = shot("photo9", int(i), None)
+    k = sm((t - mid) / 0.45)
+    r = shot("photo9", int(ramp_frame(pts, t)), None)
     if k < 1:
-        r0 = shot("photo9", m["sheet"] - 4, None)
+        r0 = shot("photo9", last_photo, None)
         return r0 * (1 - k) + r * k
     return r
+
+
+PHOTO_LAST = 98
 
 
 # ---- 言葉で腕まで変わる
@@ -1193,20 +1196,31 @@ def mokume(s, t, f):
 
 
 # ---- 途切れた技：手がかりと、職人の帳面を渡す
-@scene("restore9")
+@scene("restore9", "rebuild9")
 def restore(s, t, f):
+    """n35：木目金の「手がかり 9」の欄 → 「職人の帳面も渡す」の札だけを寄りで（作り話の品の名前は映さない）"""
     a0 = vat(s)
     d = s["voice"][0]["dur"]
-    m = meta("restore9")["marks"]
-    sw = a0 + d * 0.42
-    r0 = edges(lift(shot("restore9", m["flow"], (0, 60, 1920, 1080)), 0.05), 30, 60)
+    sw = a0 + d * 0.5
+    # 前半：答えの分かっている技（木目金）の、渡した手がかりの欄。手がかりの行を明るく、下の札は少し暗く
+    mr = meta("rebuild9")
+    cb = mr["boxes"]["cluesBox"]
+    r0 = lift(shot("rebuild9", mr["marks"]["clues"], (0, 0, 1920, 1080)), 0.05)
+    r0 = edges(band(r0, (cb["y"] - 4) * 4, (cb["y"] + 74) * 4, 0.45), 30, 60)
     k = sm((t - sw) / 0.6)
     if k <= 0:
-        a = r0
-    else:
-        r1 = edges(lift(shot("restore9", m["book"], (0, 0, 1920, 1080)), 0.05), 30, 60)
-        a = r0 * (1 - k) + r1 * k
-    return ink(a, Hz(W - 40, 1056, "画面の例は作り話", "sans", 22, 0.06, "r"), SHIRO, 0.85 * fade(t, 0.4, 0.8))
+        return r0
+    # 後半：途切れた技の頁の「職人の帳面も渡す」の札だけ（例の頁なので、右下に注）
+    mb = meta("restore9")
+    bb = mb["boxes"]["bookCard"]
+    y0, y1 = int((bb["y"] - 14) * 4), int((bb["y"] + bb["h"] + 10) * 4)
+    card = lift(shot("restore9", mb["marks"]["book"], (0, y0, 1920, y1 - y0), (1920, y1 - y0)), 0.05)
+    r1 = np.zeros((H, W, 3), F32)
+    top = (H - card.shape[0]) // 2
+    g = (np.clip(np.arange(card.shape[0], dtype=F32) / 24, 0, 1) * np.clip((card.shape[0] - 1 - np.arange(card.shape[0], dtype=F32)) / 24, 0, 1))[:, None, None]
+    r1[top:top + card.shape[0]] = card * g
+    r1 = ink(r1, Hz(W - 40, 1056, "画面の例は作り話", "sans", 22, 0.06, "r"), SHIRO, 0.85)
+    return r0 * (1 - k) + r1 * k
 
 
 # ---- 力試し：手がかりだけを渡す

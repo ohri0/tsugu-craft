@@ -2839,6 +2839,7 @@ const STILLS9 = {
     await p.evaluate(() => { document.querySelector('.rs-book')?.scrollIntoView({ block: 'start' }); window.scrollBy(0, -24); });
     await s.wait(400);
     await s.shot('book');
+    await s.box('bookCard', '.rs-book', 0);
     console.log('restore9 帳面', await p.evaluate(() => document.querySelector('.rs-book')?.innerText.replace(/\s+/g, ' ')), '／', await p.evaluate(() => document.querySelector('.rs-book-on')?.checked));
     console.log('restore9 分かること', await p.evaluate(() => [...document.querySelectorAll('.rs-facts > li')].map((x) => x.innerText.replace(/\s+/g, ' ').slice(0, 50)).join(' ／ ')));
   }],
@@ -2857,6 +2858,7 @@ const STILLS9 = {
     await p.evaluate(() => { document.querySelector('details.clues')?.scrollIntoView({ block: 'start' }); window.scrollBy(0, -16); });
     await s.wait(300);
     await s.shot('clues');
+    await s.box('cluesBox', 'details.clues', 0);
     console.log('rebuild9', await p.evaluate(() => [...document.querySelectorAll('details.clues .clue-list li span')].map((x) => x.innerText).join(' ・ ')));
   }],
 };
