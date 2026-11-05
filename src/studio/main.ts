@@ -103,7 +103,7 @@ app.innerHTML = `
   <header class="tb">
     <div class="tb-l"><a class="brand" href="./"><span class="logo">継</span>継ぐ</a><span class="doc"><span class="word-name">新しい作品</span></span></div>
     <nav class="tabs" aria-label="場面">${MODES.map((m) => `<button type="button" data-mode="${m.id}" title="${m.sub}（${m.key}）">${m.word}<span class="k">${m.key}</span></button>`).join("")}</nav>
-    <div class="tb-r"><nav class="places hide-sm" aria-label="ほかの場所"><a href="app.html#ledger" title="職人の決まりと、Claude からの質問">帳面</a><a href="app.html#learn" title="次の人が、職人の決まりに聞いて学ぶ">学ぶ</a><a href="app.html#waza" title="彫金・金工の技と、途切れた技を組み立て直す">技</a></nav><button type="button" class="btn quiet act-present">見せる</button><button type="button" class="btn quiet act-why">なぜ継ぐ</button><button type="button" class="btn act-sheet hide-sm">図面・指示書</button><button type="button" class="btn primary act-stl">STL</button></div>
+    <div class="tb-r"><nav class="places hide-sm" aria-label="ほかの場所"><a href="app.html#ledger" title="職人の決まりと、Claude からの質問">帳面</a><a href="app.html#learn" title="次の人が、職人の決まりに聞いて学ぶ">学ぶ</a><a href="app.html#waza" title="彫金・金工の技と、途切れた技を組み立て直す">技</a></nav><button type="button" class="btn quiet act-present">見せる</button><button type="button" class="btn quiet act-why">なぜ継ぐ</button><button type="button" class="btn act-sheet hide-sm">図面・指示書</button><button type="button" class="btn primary act-stl">STL</button>${filming() ? "" : `<button type="button" class="btn quiet act-more" aria-label="ほかの場所" aria-expanded="false">≡</button><nav class="more-menu" hidden aria-label="ほかの場所"><a href="app.html#ledger">帳面</a><a href="app.html#learn">学ぶ</a><a href="app.html#waza">技</a><button type="button" class="more-sheet">図面・指示書を印刷</button></nav>`}</div>
   </header>
   <nav class="tools" aria-label="見る">
     ${(["angle", "top", "side", "front"] as const).map((v) => `<button type="button" class="tool view-btn" data-view="${v}" data-tip="${{ angle: "斜め", top: "上", side: "横", front: "正面" }[v]}" aria-label="${{ angle: "斜め", top: "上", side: "横", front: "正面" }[v]}">${ICON[v]}</button>`).join("")}
@@ -1139,6 +1139,23 @@ document.addEventListener("keydown", (e) => {
 // 上のボタンは、場面を変えずに書き出す（押すと「作る」へ移っていた）
 $(".act-sheet").addEventListener("click", () => printSheet());
 $(".act-stl").addEventListener("click", () => exportStl());
+// スマホの上の帯のメニュー（帳面・学ぶ・技へ。図面・指示書も）
+{
+  const more = document.querySelector<HTMLButtonElement>(".act-more");
+  const menu = document.querySelector<HTMLElement>(".more-menu");
+  if (more && menu) {
+    more.addEventListener("click", (e) => {
+      e.stopPropagation();
+      menu.hidden = !menu.hidden;
+      more.setAttribute("aria-expanded", String(!menu.hidden));
+    });
+    menu.querySelector(".more-sheet")!.addEventListener("click", () => printSheet());
+    addEventListener("click", () => {
+      menu.hidden = true;
+      more.setAttribute("aria-expanded", "false");
+    });
+  }
+}
 
 // ---- 生む。：Claude が組んで、確かめて、直す ----
 const TOOL_WORD: Record<string, string> = { set_setting: "石座", set_shank: "腕", check: "確かめ", look: "見る" };
