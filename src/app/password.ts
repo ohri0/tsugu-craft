@@ -3,6 +3,10 @@
 import { store } from "./store";
 
 let skipped = false;
+/** サーバーに「合言葉が違う」と言われたあと（入れ直してもらう印） */
+let wrong = false;
+const CHANGED = "tsugu:password";
+const changed = () => window.dispatchEvent(new Event(CHANGED));
 
 /** force：「合言葉なしで使う」を選んだあとでも、人がボタンを押して Claude を頼んだときは聞き直す */
 export function askPassword(force = false): Promise<string> {
@@ -25,9 +29,12 @@ export function askPassword(force = false): Promise<string> {
     dlg.querySelector(".pw-skip")!.addEventListener("click", () => dlg.close("skip"));
     dlg.addEventListener("close", () => {
       const v = dlg.returnValue === "ok" ? input.value.trim() : "";
-      if (v) store.setPassword(v);
-      else skipped = true;
+      if (v) {
+        store.setPassword(v);
+        wrong = false;
+      } else skipped = true;
       dlg.remove();
+      changed();
       resolve(v);
     });
     dlg.showModal();
@@ -39,4 +46,23 @@ export function askPassword(force = false): Promise<string> {
 export function resetPassword(): void {
   store.setPassword("");
   skipped = false;
+  wrong = true;
+  changed();
+}
+
+/** どの画面からでも合言葉を入れられるボタン。入っているか・違っていたかを字で見せる（前は入れる場所がどこにもなかった） */
+export function passwordButton(): HTMLButtonElement {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "ghost pw-state";
+  const paint = () => {
+    const has = !!store.password();
+    b.dataset.state = wrong ? "wrong" : has ? "set" : "none";
+    b.textContent = wrong ? "合言葉を入れ直す" : has ? "Claude：合言葉あり" : "合言葉を入れる";
+    b.title = has ? "押すと、合言葉を入れ替えられます" : "Claude が考えて答えるには、合言葉が要ります";
+  };
+  b.addEventListener("click", () => void askPassword(true));
+  window.addEventListener(CHANGED, paint);
+  paint();
+  return b;
 }

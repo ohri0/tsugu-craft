@@ -6,7 +6,7 @@
 // - 表の高さ ＝ 厚み − ふちの丸め（距離で四分円）＋ 起伏（技法の粒・叩き・彫った線）。
 // - 輪郭の所は、格子の辺と輪郭が交わる点を、どの三角形からも同じ計算で出す（すき間ができない）。
 //   表・横の壁・裏を、同じ輪郭の点でつなぐ。
-// 指輪：断面（幅 × 厚み、形は点で決める）を、指のまわりに回す。上と下で断面を変え、その間をなめらかにつなぐ。外の面に起伏をつける。
+// 指輪：閉じた断面（src/cad/section.ts。内側を丸くしてもよい）を、指のまわりに回す。上と下で断面を変え、その間をなめらかにつなぐ。
 
 export interface Pt {
   x: number;
@@ -192,106 +192,126 @@ export function openEdges(pos: Float32Array): number {
 
 // ---- 指輪 ----
 
-/** 断面：幅 × 厚み と、外側の形（0〜1 の高さを、幅の左から右へ並べたもの。両端は 0 に近い） */
-export interface Section {
-  width: number;
-  thickness: number;
-  /** 外側のふくらみの形（幅を等分した点の高さ、0〜1）。内側はまっすぐ（指に当たる面） */
-  crown: number[];
+/** 閉じた断面の点（mm）。x は幅の向き（真ん中 0）、h は指の円からの高さ（0 以上） */
+export interface LoopPt {
+  x: number;
+  h: number;
 }
 
-export const SECTION_PRESETS: Record<"kouman" | "hirauchi" | "kamaboko", (w: number, t: number) => Section> = {
-  // 甲丸：外が丸い
-  kouman: (w, t) => ({ width: w, thickness: t, crown: Array.from({ length: 9 }, (_, i) => Math.max(0.35, Math.sqrt(1 - ((i / 8) * 2 - 1) ** 2))) }),
-  // 平打ち：外が平ら、角だけ少し丸める
-  hirauchi: (w, t) => ({ width: w, thickness: t, crown: [0.7, 0.97, 1, 1, 1, 1, 1, 0.97, 0.7] }),
-  // かまぼこ：ゆるい丸み
-  kamaboko: (w, t) => ({ width: w, thickness: t, crown: Array.from({ length: 9 }, (_, i) => 0.6 + 0.4 * Math.sqrt(1 - ((i / 8) * 2 - 1) ** 2)) }),
-};
-
-/** 断面の高さを、幅の位置 s（−w/2〜w/2）で読む（点の間はなめらかに） */
-export function crownAt(sec: Section, s: number): number {
-  const c = sec.crown;
-  const u = Math.max(0, Math.min(1, s / sec.width + 0.5)) * (c.length - 1);
-  const i = Math.min(c.length - 2, Math.floor(u));
-  const t = u - i;
-  const p0 = c[Math.max(0, i - 1)];
-  const p1 = c[i];
-  const p2 = c[i + 1];
-  const p3 = c[Math.min(c.length - 1, i + 2)];
-  const v = 0.5 * (2 * p1 + (-p0 + p2) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (-p0 + 3 * p1 - 3 * p2 + p3) * t * t * t);
-  return Math.max(0.05, Math.min(1.2, v));
-}
-
-export interface RingSpec {
+export interface BandSpec {
   innerDiameter: number;
-  /** 上（石座や飾りの側）と下（手のひらの側）の断面 */
-  top: Section;
-  bottom: Section;
+  /** 上と下の断面（閉じた線。同じ点の数で、同じ番号の点どうしがつながる。外の線 右 → 左、内の線 左 → 右の向き） */
+  top: readonly LoopPt[];
+  bottom: readonly LoopPt[];
   /** 上の断面が続く広さ（度、上を中心に左右合わせて）。その外は下の断面へなめらかに変わる */
   blendDeg: number;
-  /** まわりの分け方と、断面の分け方 */
+  /** まわりの分け方 */
   around: number;
-  across: number;
-  /** 外の面の起伏（u：まわりの長さ mm、v：幅の位置 mm） */
-  relief?: (u: number, v: number) => number;
+  /**
+   * 切り取る所（度。いちばん上が 0、＋ は +y の側）。断面を見るための、切った形を作る。切り口にはふたをする。
+   * なければ 1 周の輪
+   */
+  gap?: { fromDeg: number; toDeg: number };
 }
 
-/** 指輪：断面を回して作る（すき間のない形）。指の軸は x、いちばん下を z ＝ 0、上は z の大きい側 */
-export function ringSolid(spec: RingSpec): { positions: Float32Array; uvs: Float32Array; indices: Uint32Array } {
+/** 点 p が三角形 a–b–c の中か、線の上にあるか（a–b–c は反時計回り） */
+function inTriangle(p: LoopPt, a: LoopPt, b: LoopPt, c: LoopPt): boolean {
+  const s = (u: LoopPt, v: LoopPt) => (v.x - u.x) * (p.h - u.h) - (v.h - u.h) * (p.x - u.x);
+  return s(a, b) >= -1e-12 && s(b, c) >= -1e-12 && s(c, a) >= -1e-12;
+}
+
+/** 閉じた線の中を三角形に分ける（耳を切り落とす方法）。へこんだ形でもよい。返す三角形は、線が反時計回りなら反時計回り */
+export function earClip(poly: readonly LoopPt[]): [number, number, number][] {
+  const idx = poly.map((_, i) => i);
+  let area = 0;
+  poly.forEach((p, i) => {
+    const q = poly[(i + 1) % poly.length];
+    area += p.x * q.h - q.x * p.h;
+  });
+  if (area < 0) idx.reverse();
+  const turn = (a: LoopPt, b: LoopPt, c: LoopPt) => (b.x - a.x) * (c.h - a.h) - (b.h - a.h) * (c.x - a.x);
+  const out: [number, number, number][] = [];
+  while (idx.length > 3) {
+    const n = idx.length;
+    let ear = -1;
+    let fallback = 0;
+    let most = -Infinity;
+    for (let i = 0; i < n; i++) {
+      const ia = idx[(i - 1 + n) % n];
+      const ib = idx[i];
+      const ic = idx[(i + 1) % n];
+      const t = turn(poly[ia], poly[ib], poly[ic]);
+      if (t > most) {
+        most = t;
+        fallback = i;
+      }
+      if (t <= 1e-12) continue;
+      if (idx.some((j) => j !== ia && j !== ib && j !== ic && inTriangle(poly[j], poly[ia], poly[ib], poly[ic]))) continue;
+      ear = i;
+      break;
+    }
+    // 耳がない（線が自分と交わるなど）ときは、いちばん出っぱった点を落として先へ進む
+    if (ear < 0) ear = fallback;
+    out.push([idx[(ear - 1 + n) % n], idx[ear], idx[(ear + 1) % n]]);
+    idx.splice(ear, 1);
+  }
+  out.push([idx[0], idx[1], idx[2]]);
+  return out;
+}
+
+/**
+ * 指輪：閉じた断面を指のまわりに回して作る（すき間のない 1 つの形）。三角形の並びを返す。
+ * 指の軸は x、いちばん下を z ＝ 0、上は z の大きい側。上と下で断面を変え、その間をなめらかにつなぐ。
+ * どの角度でも、断面のいちばん指に近い所が指の円の上に来る（内径はどこでも同じ）
+ */
+export function bandSolid(spec: BandSpec): Float32Array {
   const rIn = spec.innerDiameter / 2;
-  const N = spec.around;
-  const M = spec.across;
   const half = (spec.blendDeg / 2) * (Math.PI / 180);
-  const pos: number[] = [];
-  const uv: number[] = [];
-  const idx: number[] = [];
-  const tMax = Math.max(spec.top.thickness, spec.bottom.thickness);
-  const outerLen = 2 * Math.PI * (rIn + tMax);
-  // 断面のまわり（外 M+1 点 → 内 M+1 点）
-  const L = 2 * (M + 1);
-  for (let i = 0; i < N; i++) {
-    const a = (i / N) * Math.PI * 2; // 0 ＝ 上
-    // 上からの角度で、上の断面 → 下の断面へ（なめらかに）
-    const fromTop = Math.abs(((a + Math.PI) % (2 * Math.PI)) - Math.PI);
+  const L = spec.top.length;
+  const cz = rIn + Math.max(...spec.bottom.map((p) => p.h));
+  /** その角度の断面（指にいちばん近い所を h ＝ 0 に）。上からの角度で、上の断面 → 下の断面へなめらかに変わる */
+  const sectionAt = (a: number): LoopPt[] => {
+    const fromTop = Math.abs(Math.atan2(Math.sin(a), Math.cos(a)));
     const k = fromTop <= half ? 0 : Math.min(1, (fromTop - half) / Math.max(0.3, Math.PI - half));
     const mix = k * k * (3 - 2 * k);
-    const w = spec.top.width + (spec.bottom.width - spec.top.width) * mix;
-    const t = spec.top.thickness + (spec.bottom.thickness - spec.top.thickness) * mix;
+    const pts = spec.top.map((p, i) => ({ x: p.x + (spec.bottom[i].x - p.x) * mix, h: p.h + (spec.bottom[i].h - p.h) * mix }));
+    let low = Infinity;
+    for (const p of pts) if (p.h < low) low = p.h;
+    return pts.map((p) => ({ x: p.x, h: p.h - low }));
+  };
+  const place = (sec: readonly LoopPt[], a: number): number[][] => {
     const ca = Math.cos(a);
     const sa = Math.sin(a);
-    for (let m = 0; m <= M; m++) {
-      const s = -w / 2 + (w * m) / M;
-      const crown = crownAt(spec.top, (s / w) * spec.top.width) * (1 - mix) + crownAt(spec.bottom, (s / w) * spec.bottom.width) * mix;
-      let rr = rIn + t * crown;
-      const u = (i / N) * outerLen;
-      if (spec.relief && m > 0 && m < M) rr += spec.relief(u, s);
-      // 上（a ＝ 0）が z の大きい側
-      pos.push(s, rr * sa, rIn + tMax + rr * ca);
-      uv.push(u, s + w / 2);
-    }
-    for (let m = M; m >= 0; m--) {
-      const s = -w / 2 + (w * m) / M;
-      pos.push(s, rIn * sa, rIn + tMax + rIn * ca);
-      uv.push((i / N) * 2 * Math.PI * rIn, -(s + w / 2) - 1);
-    }
-  }
-  for (let i = 0; i < N; i++) {
-    const i2 = (i + 1) % N;
+    return sec.map((p) => [p.x, (rIn + p.h) * sa, cz + (rIn + p.h) * ca]);
+  };
+  const pos: number[] = [];
+  const tri = (a: number[], b: number[], c: number[]) => pos.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]);
+  const toRad = Math.PI / 180;
+  const gap = spec.gap;
+  const span = gap ? (360 - (gap.toDeg - gap.fromDeg)) * toRad : Math.PI * 2;
+  const start = gap ? gap.toDeg * toRad : 0;
+  const count = gap ? Math.max(4, Math.round((span / (Math.PI * 2)) * spec.around)) : spec.around;
+  const angles = Array.from({ length: gap ? count + 1 : count }, (_, i) => start + (span * i) / count);
+  const secs = angles.map(sectionAt);
+  const rings = secs.map((s, i) => place(s, angles[i]));
+  // 断面の線は（x, h）で反時計回り。角度が増える向きに進むので、外向きの面は次の順
+  for (let i = 0; i < count; i++) {
+    const a = rings[i];
+    const b = rings[(i + 1) % rings.length];
     for (let k = 0; k < L; k++) {
-      const k2 = (k + 1) % L;
-      const a = i * L + k;
-      const b = i2 * L + k;
-      const c = i2 * L + k2;
-      const d = i * L + k2;
-      idx.push(a, d, b, b, d, c);
+      const m = (k + 1) % L;
+      tri(a[k], b[m], a[m]);
+      tri(a[k], b[k], b[m]);
     }
   }
-  return { positions: new Float32Array(pos), uvs: new Float32Array(uv), indices: new Uint32Array(idx) };
+  if (gap) {
+    // 切り口のふた：始まりの切り口は断面の線の向きのまま（角度が減る向きが外）、終わりの切り口は逆向き
+    for (const [a, b, c] of earClip(secs[0])) tri(rings[0][a], rings[0][b], rings[0][c]);
+    const e = rings.length - 1;
+    for (const [a, b, c] of earClip(secs[e])) tri(rings[e][a], rings[e][c], rings[e][b]);
+  }
+  return new Float32Array(pos);
 }
-
-/** 号から内径（mm）。日本の号は、内まわり（mm）− 40 がおよその目安 */
-export const innerDiameterOf = (gou: number) => (gou + 40) / Math.PI;
 
 /** 三角形の並び（または番号つき）を、バイナリの STL にする（3D 印刷・鋳造の原型づくりに渡す形） */
 export function toStl(positions: Float32Array, indices?: Uint32Array): ArrayBuffer {

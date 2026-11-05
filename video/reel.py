@@ -1038,7 +1038,7 @@ def render_check3(clip, tl):
 
 
 def render_stat3(clip, tl):
-    """作り手の数：1998 年度 → 2022 年度の帯。短くなっていく"""
+    """作り手の数：1998 年度 → 2022 年度の帯。2 本目が右から短くなっていく"""
     ow, oh = OUT
     P = Pad(ow, oh, clip.get("bg", C3["bg"]))
     k = clip.get("k", {})
@@ -1050,10 +1050,11 @@ def render_stat3(clip, tl):
     for i, (yr, v, col) in enumerate([("1998 年度", a, C3["dim"]), ("2022 年度", b, C3["gold"])]):
         y = 320 + i * 190
         P.text(x0, y - 52, yr, S3, C3["white"], appear if i == 0 else _ap(tl, k.get("grow", 1), 0.5), "g4", "lm")
-        ww = w0 * (v / a) * (1 if i == 0 else g)
-        if i == 0 or g > 0:
-            P.box(x0 + ww / 2, y + 22, max(4, ww), 40, appear, outline=col, fill=col, width=1, r=8)
+        # 2 本目は 1998 年度と同じ長さで出て、右の端から縮む（数字が減るのに帯が伸びると、逆に見える。作者の声）
         vv = v if i == 0 else a + (b - a) * g
+        ww = w0 * (vv / a)
+        ap_bar = appear if i == 0 else _ap(tl, k.get("grow", 1), 0.4)
+        P.box(x0 + ww / 2, y + 22, max(4, ww), 40, ap_bar, outline=col, fill=col, width=1, r=8)
         P.text(x0 + max(ww, 4) + 28, y + 22, f"{vv:.1f} 万人", H3, C3["white"] if i else C3["gray"], appear if i == 0 else _ap(tl, k.get("grow", 1), 0.4), "g6", "lm")
     return P.out()
 

@@ -6,7 +6,7 @@
 
 ![継ぐの「見せる」の画面](public/lp/hero.webp)
 
-**試す**：https://tsugu-craft.vercel.app/ （設計は [studio.html](https://tsugu-craft.vercel.app/studio.html)。Claude を使う所だけ合言葉が要ります。なくても、帳面の決まりで確かめ・作り方・学ぶまで動きます）
+**試す**：https://tsugu-craft.vercel.app/ （入口は誰でも見られます。設計・帳面・学ぶ・技は、はじめに合言葉を入れて開きます。自分の API キーで動かす方法は下の節にあります）
 
 Built with Claude: Japan 2026（テーマ #1「あなたにしかない深さを。」）。作者は宝飾の彫金職人（石川）。
 
@@ -44,7 +44,7 @@ Built with Claude: Japan 2026（テーマ #1「あなたにしかない深さを
 2. **確かめる**：作れない所が 3D で赤く点滅する。
    - **作れない所の窓**：赤い所か札を押すと、どこが・なぜ（誰のどの決まりか）・直し方が出る。直し方のボタンで 1 つずつ、「まとめて直す」で全部、「Claude で直す」で Claude が指輪ぜんたいを読んで直す。原因の欄は赤くなる。「▶ 職人の声で聞く」で理由を声で聞ける。
    - **手で変える**：石の大きさのつまみ（同じ形のまま大きく・小さく。爪の太さは帳面の決まりで決め直す）、留め方（4 本爪・6 本爪・覆輪・テンション）、爪の太さ、高さ、向き、号、地金。テンションは、開いた丸線の両はしに角のくぼみと辺の溝を彫って石を挟む形（職人の値）で、STL も出せます。
-   - **断面を描く**：腕の断面を、甲丸・平打ち・半甲丸・角から選ぶか、指で描く。点を動かす・足す・消す、左右対称、自由に描く（なめらかな線に直る）、元に戻す。尖りすぎた先や薄いヒレだけが赤くなる。
+   - **断面を描く**：腕の断面を、甲丸・平打ち・半甲丸・角から選ぶか、指で描く。点を動かす・足す・消す、左右対称、自由に描く（なめらかな線に直る）、元に戻す。尖りすぎた先や薄いヒレだけが赤くなる。石のない指輪は同じ画面に加えて、断面の見本 11 種（甲丸・かまぼこ・平甲丸・平打ち・角・丸線・面取り・山形・V 溝・段つき・くぼみ）、上と下で断面を変える、内甲丸（内側を丸くする。内径は変わらない）、切って断面を見る。
    - **ザグり・ロウ付けのつなぎ目**：石の先が腕の厚みの中まで下りるときは、腕の上を丸いビットで削ったくぼみを自動で作る（深さと直径を出す）。石座は 1 つの部品で、下の輪が腕を横切る 2 か所に座とロウの丸みを作って腕につなぐ。3D・図面・重さ・STL がみな同じ形。
    - **職人の決まり**：話す（Claude が決まりの案にする）か、Claude なしで数字で書く →「これでいい」で、今の設計とこれまでの作品をすべて確かめ直し、まとめて直す。「職人の決まりを外して比べる」で、公開情報だけで組んだ形（爪 1.66 mm）と並べられる。工房ごとに帳面を作り、同じ指輪を帳面ごとに比べられる。
 3. **作る**：鋳造／鍛造の工程の札。数字・道具・「詳しく」、言葉を押すとその場で意味。工程の中に、職人の手の決まりと、前の記録のコツ（「前の記録から」）。**図面**（正面・側面・上面と寸法・表題欄、A4 横）・作り方・原寸の型紙の印刷と、**STL** の書き出し。
@@ -61,9 +61,11 @@ Built with Claude: Japan 2026（テーマ #1「あなたにしかない深さを
 - **技**（`#waza`）：指輪の石留め・覆輪留め・ミル打ち・槌目・鏨彫り・布目象嵌・木目金。どの技も同じ形のページ（① 作り方 → ② 職人の決まり → ③ Claude から質問）。指輪の石留めは「設計で試す」で設計へ。**途切れた技を、手がかりから組み立て直す（木目金）**。
   - **組み立て直す**（`#waza/rebuild`）：作り方を隠した木目金について、残った品物・断面の層・金属・時代・道具の手がかり（`research/mokume/clues.md`）だけを Claude に渡し、工程を組み立てさせる。そのあと、隠しておいた本当の作り方（`research/mokume/answer.md`）と答え合わせする（11 工程のうち 9 が一致）。木目金は、江戸時代に刀の飾り（刀装具）に使われ、そのあと途絶えていたとされ、のちに復元された技（出典：秋田県の無形文化財「杢目金」の説明、`docs/RESEARCH-scale.md`）。Claude がもともと覚えていたかもしれない工程は、どの手がかりも引いていないものとして分けて数える。
 
-### 合言葉がないとき
+### 合言葉
 
-Claude を使う所（希望の言葉から生む・話した決まり・Claude で直す・Claude の質問の答えを決まりにする・組み立て直す）は合言葉が要ります。それ以外は合言葉なしで全部動きます。山場の「職人の一言」は「Claude なしで、数字で書く」と見本の作品で試せます。帳面の質問は、合言葉がなければ決まった問いと数字を読むしくみで動きます。
+公開の版は、設計・帳面・学ぶ・技を開くときに合言葉を聞きます。コードは公開しているので、これは鍵ではなく入口です。API キーを守る本当の確かめは、サーバーの合言葉の確かめ（`api/claude.ts`）です。自分のパソコンで動かすときは聞きません。
+
+Claude につながらないときも、決まりの確かめや作り方の表示など、Claude を使わない所は動きます。「職人の一言」は「Claude なしで、数字で書く」と見本の作品で試せます。
 
 ## だれの判断か（職人・公開の資料・仮）
 
@@ -165,6 +167,7 @@ Claude Desktop に足す（設定の「開発者」→ 設定ファイル `claud
 | 名前 | 用途 | ライセンス |
 | --- | --- | --- |
 | [three.js](https://github.com/mrdoob/three.js)（`three`） | 3D の表示 | MIT |
+| [three-mesh-bvh](https://github.com/gkjohnson/three-mesh-bvh)（`three-mesh-bvh`） | 見せるの映り込みを「細かく」にしたとき、地金が地金を映す光線を形に当てる（選んだときだけ読み込む） | MIT |
 | [Anthropic TypeScript SDK](https://github.com/anthropics/anthropic-sdk-typescript)（`@anthropic-ai/sdk`） | Claude API を呼ぶ（`api/claude.ts`）。画面は型だけ使う | Apache-2.0 |
 | [MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk)（`@modelcontextprotocol/sdk`） | MCP サーバー（`mcp/`） | MIT |
 | [Zod](https://github.com/colinhacks/zod)（`zod`） | MCP の道具の入力の形を決めて確かめる | MIT |
@@ -191,9 +194,10 @@ Claude Desktop に足す（設定の「開発者」→ 設定ファイル `claud
 | [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M)・[kokoro-onnx](https://github.com/thewh1teagle/kokoro-onnx)・[soundfile](https://github.com/bastibe/python-soundfile) | **仮の声だけ**（作者の声が届くまでの機械の声、`video/tts_kokoro.py`）。重みと声はリポジトリに入れない。作者の声に替えたら使わない | Apache-2.0（重み）・MIT・BSD-3-Clause |
 | [misaki](https://github.com/hexgrad/misaki)・[unidic-lite](https://github.com/polm/unidic-lite) | 仮の声のための日本語の読み方 | Apache-2.0・MIT（辞書は UniDic の BSD） |
 | [pyopenjtalk](https://github.com/r9y9/pyopenjtalk) | 前の仮の動画の確かめ用の声（`video/tts.py`） | MIT |
+| [しっぽり明朝](https://github.com/google/fonts/tree/main/ofl/shipporimincho)（Shippori Mincho）・[Noto Serif JP](https://github.com/google/fonts/tree/main/ofl/notoserifjp)・[Noto Sans JP](https://github.com/google/fonts/tree/main/ofl/notosansjp) | 新しい見た目の見本の字（`video/look9.py`）。字のファイルは `video/work/fonts/` に置くだけで、リポジトリにもアプリにも入れない | SIL OFL 1.1 |
 
 - 音楽と効果音は、すべて自作（`video/bgm*.py`・`video/sfx.py` が音を計算で作る）。外の曲や効果音の素材は使っていない。
-- 字は、使う人の端末にもとからある字（ヒラギノ・游ゴシックなど）を名前で呼ぶだけ。字のファイルは配らない。動画の字も、作者の Mac にもとからあるヒラギノ角ゴシック・ヒラギノ明朝。
+- 字は、使う人の端末にもとからある字（ヒラギノ・游ゴシックなど）を名前で呼ぶだけ。字のファイルは配らない。今の動画の字も、作者の Mac にもとからあるヒラギノ角ゴシック・ヒラギノ明朝。新しい見た目の見本（`video/look9.py`）は、上の表の OFL の字を使う。
 
 画像：
 

@@ -12,11 +12,15 @@ import type { StoneMesh } from "../geometry/stone";
 import type { MetalId } from "../rules/guides";
 import type { Problem } from "../rules/checks";
 import { CadGrid, GRID_LOOK } from "./cad-grid";
+import { COLORED_IOR, COLORLESS_IOR, gemMaterial, type GemQuality, type GemShared } from "./gem";
+import { Glow } from "./glow";
+import type { MetalTrace } from "./metal-trace";
+import { GEM_STUDIO, METAL_STUDIO, studioLightScene } from "./studio-light";
 import { gridSpacing, labelStep, VIEW_DIR, ViewCameras, type FlatViewInfo, type ViewName } from "./view-camera";
 
 export type DisplayMode = "render" | "shaded" | "wire";
 
-const isStone = (m: THREE.Material | THREE.Material[]) => !Array.isArray(m) && m instanceof THREE.MeshPhysicalMaterial && m.transmission > 0;
+const isStone = (m: THREE.Material | THREE.Material[]) => !Array.isArray(m) && m.userData.gem === true;
 const SHADED = {
   metal: new THREE.MeshStandardMaterial({ color: 0xbfc0c4, roughness: 0.6, metalness: 0, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }),
   warn: new THREE.MeshStandardMaterial({ color: 0xe0504a, roughness: 0.6, metalness: 0, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }),
@@ -29,18 +33,41 @@ function shadedOf(m: THREE.Material): THREE.Material {
   return SHADED.metal;
 }
 
+/** 作れない所の赤い材質の元（映り込みは、シェードと同じ明るい環境で） */
+const WARN_LOOK = new THREE.MeshPhysicalMaterial({ color: 0xe0342b, metalness: 0.35, roughness: 0.3, clearcoat: 0.6, side: THREE.DoubleSide });
+
 export interface StoneLook {
   color: { r: number; g: number; b: number };
   colorless: boolean;
 }
 
-/** 地金の見た目（鏡面の光） */
-const METAL_COLOR: Record<MetalId, number> = { k18y: 0xe9c17a, pt900: 0xdcdcde, sv925: 0xe8e8ea };
+/**
+ * 地金の見た目（鏡面の光。リニアの赤・緑・青。見た目のための仮の値で、職人の目安ではない）。
+ * K18 は白っぽいシャンパン色。前の値（0xe9c17a）は青が少なすぎて、からし色になっていた（2026-11-05 作者の声）
+ */
+const METAL_COLOR: Record<MetalId, [number, number, number]> = { k18y: [0.86, 0.72, 0.46], pt900: [0.78, 0.77, 0.75], sv925: [0.93, 0.92, 0.88] };
+/** 磨いた金属の粗さ。小さいほど映り込みの線が鋭い */
+const METAL_ROUGHNESS = 0.025;
+const metalColor = (id: MetalId) => new THREE.Color().setRGB(...METAL_COLOR[id], THREE.LinearSRGBColorSpace);
 const WARN = 0xe0342b;
 /** 背景のうっすらとした明るさの変化（真ん中 → 外） */
 const BACKDROP = { center: "#f8f6f2", edge: "#e2ddd4" };
 /** 置いた所の影：どの高さまでの部分が影を落とすか（mm）・濃さ・ぼかし（回数） */
 const SHADOW = { reachMm: 7, darkness: 0.85, opacity: 0.55, blurPasses: 3, size: 256 };
+
+/**
+ * 描く力に合わせた細かさ。スマホ（指で触る端末）とソフトウェアの描画では、石の中の計算と環境の細かさを減らす
+ */
+function quality(gl: WebGL2RenderingContext | WebGLRenderingContext): { envSize: number; glow: boolean; gem: GemQuality } {
+  const coarse = typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
+  const ext = gl.getExtension("WEBGL_debug_renderer_info");
+  const name = ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL)) : "";
+  if (/swiftshader|llvmpipe|software/i.test(name)) return { envSize: 256, glow: false, gem: { bounces: 3, samples: 1, disperse: false } };
+  if (coarse) return { envSize: 512, glow: false, gem: { bounces: 4, samples: 1, disperse: false } };
+  // CPU に付いた GPU（Intel の内蔵）は、石の中を 1 本だけ追う（4 本だと 1 こま 0.2 秒かかり、回すとかくつく）
+  if (/intel|iris|uhd/i.test(name)) return { envSize: 512, glow: true, gem: { bounces: 5, samples: 1, disperse: true } };
+  return { envSize: 1024, glow: true, gem: { bounces: 6, samples: 4, disperse: true } };
+}
 
 export class Viewer {
   private renderer: THREE.WebGLRenderer;
@@ -66,9 +93,20 @@ export class Viewer {
   private live: { shank: THREE.Mesh; marks: THREE.Mesh[]; lift: number; warn: THREE.MeshPhysicalMaterial } | null = null;
   /** 描き直しが要るか（動いていない間は描かない。スマホの電池のため） */
   private dirty = true;
+  private quality: ReturnType<typeof quality>;
+  /** 石が読む環境と、光の向き（カメラの向きに合わせて回す） */
+  private gemCube: THREE.WebGLCubeRenderTarget | null = null;
+  private gemShared: GemShared = { uEnv: { value: null }, uEnvRot: { value: new THREE.Matrix3() }, uMetal: { value: new THREE.Color(1, 1, 1) } };
+  private glow = new Glow();
+  private lightAz = 0;
+  /** 高画質：地金が地金を映す（見せるの間、選んだときだけ。力のある GPU だけ） */
+  private trace: MetalTrace | null = null;
+  private highQuality = false;
 
   constructor(private host: HTMLElement) {
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    // 2 つの GPU がある端末では、強い方で描く
+    this.renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true, powerPreference: "high-performance" });
+    this.quality = quality(this.renderer.getContext());
     this.renderer.setPixelRatio(Math.min(2, window.devicePixelRatio));
     // 金の色が転ばないよう、色をそのまま保つ写し方にする
     this.renderer.toneMapping = THREE.NeutralToneMapping;
@@ -76,8 +114,18 @@ export class Viewer {
     host.appendChild(this.renderer.domElement);
     const makeEnv = () => {
       const pmrem = new THREE.PMREMGenerator(this.renderer);
-      this.scene.environment = pmrem.fromScene(studioScene(), 0.015).texture;
+      // レンダーの環境：暗い部屋に強い光。シェードと赤い印は、前の明るい環境のまま（作業の見やすさのため）
+      this.scene.environment = pmrem.fromScene(studioLightScene(METAL_STUDIO), 0, 0.1, 100, { size: this.quality.envSize }).texture;
+      const work = pmrem.fromScene(studioScene(), 0.015).texture;
+      for (const m of [SHADED.metal, SHADED.warn, SHADED.stone, WARN_LOOK]) {
+        m.envMap = work;
+        m.needsUpdate = true;
+      }
       pmrem.dispose();
+      // 石が読む環境（ぼかさない）
+      this.gemCube ??= new THREE.WebGLCubeRenderTarget(this.quality.envSize, { type: THREE.HalfFloatType, generateMipmaps: false, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
+      new THREE.CubeCamera(0.1, 100, this.gemCube).update(this.renderer, studioLightScene(GEM_STUDIO));
+      this.gemShared.uEnv.value = this.gemCube.texture;
     };
     makeEnv();
     // スマホなどで描く力が足りず、3D の描画がいったん消えて戻ったとき、映り込みの光を作り直す（作り直さないと金属が真っ黒になる）
@@ -112,7 +160,7 @@ export class Viewer {
       }
       if (moved || this.dirty) {
         this.updateGrid();
-        this.renderer.render(this.scene, this.camera);
+        this.draw();
         this.drawRuler();
         this.dirty = false;
         for (const f of this.frameListeners) f();
@@ -120,6 +168,60 @@ export class Viewer {
       requestAnimationFrame(loop);
     };
     loop();
+  }
+
+  /** 今の地金の形と材質（光線を当てる相手） */
+  private traceParts: THREE.BufferGeometry[] | null = null;
+  private traced: THREE.BufferGeometry[] | null = null;
+  private metalMat: THREE.MeshPhysicalMaterial | null = null;
+  private traceTint = new THREE.Color(1, 1, 1);
+  /** 高画質を選べる端末か（力のある GPU だけ） */
+  get canHighQuality(): boolean {
+    return this.quality.gem.samples === 4;
+  }
+  get highQualityOn(): boolean {
+    return this.highQuality;
+  }
+  /** 高画質（地金が地金を映す）を選ぶ。1 こまが 10 倍ほど重くなるので、見せるの間だけ効かせる */
+  async setHighQuality(on: boolean) {
+    this.highQuality = on && this.canHighQuality;
+    if (this.highQuality && !this.trace) {
+      const { MetalTrace } = await import("./metal-trace");
+      this.trace = new MetalTrace();
+    }
+    this.syncTrace();
+    this.dirty = true;
+  }
+  private syncTrace() {
+    const t = this.trace;
+    if (!t || !this.metalMat) return;
+    const on = this.highQuality && this.presenting && this.mode === "render" && !!this.traceParts;
+    if (on && this.traced !== this.traceParts) {
+      t.setGeometry(this.traceParts!);
+      this.traced = this.traceParts;
+    }
+    t.uniforms.uTint.value.copy(this.traceTint);
+    t.set(this.metalMat, on);
+  }
+
+  /** 光をカメラの向きに合わせる（指輪を回すと、光は止まったまま指輪だけが回るように見える） */
+  private syncLights() {
+    const c = this.camera.position;
+    const t = this.controls.target;
+    const dx = c.x - t.x;
+    const dy = c.y - t.y;
+    if (dx * dx + dy * dy > 1e-6) this.lightAz = Math.atan2(dy, dx);
+    this.scene.environmentRotation.set(0, 0, this.lightAz);
+    const co = Math.cos(this.lightAz);
+    const si = Math.sin(this.lightAz);
+    // 世界の向き → 光の球の向き（−az だけ回す）
+    this.gemShared.uEnvRot.value.set(co, si, 0, -si, co, 0, 0, 0, 1);
+  }
+  /** 今の 3D を描く（見せるの間は、光のにじみも足す） */
+  private draw() {
+    this.syncLights();
+    this.renderer.render(this.scene, this.camera);
+    if (this.quality.glow && this.presenting && this.mode === "render") this.glow.draw(this.renderer, this.scene, this.camera);
   }
 
   /** 画面の点（clientX・Y）から出る光線 */
@@ -227,6 +329,7 @@ export class Viewer {
   private gridOn = false;
   setPresenting(on: boolean) {
     this.presenting = on;
+    this.syncTrace();
     if (on) {
       this.scene.background = null;
       this.renderer.setClearColor(0x000000, 1);
@@ -244,6 +347,7 @@ export class Viewer {
   }
   setDisplayMode(m: DisplayMode) {
     this.mode = m;
+    this.syncTrace();
     this.applyBackdrop();
     this.applyMode();
     this.updateShadow();
@@ -371,7 +475,7 @@ export class Viewer {
     this.camera.position.copy(t).add(p);
     this.camera.lookAt(t);
     this.updateGrid();
-    this.renderer.render(this.scene, this.camera);
+    this.draw();
     for (const f of this.frameListeners) f();
   }
 
@@ -418,30 +522,51 @@ export class Viewer {
   private clear() {
     this.warnMat = null;
     this.live = null;
+    this.traceParts = null;
+    this.metalMat = null;
     for (const o of [...this.content.children]) {
       this.content.remove(o);
       o.traverse((m) => {
         if (m instanceof THREE.Mesh || m instanceof THREE.LineSegments) m.geometry.dispose();
+        // 石の材質は形ごとに作る（面の平面の表を持つ）ので、一緒にすてる
+        if (m instanceof THREE.Mesh && isStone(m.userData.render ?? m.material)) (m.userData.render ?? m.material).dispose();
       });
     }
   }
 
-  /** 地金だけの形（石のない指輪など）。三角形の並び、mm。いちばん下を床（z ＝ 0）に置く */
-  setMetalMesh(positions: Float32Array, metal: MetalId, kind = "metal") {
+  /**
+   * 地金だけの形（石のない指輪など）。三角形の並び、mm。いちばん下を床（z ＝ 0）に置く。
+   * warn：形ぜんぶを赤く光らせる（作れない所があるとき）。spots：赤い線を回す所（幅の位置 x、指の軸からの距離 rho、軸の高さ z。とがった先など）
+   */
+  setMetalMesh(positions: Float32Array, metal: MetalId, kind = "metal", o: { warn?: boolean; spots?: { x: number; rho: number; z: number }[] } = {}) {
     this.clear();
-    const mat = new THREE.MeshPhysicalMaterial({ color: METAL_COLOR[metal], metalness: 1, roughness: 0.1, envMapIntensity: 1.0, side: THREE.DoubleSide });
+    const warn = new THREE.MeshPhysicalMaterial({ color: WARN, metalness: 0.35, roughness: 0.3, clearcoat: 0.6, side: THREE.DoubleSide });
+    const mat = o.warn ? warn : new THREE.MeshPhysicalMaterial({ color: metalColor(metal), metalness: 1, roughness: METAL_ROUGHNESS, envMapIntensity: 1.0, side: THREE.DoubleSide });
+    if (o.warn || o.spots?.length) this.warnMat = warn;
     const armMesh = new THREE.Mesh(metalGeometry(positions), mat);
     armMesh.userData.arm = true;
     this.content.add(armMesh);
+    for (const s of o.spots ?? []) {
+      const geo = new THREE.TorusGeometry(s.rho, SPOT_LINE_RADIUS_MM, 12, 180);
+      geo.rotateY(Math.PI / 2);
+      const mark = new THREE.Mesh(geo, warn);
+      mark.position.set(s.x, 0, s.z);
+      this.content.add(mark);
+    }
+    this.metalMat = mat;
+    this.traceParts = [armMesh.geometry];
+    this.traceTint.copy(mat.color);
+    this.syncTrace();
     this.applyMode();
-    this.frame(kind, new THREE.Vector3(0.95, -1.15, 0.55));
+    // はじめの向き：輪の穴と、上の面の断面の形が両方見える斜め（穴をよく見せるため、指の軸の向きから見る割合を多くした）
+    this.frame(kind, new THREE.Vector3(1.05, -0.9, 0.62));
     this.updateShadow();
   }
 
   /** 石だけ（指輪を組む前） */
   setStone(mesh: StoneMesh, look: StoneLook) {
     this.clear();
-    this.addStone(mesh.positions, look, -mesh.heights.culetZ, mesh.heights.tableZ - mesh.heights.culetZ);
+    this.addStone(mesh.positions, undefined, look, -mesh.heights.culetZ, mesh.heights.tableZ - mesh.heights.culetZ);
     this.applyMode();
     this.frame("stone", new THREE.Vector3(0.25, -0.75, 1));
     this.updateShadow();
@@ -452,15 +577,17 @@ export class Viewer {
     this.clear();
     const lift = ring.shank.outerRadiusMm;
     const h = ring.stone.heights;
-    this.addStone(ring.ringPositions.stone, look, lift, h.tableZ - h.culetZ);
+    this.gemShared.uMetal.value.copy(metalColor(ring.metal));
+    this.addStone(ring.ringPositions.stone, ring.stones?.length ? ring.stones.map((st) => st.ranges.stone) : undefined, look, lift, h.tableZ - h.culetZ);
     const metal = new THREE.MeshPhysicalMaterial({
-      color: METAL_COLOR[ring.metal],
+      color: metalColor(ring.metal),
       metalness: 1,
-      roughness: 0.1,
+      roughness: METAL_ROUGHNESS,
       envMapIntensity: 1.0,
       side: THREE.DoubleSide,
     });
-    const warn = new THREE.MeshPhysicalMaterial({ color: WARN, metalness: 0.35, roughness: 0.3, clearcoat: 0.6, side: THREE.DoubleSide });
+    const warn = WARN_LOOK.clone();
+    warn.envMap = WARN_LOOK.envMap;
     // 問題のある爪の三角形だけ、赤い材質の組に分ける（石を並べた指輪では、石ごとの三角形の範囲の中で）
     const stones = ring.stones?.length ? ring.stones : [{ setting: ring.setting, transform: ring.transform, ranges: { setting: { start: 0, count: ring.ringPositions.setting.length / 9 } } }];
     const stoneOf = (p: Problem) => Math.min(stones.length - 1, p.stone ?? 0);
@@ -497,6 +624,10 @@ export class Viewer {
     setting.position.z = lift;
     shank.position.z = lift;
     this.content.add(setting, shank);
+    this.metalMat = metal;
+    this.traceParts = [settingGeo, shank.geometry];
+    this.traceTint.copy(metal.color);
+    this.syncTrace();
     // 守られていない角の赤い印（石の座標 → 指輪の座標。石を並べた指輪では、その石の場所へ）
     for (const p of problems) {
       // となりの石・石座の間が狭い所（指輪の座標の点）
@@ -551,35 +682,16 @@ export class Viewer {
     this.applyMode();
   }
 
-  private addStone(positions: Float32Array, look: StoneLook, z: number, depthMm: number) {
+  private addStone(positions: Float32Array, ranges: readonly { start: number; count: number }[] | undefined, look: StoneLook, z: number, depthMm: number) {
     const geo = geometry(positions);
-    const tint = look.colorless ? new THREE.Color(0xffffff) : stoneColor(look.color);
-    const mat = new THREE.MeshPhysicalMaterial({
-      // 色は「通り抜ける光が石の中で染まる」ように付ける（厚い所ほど濃い）
-      color: look.colorless ? 0xffffff : new THREE.Color(0xffffff).lerp(tint, 0.3),
-      metalness: 0,
-      roughness: 0,
-      transmission: 1,
-      thickness: depthMm * 0.6,
-      ior: look.colorless ? 2.2 : 1.76,
-      dispersion: look.colorless ? 0.9 : 0.35,
-      attenuationColor: tint,
-      attenuationDistance: look.colorless ? Infinity : Math.max(2.5, depthMm * 2),
-      specularIntensity: 1,
-      envMapIntensity: 1.4,
-      flatShading: true,
-      side: THREE.DoubleSide,
-    });
+    // 色は「通り抜ける光が石の中で染まる」ように付ける（中を長く進むほど濃い）
+    const tint = look.colorless ? new THREE.Color(1, 1, 1) : stoneColor(look.color);
+    const dist = Math.max(2.5, depthMm * 2);
+    const sigma = (v: number) => (look.colorless ? 0 : -Math.log(Math.max(0.02, Math.min(1, v))) / dist);
+    const mat = gemMaterial(geo, positions, ranges, { ior: look.colorless ? COLORLESS_IOR : COLORED_IOR, sigma: [sigma(tint.r), sigma(tint.g), sigma(tint.b)] }, this.gemShared, this.quality.gem);
     const stone = new THREE.Mesh(geo, mat);
-    // 面の境目をうっすら（形が読めるように。強すぎると図面のように見える）
-    const edges = new THREE.LineSegments(
-      new THREE.EdgesGeometry(geo, 10),
-      new THREE.LineBasicMaterial({ color: look.colorless ? 0xb7bec6 : tint.clone().multiplyScalar(0.75), transparent: true, opacity: 0.22 }),
-    );
     stone.position.z = z;
-    edges.position.z = z;
-    edges.userData.renderOnly = true;
-    this.content.add(stone, edges);
+    this.content.add(stone);
   }
 
   /** 置いた所の影を、今の中身から描き直す（中身が変わったときだけ。回すだけなら描き直さない） */
@@ -810,6 +922,7 @@ export class Viewer {
     this.applyView(view);
     this.alignGrid(view);
     this.updateGrid();
+    this.syncLights();
     this.renderer.render(this.scene, this.camera);
     const url = this.renderer.domElement.toDataURL("image/png");
     this.cams.restore(keep, this.controls.target);
@@ -913,6 +1026,7 @@ export class Viewer {
   /** 今の 3D の画像（指示書や look の道具で使う） */
   snapshot(): string {
     this.updateGrid();
+    this.syncLights();
     this.renderer.render(this.scene, this.camera);
     return this.renderer.domElement.toDataURL("image/png");
   }
