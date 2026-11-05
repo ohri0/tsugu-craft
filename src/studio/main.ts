@@ -24,7 +24,7 @@ import { loadPhoto } from "../ui/photo";
 import { Viewer, type DisplayMode } from "../ui/viewer";
 import { extractStone, type Extraction } from "../vision/extract";
 import { PARAMS, activeRules, addRule, seedLedger, sourceLabel, valueFor, type Ledger, type ParamId, type Rule } from "../rules/ledger";
-import { askConfirm } from "../app/confirm";
+import { askConfirm, filming } from "../app/confirm";
 import { askPassword, resetPassword } from "../app/password";
 import { esc, store, today } from "../app/store";
 import { bindVoice } from "../app/voice";
@@ -1548,6 +1548,8 @@ function renderCheck() {
   const pick = <T extends string | number>(name: string, cur: T, list: [T, string][]) =>
     `<div class="pick"><span>${name}</span><div>${list.map(([v, l]) => `<button type="button" data-k="${name}" data-v="${v}" aria-pressed="${v === cur}">${l}</button>`).join("")}</div></div>`;
   const fresh = lastRule ? new Set<string>(lastRule.checks) : new Set<string>();
+  // 決まりの案と「案にしています…」は、欄を描き直しても消さない（形の作り直しが案を消すと、もう押せなくなる）
+  const heldProposal = [...(box.querySelector(".ar-proposal")?.childNodes ?? [])];
   box.innerHTML = `
     ${lastRule ? `<section class="rule-flash"><small>${esc(lastRule.by)}の決まりで、確かめ直しました</small><b>${lastRule.spoken ? `「${esc(lastRule.quote)}」` : esc(lastRule.quote)}</b><span>作れない所 <em>${lastRule.before}</em> → <em class="${lastRule.after ? "ng" : "ok"}">${lastRule.after}</em>${lastRule.after && probs.length < lastRule.after ? ` → 直して <em class="${probs.length ? "ng" : "ok"}">${probs.length}</em>` : ""}</span></section>` : ""}
     <section class="big-verdict ${probs.length ? "ng" : "ok"}"><b>${probs.length ? "このままでは作れません" : "このまま作れます"}</b><small>${probs.length ? `直す所 ${probs.length}` : `爪・留まり・すき間・角、すべて目安の内側`}</small></section>
@@ -1600,6 +1602,7 @@ function renderCheck() {
     ${fixLog.length ? `<ol class="worklog fix-log">${fixLog.map((l) => `<li class="${l.cls}">${esc(l.text)}</li>`).join("")}</ol>` : ""}
     ${rulesSectionHtml()}
     <button type="button" class="next-btn to-build">作り方を見る →</button>`;
+  box.querySelector(".ar-proposal")?.append(...heldProposal);
   bindRules(box);
   bindWorkshops(box);
   bindStones(box, b);
@@ -2173,10 +2176,12 @@ async function addRuleFromWords(said: string) {
   const slot = $(".ar-proposal");
   const pass = store.password() || (await askPassword(true));
   if (!pass) {
-    slot.innerHTML = `<p class="tech-what">決まりの案を作るには Claude が要ります。</p>`;
+    slot.innerHTML = `<p class="tech-what">決まりの案を作るには Claude が要ります。合言葉がなくても、下の「Claude なしで、数字で書く」で決まりにできます。</p>`;
+    showProposalSlot();
     return;
   }
   slot.innerHTML = `<p class="tech-what"><span class="pulse"></span> Claude が決まりの案にしています…</p>`;
+  showProposalSlot();
   const host: ToolHost<null> = {
     setSetting: () => Promise.reject(new Error("使わない")),
     setShank: () => Promise.reject(new Error("使わない")),
@@ -2189,21 +2194,35 @@ async function addRuleFromWords(said: string) {
   const r = await runClaude({ host, messages: [{ role: "user", content: `${name}さんが話したこと：${said}` }], system: keepPrompt(store.ledger(), name), tools: TOOLS.filter((t) => t.name === "propose_rule"), password: pass, maxTurns: 3, speed: "fast" });
   if (r.offline || (r.error && !r.log.length)) {
     if (r.error?.code === "wrong_password") resetPassword();
-    slot.innerHTML = `<p class="tech-what">Claude につながりませんでした。${esc(r.error?.message ?? "")}</p>`;
+    $(".ar-proposal").innerHTML = `<p class="tech-what">Claude につながりませんでした。${esc(r.error?.message ?? "")}</p>`;
+    showProposalSlot();
   }
+}
+/**
+ * 決まりの案の所まで欄を動かす。「これまでの作品」の欄があると、案が画面の下に隠れて見えなかった（2026-11-05）。
+ * 撮影（?rec・?nointro）では動かさない（台本が自分で動かす）
+ */
+function showProposalSlot() {
+  if (filming()) return;
+  requestAnimationFrame(() => document.querySelector(".ar-proposal")?.scrollIntoView({ behavior: "smooth", block: "center" }));
 }
 function propose(slot: HTMLElement, p: ProposeRuleInput, name: string): Promise<ProposeRuleResult> {
   return new Promise((resolve) => {
+    // 待っている間に欄が描き直されていても、今の欄に出す
+    if (!slot.isConnected) slot = $(".ar-proposal");
     slot.innerHTML = `<div class="proposal-d"><b>${esc(p.title)}</b><p>${esc(p.text)}</p><p class="tech-what">なぜ：${esc(p.reason)}</p>${p.param ? `<p class="tech-what">値：${p.value}</p>` : ""}${!p.param && p.steps?.length ? `<p class="tech-what">入る工程：${esc(p.steps.map((s) => MAKING_STEPS[s]).join("・"))}</p>` : ""}
       <div class="row"><button type="button" class="primary ok">これでいい</button><button type="button" class="ghost-d no">いらない</button></div></div>`;
-    slot.querySelector(".no")!.addEventListener("click", () => {
-      slot.innerHTML = "";
+    showProposalSlot();
+    // 案は欄の描き直しで今の欄へ移されることがあるので、案そのものを消す
+    const card = slot.querySelector<HTMLElement>(".proposal-d")!;
+    card.querySelector(".no")!.addEventListener("click", () => {
+      card.remove();
       resolve({ status: "declined", note: "職人が見送った" });
     });
-    slot.querySelector(".ok")!.addEventListener("click", () => {
+    card.querySelector(".ok")!.addEventListener("click", () => {
       if (!askConfirm(`この決まりを帳面に入れますか？\n「${p.title}」\n今の設計とこれまでの作品を確かめ直します。`)) return;
       // 押したらすぐ案を消す（2 度押しで同じ決まりが 2 つ入らないように）
-      slot.innerHTML = "";
+      card.remove();
       resolve({ status: "accepted", rule_id: acceptRule(p, name) });
     });
   });
