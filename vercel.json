@@ -2,6 +2,12 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "git": {
+    "deploymentEnabled": {
+      "claude/**": false,
+      "worktree-*": false
+    }
+  },
   "functions": {
     "api/claude.ts": {
       "maxDuration": 300
