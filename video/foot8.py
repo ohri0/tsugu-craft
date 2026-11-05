@@ -107,6 +107,22 @@ def poly_field(img):
     return np.maximum(out, 1e-3)
 
 
+# ヤスリの根元の刻印（作り手の名前とマーク）は、読めないようにぼかす（映像に会社の名前を映さない）。置き終わったあとは同じ所にある
+STAMPS = [(1412, 610, 92, 74), (1492, 866, 104, 66)]  # まん中の x・y と、半径（1920 × 1080）
+
+
+def hide_stamps(frame):
+    from PIL import Image, ImageDraw, ImageFilter
+    im = Image.fromarray(frame)
+    soft = im.filter(ImageFilter.GaussianBlur(9))
+    m = Image.new("L", im.size, 0)
+    d = ImageDraw.Draw(m)
+    for cx, cy, rx, ry in STAMPS:
+        d.ellipse([cx - rx, cy - ry, cx + rx, cy + ry], fill=255)
+    m = m.filter(ImageFilter.GaussianBlur(14))
+    return np.asarray(Image.composite(soft, im, m))
+
+
 def toned(R):
     """物のコントラストを少し上げて、紙の色むらが出ないよう色を少し抜く"""
     x = np.power(R, 1.25)
@@ -133,7 +149,9 @@ def parts():
             g = patch(f) / p0  # カメラが明るさを変えた分
             R = f / (F * g[None, None, :])
             R = np.clip(R, 0, 1.25)
-            frames.append(enc(toned(R) * L))
+            fr = enc(toned(R) * L)
+            # ヤスリが来たら（parts3 の途中から）刻印をぼかす
+            frames.append(hide_stamps(fr) if (name.startswith("parts4") or (name.startswith("parts3") and i >= 10)) else fr)
     n = int(PARTS_LEN * FPS)
     # 足りない分は、最後の本物のこまの続きで埋める（止めない）
     arr = read("parts4_tools.mov")
@@ -143,7 +161,7 @@ def parts():
         f = lin(arr[min(arr.shape[0] - 1, int(round(j)))])
         g = patch(f) / p0
         R = np.clip(f / (F * g[None, None, :]), 0, 1.25)
-        frames.append(enc(toned(R) * L))
+        frames.append(hide_stamps(enc(toned(R) * L)))
     write(frames[:n] if len(frames) >= n else frames, "parts.mov")
 
 
