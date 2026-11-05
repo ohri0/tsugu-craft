@@ -4,7 +4,7 @@
 // 機械で確かめられない決まり（言葉だけの決まり）も残し、Claude が読んで判断に使う。
 import type { CheckId } from "./checks.js";
 import { GUIDES, type Guides } from "./guides.js";
-import ringPublic from "../../ledger/ring-public.json";
+import ringPublic from "../../ledger/ring-public.json" with { type: "json" };
 
 /** 決まりの出どころ */
 export type RuleSource =
