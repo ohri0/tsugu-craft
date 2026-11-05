@@ -679,6 +679,9 @@ export class Viewer {
     this.camera = this.cams.active;
     this.controls.object = this.camera;
     this.controls.enableRotate = !this.cams.flat;
+    // 平らな図は回せないので、左ドラッグと指 1 本は「動かす」（右ドラッグでしか動かなかった）。斜めに戻すと「回す」
+    this.controls.mouseButtons.LEFT = this.cams.flat ? THREE.MOUSE.PAN : THREE.MOUSE.ROTATE;
+    this.controls.touches.ONE = this.cams.flat ? THREE.TOUCH.PAN : THREE.TOUCH.ROTATE;
     this.controls.autoRotate = this.wantRotate && !this.cams.flat;
     this.controls.update();
     this.host.dataset.view = this.cams.view;
