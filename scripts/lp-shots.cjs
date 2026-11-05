@@ -257,7 +257,7 @@ const SHOTS = {
     await p.locator('.bs-grid').screenshot({ path: `${WORK}/band-grid.png`, scale: 'device' });
     made.push('band-grid');
   },
-  // 途切れた技：自分の技を組み立て直す（見本＝架空の技で、案の見え方）
+  // 途切れた技：自分の技を組み立て直す（作り話の例で、流れと案の見え方）
   async restore() {
     const p = await page('/app.html#waza/restore', PHONE_W, 1400);
     await p.waitForSelector('.rs-sample');
@@ -265,8 +265,9 @@ const SHOTS = {
     await p.waitForTimeout(2000);
     await hideFixed(p);
     await p.waitForTimeout(500);
-    await p.locator('.rs-plan-body .rs-steps > li').nth(1).screenshot({ path: `${WORK}/restore-step.png` });
-    made.push('restore-step');
+    await p.locator('.rs-flow').screenshot({ path: `${WORK}/restore-flow.png` });
+    await p.locator('.rs-steps > li').nth(1).screenshot({ path: `${WORK}/restore-step.png` });
+    made.push('restore-flow', 'restore-step');
   },
   // 作る：図面
   async draw() {

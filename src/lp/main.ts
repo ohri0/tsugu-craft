@@ -37,19 +37,21 @@ function door(n: 1 | 2 | 3, id: string, title: string, inner = "", cls = ""): st
  * 力試しの答え合わせ（2026-11-04、木目金・品物だけの手がかり 9 で Claude が組み立てた回）。
  * 本当の作り方 11 工程（research/mokume/answer.md）のうち、どこにたどり着いたか。docs/LOG.md の記録と同じ
  */
-const REBUILD: { t: string; v: "ok" | "part" | "miss" }[] = [
-  { t: "地金を用意する", v: "part" },
-  { t: "面をみがく", v: "ok" },
-  { t: "色ちがいの板を交互に重ねる", v: "ok" },
-  { t: "重ねた板を締めつけて固定する", v: "miss" },
-  { t: "熱して、ろうを使わずにつなぐ", v: "part" },
-  { t: "火から出してすぐ叩き、つながりを仕上げる", v: "miss" },
-  { t: "叩いて薄くのばす", v: "ok" },
-  { t: "表面を彫って、下の層を出す", v: "ok" },
-  { t: "また叩いて平らにする", v: "part" },
-  { t: "品物の形にする", v: "ok" },
-  { t: "仕上げて、煮色で色を出す", v: "ok" },
+const REBUILD: { t: string; d: string; v: "ok" | "part" | "miss" }[] = [
+  { t: "地金を用意する", d: "銅、赤銅、銀、金、四分一など、色のちがう金属の板を、同じ大きさに切りそろえる。", v: "part" },
+  { t: "面をみがく", d: "重ねる面をみがいて、きれいにする。さびや汚れは、つながりをじゃまする。", v: "ok" },
+  { t: "色ちがいの板を交互に重ねる", d: "切りそろえた板を、色が交互になるように重ねる。", v: "ok" },
+  { t: "重ねた板を締めつけて固定する", d: "二枚の鉄の板ではさみ、太い鉄の針金で縛る。", v: "miss" },
+  { t: "熱して、ろうを使わずにつなぐ", d: "木炭の火床で熱する。金属ごとにとける温度がちがうので、経験に裏打ちされた高い技がいる。", v: "part" },
+  { t: "火から出してすぐ叩き、つながりを仕上げる", d: "地金を火床から出し、金床の上で金づちで叩く。", v: "miss" },
+  { t: "叩いて薄くのばす", d: "鍛えて圧し、焼きなましをくり返して、板にのばす。", v: "ok" },
+  { t: "表面を彫って、下の層を出す", d: "鏨で表面を彫り、下の層を出す。", v: "ok" },
+  { t: "また叩いて平らにする", d: "溝の深さと形が、同心円のような色の帯になって表に出る。彫る・平らにするを、くり返す。", v: "part" },
+  { t: "品物の形にする", d: "鐔などの刀の金具の形に切り出す。器なら、板を金づちで打ち絞って形を作る。", v: "ok" },
+  { t: "仕上げて、煮色で色を出す", d: "みがいたあと、硫酸銅と緑青をとかした水で煮る。赤銅は黒、四分一は灰色、銅は赤茶色になり、層の色の差がはっきりする。", v: "ok" },
 ];
+const RV_LABEL = { ok: "一致", part: "一部", miss: "たどり着けず" } as const;
+
 /** テンションの比べ（三角の石 8.88 × 7.52 × 4.24 mm、設計の画面の札と同じ計算の値。決まった値ではない。作者：「この石の場合、という話」） */
 const TENSION_EXAMPLE: { metal: string; small?: string; open?: string; note?: string }[] = [
   { metal: "K18 イエロー", small: "0.36", open: "1.66" },
@@ -75,22 +77,17 @@ const MK_FLOW: Record<string, string> = {
   "cast:座を彫って、石を留める": "指輪は指輪万力で押さえ、保護めがねを着ける。座はハンドピースに座彫りのバーやハートバーを付けて彫る。爪は押し棒で倒し、先は細工ヤスリで丸くする。",
   "cast:仕上げ": "細かい所は細工ヤスリとハンドピースで整える。保護めがねを着ける。",
 };
-const RV_LABEL = { ok: "一致", part: "一部", miss: "たどり着けず" } as const;
 
-const CLAUDE_USES: [string, string][] = [
-  ["Claude Code", "開発の中心。仕様と決まりを読み、作者と話しながら、画面・形の処理・確かめる決まり・MCP を書きました。うまくいかなかったことも記録に残しました。"],
-  ["Skill", "職人の目安を一か所に。開発中の Claude も、アプリの中の Claude も、同じ目安を読みます。"],
-  ["フック", "API キーがまぎれこむのを止めます。形の処理を直したら、テストを回します。"],
-  ["サブエージェント", "互いに触らない部品を、別の作業場所で同時に作り、取り込みました。"],
-  ["MCP", "職人がふだん使う Claude のアプリから、帳面を読む・決まりを足す・指輪を組んで確かめる、ができます。"],
-  ["アプリの中の Claude", "職人の言葉を決まりの案にする。言葉から腕の形まで組む。指輪ぜんたいを読んで直す。まだ決まっていない所を聞く。途切れた技を手がかりから組み立てる。"],
-];
-
+const MET = "メトロポリタン美術館";
 const CREDITS: { what: string; src: string; href: string; lic: string }[] = [
-  { what: "糸巻太刀拵（江戸時代）", src: "メトロポリタン美術館", href: "https://www.metmuseum.org/art/collection/search/894754", lic: "CC0" },
-  { what: "鯉と藻の鐔", src: "メトロポリタン美術館", href: "https://commons.wikimedia.org/wiki/File:%E8%97%BB%E9%AF%89%E5%9B%B3%E9%90%94,_Sword_Guard_(Tsuba)_with_the_Carp_and_Seaweed_Motif.jpg", lic: "CC0" },
-  { what: "木目金の鐔 2 点（19 世紀。地を黒に抜いた）", src: "メトロポリタン美術館", href: "https://www.metmuseum.org/art/collection/search/34992", lic: "CC0" },
+  { what: "糸巻太刀拵（江戸時代）", src: MET, href: "https://www.metmuseum.org/art/collection/search/894754", lic: "CC0" },
+  { what: "小柄（18 世紀）", src: MET, href: "https://www.metmuseum.org/art/collection/search/24755", lic: "CC0" },
+  { what: "目貫（17 世紀）", src: MET, href: "https://www.metmuseum.org/art/collection/search/24733", lic: "CC0" },
+  { what: "頭（江戸時代）", src: MET, href: "https://www.metmuseum.org/art/collection/search/34756", lic: "CC0" },
+  { what: "鯉と藻の鐔", src: MET, href: "https://commons.wikimedia.org/wiki/File:%E8%97%BB%E9%AF%89%E5%9B%B3%E9%90%94,_Sword_Guard_(Tsuba)_with_the_Carp_and_Seaweed_Motif.jpg", lic: "CC0" },
+  { what: "木目金の鐔 2 点（19 世紀。地を黒に抜いた）", src: MET, href: "https://www.metmuseum.org/art/collection/search/34992", lic: "CC0" },
   { what: "1953 年の内宮", src: "本田照夫 撮影、Wikimedia Commons", href: "https://commons.wikimedia.org/wiki/File:Ise_Shrine_Naiku_1953-8-26_cropped.jpg", lic: "パブリックドメイン" },
+  { what: "内宮御神宝図（部分）", src: "国立国会図書館、Wikimedia Commons", href: "https://commons.wikimedia.org/wiki/File:NDL2574228_%E5%86%85%E5%AE%AE%E5%BE%A1%E7%A5%9E%E5%AE%9D%E5%9B%B3.(1).pdf", lic: "パブリックドメイン" },
 ];
 
 const html = `
@@ -159,7 +156,7 @@ const html = `
       <figure class="rv">${shot("book-a", 2000, 2000, "石川工房の帳面で組んだ指輪。爪が細く、石がよく見える", "(max-width: 760px) 92vw, 46vw")}<figcaption><b>石川工房</b><span>爪 ø <span class="num">0.80</span> mm</span></figcaption></figure>
       <figure class="rv">${shot("book-b", 2000, 2000, "工房 B の帳面で組んだ指輪。同じ石でも爪が太い", "(max-width: 760px) 92vw, 46vw")}<figcaption><b>工房 B</b><span>爪 ø <span class="num">1.66</span> mm</span></figcaption></figure>
     </div>
-    <p class="book-n rv">同じ石・同じ号で、帳面だけを変えて撮りました。工房 B は、公開の資料の目安に「三角の石は角に 3 本」だけを足した帳面です。形は、その工房の判断で決まります。</p>
+    <p class="book-n rv">同じ石・同じ号で、帳面だけを変えて撮りました。工房 B は、公開の資料の目安に「三角の石は角に 3 本」だけを足した帳面です。形は、その工房の判断で決まります。数字は目安・最後は職人が決めます。</p>
   </section>
 
   ${door(1, "design", "デザインする人へ", `<figure class="door-draw">${shot("draw-views", 1460, 660, "継ぐが描いた図面の一部。指輪の正面図・側面図・上面図と寸法", "(max-width: 760px) 92vw, 56vw")}</figure>`)}
@@ -207,7 +204,7 @@ const html = `
   <section class="sheet make" id="make" aria-labelledby="make-h">
     <div class="make-head">
       <h2 id="make-h" class="rv">作り方まで、<wbr>提案します。</h2>
-      <p class="rv">3D モデルをもとに、鋳造でも鍛造でも。工程ごとに、この形から計算した数字、温度の目安、道具が出ます。図面と作り方を印刷でき、STL も出せます。下は本物の中身です。点線の言葉は、押すと説明が開きます。</p>
+      <p class="rv">3D モデルをもとに、鋳造でも鍛造でも。工程ごとに、この形から計算した数字、温度の目安、道具が出ます。図面と作り方を印刷でき、STL も出せます。下は本物の中身です。点線の言葉は、押すと説明が開きます。数字は目安・最後は職人が決めます。</p>
     </div>
     <div class="make-live rv"><div class="mk-live" aria-live="polite"><p class="mk-loading">作り方を読み込んでいます…</p></div></div>
     <figure class="make-sheet rv">${shot("draw", 1944, 1404, "継ぐが描いた図面の全体。正面図・側面図・上面図と寸法、実物大の図、右下の表に石・号・地金・腕・留め方・尺度・日付", "(max-width: 760px) 92vw, 860px")}<figcaption>印刷すると、この図面と作り方が一緒に出ます。</figcaption></figure>
@@ -278,6 +275,7 @@ const html = `
     <div class="naiku-b">
       <p class="rv">伊勢神宮の式年遷宮では、社殿も御装束神宝も、20 年に一度、すべて新しく作り直されます。遷宮に関わる技能者が携われるのは、多い人で <span class="num">3</span> 回ほどです。</p>
       <p class="src rv">出典：<a href="${HAKUSHO_URL}" target="_blank" rel="noopener">国土交通白書 平成 26 年版のコラム</a>（社殿を作る技能者の話）。写真は 1953 年の内宮。上が新しい殿舎、下がそれまでの殿舎。本田照夫 撮影・パブリックドメイン。</p>
+      <figure class="naiku-zu rv">${heritage("goshinpo-gyokuhai.jpg", "内宮御神宝図の一部。玉と金の飾りをつないだ玉佩の絵", 1800, 793)}<figcaption>神宝の一つ、玉佩を描いた図。内宮御神宝図（部分。江戸時代の写し）、国立国会図書館所蔵・パブリックドメイン。写真ではありません。</figcaption></figure>
     </div>
   </section>
 
@@ -287,11 +285,13 @@ const html = `
       <h2 id="craft-h" class="rv">こうした彫金の技も、<br>継ぐで、次へ残せます。</h2>
       <p class="rv">刀の金具も、ジュエリーと同じ彫金・金工の技で作られます。技ごとに帳面を持ち、作り方と職人の判断を残します。</p>
     </div>
-    <div class="craft-two">
-      <figure class="rv">${heritage("itomaki-tachi-tsuka.jpg", "太刀の柄と金の鐔に寄ったところ", 1400, 640)}</figure>
-      <figure class="rv">${heritage("tsuba-carp.jpg", "鯉と藻の彫りのある鐔", 900, 958)}</figure>
+    <figure class="craft-strip rv">${heritage("kozuka-carp.jpg", "小柄に寄ったところ。細かな地の上に、金の鯉と波", 1800, 436)}</figure>
+    <div class="craft-three">
+      <figure class="rv">${heritage("menuki-tiger.jpg", "金の目貫。竹の葉と虎。虎の毛が細い線で刻まれている", 1400, 619)}<figcaption>目貫（めぬき＝柄の飾り金具）</figcaption></figure>
+      <figure class="rv">${heritage("kashira-dragon.jpg", "黒い地に金を入れた頭。龍の顔", 1000, 1329)}<figcaption>頭（かしら＝柄の先の金具）</figcaption></figure>
+      <figure class="rv">${heritage("tsuba-carp.jpg", "鯉と藻の彫りのある鐔", 900, 958)}<figcaption>鐔</figcaption></figure>
     </div>
-    <p class="src rv">糸巻太刀拵（江戸時代）・鯉と藻の鐔、ともにメトロポリタン美術館・CC0。</p>
+    <p class="src rv">上から、糸巻太刀拵（江戸時代）、小柄（こづか＝小刀の柄。18 世紀）、目貫（17 世紀）、頭（江戸時代）、鯉と藻の鐔。いずれもメトロポリタン美術館・CC0。</p>
   </section>
 
   <section class="restore" id="restore" aria-labelledby="restore-h">
@@ -299,37 +299,38 @@ const html = `
     <div class="restore-t">
       <p class="v restore-v rv">もし途絶えて<br>しまっても。</p>
       <div>
-        <h2 id="restore-h" class="rv">手がかりから、<wbr>組み立て直す。</h2>
-        <p class="rv">たとえば、江戸時代の刀の飾りの技、木目金。一時途絶えたとされ、のちに復元されました。作り方を隠して、手がかりだけを Claude に渡します。</p>
+        <h2 id="restore-h" class="rv">手がかりと、<wbr>職人の帳面から、<wbr>組み立て直す。</h2>
+        <p class="rv">途切れた技を組み立て直すとき、残った手がかりと、職人の帳面や記録を Claude に渡します。職人が試して確かめ、確かになった工程だけを残します。</p>
       </div>
     </div>
     <div class="score">
+      <p class="rv">力を試すために、答えの分かっている江戸時代の刀の飾りの技、木目金で、作り方を隠し、手がかりだけを渡しました。</p>
       <p class="score-n rv"><span class="num">11</span> のうち <span class="num">9</span></p>
       <p class="rv">隠しておいた本当の <span class="num">11</span> の手順と比べると、<span class="num">9</span> にたどり着きました（一致 <span class="num">6</span>・一部 <span class="num">3</span>）。</p>
       <div class="lines rv" role="img" aria-label="11 本の線のうち、6 本が一致、3 本が一部、2 本がたどり着けず">${REBUILD.map((s) => `<i class="${s.v}"></i>`).join("")}</div>
-      <details class="score-d rv"><summary>11 の手順を見る</summary><ol>${REBUILD.map((s) => `<li class="${s.v}"><span>${s.t}</span><b>${RV_LABEL[s.v]}</b></li>`).join("")}</ol></details>
-      <p class="src rv">2026-11-04 に Claude が組み立てた回の答え合わせ。9 のうち 3 は、手がかりではなく Claude がもともと知っていたことから、と分けて数えています。これは答えの分かっている技での力試しです。<a href="${REBUILD_URL}">力試しを開く</a></p>
+      <details class="score-d rv"><summary>11 の手順を見る</summary><ol>${REBUILD.map((s) => `<li class="${s.v}"><p><b>${s.t}</b>${s.d}</p><span>${RV_LABEL[s.v]}</span></li>`).join("")}</ol></details>
+      <p class="src rv">2026-11-04 に Claude が組み立てた回の答え合わせ。9 のうち 3 は、手がかりではなく Claude がもともと知っていたことから、と分けて数えています。この力試しに、職人の帳面は渡していません。<a href="${REBUILD_URL}">力試しを開く</a></p>
     </div>
     <div class="own">
       <div class="own-t">
         <h3 class="rv">本番は、<wbr>自分の技で。</h3>
-        <p class="rv">答えのない技に使います。残った品物、古い記録、職人の見立てを手がかりにすると、Claude が工程の案を作ります。根拠の手がかり、確からしさ、まだ分からないこと、危ない所が工程ごとに並びます。職人が試した結果を書くと、案が組み直されます。うまくいった工程は、職人が確かめて、その技の決まりになります。</p>
+        <p class="rv">答えのない技に使います。残った品物、古い記録、職人の帳面や見立てを渡すと、Claude が工程の案を作ります。もとにしたもの、まだ分からないこと、危ない所が工程ごとに並びます。職人が試した結果を書くと、案が組み直されます。うまくいった工程は、職人が確かめて、その技の決まりになります。</p>
         <p class="note rv">案は、試して確かめるためのものです。最後は職人が試して決めます。</p>
         <p class="links rv"><a href="${RESTORE}">自分の技を組み立て直す</a></p>
       </div>
-      <figure class="rv">${shot("restore-step", 892, 860, "工程の案の 1 つ。灰を洗う。案という札、根拠の手がかり、確からしさ、まだ分からないこと、危ない所、試した結果を書く欄", "(max-width: 760px) 92vw, 446px")}<figcaption>見本（架空の技）の工程の案。</figcaption></figure>
+      <figure class="rv">${shot("restore-flow", 896, 198, "途切れた技の流れ。分かることを入れる、Claude が作り方の案を出す、試して結果を入れる", "(max-width: 760px) 92vw, 446px")}${shot("restore-step", 896, 826, "工程の案の 1 つ。灰を洗う。もとにしたもの、危ない所", "(max-width: 760px) 92vw, 446px")}<figcaption>作り話の例で見た、流れと工程の案。</figcaption></figure>
     </div>
-    <p class="restore-e rv">公開情報から読み取ったデータをもとに、失われた技も組み立て直せるかもしれません。職人の知識が加われば、なおさらです。</p>
+    <p class="restore-e rv">公開の情報や、職人の帳面・記録をもとに、失われた技も、組み立て直せるかもしれません。</p>
   </section>
 
   <section class="sheet ifever" aria-label="工房に">
     <p class="v ifever-v rv">工房に入れておけば、<br>万が一の時に役立ちます。</p>
   </section>
 
-  <section class="uses-sec" id="claude" aria-labelledby="claude-h">
-    <h2 id="claude-h" class="rv">Claude は、<wbr>作るときも、<wbr>使うときも。</h2>
-    <dl class="uses">${CLAUDE_USES.map(([k, v]) => `<div class="rv"><dt>${k}</dt><dd>${v}</dd></div>`).join("")}</dl>
-    <p class="note rv">Claude は答えを決めるのではなく、職人の決まりを読んで選び、理由を残す役です。</p>
+  <section class="stance" aria-labelledby="stance-h">
+    <h2 id="stance-h" class="rv">Claude は、<wbr>答えを決めません。</h2>
+    <p class="rv">職人の決まりを読んで選び、理由を残します。最後は職人が決めます。</p>
+    <p class="note rv"><a href="https://github.com/ohri0/tsugu-craft#readme" rel="noopener">このアプリの作り方（GitHub）</a></p>
   </section>
 
   <section class="end" aria-labelledby="end-h">
@@ -341,16 +342,16 @@ const html = `
       <a class="btn" href="${LEARN}">学ぶ</a>
       <a class="btn" href="${WAZA}">技</a>
     </div>
-    <p class="end-n rv">公開の版は、設計・帳面・学ぶ・技を開くときに合言葉を聞きます。このページは、だれでも見られます。自分で動かす人は、<a href="https://github.com/ohri0/tsugu-craft" rel="noopener">GitHub</a> から。</p>
+    <p class="end-n note rv">公開の版は、開くときに合言葉を聞きます。</p>
   </section>
 </main>
 
 <footer class="ft">
   <div class="ft-in">
-    <p class="ft-top"><span class="brand">継ぐ</span><span>Built with Claude: Japan 2026 の作品</span><a href="https://github.com/ohri0/tsugu-craft" rel="noopener">GitHub</a></p>
+    <p class="ft-top"><span class="brand">継ぐ</span><a href="https://github.com/ohri0/tsugu-craft" rel="noopener">GitHub</a></p>
     <p>指輪・図面・帳面などの写真は、継ぐの画面を撮ったものです。品物の写真：</p>
     <ul class="credits">${CREDITS.map((c) => `<li>${c.what} ― ${c.src}、<a href="${c.href}" rel="noopener">出典</a>（${c.lic}）</li>`).join("")}</ul>
-    <p>見出しの字は、しっぽり明朝（SIL OFL 1.1）。使っているライブラリとライセンスは、リポジトリの README に書いてあります。継ぐ自体のライセンスは、大会の運営に確かめてから決めます。数字は目安。最後は職人が決めます。</p>
+    <p>ライブラリとフォントのライセンスは GitHub の README に。継ぐは MIT ライセンスです。</p>
   </div>
 </footer>`;
 

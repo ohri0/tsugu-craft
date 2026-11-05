@@ -236,8 +236,12 @@ figcaption { font-size: 15px; line-height: 1.7; margin-top: 12px; color: var(--w
 .craft { background: #000; padding-bottom: var(--gap-sec); }
 .craft-wide img { width: 100%; aspect-ratio: 1800 / 500; object-fit: cover; object-position: 50% 46%; }
 .craft-t { max-width: 44em; margin: clamp(56px, 9vh, 96px) auto 44px; padding: 0 var(--gut); display: grid; gap: 20px; }
-.craft-two { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr); gap: clamp(10px, 1.6vw, 20px); max-width: 1320px; margin: 0 auto; padding: 0 var(--gut); align-items: stretch; }
-.craft-two img { width: 100%; height: 100%; object-fit: cover; }
+.craft-strip { max-width: 1320px; margin: 0 auto; padding: 0 var(--gut); }
+.craft-strip img { width: 100%; }
+.craft-three { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr) minmax(0, 1fr); gap: clamp(10px, 1.6vw, 20px); max-width: 1320px; margin: clamp(10px, 1.6vw, 20px) auto 0; padding: 0 var(--gut); align-items: start; }
+.craft-three img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; }
+.craft-three figure:first-child img { aspect-ratio: 2.26 / 1; object-fit: cover; height: auto; }
+.naiku-zu { margin-top: 36px; }
 .craft .src { max-width: 1320px; margin: 12px auto 0; padding: 0 var(--gut); }
 
 /* 途切れた技 */
@@ -256,21 +260,22 @@ figcaption { font-size: 15px; line-height: 1.7; margin-top: 12px; color: var(--w
 .score-d summary { display: inline-flex; align-items: center; min-height: 44px; text-decoration: underline; text-underline-offset: 0.22em; text-decoration-thickness: 1px; cursor: pointer; list-style: none; }
 .score-d summary::-webkit-details-marker { display: none; }
 .score-d ol { margin-top: 6px; }
-.score-d li { display: flex; justify-content: space-between; gap: 16px; padding: 8px 0; border-top: 1px solid var(--hair); }
-.score-d li b { font-weight: 400; white-space: nowrap; }
-.score-d li.miss { color: rgba(244, 241, 234, 0.6); }
+.score-d li { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 10px 0; border-top: 1px solid var(--hair); }
+.score-d li p { font-size: 16px; line-height: 1.8; }
+.score-d li p b { display: block; font-weight: 600; }
+.score-d li > span { white-space: nowrap; font-size: 15px; }
+.score-d li.miss { color: rgba(244, 241, 234, 0.72); }
 .own { position: relative; display: grid; grid-template-columns: minmax(0, 560px) minmax(0, 446px); justify-content: center; gap: clamp(32px, 5vw, 72px); padding: 0 var(--gut); align-items: start; }
 .own-t { display: grid; gap: 18px; }
+.own figure img + img { margin-top: 14px; }
 .restore-e { position: relative; max-width: 26em; margin: clamp(72px, 12vh, 128px) auto 0; padding: 0 var(--gut); font: 400 clamp(20px, 2vw, 27px)/1.9 var(--mincho); }
 .ifever { display: flex; justify-content: center; padding: clamp(84px, 14vh, 144px) var(--gut); background-image: repeating-linear-gradient(90deg, rgba(190, 50, 30, 0.2) 0 1px, transparent 1px clamp(56px, 6.4vw, 92px)); }
 .ifever-v { font-size: clamp(27px, 3.6vw, 52px); line-height: 2; }
 
-/* ---- Claude の使い方 ---- */
-.uses-sec { max-width: 1080px; margin: 0 auto; padding: var(--gap-sec) var(--gut) 0; }
-.uses { margin-top: 40px; }
-.uses > div { display: grid; grid-template-columns: minmax(0, 13em) minmax(0, 1fr); gap: 6px 24px; padding: 18px 0; border-top: 1px solid var(--hair); }
-.uses dt { font: 400 19px/1.8 var(--mincho); }
-.uses + .note { margin-top: 24px; }
+/* ---- Claude の立ち位置 ---- */
+.stance { max-width: 1000px; margin: 0 auto; padding: var(--gap-sec) var(--gut) 0; display: grid; gap: 22px; }
+.stance h2 { font-size: clamp(32px, 5vw, 68px); line-height: 1.4; }
+.stance > p:not(.note) { max-width: 34em; font-size: clamp(18px, 1.5vw, 20px); }
 
 /* ---- 結 ---- */
 .end { display: grid; justify-items: center; gap: 44px; padding: var(--gap-sec) var(--gut); text-align: center; }
@@ -339,10 +344,10 @@ figcaption { font-size: 15px; line-height: 1.7; margin-top: 12px; color: var(--w
   .learn-b > div { width: 100%; }
   .naiku-ph img, .naiku-ph::after { height: 74vh; }
   .naiku-ph::after { width: 100%; }
-  .craft-two { grid-template-columns: 1fr; }
+  .craft-three { grid-template-columns: 1fr 1fr; }
+  .craft-three figure:first-child { grid-column: 1 / -1; }
   .restore-ts { width: 118vw; left: -42%; top: 2%; opacity: 0.42; }
   .restore-t { flex-direction: column; align-items: flex-end; min-height: 0; }
   .restore-t > div { max-width: none; }
   .own { grid-template-columns: minmax(0, 1fr); }
-  .uses > div { grid-template-columns: minmax(0, 1fr); }
 }
