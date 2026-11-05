@@ -7,6 +7,7 @@ import { MAKING_STEPS, MAKING_STEP_IDS, type MakingStepId } from "../rules/makin
 import { GUIDE_NOTE, GUIDES } from "../rules/guides.js";
 import { PARAMS, type ParamId } from "../rules/ledger.js";
 import { SECTION_INPUT, sectionCurveProblem } from "../geometry/section-input.js";
+import type { ReliefKind } from "../geometry/shank-relief.js";
 import type { ClaudeTool } from "./wire.js";
 
 export const TOOL_NAMES = ["set_setting", "set_shank", "check", "look", "propose_rule", "ask_teacher", "set_stones"] as const;
@@ -142,6 +143,16 @@ export interface ShankStationInput {
   sway_mm?: number;
 }
 
+/** 腕の彫り。pattern が none なら彫りをなくす */
+export interface ShankReliefInput {
+  pattern: "none" | ReliefKind;
+  count?: number;
+  depth_mm?: number;
+  from_deg?: number;
+  to_deg?: number;
+  columns?: number;
+}
+
 export interface SetShankInput {
   /** いちばん上（石座のそば）の幅 */
   width_mm?: number;
@@ -154,6 +165,8 @@ export interface SetShankInput {
   section_curve?: SectionCurveInput;
   /** 石座のそばより下の場所の形（小さい角度から順に）。空の並びは、どこも同じ形に戻す */
   stations?: ShankStationInput[];
+  /** 腕の外の面に彫る模様 */
+  relief?: ShankReliefInput;
   gou?: number;
   metal?: Metal;
   reason: string;
@@ -210,6 +223,8 @@ export interface ShankState {
   metal: Metal;
   /** 場所ごとの形（どこも同じ形ならなし）：置いた場所の角度と、そこの幅・厚み */
   stations?: { at_deg: number; width_mm: number; thickness_mm: number }[];
+  /** 腕の彫り（なければなし）：実際に彫る角度と、彫りの下に残る厚み */
+  relief?: { pattern: string; count: number; depth_mm: number; from_deg: number; to_deg: number; under_mm: number };
   /** ぐるりと見て、いちばん細い幅といちばん薄い厚み（確かめの目安と比べる数） */
   min_width_mm?: number;
   min_thickness_mm?: number;
@@ -293,6 +308,10 @@ export const INPUT_BOUNDS = {
   at_deg: [15, 180],
   sway_mm: [-2, 2],
   stations: [0, 4],
+  relief_count: [1, 24],
+  relief_depth: [0.1, 0.5],
+  relief_deg: [15, 180],
+  relief_columns: [1, 3],
 } as const;
 
 // ---- 道具の定義（Claude に見せる説明つき） ----
@@ -424,6 +443,26 @@ export const TOOLS: ClaudeTool[] = [
             required: ["at_deg", "width_mm", "thickness_mm"],
             additionalProperties: false,
           },
+        },
+        relief: {
+          type: "object",
+          description:
+            "腕の外の面に彫る浅い模様（穴は開かない）。左右の腕に同じように彫る。石座のそば（腕の端）には彫らない。平らな面やゆるい丸みの面でよく見え、薄い所では自動で浅くなる。" +
+            `彫った所の下に残る厚みは check が見る（${GUIDES.band.relief.minUnderMm} mm 以上。仮の目安）。作者が彫る本物の彫りの代わりではなく、形の案。`,
+          properties: {
+            pattern: {
+              type: "string",
+              enum: ["none", "arch", "diamond", "wave", "beads", "lines", "leaf"],
+              description: "模様。arch＝先の尖ったアーチが腕に沿って並ぶ、diamond＝菱の格子、wave＝腕に沿う波の線、beads＝丸い粒のくぼみの列、lines＝腕を横切る筋、leaf＝葉とつる、none＝彫りをなくす",
+            },
+            count: { type: "integer", description: `片側の腕に並べる数（${range("relief_count", " つ")}）。省くと 4` },
+            depth_mm: { type: "number", description: `彫りの深さ（mm、${range("relief_depth", " mm")}）。省くと ${GUIDES.band.relief.depthMm} mm` },
+            from_deg: { type: "number", description: `彫り始める場所（いちばん上からの角度、度、${range("relief_deg")}）。省くと 25` },
+            to_deg: { type: "number", description: `彫り終わる場所（度、${range("relief_deg")}）。省くと 100。指の真横が 90` },
+            columns: { type: "integer", description: `幅の向きに並べる数（${range("relief_columns", " 列")}）。省くと 1。真ん中に稜線のある断面では 2 にすると稜線の両側に並ぶ` },
+          },
+          required: ["pattern"],
+          additionalProperties: false,
         },
         gou: { type: "integer", description: `指輪のサイズ（日本の号数、${range("gou", " 号")}）。号数から内径が決まる` },
         metal: {
@@ -671,6 +710,25 @@ function checkStations(v: unknown): string | null {
   return null;
 }
 
+/** 腕の彫り：模様の名前と数の範囲、始まりと終わりの順 */
+function checkRelief(v: unknown): string | null {
+  const r = v as Record<string, unknown> | null;
+  if (typeof r !== "object" || r === null || Array.isArray(r)) return "腕の彫りは {pattern, …} の形で書いてください";
+  const kinds = ["none", "arch", "diamond", "wave", "beads", "lines", "leaf"];
+  if (!kinds.includes(r.pattern as string)) return `腕の彫りの模様は ${kinds.join(" / ")} のどれかです（今は ${String(r.pattern)}）`;
+  const bounds: Record<string, keyof typeof INPUT_BOUNDS> = { count: "relief_count", depth_mm: "relief_depth", from_deg: "relief_deg", to_deg: "relief_deg", columns: "relief_columns" };
+  for (const k of Object.keys(r)) {
+    if (k === "pattern") continue;
+    const b = bounds[k];
+    if (!b) return `腕の彫りに ${k} という項目はありません`;
+    const [lo, hi] = INPUT_BOUNDS[b];
+    if (typeof r[k] !== "number" || !Number.isFinite(r[k]) || (r[k] as number) < lo || (r[k] as number) > hi) return `腕の彫りの ${k} は ${lo}〜${hi} で書いてください（今は ${String(r[k])}）`;
+    if ((k === "count" || k === "columns") && !Number.isInteger(r[k])) return `腕の彫りの ${k} は整数で書いてください`;
+  }
+  if (typeof r.from_deg === "number" && typeof r.to_deg === "number" && r.from_deg >= r.to_deg) return "腕の彫りは、彫り始める角度を、彫り終わる角度より小さくしてください";
+  return null;
+}
+
 /** 石の大きさの段：大きさは 0.5〜30 mm で小さい順、値は 0〜100 */
 function checkSizeSteps(key: string, v: unknown[]): string | null {
   if (v.length === 0 || v.length > 12) return `${key} は 1〜12 段で書いてください`;
@@ -727,6 +785,10 @@ export function parseToolCall(name: string, input: unknown): ParseResult {
     }
     if (record.stations !== undefined) {
       const e = checkStations(record.stations);
+      if (e) return { ok: false, error: e };
+    }
+    if (record.relief !== undefined) {
+      const e = checkRelief(record.relief);
       if (e) return { ok: false, error: e };
     }
   }

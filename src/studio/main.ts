@@ -32,7 +32,7 @@ import { bindVoice } from "../app/voice";
 import { bookLabel, bookTitle, masterName, sourceName } from "../app/master";
 import { toStl } from "../cad/solid";
 import { buildStone } from "../geometry/stone";
-import { LAYOUT_LABEL, METAL_LABEL, RingSession, SLOT_SHAPE_LABEL, STONE_LONG_RANGE, bandFixInput, carryDesign, fitStoneDepth, fitStoneLong, stationFrom, tuneProngMm, underLedger, type Built, type SlotShape } from "./session";
+import { LAYOUT_LABEL, METAL_LABEL, RingSession, SLOT_SHAPE_LABEL, STONE_LONG_RANGE, bandFixInput, carryDesign, fitStoneDepth, fitStoneLong, reliefFixInput, stationFrom, tuneProngMm, underLedger, type Built, type SlotShape } from "./session";
 import { bindShankLine, sectionBinding, shankLineHtml } from "./shank-line";
 import { howToMake, placeText, type Method } from "./howto";
 import { sheetHtml } from "./sheet";
@@ -1229,8 +1229,8 @@ async function make() {
     type: "text",
     text:
       "この石で指輪を組み、check で確かめ、作れない所があれば直してください。\n" +
-      "この道具で変えられるのは、石座（留め方・爪の本数と太さと位置・高さ・向き・腕への付け方）と腕（断面の線・場所ごとの幅と厚みと断面・腕の流れ・号・地金）です。雰囲気の言葉は、腕の断面と線にも訳してください。\n" +
-      "希望や絵のうち、これで表せないこと（穴を開ける透かし、彫りの模様、飾りの模様、石の数を増やす など）は、できたふりをせず、「まだできないこと：」の行に正直に短く書いてください。この行には、希望や絵で求められたのに形にできなかったことだけを書きます（帳面の決まりで気づいたことは「残っていること」へ）。すべて表せたときは「まだできないこと：なし」と書いてください。\n" +
+      "この道具で変えられるのは、石座（留め方・爪の本数と太さと位置・高さ・向き・腕への付け方）と腕（断面の線・場所ごとの幅と厚みと断面・腕の流れ・面に彫る模様・号・地金）です。雰囲気の言葉は、腕の断面と線にも訳してください。\n" +
+      "希望や絵のうち、これで表せないこと（穴を開ける透かし、決まった 6 つのほかの模様、立体の飾り、石の数を増やす など）は、できたふりをせず、「まだできないこと：」の行に正直に短く書いてください。この行には、希望や絵で求められたのに形にできなかったことだけを書きます（帳面の決まりで気づいたことは「残っていること」へ）。すべて表せたときは「まだできないこと：なし」と書いてください。\n" +
       "最後の返事は、次の 4 行だけにしてください。前置き・見出し・箇条書きは書きません。1 行は 100 字ほどまで。\n" +
       "やったこと：…\n確かめたこと：…\n残っていること：…\nまだできないこと：…",
   });
@@ -1298,6 +1298,7 @@ const SHORT: Record<string, string> = {
   "band-thin": "腕が薄い",
   "band-narrow": "腕の幅が細い",
   "band-spike": "腕の断面が尖りすぎ",
+  "band-relief": "腕の彫りの下の地金が薄い",
   "stone-space": "となりの石と近すぎる",
   "metal-space": "石座の間のすき間が狭い",
   "collar-wall": "石座の下の輪の板が薄い",
@@ -2129,6 +2130,11 @@ function applyFix(id: string, sess: RingSession = session!, prob?: Problem) {
       // V 字の爪は画面では使わないので、角の数だけ爪を置き、角に寄せる（爪の置き方の自動）
       session!.setSetting({ style: "prong", v_corners: false, prong_count: 0, reason: "直し方から" });
       break;
+    case "shallowerRelief": {
+      const relief = reliefFixInput(s, session!.built!.ring.shank.relief?.peakUnderMm ?? 0);
+      if (relief) session!.setShank({ relief, reason: "直し方から" });
+      break;
+    }
     case "thickerBand":
       session!.setShank({ ...bandFixInput("thickerBand", s), reason: "直し方から" });
       break;

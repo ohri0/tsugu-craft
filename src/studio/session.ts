@@ -5,6 +5,7 @@ import { layoutRow, layoutTrio, scaleStone } from "../geometry/multi";
 import { PRESETS, presetOutline } from "./presets";
 import { autoOrientation, tAtOutlineIndex, type JoinStyle, type SolidQuality } from "../geometry/setting";
 import type { SectionCurve, SectionPoint, ShankSection, ShankStation } from "../geometry/shank";
+import type { ReliefParams } from "../geometry/shank-relief";
 import type { StoneParams } from "../geometry/stone";
 import { FIXES, checkRing, cornerDistances, holdRatio, tensionNotes, tensionOpening, tensionOpeningText, type FixId, type Problem } from "../rules/checks";
 import { GUIDES, requiredHold, stoneSizeMm, type Guides, type HeightOption, type MetalId, type StonePosition } from "../rules/guides";
@@ -19,6 +20,7 @@ import type {
   SetSettingResult,
   SetShankInput,
   SetShankResult,
+  ShankReliefInput,
   ShankStationInput,
   SetStonesInput,
   SetStonesResult,
@@ -75,6 +77,8 @@ export interface RingState {
   sectionCurve?: SectionCurve;
   /** 腕の場所ごとの形（なければ、どこも同じ形。shankWidthMm・shankThicknessMm・断面が、いちばん上の形。テンションと石を並べた指輪では使わない） */
   shankStations?: ShankStation[];
+  /** 腕の彫り（なければ彫らない。テンションと石を並べた指輪では使わない） */
+  shankRelief?: ReliefParams;
   /** 尖った角を V 字の爪で包むか（なければ包まない：丸い爪を角に立てる普通の爪留め。作者の判断） */
   vCorners?: boolean;
   /** 石の一番下と指のすき間（mm）を直接決める（高さの選択より優先。職人の決まりに合わせて直すとき） */
@@ -142,6 +146,7 @@ export function carryDesign(prev: RingState, base: RingState, same: { shape?: bo
     sectionPoints: prev.sectionPoints && structuredClone(prev.sectionPoints),
     sectionCurve: prev.sectionCurve && structuredClone(prev.sectionCurve),
     shankStations: prev.shankStations && structuredClone(prev.shankStations),
+    shankRelief: prev.shankRelief && { ...prev.shankRelief },
     beforeTension: prev.beforeTension && structuredClone(prev.beforeTension),
   };
   if (prev.orientationSet) {
@@ -238,6 +243,27 @@ export function stationTo(st: ShankStation): ShankStationInput {
   };
 }
 
+/** 道具の入力の彫り → 設計に残す形（省いた数は、今の彫り、なければ既定） */
+export function reliefFrom(r: ShankReliefInput, cur: ReliefParams | undefined): ReliefParams | undefined {
+  if (r.pattern === "none") return undefined;
+  return {
+    kind: r.pattern,
+    count: r.count ?? cur?.count ?? 4,
+    depthMm: r.depth_mm ?? cur?.depthMm ?? GUIDES.band.relief.depthMm,
+    fromDeg: r.from_deg ?? cur?.fromDeg ?? 25,
+    toDeg: r.to_deg ?? cur?.toDeg ?? 100,
+    ...((r.columns ?? cur?.columns) ? { columns: r.columns ?? cur?.columns } : {}),
+  };
+}
+
+/** 彫りの下の地金が足りないときの直し方：足りるところまで浅くする */
+export function reliefFixInput(s: RingState, underMm: number, g: Guides = GUIDES): ShankReliefInput | undefined {
+  const r = s.shankRelief;
+  if (!r) return undefined;
+  const depth = Math.max(0.1, Math.floor((r.depthMm - (g.band.relief.minUnderMm - underMm)) * 20 + 1e-6) / 20);
+  return { pattern: r.kind, depth_mm: depth };
+}
+
 /**
  * 腕の確かめの直し方（厚くする・幅を広げる）の入力。場所ごとの形があるときは、足りない場所だけ上げる。
  * いちばん上がもう足りていれば、いちばん上は変えない
@@ -279,6 +305,7 @@ const CHECK_NAME: Record<string, string> = {
   "band-thin": "腕の厚み",
   "band-narrow": "腕の幅",
   "band-spike": "腕の断面のとがり・薄いヒレ",
+  "band-relief": "腕の彫りの下の地金",
   "stone-space": "となりの石との間",
   "metal-space": "となりの石座との間",
   "collar-wall": "石座の下の輪の板の厚み",
@@ -317,6 +344,10 @@ function hintFor(id: FixId, s: RingState, std: number): FixOption["tool_hint"] {
     case "vAtCorner":
       // 爪の本数を自動に戻すと、尖った角に 1 本ずつ置く（V 字の爪は画面では使わない）
       return { tool: "set_setting", input: { style: "prong", v_corners: false, prong_count: 0 } };
+    case "shallowerRelief": {
+      const r = reliefFixInput(s, GUIDES.band.relief.minUnderMm - 0.1);
+      return r ? { tool: "set_shank", input: { relief: r } } : undefined;
+    }
     case "thickerBand":
       return { tool: "set_shank", input: bandFixInput("thickerBand", s) };
     case "widerBand":
@@ -469,6 +500,7 @@ export class RingSession implements ToolHost<RingState> {
         sectionPoints: s.shankSection === "free" ? s.sectionPoints : undefined,
         sectionCurve: s.shankSection === "free" ? s.sectionCurve : undefined,
         stations: s.style === "tension" ? undefined : s.shankStations,
+        relief: s.style === "tension" ? undefined : s.shankRelief,
       },
       orientation: s.orientation,
     };
@@ -594,6 +626,7 @@ export class RingSession implements ToolHost<RingState> {
     if (input.gou !== undefined) s.gou = input.gou;
     if (input.metal) s.metal = input.metal;
     if (input.stations && free) s.shankStations = input.stations.length ? input.stations.map(stationFrom) : undefined;
+    if (input.relief && free) s.shankRelief = reliefFrom(input.relief, s.shankRelief);
     if (input.section) {
       s.shankSection = input.section;
       if (input.section !== "free") {
@@ -616,9 +649,9 @@ export class RingSession implements ToolHost<RingState> {
     const r2 = (v: number) => Math.round(v * 100) / 100;
     const notes = [
       s.metal === "k18wg" || s.metal === "k18pg" ? "見た目と重さは K18 イエローで出している" : "",
-      !free && (input.section_curve || input.stations) ? "テンションの腕は丸線のままなので、断面の線と場所ごとの形は使っていない" : "",
-      free && s.shankStations?.length && s.shankSection === "maru" ? "丸線の腕には場所ごとの形を使えない。使うなら断面を変える" : "",
-      free && s.shankStations?.length && b.ring.stones.length > 1 ? "石を並べた指輪の腕はどこも同じ形にしている" : "",
+      !free && (input.section_curve || input.stations || input.relief) ? "テンションの腕は丸線のままなので、断面の線・場所ごとの形・彫りは使っていない" : "",
+      free && (s.shankStations?.length || s.shankRelief) && s.shankSection === "maru" ? "丸線の腕には場所ごとの形と彫りを使えない。使うなら断面を変える" : "",
+      free && (s.shankStations?.length || s.shankRelief) && b.ring.stones.length > 1 ? "石を並べた指輪の腕はどこも同じ形で、彫りもしていない" : "",
     ].filter(Boolean);
     return {
       shank: {
@@ -635,6 +668,7 @@ export class RingSession implements ToolHost<RingState> {
               min_thickness_mm: r2(sh.minThicknessMm ?? sh.thicknessMm),
             }
           : {}),
+        ...(sh.relief ? { relief: { pattern: sh.relief.kind, count: sh.relief.count, depth_mm: sh.relief.depthMm, from_deg: Math.round(sh.relief.fromDegUsed), to_deg: Math.round(sh.relief.toDegUsed), under_mm: r2(sh.relief.peakUnderMm) } } : {}),
       },
       weight_g: Math.round(b.ring.metalWeightG * 10) / 10,
       note: notes.length ? notes.join("。") : undefined,
@@ -781,7 +815,7 @@ export class RingSession implements ToolHost<RingState> {
         options: p.options.map((o) => ({ action: o.label, appearance: o.effectOnLook, tool_hint: hintFor(o.id, this.state, std) })),
       })),
       passed: Object.entries(CHECK_NAME)
-        .filter(([k]) => !failed.has(k as Problem["check"]) && (b.ring.setting.style === "tension" ? TENSION_CHECKS.has(k) : !k.startsWith("tension-") && (b.ring.stones.length > 1 || !k.endsWith("-space")) && (b.ring.setting.collar !== null || (k !== "collar-wall" && k !== "band-end"))))
+        .filter(([k]) => !failed.has(k as Problem["check"]) && (b.ring.setting.style === "tension" ? TENSION_CHECKS.has(k) : !k.startsWith("tension-") && (b.ring.stones.length > 1 || !k.endsWith("-space")) && (b.ring.setting.collar !== null || (k !== "collar-wall" && k !== "band-end")) && (k !== "band-relief" || !!b.ring.shank.relief)))
         .map(([, v]) => v),
       note: `数字は目安・最後は職人が決める。石の一番下と指のすき間は ${b.ring.culetGapMm.toFixed(2)} mm、地金は約 ${b.ring.metalWeightG.toFixed(1)} g。${tensionNotes(b.ring.setting, b.ring.shank.thicknessMm, this.guides()).join(" ")}${opening ? ` ${tensionOpeningText(opening)}` : ""}`.trim(),
     };

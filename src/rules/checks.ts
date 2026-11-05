@@ -40,6 +40,7 @@ export const FIXES = {
   thickerBand: { label: "腕を厚くする", effectOnLook: "指に当たる所が少し厚く、少し重くなる" },
   widerBand: { label: "腕の幅を広げる", effectOnLook: "腕が少し太く見える" },
   bluntTip: { label: "断面を直す（赤い所へ）", effectOnLook: "とがった線が少しやわらかく見える" },
+  shallowerRelief: { label: "彫りを浅くする", effectOnLook: "模様が少し控えめに見える" },
   spreadStones: { label: "石の間を広げる", effectOnLook: "石と石の間に地金が少し見え、並びが少し長くなる" },
   smallerStones: { label: "横の石を小さくする", effectOnLook: "真ん中の石が引き立ち、横の石は控えめになる" },
   thickerCollar: { label: "下の輪の板を厚くする", effectOnLook: "石座の下の輪が少し太く見える" },
@@ -65,6 +66,7 @@ export type CheckId =
   | "band-thin"
   | "band-narrow"
   | "band-spike"
+  | "band-relief"
   | "stone-space"
   | "metal-space"
   | "collar-wall"
@@ -494,7 +496,7 @@ export function outlinePointAtT(outline: readonly Point[], t: number): Point {
 /**
  * 腕の厚みと幅（石のない指輪と同じ目安：guides.ts の band）。断面がどの形でも、いちばん厚い所の厚みと、いちばん細い所の幅で比べる
  */
-export function checkShank(sh: Pick<ShankResult, "thicknessMm" | "widthMm"> & { minWidthMm?: number; minThicknessMm?: number; outlineMm?: [number, number][]; along?: ShankResult["along"] }, opts: CheckOptions = {}): Problem[] {
+export function checkShank(sh: Pick<ShankResult, "thicknessMm" | "widthMm"> & { minWidthMm?: number; minThicknessMm?: number; outlineMm?: [number, number][]; along?: ShankResult["along"]; relief?: ShankResult["relief"] }, opts: CheckOptions = {}): Problem[] {
   const g: Guides = opts.guides ?? GUIDES;
   const out: Problem[] = [];
   const t = sh.minThicknessMm ?? sh.thicknessMm;
@@ -531,6 +533,21 @@ export function checkShank(sh: Pick<ShankResult, "thicknessMm" | "widthMm"> & { 
   }
   if (sh.outlineMm?.length && !sh.along) {
     sectionSpots(sh.outlineMm.map(([x, y]) => ({ x, y })), g).forEach((sp, i) => out.push(spikeProblem(sp, i, g)));
+  }
+  // 腕の彫り：彫る場所の、いちばん厚い所から彫りの深さを引いて、どれだけ残るか
+  if (sh.relief && sh.relief.peakUnderMm < g.band.relief.minUnderMm - 1e-9) {
+    out.push({
+      id: "band-relief",
+      check: "band-relief",
+      where: "腕の彫りの下の地金",
+      current: `残り ${mm(sh.relief.peakUnderMm)}`,
+      required: `${mm(g.band.relief.minUnderMm)} 以上（仮の目安）`,
+      currentValue: sh.relief.peakUnderMm,
+      requiredValue: g.band.relief.minUnderMm,
+      reason: `彫った所の下が薄いと、腕が曲がりやすい（1 mm より薄い腕は持ちが悪い、という公開の目安を借りた。${GUIDE_NOTE}）`,
+      options: fix("shallowerRelief", "thickerBand"),
+      target: { kind: "shank" },
+    });
   }
   // 腕の場所ごとの形：場所ごとに断面を見る。同じ薄い所が続くときは、最初の場所だけ知らせる
   if (sh.along) {

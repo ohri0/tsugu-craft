@@ -99,6 +99,17 @@ const designShape = z
       .max(INPUT_BOUNDS.stations[1])
       .optional()
       .describe("腕の場所ごとの形（角度の小さい順。左右は同じ）。石座のそばの形は shank_width_mm・shank_thickness_mm・断面で決まり、ここにはそれより下の場所を書く。間はなめらかにつながる"),
+    shank_relief: z
+      .object({
+        pattern: z.enum(["arch", "diamond", "wave", "beads", "lines", "leaf"]).describe("模様：arch＝先の尖ったアーチの列、diamond＝菱の格子、wave＝波の線、beads＝粒のくぼみ、lines＝横の筋、leaf＝葉とつる"),
+        count: z.number().int().min(INPUT_BOUNDS.relief_count[0]).max(INPUT_BOUNDS.relief_count[1]).optional().describe("片側の腕に並べる数。省くと 4"),
+        depth_mm: z.number().min(INPUT_BOUNDS.relief_depth[0]).max(INPUT_BOUNDS.relief_depth[1]).optional().describe(`深さ（mm）。省くと ${GUIDES.band.relief.depthMm} mm`),
+        from_deg: z.number().min(INPUT_BOUNDS.relief_deg[0]).max(INPUT_BOUNDS.relief_deg[1]).optional().describe("彫り始める角度（度）。省くと 25"),
+        to_deg: z.number().min(INPUT_BOUNDS.relief_deg[0]).max(INPUT_BOUNDS.relief_deg[1]).optional().describe("彫り終わる角度（度）。省くと 100"),
+        columns: z.number().int().min(INPUT_BOUNDS.relief_columns[0]).max(INPUT_BOUNDS.relief_columns[1]).optional().describe("幅の向きに並べる数。省くと 1"),
+      })
+      .optional()
+      .describe("腕の外の面に彫る浅い模様（穴は開かない）"),
     shank_width_mm: z.number().min(1).max(10).optional().describe(`腕の幅（mm）。いちばん上（石座のそば）の幅。省略で ${GUIDES.shank.widthMm} mm`),
     join: z
       .enum(["on", "between"])
@@ -285,6 +296,7 @@ export function checkRingTool(ctx: ToolContext, input: CheckRingInput) {
     section: d.shank_section_curve ? "free" : d.shank_section,
     sectionCurve: d.shank_section_curve ? { points: d.shank_section_curve } : undefined,
     stations: d.shank_stations?.length ? stationsFrom(d.shank_stations) : undefined,
+    relief: d.shank_relief ? { kind: d.shank_relief.pattern, count: d.shank_relief.count ?? 4, depthMm: d.shank_relief.depth_mm ?? GUIDES.band.relief.depthMm, fromDeg: d.shank_relief.from_deg ?? 25, toDeg: d.shank_relief.to_deg ?? 100, columns: d.shank_relief.columns } : undefined,
     shankWidthMm: d.shank_width_mm,
     shankThicknessMm: d.shank_thickness_mm,
     join: d.join,

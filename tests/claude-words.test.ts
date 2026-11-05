@@ -91,6 +91,8 @@ describe("作業の記録の 1 行", () => {
     expect(t).toBe("腕：断面 自由な線、幅 3 mm、厚み 2.2 mm、地金 18 金ホワイト、11 号、場所ごとの形：肩 幅 2.2 × 厚み 1.6 mm（0.5 mm 流す）、いちばん下 幅 1.8 × 厚み 1.3 mm（甲丸） ― 理由");
     expect(line("set_shank", { section: "hangouman", metal: "k18yg", reason: "x" })).toContain("断面 半甲丸、地金 18 金イエロー");
     expect(line("set_shank", { stations: [], reason: "x" })).toContain("どこも同じ形に戻す");
+    expect(line("set_shank", { relief: { pattern: "arch", count: 4, columns: 2, depth_mm: 0.25 }, reason: "x" })).toContain("彫り 尖ったアーチ（片側 4 つ・2 列・深さ 0.25 mm）");
+    expect(line("set_shank", { relief: { pattern: "none" }, reason: "x" })).toContain("彫り なし");
   });
   it("確かめと見る", () => {
     expect(toolLogLine({ tool: "check", input: {}, ok: true, result: { problems: [1, 2] } })).toEqual({ text: "確かめ：作れない所 2", mark: "ng" });

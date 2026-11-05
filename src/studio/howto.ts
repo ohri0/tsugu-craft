@@ -4,7 +4,7 @@
 // 手順は宝飾の一般的な作り方の例で、作者（宝飾の彫金職人）が確かめて直す。温度や縮みの量のように、
 // 形から出せず出典もない数字は書かない（鋳造所・職人の値を使う、と書く）。
 import type { PlacedStone, RingDesign } from "../geometry/ring";
-import { SHANK_SECTION_LABEL, shankSizeWords } from "../geometry/shank";
+import { SHANK_SECTION_LABEL, reliefWords, shankSizeWords } from "../geometry/shank";
 import { perimeter } from "../geometry/polygon";
 import { GUIDES } from "../rules/guides";
 import type { AlloyId, Detail } from "./process";
@@ -294,6 +294,7 @@ function soloSteps(o: HowToInput, method: Method): Step[] {
         modelSpecs: [
           ...head,
           { label: "腕", value: `${SHANK_SECTION_LABEL[sh.section]} ・ ${sh.along ? shankSizeWords(sh, 2) : `幅 ${mm(sh.widthMm)} × 厚み ${mm(sh.thicknessMm)}`}` },
+          ...(reliefWords(sh) ? [{ label: "腕の彫り", value: `${reliefWords(sh)}（3D データに入っている。形の案。仕上げは職人が決める）` }] : []),
           ...(r.notchDepthMm > 0 ? [{ label: "ザグり", value: `腕の上 深さ ${mm(r.notchDepthMm, 2)}・丸いくぼみ 直径 約 ${mm(r.shank.notchBallDiameterMm, 1)}（3D データに入っている）` }] : []),
           ...(bm
             ? [

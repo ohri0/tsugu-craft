@@ -2,6 +2,7 @@
 // 肩と下の幅・厚み・断面、腕の流れ。石座のそばの形は、断面の図（section-edit）で決める。
 // 画面の組み立てはここにまとめ、main.ts は呼ぶだけにする。
 import { SHANK_SECTION_LABEL, SHANK_SECTIONS, type ShankSection, type ShankStation } from "../geometry/shank";
+import { RELIEF_KINDS, RELIEF_LABEL, type ReliefKind, type ReliefParams } from "../geometry/shank-relief";
 import { GUIDES } from "../rules/guides";
 import { bindSlider, sliderHtml, type SliderSpec } from "./slider";
 import { stationTo, type RingSession, type RingState } from "./session";
@@ -49,6 +50,15 @@ const specs = (st: ShankStation, i: number): SliderSpec[] => {
   return list;
 };
 
+/** 彫りのつまみ */
+const reliefSpecs = (r: ReliefParams): SliderSpec[] => [
+  { cls: "sl-rn", label: "彫りの数", min: 1, max: 24, step: 1, value: r.count, unit: "つ" },
+  { cls: "sl-rd", label: "彫りの深さ", min: 0.1, max: 0.5, step: 0.05, value: r.depthMm, unit: "mm" },
+  { cls: "sl-rf", label: "彫り始め", min: 15, max: 170, step: 5, value: r.fromDeg, unit: "°" },
+  { cls: "sl-rt", label: "彫り終わり", min: 20, max: 180, step: 5, value: r.toDeg, unit: "°" },
+  { cls: "sl-rc", label: "彫りの列", min: 1, max: 3, step: 1, value: r.columns ?? 1, unit: "列" },
+];
+
 const toggle = (key: string, value: string, on: boolean, label: string) => `<button type="button" data-line="${key}" data-v="${value}" aria-pressed="${on}">${label}</button>`;
 
 /** 欄の HTML。テンション・丸線の腕には出さない（どこも同じ形） */
@@ -73,6 +83,8 @@ export function shankLineHtml(s: RingState): string {
       <small class="sl-note">石座のそばの幅と厚みは、上の断面の図で決めます。腕の端が石座に当たる所は、石座のそばの形のままです。流れは、片方の肩が指先へ寄ると、もう片方は付け根へ寄ります。${GUIDES.band.minWidthMm} mm・${GUIDES.band.minThicknessMm} mm より細い・薄い場所は、確かめが知らせます（目安・最後は職人が決める）。</small>`
         : ""
     }
+    <div class="pick"><span>腕の彫り</span><div>${toggle("relief", "none", !s.shankRelief, "なし")}${RELIEF_KINDS.map((k) => toggle("relief", k, s.shankRelief?.kind === k, RELIEF_LABEL[k])).join("")}</div></div>
+    ${s.shankRelief ? `<div class="sliders">${reliefSpecs(s.shankRelief).map(sliderHtml).join("")}</div><small class="sl-note">面に彫る浅い模様です（穴は開きません）。薄い所では自動で浅くなります。形の案で、仕上げは職人が決めます。</small>` : ""}
   </section>`;
 }
 
@@ -123,6 +135,11 @@ export function bindShankLine(box: HTMLElement, session: RingSession, redraw: ()
         }
         return;
       }
+      if (key === "relief") {
+        const cur = s.shankRelief;
+        session.setShank({ relief: v === "none" ? { pattern: "none" } : { pattern: v as ReliefKind, count: cur?.count ?? 4, depth_mm: cur?.depthMm ?? GUIDES.band.relief.depthMm, from_deg: cur?.fromDeg ?? 25, to_deg: cur?.toDeg ?? 100, columns: cur?.columns ?? 1 }, reason: "手で" });
+        return;
+      }
       if (key === "draw") {
         drawTarget = v === "top" ? null : Number(v);
         redraw();
@@ -136,6 +153,13 @@ export function bindShankLine(box: HTMLElement, session: RingSession, redraw: ()
       }
     }),
   );
+  if (s.shankRelief) {
+    const r = s.shankRelief;
+    const field = { "sl-rn": "count", "sl-rd": "depth_mm", "sl-rf": "from_deg", "sl-rt": "to_deg", "sl-rc": "columns" } as const;
+    for (const spec of reliefSpecs(r)) {
+      bindSlider(box, spec, (v) => session.setShank({ relief: { pattern: r.kind, count: r.count, depth_mm: r.depthMm, from_deg: r.fromDeg, to_deg: r.toDeg, columns: r.columns ?? 1, [field[spec.cls as keyof typeof field]]: v }, reason: "手で" }));
+    }
+  }
   list.forEach((st, i) => {
     for (const spec of specs(st, i)) {
       bindSlider(box, spec, (v) => {

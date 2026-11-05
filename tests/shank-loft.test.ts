@@ -11,7 +11,7 @@ import { GUIDES, innerDiameterMm } from "../src/rules/guides";
 import { parseToolCall, TOOLS } from "../src/claude/tools";
 import { seedLedger } from "../src/rules/ledger";
 import { PRESETS, presetOutline } from "../src/studio/presets";
-import { RingSession, bandFixInput, carryDesign, DEFAULT_STATE } from "../src/studio/session";
+import { RingSession, bandFixInput, carryDesign, DEFAULT_STATE, reliefFixInput } from "../src/studio/session";
 import type { StoneParams } from "../src/geometry/stone";
 import { stoneFrom, triangleStone } from "./helpers/stones";
 import { ellipse } from "./helpers/synth";
@@ -353,5 +353,59 @@ describe("設計の場（session）", () => {
     s.restore(snap);
     expect(s.state.shankStations).toBeUndefined();
     expect(s.built!.ring.shank.section).toBe(snap.shankSection ?? "kouman");
+  });
+});
+
+describe("腕の彫り", () => {
+  const relief = { kind: "arch" as const, count: 3, depthMm: 0.25, fromDeg: 25, toDeg: 100 };
+  it.each(["arch", "diamond", "wave", "beads", "lines", "leaf"] as const)("%s：腕の間に挟む石座でも閉じた 1 つの形で、内径と腕の端は変わらない", (kind) => {
+    const stone = roundStone();
+    const setting = { style: "prong" as const, height: "standard" as const, join: "between" as const };
+    const shank = { gou: 11, widthMm: 2.8, thicknessMm: 1.8, section: "hirauchi" as const };
+    const plain = buildRing({ stone, setting, shank });
+    const r = buildRing({ stone, setting, shank: { ...shank, relief: { ...relief, kind } } });
+    expect(openEdges(r.shank.positions)).toBe(0);
+    expect(components(r.shank.positions)).toBe(1);
+    expect(innerRadius(r.shank.positions)).toBeCloseTo(innerDiameterMm(11) / 2, 3);
+    expect(r.shank.ends).toEqual(plain.shank.ends);
+    // 彫った分だけ軽い
+    expect(r.shank.volumeMm3).toBeLessThan(plain.shank.volumeMm3);
+    expect(r.shank.relief?.fromDegUsed).toBeGreaterThanOrEqual(25);
+  });
+  it("腕の上にのせる石座・場所ごとの形といっしょでも閉じる。彫りの下は いつも地金が残る", () => {
+    const r = buildRing({ stone: triangleStone(), setting: { style: "prong", height: "standard", join: "on" }, shank: { gou: 11, widthMm: 2.8, thicknessMm: 2, section: "free", sectionCurve: { points: RIDGE }, stations: STATIONS, relief: { ...relief, columns: 2 } } });
+    expect(openEdges(r.shank.positions)).toBe(0);
+    expect(components(r.shank.positions)).toBe(1);
+    expect(r.shank.relief!.localUnderMm).toBeGreaterThanOrEqual(GUIDES.band.relief.keepMm - 1e-9);
+    expect(innerRadius(r.shank.positions)).toBeCloseTo(innerDiameterMm(11) / 2, 3);
+  });
+  it("彫りの下の地金が足りないと確かめが止め、直し方で通る", () => {
+    const s = new RingSession(presetStone("marquise"), () => seedLedger(), () => undefined, () => "");
+    s.setShank({ width_mm: 2.4, thickness_mm: 1.2, section: "hirauchi", relief: { pattern: "arch", depth_mm: 0.4 }, reason: "ためし" });
+    const p = s.check().problems.find((q) => q.check === "腕の彫りの下の地金");
+    expect(p?.options[0].action).toBe("彫りを浅くする");
+    expect(s.built!.problems.find((q) => q.check === "band-relief")?.currentValue).toBeCloseTo(0.8, 2);
+    s.setShank({ relief: reliefFixInput(s.state, s.built!.ring.shank.relief!.peakUnderMm)!, reason: "直す" });
+    expect(s.state.shankRelief?.depthMm).toBeCloseTo(0.2, 2);
+    expect(s.check().problems.some((q) => q.check === "腕の彫りの下の地金")).toBe(false);
+    // なしに戻す
+    s.setShank({ relief: { pattern: "none" }, reason: "やめる" });
+    expect(s.state.shankRelief).toBeUndefined();
+    expect(s.check().passed).not.toContain("腕の彫りの下の地金");
+  });
+  it("道具の入力を確かめる。テンションの腕には彫らない", () => {
+    const ok = (relief: unknown) => parseToolCall("set_shank", { relief, reason: "x" });
+    expect(ok({ pattern: "arch", count: 4, depth_mm: 0.25, from_deg: 25, to_deg: 100, columns: 2 }).ok).toBe(true);
+    expect(ok({ pattern: "none" }).ok).toBe(true);
+    expect(ok({ pattern: "castle" }).ok).toBe(false);
+    expect(ok({ pattern: "arch", depth_mm: 2 }).ok).toBe(false);
+    expect(ok({ pattern: "arch", count: 2.5 }).ok).toBe(false);
+    expect(ok({ pattern: "arch", from_deg: 120, to_deg: 60 }).ok).toBe(false);
+    expect(ok({ pattern: "arch", extra: 1 }).ok).toBe(false);
+    const s = new RingSession(triangleStone(), () => seedLedger(), () => undefined, () => "");
+    s.setSetting({ style: "tension", reason: "挟む" });
+    const r = s.setShank({ relief: { pattern: "arch" }, reason: "ためし" });
+    expect(r.note).toContain("テンション");
+    expect(s.built!.ring.shank.relief).toBeUndefined();
   });
 });
