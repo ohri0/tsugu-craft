@@ -107,6 +107,13 @@ def poly_field(img):
     return np.maximum(out, 1e-3)
 
 
+def toned(R):
+    """物のコントラストを少し上げて、紙の色むらが出ないよう色を少し抜く"""
+    x = np.power(R, 1.25)
+    y = x.mean(axis=2, keepdims=True)
+    return y + (x - y) * 0.6
+
+
 def parts():
     empty = lin(read("parts1_stone.mov", 0, 0.3)).mean(axis=0)
     F = poly_field(empty)
@@ -126,7 +133,7 @@ def parts():
             g = patch(f) / p0  # カメラが明るさを変えた分
             R = f / (F * g[None, None, :])
             R = np.clip(R, 0, 1.25)
-            frames.append(enc(np.power(R, 1.25) * L))
+            frames.append(enc(toned(R) * L))
     n = int(PARTS_LEN * FPS)
     # 足りない分は、最後の本物のこまの続きで埋める（止めない）
     arr = read("parts4_tools.mov")
@@ -136,7 +143,7 @@ def parts():
         f = lin(arr[min(arr.shape[0] - 1, int(round(j)))])
         g = patch(f) / p0
         R = np.clip(f / (F * g[None, None, :]), 0, 1.25)
-        frames.append(enc(np.power(R, 1.25) * L))
+        frames.append(enc(toned(R) * L))
     write(frames[:n] if len(frames) >= n else frames, "parts.mov")
 
 
@@ -163,7 +170,7 @@ def relight():
     def one(f):
         g = patch(f) / p0
         R = np.clip(f / (F * g[None, None, :]), 0, 1.25)
-        return np.power(R, 1.25) * L
+        return toned(R) * L
 
     return empty, one
 
