@@ -82,13 +82,13 @@ describe("長辺だけで実寸に直す", () => {
 describe("形の呼び名", () => {
   it("三角", () => {
     const t = triangle(0, 0, 9, 7.5);
-    expect(nameShape(t, findCorners(t)).name).toContain("三角");
+    expect(nameShape(t, findCorners(t)).name).toContain("トリリアント");
   });
   it("丸と楕円", () => {
     const c = ellipse(0, 0, 5, 5);
-    expect(nameShape(c, findCorners(c)).name).toContain("丸");
+    expect(nameShape(c, findCorners(c)).name).toContain("ラウンド");
     const o = ellipse(0, 0, 6.5, 5);
-    expect(nameShape(o, findCorners(o)).name).toContain("楕円");
+    expect(nameShape(o, findCorners(o)).name).toContain("オーバル");
   });
 });
 

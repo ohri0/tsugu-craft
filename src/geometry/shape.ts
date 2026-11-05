@@ -18,19 +18,20 @@ export function nameShape(outline: readonly Point[], corners: readonly Corner[],
   const solidity = Math.abs(signedArea(outline)) / Math.abs(signedArea(convexHull(outline)));
   const irregular = solidity < opts.solidityMin;
   const r = `長辺 ÷ 幅 ＝ ${ratio.toFixed(2)}、尖った角 ${corners.length} か所`;
+  // 写真から読む石は、決まった寸法の石ではないので「（ユニーク）」と添える（2026-11-05 作者）
   const byCorners: Record<number, string> = {
-    1: "しずく形（ペア風）",
-    2: "舟形（マーキス風）",
-    3: "三角（トリリアント風）",
-    4: "四角",
+    1: "ペア（ユニーク）",
+    2: "マーキス（ユニーク）",
+    3: "トリリアント（ユニーク）",
+    4: "スクエア（ユニーク）",
     5: "五角形",
     6: "六角形",
   };
   let name = byCorners[corners.length];
   if (!name) {
     if (corners.length > 6) name = "角の多い形";
-    else if (ratio < opts.roundRatio) name = "丸（ラウンド風）";
-    else if (ratio < opts.elongatedRatio) name = "楕円（オーバル風）";
+    else if (ratio < opts.roundRatio) name = "ラウンド（ユニーク）";
+    else if (ratio < opts.elongatedRatio) name = "オーバル（ユニーク）";
     else name = "細長い楕円";
   }
   if (irregular) name = `いびつな${name}`;

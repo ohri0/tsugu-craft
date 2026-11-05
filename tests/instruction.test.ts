@@ -10,7 +10,7 @@ describe("指示書", () => {
   const html = instructionHtml({
     ring,
     problems,
-    shapeName: "三角（トリリアント風）",
+    shapeName: "トリリアント（ユニーク）",
     depthMm: 4.24,
     widthFromPhoto: true,
     reason: "角を守るため V 字の爪にした",
