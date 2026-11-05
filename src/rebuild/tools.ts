@@ -177,28 +177,28 @@ export const GRADE_PROCESS: ClaudeTool = {
   },
 };
 
-// ---- 入力を確かめる ----
+// ---- 入力を確かめる（src/rebuild/restore-tools.ts も使う） ----
 
 type Rec = Record<string, unknown>;
 
-const isRecord = (v: unknown): v is Rec => typeof v === "object" && v !== null && !Array.isArray(v);
+export const isRecord = (v: unknown): v is Rec => typeof v === "object" && v !== null && !Array.isArray(v);
 
-function text(r: Rec, key: string, where: string): string | { error: string } {
+export function text(r: Rec, key: string, where: string): string | { error: string } {
   const v = r[key];
   if (typeof v !== "string" || v.trim() === "") return { error: `${where}の ${key} を文字で書いてください` };
   return v.trim();
 }
 
-function stringList(r: Rec, key: string, where: string): string[] | { error: string } {
+export function stringList(r: Rec, key: string, where: string): string[] | { error: string } {
   const v = r[key];
   if (!Array.isArray(v) || v.some((x) => typeof x !== "string")) return { error: `${where}の ${key} は文字の並びで書いてください` };
   return (v as string[]).map((x) => x.trim()).filter((x) => x !== "");
 }
 
-const failed = (v: unknown): v is { error: string } => isRecord(v) && typeof v.error === "string";
+export const failed = (v: unknown): v is { error: string } => isRecord(v) && typeof v.error === "string";
 
 /** 番号を、一覧にあるものだけに絞る。無いものは warnings に残す */
-function keepKnown(ids: string[], known: Set<string>, where: string, warnings: string[]): string[] {
+export function keepKnown(ids: string[], known: Set<string>, where: string, warnings: string[]): string[] {
   const out: string[] = [];
   for (const id of ids) {
     if (!known.has(id)) {

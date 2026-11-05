@@ -1,11 +1,12 @@
-// 組み立て直す：途切れた技を、残っている手がかりだけから組み立て直す。
-// 答え（本当の作り方）は隠しておき、組み立てたあとで答え合わせをする。
+// 力試し（#waza/rebuild）：答えの分かっている技（木目金）で、Claude がどこまで届くか測る試し。本番の、答えのない技は src/app/restore.ts。
+// 途切れた技を、残っている手がかりだけから組み立て直す。答え（本当の作り方）は隠しておき、組み立てたあとで答え合わせをする。
 // Claude は学習のときにこの技を読んでいるかもしれないので、工程ごとに「手がかりから」か「もともとの知識から」かを分けて数える。
 import { TECHNIQUES, cluesFor, type Clue, type Condition, type Technique } from "../rebuild/material";
 import { gradePrompt, gradeUserMessage, hypothesisPrompt, hypothesisUserMessage } from "../rebuild/prompt";
 import { callTool } from "../rebuild/run";
 import { scoreLine, tally } from "../rebuild/score";
 import { GRADE_PROCESS, PROPOSE_PROCESS, parseGradeProcess, parseProposeProcess, type Verdict } from "../rebuild/tools";
+import { filming } from "./confirm";
 import { askPassword, resetPassword } from "./password";
 import { mountSim } from "./sim-view";
 import { esc, today } from "./store";
@@ -135,10 +136,21 @@ export function mountRebuild(root: HTMLElement, opts: { onBack?: () => void } = 
       <header class="tp-head">
         <span class="bt-mark" aria-hidden="true">？</span>
         <div class="tp-hb">
-          <h2>組み立て直す（${esc(t.name)}）</h2>
-          <p class="lead">作り方の残っていない技を、残った手がかりだけから Claude が組み立て、本当の作り方と比べます。</p>
+          ${
+            // 撮影のときは前の名前のまま（動画の絵を変えない）
+            filming()
+              ? `<h2>組み立て直す（${esc(t.name)}）</h2>
+          <p class="lead">作り方の残っていない技を、残った手がかりだけから Claude が組み立て、本当の作り方と比べます。</p>`
+              : `<h2>力試し（${esc(t.name)}）</h2>
+          <p class="lead">答えの分かっている技で、Claude がどこまで届くか測る試しです。残った手がかりだけから組み立て、本当の作り方と比べます。</p>`
+          }
         </div>
       </header>
+      ${
+        filming()
+          ? ""
+          : `<a class="rs-cross" href="#waza/restore"><span><b>自分の技を組み立て直す（本番）</b><small>答えのない技は、こちらへ。手がかりを入れると Claude が工程の案を作り、職人が試して確かめます</small></span><span class="bt-go" aria-hidden="true">›</span></a>`
+      }
 
       ${cluePart}${actPart}
 
