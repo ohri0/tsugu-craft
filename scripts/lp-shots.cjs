@@ -205,17 +205,45 @@ const SHOTS = {
       await p.context().close();
     }
   },
-  // 作れない所の窓：爪を細くして、赤い札を押す → 理由と直し方（今の見た目）
+  // 作れない所の窓：爪を細くして、赤い札を押す → 理由と職人の言葉と直すボタン（今の見た目。指輪に寄って、窓の字が読めるように切り抜く）
   async fixpop() {
-    const p = await studioNow();
+    const p = await studioNow(1200, 900);
     await refine(p);
-    await p.evaluate(() => window.__studio.viewer.setDisplayMode('render'));
-    await p.evaluate(() => { window.__studio.session.setSetting({ prong_mm: 0.6, reason: '撮る' }); });
+    await p.evaluate(() => {
+      const v = window.__studio.viewer;
+      v.setDisplayMode('render');
+      document.querySelector('.t-dims')?.click();
+      document.querySelector('.t-grid')?.click();
+      window.__studio.session.setSetting({ prong_mm: 0.6, reason: '撮る' });
+    });
     await p.waitForTimeout(3000);
+    await p.evaluate(() => {
+      const v = window.__studio.viewer;
+      v.setAutoRotate(false);
+      const t = v.controls.target;
+      v.camera.position.copy(t).add({ x: 0.62, y: -0.5, z: 0.5 });
+      v.fit();
+      const c = v.camera;
+      t.z += 7;
+      c.position.z += 7;
+      c.position.sub(t).multiplyScalar(0.74).add(t);
+      c.updateMatrixWorld();
+      // 窓に隠れないよう、指輪を左へ寄せる
+      const r = c.position.clone().setFromMatrixColumn(c.matrixWorld, 0).multiplyScalar(5);
+      t.add(r);
+      c.position.add(r);
+      v.controls.update();
+      v.dirty = true;
+    });
+    await p.waitForTimeout(2500);
     await p.evaluate(() => document.querySelector('.verdict-chip')?.click());
     await p.waitForTimeout(1500);
-    console.log('fixpop', await p.evaluate(() => document.querySelector('.fix-pop')?.innerText.replace(/\s+/g, ' ')));
-    await shot(p, 'fixpop', { clip: { x: 44, y: 44, width: 1056, height: 782 } });
+    const pop = await p.locator('.fix-pop').boundingBox();
+    console.log('fixpop', JSON.stringify(pop), await p.evaluate(() => document.querySelector('.fix-pop')?.innerText.replace(/\s+/g, ' ').slice(0, 160)));
+    const x = Math.max(44, pop.x - 470);
+    await shot(p, 'fixpop', { clip: { x, y: Math.max(44, pop.y - 8), width: pop.x + pop.width + 8 - x, height: pop.height + 16 } });
+    // スマホでは窓だけを出す（字が小さくならないように）
+    await shot(p, 'fixpop-pop', { clip: { x: pop.x - 4, y: pop.y - 4, width: pop.width + 8, height: pop.height + 8 } });
   },
   // 帳面：職人の決まりの札と、Claude からの質問
   async ledger() {
@@ -265,9 +293,10 @@ const SHOTS = {
     await p.waitForTimeout(2000);
     await hideFixed(p);
     await p.waitForTimeout(500);
-    await p.locator('.rs-flow').screenshot({ path: `${WORK}/restore-flow.png` });
-    await p.locator('.rs-steps > li').nth(1).screenshot({ path: `${WORK}/restore-step.png` });
-    made.push('restore-flow', 'restore-step');
+    // 切り抜きで端が切れないよう、まわりに画面の地を残す
+    const box = async (sel, i = 0) => { const b = await p.locator(sel).nth(i).boundingBox(); return { x: 0, y: b.y - 12, width: PHONE_W, height: b.height + 24 }; };
+    await shot(p, 'restore-flow', { fullPage: true, clip: await box('.rs-flow') });
+    await shot(p, 'restore-step', { fullPage: true, clip: await box('.rs-steps > li', 1) });
   },
   // 作る：図面
   async draw() {

@@ -3,7 +3,7 @@
 // 書いてあることは、どれも今のアプリでできること。数字は、撮った画面の数字か、出典・記録のあるものだけ。
 // 写真は public/lp/（scripts/lp-shots.cjs で撮る）と public/heritage/（README に出どころ）。3D は読み込まない。
 import "./lp.css";
-import { flowBeforeSvg, HAKUSHO_URL, whyHtml } from "../studio/why";
+import { bindFlowMotion, flowBeforeSvg, HAKUSHO_URL, whyHtml } from "../studio/why";
 
 const STUDIO = "studio.html";
 const LEARN = "app.html#learn";
@@ -191,10 +191,10 @@ const html = `
 
   <section class="red" aria-labelledby="red-h">
     <figure class="red-ring rv">${shot("ring-red", 3200, 2000, "爪を細くした指輪。細すぎる爪 3 本が赤く光っている", "100vw")}</figure>
-    <h2 id="red-h" class="v red-h rv">作れない所は、<br>赤く光る。</h2>
+    <h2 id="red-h" class="v red-h rv">作れない所を、<br>職人の言葉で<br>教えます。</h2>
     <div class="red-b">
-      <p class="rv">爪が細い、腕が薄い。押すと、どこが・いくつで・なぜが並びます。理由は職人の言葉か、資料の出どころです。直せば、消えます。</p>
-      <figure class="rv">${shot("fixpop", 2112, 1564, "設計の画面。爪が赤い指輪と、作れない所の窓。爪が細い 0.60 mm → 0.70 mm 以上、職人の言葉、爪を太くするボタン、まとめて直す、Claude で直す", "(max-width: 900px) 92vw, 860px")}<figcaption>爪を細くしたところ。数字は目安・最後は職人が決めます。</figcaption></figure>
+      <p class="rv">赤く光る所を押すと、なぜ作れないかを、その工房の職人の言葉で教えます。直し方のボタンを押すと、その場で直ります。</p>
+      <figure class="rv"><picture><source media="(max-width: 760px)" srcset="lp/fixpop-pop-sm.webp 368w, lp/fixpop-pop.webp 736w" sizes="92vw" width="368" height="361">${shot("fixpop", 1624, 738, "赤く光る爪の指輪と、作れない所の窓。爪が細い 0.60 mm → 0.70 mm 以上、職人の言葉「このサイズの石なら最低ライン 0.7 mm は欲しい感じ」、爪を太くするボタン、まとめて直す、Claude で直す", "(max-width: 900px) 92vw, 860px")}</picture><figcaption>数字と言葉は、この工房の帳面から。数字は目安・最後は職人が決めます。</figcaption></figure>
     </div>
   </section>
 
@@ -272,7 +272,7 @@ const html = `
     <div class="naiku-b">
       <p class="rv">伊勢神宮の式年遷宮では、社殿も御装束神宝も、20 年に一度、すべて新しく作り直されます。遷宮に関わる技能者が携われるのは、多い人で <span class="num">3</span> 回ほどです。</p>
       <p class="src rv">出典：<a href="${HAKUSHO_URL}" target="_blank" rel="noopener">国土交通白書 平成 26 年版のコラム</a>（社殿を作る技能者の話）。写真は 1953 年の内宮。上が新しい殿舎、下がそれまでの殿舎。本田照夫 撮影・パブリックドメイン。</p>
-      <figure class="naiku-zu rv">${heritage("goshinpo-gyokuhai.jpg", "内宮御神宝図の一部。玉と金の飾りをつないだ玉佩の絵", 1800, 793)}<figcaption>神宝の一つ、玉佩を描いた図。内宮御神宝図（部分。江戸時代の写し）、国立国会図書館所蔵・パブリックドメイン。写真ではありません。</figcaption></figure>
+      <figure class="naiku-zu rv">${heritage("goshinpo-gyokuhai.jpg", "内宮御神宝図の一部。玉と金の飾りをつないだ玉佩の絵", 1800, 793)}<figcaption>神宝の一つ、玉佩を描いた図。内宮御神宝図（部分。江戸時代の写し）、国立国会図書館所蔵・パブリックドメイン。</figcaption></figure>
     </div>
   </section>
 
@@ -315,7 +315,11 @@ const html = `
         <p class="note rv">案は、試して確かめるためのものです。最後は職人が試して決めます。</p>
         <p class="links rv"><a href="${RESTORE}">自分の技を組み立て直す</a></p>
       </div>
-      <figure class="rv">${shot("restore-flow", 896, 198, "途切れた技の流れ。分かることを入れる、Claude が作り方の案を出す、試して結果を入れる", "(max-width: 760px) 92vw, 446px")}${shot("restore-step", 896, 826, "工程の案の 1 つ。灰を洗う。もとにしたもの、危ない所", "(max-width: 760px) 92vw, 446px")}<figcaption>作り話の例で見た、流れと工程の案。</figcaption></figure>
+      
+    </div>
+    <div class="own-shots">
+      <figure class="own-flow rv">${shot("restore-flow", 960, 245, "途切れた技の流れ。分かることを入れる、Claude が作り方の案を出す、試して結果を入れる", "(max-width: 760px) 92vw, 760px")}</figure>
+      <figure class="own-step rv">${shot("restore-step", 960, 871, "工程の案の 1 つ。灰を洗う。もとにしたもの、危ない所", "(max-width: 760px) 92vw, 600px")}<figcaption>作り話の例で見た、工程の案。</figcaption></figure>
     </div>
     <p class="restore-e rv">公開の情報や、職人の帳面・記録をもとに、失われた技も、組み立て直せるかもしれません。</p>
   </section>
@@ -325,8 +329,8 @@ const html = `
   </section>
 
   <section class="stance" aria-labelledby="stance-h">
-    <h2 id="stance-h" class="rv">Claude は、<wbr>答えを決めません。</h2>
-    <p class="rv">職人の決まりを読んで選び、理由を残します。最後は職人が決めます。</p>
+    <h2 id="stance-h" class="rv">決めるのは、<wbr>職人です。</h2>
+    <p class="rv">Claude は職人の決まりを読み、案を出し、理由を残します。</p>
     <p class="note rv"><a href="https://github.com/ohri0/tsugu-craft#readme" rel="noopener">このアプリの作り方（GitHub）</a></p>
   </section>
 
@@ -354,6 +358,7 @@ const html = `
 
 const root = document.getElementById("lp")!;
 root.innerHTML = html;
+bindFlowMotion(root);
 
 // 字は動かさず、濃くなるだけ（動きを減らす設定なら、はじめから全部見せる）
 const els = [...root.querySelectorAll<HTMLElement>(".rv")];
@@ -383,6 +388,7 @@ function openWhy() {
     el.setAttribute("aria-label", "なぜ継ぐ");
     el.tabIndex = -1;
     el.innerHTML = whyHtml({ standalone: true });
+    bindFlowMotion(el);
     document.body.appendChild(el);
     el.querySelector(".why-close")!.addEventListener("click", closeWhy);
   }

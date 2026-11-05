@@ -37,7 +37,7 @@ import { bindShankLine, sectionBinding, shankLineHtml } from "./shank-line";
 import { renderRingShape, ringSectionWord, type RingShapeHost } from "./ring-shape";
 import { howToMake, placeText, type Method } from "./howto";
 import { sheetHtml } from "./sheet";
-import { whyHtml } from "./why";
+import { bindFlowMotion, whyHtml } from "./why";
 import { SORT_TIPS, parseTips, tipsFor, tipsPrompt, type Tip } from "./tips";
 import { PRESETS, presetOutline, sizedPreset, type StonePreset } from "./presets";
 import { DesignHistory, generationTools, isTextField, keepGou, makeHost, undoKey } from "./make-run";
@@ -4047,6 +4047,7 @@ function openWhy() {
     document.body.appendChild(el);
   }
   el.innerHTML = whyHtml();
+  bindFlowMotion(el);
   el.hidden = false;
   el.scrollTop = 0;
   const close = () => {

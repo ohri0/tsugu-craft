@@ -265,9 +265,12 @@ figcaption { font-size: 15px; line-height: 1.7; margin-top: 12px; color: var(--w
 .score-d li p b { display: block; font-weight: 600; }
 .score-d li > span { white-space: nowrap; font-size: 15px; }
 .score-d li.miss { color: rgba(244, 241, 234, 0.72); }
-.own { position: relative; display: grid; grid-template-columns: minmax(0, 560px) minmax(0, 446px); justify-content: center; gap: clamp(32px, 5vw, 72px); padding: 0 var(--gut); align-items: start; }
+.own { position: relative; max-width: 760px; margin: 0 auto; padding: 0 var(--gut); }
 .own-t { display: grid; gap: 18px; }
-.own figure img + img { margin-top: 14px; }
+.own-shots { position: relative; display: grid; justify-items: center; gap: clamp(36px, 6vh, 64px); margin-top: clamp(48px, 8vh, 80px); padding: 0 var(--gut); }
+.own-flow { width: 100%; max-width: 760px; }
+.own-step { width: 100%; max-width: 600px; }
+.own-shots img { width: 100%; }
 .restore-e { position: relative; max-width: 26em; margin: clamp(72px, 12vh, 128px) auto 0; padding: 0 var(--gut); font: 400 clamp(20px, 2vw, 27px)/1.9 var(--mincho); }
 .ifever { display: flex; justify-content: center; padding: clamp(84px, 14vh, 144px) var(--gut); background-image: repeating-linear-gradient(90deg, rgba(190, 50, 30, 0.2) 0 1px, transparent 1px clamp(56px, 6.4vw, 92px)); }
 .ifever-v { font-size: clamp(27px, 3.6vw, 52px); line-height: 2; }
@@ -349,5 +352,4 @@ figcaption { font-size: 15px; line-height: 1.7; margin-top: 12px; color: var(--w
   .restore-ts { width: 118vw; left: -42%; top: 2%; opacity: 0.42; }
   .restore-t { flex-direction: column; align-items: flex-end; min-height: 0; }
   .restore-t > div { max-width: none; }
-  .own { grid-template-columns: minmax(0, 1fr); }
 }
