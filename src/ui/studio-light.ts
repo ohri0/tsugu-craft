@@ -36,41 +36,100 @@ export interface StudioSpec {
   sparks?: { n: number; power: number; size: number; seed: number; minEl?: number; maxEl?: number };
 }
 
-/** 金属に映す光：上の大きな面、左右の弱い面、細い線と帯 */
-export const METAL_STUDIO: StudioSpec = {
-  base: [0.008, 0.035, 0.16],
-  lights: [
-    { kind: "panel", az: -30, el: 72, w: 26, h: 16, soft: 5, power: 3.2, grad: -0.5 },
-    { kind: "panel", az: 60, el: 62, w: 9, h: 20, soft: 3, power: 1.6, grad: 0.4 },
-    { kind: "panel", az: 95, el: 30, w: 12, h: 26, soft: 5, power: 1.0 },
-    { kind: "panel", az: -115, el: 30, w: 11, h: 26, soft: 5, power: 1.2 },
-    { kind: "line", el: 34, w: 1.6, soft: 0.8, power: 7 },
-    { kind: "line", el: 12, w: 1.0, soft: 0.5, power: 6, arc: [-90, 110, 15] },
-    { kind: "line", el: -10, w: 1.0, soft: 0.5, power: 4 },
-    { kind: "panel", az: 80, el: 20, w: 3, h: 34, soft: 1, power: 8 },
-    { kind: "panel", az: -110, el: 24, w: 3, h: 30, soft: 1, power: 8 },
-    { kind: "panel", az: 175, el: 40, w: 40, h: 3, soft: 1, power: 7 },
-    // 下から：腕の外側の下の面が黒くつぶれないように、弱い面と細い帯
-    { kind: "panel", az: -60, el: -38, w: 34, h: 18, soft: 9, power: 0.55 },
-    { kind: "panel", az: 70, el: -32, w: 30, h: 16, soft: 9, power: 0.45 },
-    { kind: "panel", az: -85, el: -18, w: 3, h: 16, soft: 1, power: 5 },
-    { kind: "panel", az: 120, el: -22, w: 3, h: 14, soft: 1, power: 4 },
-  ],
-  sparks: { n: 14, power: 12, size: 1, seed: 5 },
-};
+/** 見え方の値（1 か所にまとめる）。作者の声（2026-11-05）：ギラギラして目がチカチカする。静かで品のある絵に */
+export interface RenderLook {
+  metal: StudioSpec;
+  gem: StudioSpec;
+  /** 金属の粗さ。大きいほど映り込みの線が太く、やわらかい */
+  roughness: number;
+  /** 石の中で反射を追う回数。少ないほど破片が減り、面の形が大きく読める */
+  gemBounces: number;
+  /** 赤・緑・青の屈折率の差（緑からのずれ）。小さいほど虹色が弱い */
+  gemSpread: [number, number];
+  /** 石が環境を読むときのぼかし（粗さ）：表の反射・1 回目に中から出る光・2 回目より後 */
+  gemBlur: [number, number, number];
+  /** 近い向きの面を 1 つにまとめる角度（度） */
+  gemMergeDeg: number;
+  /** 光のにじみの濃さ */
+  glow: number;
+}
 
-/** 石に映す光：大きな面はなく、強い光がいくつかと、たくさんの小さな光（面ごとの白と黒の差、きらめき） */
-export const GEM_STUDIO: StudioSpec = {
-  base: [0, 0.006, 0.05],
-  lights: [
-    { kind: "panel", az: -40, el: 62, w: 14, h: 10, soft: 2, power: 4.5 },
-    { kind: "panel", az: 60, el: 55, w: 8, h: 12, soft: 2, power: 5 },
-    { kind: "panel", az: 170, el: 50, w: 12, h: 5, soft: 2, power: 5 },
-    { kind: "panel", az: -130, el: 35, w: 5, h: 14, soft: 1, power: 6 },
-    { kind: "panel", az: 110, el: 25, w: 4, h: 14, soft: 1, power: 6 },
-    { kind: "panel", az: 0, el: 30, w: 16, h: 3, soft: 1, power: 3.5 },
-  ],
-  sparks: { n: 40, power: 16, size: 1.8, seed: 3 },
+const panel = (az: number, el: number, w: number, h: number, soft: number, power: number, grad = 0): LightPanel => ({ kind: "panel", az, el, w, h, soft, power, grad });
+
+/** 比べるための 3 段階 */
+export const LOOKS: Record<"calm" | "mid" | "near", RenderLook> = {
+  // 控えめ：線はなく、大きなやわらかい面だけ。石は面ごとのやわらかな濃淡
+  calm: {
+    metal: {
+      base: [0.05, 0.11, 0.34],
+      lights: [panel(-30, 68, 44, 30, 18, 1.5, -0.25), panel(95, 25, 24, 34, 16, 0.75), panel(-110, 28, 20, 34, 16, 0.85), panel(175, 35, 50, 12, 9, 1.2), panel(-60, -35, 44, 22, 16, 0.3), panel(70, -30, 40, 20, 16, 0.25)],
+    },
+    gem: {
+      base: [0.04, 0.09, 0.3],
+      lights: [panel(-35, 64, 30, 20, 10, 1.15), panel(70, 45, 18, 22, 8, 0.95), panel(175, 45, 26, 14, 8, 0.9), panel(-125, 30, 14, 22, 7, 0.85), panel(0, 22, 26, 7, 5, 0.6)],
+    },
+    roughness: 0.16,
+    gemBounces: 2,
+    gemSpread: [0.003, 0.004],
+    gemBlur: [0.22, 0.28, 0.5],
+    gemMergeDeg: 12,
+    glow: 0.05,
+  },
+  // 中：大きな面に、太い帯を 2 本だけ。石は面の明暗をはっきり、白は抑える
+  mid: {
+    metal: {
+      base: [0.03, 0.08, 0.26],
+      lights: [panel(-30, 70, 38, 26, 13, 1.9, -0.3), panel(95, 28, 20, 32, 12, 0.85), panel(-112, 28, 16, 32, 12, 1.0), panel(78, 20, 6, 36, 3.5, 2.4), panel(175, 38, 46, 7, 5, 2.0), panel(-60, -36, 42, 20, 14, 0.3), panel(70, -30, 36, 18, 14, 0.25)],
+    },
+    gem: {
+      base: [0.008, 0.03, 0.14],
+      lights: [panel(-38, 62, 22, 15, 6, 2.3), panel(62, 50, 13, 18, 5, 2.0), panel(172, 48, 20, 9, 4, 1.9), panel(-128, 32, 9, 18, 4, 1.9), panel(108, 25, 8, 16, 3, 1.6), panel(0, 26, 22, 5, 3, 1.2)],
+    },
+    roughness: 0.11,
+    gemBounces: 3,
+    gemSpread: [0.005, 0.007],
+    gemBlur: [0.14, 0.18, 0.34],
+    gemMergeDeg: 10,
+    glow: 0.07,
+  },
+  // 今に近い：線と小さな光を残す（前の版よりは弱い）
+  near: {
+    metal: {
+      base: [0.012, 0.045, 0.2],
+      lights: [panel(-30, 72, 28, 18, 6, 2.6, -0.4), panel(60, 62, 10, 20, 3, 1.3, 0.3), panel(95, 30, 12, 26, 5, 0.9), panel(-115, 30, 11, 26, 5, 1.0), { kind: "line", el: 34, w: 1.6, soft: 0.9, power: 3.5 }, { kind: "line", el: -10, w: 1.0, soft: 0.6, power: 2.2 }, panel(80, 20, 3, 34, 1.2, 4.5), panel(-110, 24, 3, 30, 1.2, 4.5), panel(175, 40, 40, 3, 1.2, 4), panel(-60, -38, 34, 18, 9, 0.45), panel(70, -32, 30, 16, 9, 0.35)],
+    },
+    gem: {
+      base: [0, 0.015, 0.09],
+      lights: [panel(-40, 62, 14, 10, 3, 2.8), panel(60, 55, 8, 12, 3, 2.8), panel(170, 50, 12, 5, 3, 2.8), panel(-130, 35, 5, 14, 2, 3), panel(110, 25, 4, 14, 2, 3), panel(0, 30, 16, 3, 2, 1.8)],
+      sparks: { n: 16, power: 6, size: 2, seed: 3 },
+    },
+    roughness: 0.06,
+    gemBounces: 4,
+    gemSpread: [0.008, 0.011],
+    gemBlur: [0.08, 0.1, 0.3],
+    gemMergeDeg: 8,
+    glow: 0.09,
+  },
+};
+/** いま使う見え方は「中」。ほかの段は ?look=calm・?look=near で比べられる（作者に見てもらうため） */
+export const LOOK: RenderLook = LOOKS[(typeof location !== "undefined" && (new URLSearchParams(location.search).get("look") as "calm" | "mid" | "near")) || "mid"];
+export const METAL_STUDIO: StudioSpec = LOOK.metal;
+export const GEM_STUDIO: StudioSpec = LOOK.gem;
+
+/** 地金の色（鏡面の光。リニアの赤・緑・青）。見た目のための仮の値で、職人の目安ではない。形と重さの地金とは別 */
+export type MetalShade = "k18y" | "k18yg" | "k18wg" | "k18pg" | "pt900" | "sv925";
+export const METAL_COLOR: Record<MetalShade, [number, number, number]> = {
+  // K18 イエロー：落ち着いたシャンパン色
+  k18y: [0.84, 0.71, 0.47],
+  k18yg: [0.84, 0.71, 0.47],
+  // K18 ホワイト：シルバー寄り。わずかに温かい
+  k18wg: [0.8, 0.78, 0.74],
+  // K18 ピンク：はっきり赤みがある
+  k18pg: [0.86, 0.58, 0.48],
+  // Pt900：少し暗く、色のない灰色
+  pt900: [0.72, 0.72, 0.72],
+  // SV925：いちばん白く明るい
+  sv925: [0.92, 0.91, 0.88],
 };
 
 const RAD = Math.PI / 180;

@@ -947,7 +947,7 @@ function onBuilt(b: Built, _why: string, refined = false) {
     clearTimeout(sheetTimer);
     sheetTimer = window.setTimeout(() => sheetOn && showSheet(), 400);
   }
-  viewer.setRing(b.ring, { color: stone.extraction.color, colorless: stone.extraction.colorless }, b.problems);
+  viewer.setRing(b.ring, { color: stone.extraction.color, colorless: stone.extraction.colorless, shade: session!.state.metal }, b.problems);
   headBox = headBoxOf(b);
   setDims(ringDims(b));
   const r = b.ring;
@@ -2974,7 +2974,7 @@ function placeBand(probs: BandProblem[], cut = bandCut) {
   const r = bandInnerDiameter(band.gou) / 2;
   const z = r + band.bottom.thickness;
   const spots = probs.some((p) => p.check === "band-spike") ? thinSpotsOf(band, bandGuides()).map((s) => ({ x: s.at.x, rho: r + s.at.y, z })) : [];
-  viewer.setMetalMesh(cut ? bandCutMesh(band, bandTarget(band)) : bandPositions!, metalIdOf(bandMetal), "band", { warn: probs.some((p) => p.check !== "band-spike"), spots });
+  viewer.setMetalMesh(cut ? bandCutMesh(band, bandTarget(band)) : bandPositions!, metalIdOf(bandMetal), "band", { shade: bandMetal, warn: probs.some((p) => p.check !== "band-spike"), spots });
 }
 /** 図面・印刷の絵・記録の絵は、切っていても輪で描く */
 function withWholeBand<T>(f: () => T): T {
@@ -3423,7 +3423,7 @@ function fillDrawings(works: WorkRecord[]): WorkRecord[] {
     const s = workSession(w);
     if (!s?.built) return w;
     const st = w.design.stone;
-    viewer.setRing(s.built.ring, { color: stone?.extraction.color ?? { r: 200, g: 220, b: 240 }, colorless: true }, s.built.problems);
+    viewer.setRing(s.built.ring, { color: stone?.extraction.color ?? { r: 200, g: 220, b: 240 }, colorless: true, shade: s.state.metal }, s.built.problems);
     const shapeName = w.title.replace(/^見本：/, "").replace(/の一粒石の指輪.*$/, "");
     const drawing = safeDrawing(() => solitaireDrawing(s.built!, probLabels(s.built!).map((t) => t.replace(/（.*$/, "")), s, { shapeName, outlineMm: st.outlineMm, longMm: st.longMm, widthMm: st.widthMm, depthMm: st.depthMm }, BOOK_PX));
     if (!drawing) return w;
@@ -3433,7 +3433,7 @@ function fillDrawings(works: WorkRecord[]): WorkRecord[] {
   });
   // 3D を、いま作っている形に戻す
   if (kind === "band") showBand();
-  else if (session?.built && stone) viewer.setRing(session.built.ring, { color: stone.extraction.color, colorless: stone.extraction.colorless }, session.built.problems);
+  else if (session?.built && stone) viewer.setRing(session.built.ring, { color: stone.extraction.color, colorless: stone.extraction.colorless, shade: session.state.metal }, session.built.problems);
   return out;
 }
 function thumbnail(): string {

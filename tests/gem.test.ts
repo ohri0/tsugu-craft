@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { buildStone } from "../src/geometry/stone";
 import { stonePlanes } from "../src/ui/gem";
-import { expandLights, GEM_STUDIO, lightDir, METAL_STUDIO, radiance } from "../src/ui/studio-light";
+import { expandLights, GEM_STUDIO, lightDir, METAL_COLOR, METAL_STUDIO, radiance } from "../src/ui/studio-light";
 import { ovalStone, triangleStone } from "./helpers/stones";
 
 /** 1 辺 2 の立方体（三角形 12 枚） */
@@ -64,5 +64,17 @@ describe("撮影台の光", () => {
     const a = radiance(METAL_STUDIO, lights, lightDir(40, 25, 0), 0);
     const b = radiance(METAL_STUDIO, lights, lightDir(40, 25, 70), 70);
     expect(b).toBeCloseTo(a, 5);
+  });
+});
+
+describe("地金の色", () => {
+  it("K18 ホワイトはシルバー寄り、K18 ピンクは赤み、K18 イエローは黄色。Pt900 と SV925 は色がほとんどない", () => {
+    const warm = (m: keyof typeof METAL_COLOR) => METAL_COLOR[m][2] / METAL_COLOR[m][0];
+    expect(warm("k18y")).toBeLessThan(0.65);
+    expect(warm("k18wg")).toBeGreaterThan(0.88);
+    expect(warm("pt900")).toBeGreaterThan(0.95);
+    expect(warm("sv925")).toBeGreaterThan(0.92);
+    // ピンクは、緑が赤よりはっきり少ない（イエローより赤い）
+    expect(METAL_COLOR.k18pg[1] / METAL_COLOR.k18pg[0]).toBeLessThan(METAL_COLOR.k18y[1] / METAL_COLOR.k18y[0] - 0.1);
   });
 });

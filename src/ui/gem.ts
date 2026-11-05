@@ -10,6 +10,8 @@ export interface GemQuality {
   samples: 1 | 4;
   /** 赤・緑・青で別に追う（虹色のきらめき）。false なら 1 本で 3 色ぶん */
   disperse: boolean;
+  /** 環境の絵の、いちばんぼけた段の番号 */
+  envMaxLod: number;
 }
 
 /** すべての石で共有する値（環境と、その向き、石座の地金の色） */
@@ -26,13 +28,15 @@ export interface GemLook {
   sigma: [number, number, number];
 }
 
-/** 色のない石（ダイヤモンドの屈折率。色の分かれ方は本物の 6 割ほど：画面では色のかたまりが大きく見えすぎるため） */
-export const COLORLESS_IOR: [number, number, number] = [2.414, 2.426, 2.441];
+import { LOOK } from "./studio-light";
+
+/** 色のない石（ダイヤモンドの屈折率）。色の分かれ方は小さくする（作者の声：目がチカチカする） */
+export const COLORLESS_IOR: [number, number, number] = [2.426 - LOOK.gemSpread[0], 2.426, 2.426 + LOOK.gemSpread[1]];
 /** 色のある石（サファイア・ルビーの屈折率） */
-export const COLORED_IOR: [number, number, number] = [1.755, 1.762, 1.772];
+export const COLORED_IOR: [number, number, number] = [1.762 - LOOK.gemSpread[0], 1.762, 1.762 + LOOK.gemSpread[1]];
 
 /** 近い向きの面を 1 つの平面にまとめる角度（度）。中の反射の道だけに使う。見える面は三角形のまま */
-const PLANE_MERGE_DEG = 6;
+const PLANE_MERGE_DEG = LOOK.gemMergeDeg;
 
 type Plane = [number, number, number, number];
 
@@ -134,12 +138,15 @@ const FRAG = /* glsl */ `
   uniform vec3 uIor;
   uniform vec3 uSigma;
   uniform vec3 uMetal;
-  vec3 env(vec3 d) { return textureLod(uEnv, uEnvRot * d, 0.0).rgb; }
+  uniform vec3 uBlur;
+  // 環境をぼかして読む（r：粗さ。遠くの反射ほどぼかすと、細かい破片が消えて、面ごとの濃淡になる）
+  vec3 env(vec3 d, float r) { return textureLod(uEnv, uEnvRot * d, ENV_MAX_LOD * r * (2.0 - r)).rgb; }
   // 石の下へ抜けた光は、石座の地金に当たって返る（下の向きを上へ折り返して読み、地金の色をかける）
-  vec3 exitLight(vec3 o) {
+  vec3 exitLight(vec3 o, float r) {
     float down = smoothstep(0.1, -0.35, o.z);
-    if (down <= 0.0) return env(o);
-    return mix(env(o), env(vec3(o.x, o.y, abs(o.z))) * uMetal * 0.6, down);
+    if (down <= 0.0) return env(o, r);
+    // 地金の色は薄く混ぜる（石ぜんぶが金色に染まって見えないように）
+    return mix(env(o, r), env(vec3(o.x, o.y, abs(o.z)), r) * mix(vec3(1.0), uMetal, 0.35) * 0.55, down);
   }
   float fresnel(float cosI, float n1, float n2) {
     float s2 = (n1 / n2) * (n1 / n2) * (1.0 - cosI * cosI);
@@ -177,14 +184,14 @@ const FRAG = /* glsl */ `
       float c = dot(d, nBest);
       float F = fresnel(c, ior, 1.0);
       if (F < 1.0) {
-        col += T * (1.0 - F) * exitLight(refract(d, -nBest, ior));
+        col += T * (1.0 - F) * exitLight(refract(d, -nBest, ior), b == 0 ? uBlur.y : uBlur.z);
         T *= F;
       }
       d = reflect(d, -nBest);
       p -= nBest * 1e-4;
       if (max(T.r, max(T.g, T.b)) < 0.004) break;
     }
-    return col + T * exitLight(d);
+    return col + T * exitLight(d, uBlur.z);
   }
   vec3 shade(vec3 P, vec3 V, vec3 N, int first, int count) {
     float fr;
@@ -192,10 +199,10 @@ const FRAG = /* glsl */ `
       float fg;
       float fb;
       vec3 c = vec3(trace(P, V, N, uIor.r, first, count, fr).r, trace(P, V, N, uIor.g, first, count, fg).g, trace(P, V, N, uIor.b, first, count, fb).b);
-      return c + env(reflect(V, N)) * vec3(fr, fg, fb);
+      return c + env(reflect(V, N), uBlur.x) * vec3(fr, fg, fb);
     #else
       vec3 c = trace(P, V, N, uIor.g, first, count, fr);
-      return c + env(reflect(V, N)) * fr;
+      return c + env(reflect(V, N), uBlur.x) * fr;
     #endif
   }
   void main() {
@@ -254,8 +261,9 @@ export function gemMaterial(geometry: THREE.BufferGeometry, positions: Float32Ar
       uMetal: shared.uMetal,
       uIor: { value: new THREE.Vector3(...look.ior) },
       uSigma: { value: new THREE.Vector3(...look.sigma) },
+      uBlur: { value: new THREE.Vector3(...LOOK.gemBlur) },
     },
-    defines: { BOUNCES: quality.bounces, SAMPLES: quality.samples, DISPERSE: quality.disperse ? 1 : 0 },
+    defines: { BOUNCES: quality.bounces, SAMPLES: quality.samples, DISPERSE: quality.disperse ? 1 : 0, ENV_MAX_LOD: quality.envMaxLod.toFixed(1) },
     side: THREE.FrontSide,
     clipping: true,
     vertexShader: VERT,

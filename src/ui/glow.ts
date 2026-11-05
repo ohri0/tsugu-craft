@@ -1,6 +1,7 @@
 // 光のにじみ：輪郭のまわりに、ごく弱い光。黒から指輪が浮いて見える。
 // 画面にはふつうに描いたまま、小さな HDR の絵を別に描き、明るい所だけをぼかして、上から足す。
 import * as THREE from "three";
+import { LOOK as RENDER_LOOK } from "./studio-light";
 
 const LOOK = {
   /** 小さな絵の大きさ（画面の 1/4） */
@@ -12,7 +13,7 @@ const LOOK = {
   /** 明るさの頭打ち（強い光だけが広がりすぎないように） */
   max: 2.5,
   /** にじみの濃さ（画面の明るさに足す） */
-  strength: 0.1,
+  strength: RENDER_LOOK.glow,
 };
 
 const VERT = "varying vec2 vUv; void main() { vUv = position.xy * 0.5 + 0.5; gl_Position = vec4(position.xy, 0.0, 1.0); }";

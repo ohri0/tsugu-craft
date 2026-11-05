@@ -648,7 +648,7 @@ export class RingSession implements ToolHost<RingState> {
     const sh = b.ring.shank;
     const r2 = (v: number) => Math.round(v * 100) / 100;
     const notes = [
-      s.metal === "k18wg" || s.metal === "k18pg" ? "見た目と重さは K18 イエローで出している" : "",
+      s.metal === "k18wg" || s.metal === "k18pg" ? "重さは K18 イエローで出している（色は選んだ地金）" : "",
       !free && (input.section_curve || input.stations || input.relief) ? "テンションの腕は丸線のままなので、断面の線・場所ごとの形・彫りは使っていない" : "",
       free && (s.shankStations?.length || s.shankRelief) && s.shankSection === "maru" ? "丸線の腕には場所ごとの形と彫りを使えない。使うなら断面を変える" : "",
       free && (s.shankStations?.length || s.shankRelief) && b.ring.stones.length > 1 ? "石を並べた指輪の腕はどこも同じ形で、彫りもしていない" : "",
