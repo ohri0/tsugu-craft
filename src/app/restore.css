@@ -138,6 +138,9 @@
   .rs-new { flex-direction: column; align-items: stretch; }
   .rs-kinds { grid-template-columns: repeat(2, 1fr); }
   .rs-add-row .primary { flex: 1 1 100%; margin-left: 0; }
+  /* 目次が 5 つになったので、番号を外して 1 行におさめる（4 つ目から隠れていた） */
+  .rs .tp-toc a { flex: 1 1 auto; padding: 0 6px; }
+  .rs .tp-toc a span { display: none; }
 }
 
 /* スマホ：押す所は 44 px 以上。字の入力は 16 px（app.css の html.fit と同じ考え方。撮影ではこの頁を使わない） */

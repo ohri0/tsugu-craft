@@ -1,12 +1,13 @@
 // 自分の技を組み立て直す（本番）：作り方の途切れた、答えのない技に使う。#waza/restore（一覧）・#waza/restore/<記録の id>。
 // 手がかりを職人が入れる → Claude が工程の案と、分かっていない所・次に確かめることを出す → 職人が工程ごとに試した結果を残す →
-// 結果も手がかりに加えて、もう一度組み立て直す（前の案との違いが分かる）→ 確かめた工程だけ、職人が帳面の決まりにする。
+// 結果も手がかりに加えて、もう一度組み立て直す（前の案との違いが分かる）→ 確かめた工程だけ、職人が「この技の決まり」にする。
+// この技の決まりは、この記録の中だけに持つ（書き出しにも入る）。指輪の帳面には入れないので、指輪の設計の確かめと学ぶの答えには混ざらない。
 // 答え合わせはない。画面のどこでも「案」として出し、確かな作り方だと言わない。力試し（答えの分かっている木目金）は src/app/rebuild.ts。
 import "./restore.css";
-import { keepPrompt } from "../claude/prompt";
 import { parseToolCall, TOOLS, type ProposeRuleInput } from "../claude/tools";
 import {
   addClue,
+  addTechRule,
   applyPlan,
   CHECK_KINDS,
   CLUE_KIND_IDS,
@@ -20,6 +21,7 @@ import {
   planDiff,
   projectCounts,
   removeClue,
+  removeTechRule,
   renameProject,
   resultFor,
   setResult,
@@ -35,13 +37,12 @@ import {
   type RestoreProject,
   type StepChange,
 } from "../rebuild/restore";
-import { OUTCOME_LABEL, PHOTO_SEND, photosToSend, restoreContent, restorePrompt, ruleRequest } from "../rebuild/restore-prompt";
+import { OUTCOME_LABEL, PHOTO_SEND, photosToSend, restoreContent, restorePrompt, ruleRequest, techRulePrompt } from "../rebuild/restore-prompt";
 import { parseRestoration, PROPOSE_RESTORATION } from "../rebuild/restore-tools";
 import { callTool } from "../rebuild/run";
-import { addRule } from "../rules/ledger";
 import { askConfirm } from "./confirm";
 import { flash } from "./interview";
-import { bookLabel, bookTitle, masterName } from "./master";
+import { masterName } from "./master";
 import { askPassword, resetPassword } from "./password";
 import {
   blobToBase64,
@@ -129,7 +130,7 @@ function mountList(root: HTMLElement, opts: { onBack: () => void }) {
       <span class="bt-mark" aria-hidden="true">再</span>
       <div class="tp-hb">
         <h2>自分の技を組み立て直す</h2>
-        <p class="lead">作り方の途切れた、答えのない技に使います。残った品物や古い記録などの手がかりを入れると、Claude が工程の案を作ります。職人が試して確かめ、確かになった工程だけを帳面の決まりにします。</p>
+        <p class="lead">作り方の途切れた、答えのない技に使います。残った品物や古い記録などの手がかりを入れると、Claude が工程の案を作ります。職人が試して確かめ、確かになった工程だけを、この技の決まりにします。</p>
       </div>
     </header>
     ${NOTE}
@@ -145,7 +146,7 @@ function mountList(root: HTMLElement, opts: { onBack: () => void }) {
       .map((p) => {
         const n = projectCounts(p);
         return `<li><a class="big-tech" href="#waza/restore/${esc(p.id)}">
-        <span class="bt-body"><b>${esc(p.name)}</b><small>手がかり ${n.clues} ・ ${n.plans ? `案 ${n.plans}` : "案はまだ"}${n.ok + n.ng ? ` ・ 試した結果 うまくいった ${n.ok}・いかなかった ${n.ng}` : ""}</small><span class="bt-meta">${esc(p.updated)}</span></span>
+        <span class="bt-body"><b>${esc(p.name)}</b><small>手がかり ${n.clues} ・ ${n.plans ? `案 ${n.plans}` : "案はまだ"}${n.ok + n.ng ? ` ・ 試した結果 うまくいった ${n.ok}・いかなかった ${n.ng}` : ""}${n.rules ? ` ・ 決まり ${n.rules}` : ""}</small><span class="bt-meta">${esc(p.updated)}</span></span>
         <span class="bt-go" aria-hidden="true">›</span>
       </a></li>`;
       })
@@ -254,7 +255,7 @@ function mountProject(root: HTMLElement, id: string) {
     ${NOTE}
     <div class="rs-save" role="status" aria-live="polite"></div>
     <nav class="tp-toc" aria-label="この頁の中">
-      <a href="#" data-to="rs-clues"><span>1</span>手がかり</a><a href="#" data-to="rs-plan"><span>2</span>工程の案</a><a href="#" data-to="rs-next"><span>3</span>確かめる</a><a href="#" data-to="rs-file"><span>4</span>記録</a>
+      <a href="#" data-to="rs-clues"><span>1</span>手がかり</a><a href="#" data-to="rs-plan"><span>2</span>工程の案</a><a href="#" data-to="rs-next"><span>3</span>確かめる</a><a href="#" data-to="rs-rules"><span>4</span>決まり</a><a href="#" data-to="rs-file"><span>5</span>記録</a>
     </nav>
 
     <section class="tp-block" id="rs-clues">
@@ -293,12 +294,18 @@ function mountProject(root: HTMLElement, id: string) {
       <div class="rs-next-body"></div>
     </section>
 
+    <section class="tp-block" id="rs-rules">
+      <h3><span class="tp-n">4</span>この技の決まり <small class="rs-rule-n"></small></h3>
+      <p class="small muted">職人が試して確かめた工程だけが入ります。この記録の中だけに残り、書き出しにも入ります。指輪の設計の確かめや、学ぶ人への答えには使いません。</p>
+      <ul class="rule-cards rs-rules"></ul>
+    </section>
+
     <section class="tp-block" id="rs-file">
-      <h3><span class="tp-n">4</span>記録</h3>
-      <p class="small muted">手がかり・案・試した結果は、このブラウザの中に残ります。ブラウザの記録を消すと消えるので、大事な記録はファイルに書き出して、手元に置いてください。書き出したファイルは、ほかのブラウザでも読み込めます。</p>
+      <h3><span class="tp-n">5</span>記録</h3>
+      <p class="small muted">手がかり・案・試した結果・この技の決まりは、このブラウザの中に残ります。ブラウザの記録を消すと消えるので、大事な記録はファイルに書き出して、手元に置いてください。書き出したファイルは、ほかのブラウザでも読み込めます。</p>
       <div class="acts rs-file-acts">
         <button type="button" class="act rs-export"><b>記録を書き出す</b><small>写真も入ったファイルになります</small></button>
-        <button type="button" class="act rs-delete"><b>この技の記録を消す</b><small>手がかり・案・試した結果・写真が、全部なくなります</small></button>
+        <button type="button" class="act rs-delete"><b>この技の記録を消す</b><small>手がかり・案・試した結果・決まり・写真が、全部なくなります</small></button>
       </div>
     </section>
   </section>`;
@@ -330,7 +337,7 @@ function mountProject(root: HTMLElement, id: string) {
     $("h2").textContent = project.name;
     const n = projectCounts(project);
     const tried = n.ok + n.ng;
-    $(".rs-counts").textContent = `手がかり ${n.clues} ・ ${n.plans ? `案 ${n.plans}` : "案はまだ"}${tried ? ` ・ 試した結果 うまくいった ${n.ok}・いかなかった ${n.ng}` : ""}`;
+    $(".rs-counts").textContent = `手がかり ${n.clues} ・ ${n.plans ? `案 ${n.plans}` : "案はまだ"}${tried ? ` ・ 試した結果 うまくいった ${n.ok}・いかなかった ${n.ng}` : ""}${n.rules ? ` ・ 決まり ${n.rules}` : ""}`;
   }
 
   // ---- 写真 ----
@@ -610,7 +617,7 @@ function mountProject(root: HTMLElement, id: string) {
     const prevStep = s.prevStep ? prevPlan?.steps[s.prevStep - 1] : undefined;
     const prevText = prevStep ? `<details><summary>前の案（案 ${prevPlan?.version} の工程 ${s.prevStep}）の文</summary><p><b>${esc(prevStep.title)}</b></p><p>${esc(prevStep.detail)}</p></details>` : "";
     const past = pastResults(project, plan, s).filter((r) => !(found?.carried && r.id === found.result.id));
-    const kept = project.kept.find((k) => k.stepKey === s.key);
+    const kept = project.rules.find((r) => r.stepKey === s.key);
     const own = found && !found.carried ? found.result.note : "";
     return `
       <span class="n">${i + 1}</span>
@@ -644,9 +651,9 @@ function mountProject(root: HTMLElement, id: string) {
         }
         ${
           kept
-            ? `<p class="small rs-kept">帳面に入れました：<b>${esc(kept.title)}</b>（${esc(kept.book)} ・ ${esc(kept.date)}） <a href="#ledger">帳面を見る</a></p>`
+            ? `<p class="small rs-kept">この技の決まりに入れました：<b>${esc(kept.title)}</b>（${esc(kept.date)}） <a href="#rs-rules" class="rs-to-rules">決まりを見る</a></p>`
             : latest && outcome === "ok"
-              ? `<button type="button" class="ghost rs-to-rule">確かめた工程を、帳面の決まりにする</button>`
+              ? `<button type="button" class="ghost rs-to-rule">確かめた工程を、この技の決まりにする</button>`
               : ""
         }
         <p class="small rs-rule-st" role="status"></p>
@@ -779,15 +786,42 @@ function mountProject(root: HTMLElement, id: string) {
           .join("")}</ol></div>`;
   }
 
+  function paintRules() {
+    $(".rs-rule-n").textContent = project.rules.length ? `${project.rules.length} 個` : "";
+    const list = $(".rs-rules");
+    list.innerHTML = project.rules.length
+      ? project.rules
+          .map(
+            (r) => `<li class="rule-card">
+        <p class="rc-title">${esc(r.title)}</p>
+        <p class="rc-text">${esc(r.text)}</p>
+        ${r.reason ? `<p class="small muted">なぜ：${esc(r.reason)}</p>` : ""}
+        ${r.quote ? `<blockquote>「${esc(r.quote)}」</blockquote>` : ""}
+        <p class="rc-meta"><span>職人：${esc(r.by)} ・ ${esc(r.date)} ・ 案 ${r.planVersion} の工程「${esc(r.stepTitle)}」から</span><button type="button" class="linklike rc-del" data-del-rule="${esc(r.id)}">消す</button></p>
+      </li>`,
+          )
+          .join("")
+      : `<li class="empty-card"><p>まだありません。試して「うまくいった」工程を、職人の言葉から決まりにできます。</p></li>`;
+    list.querySelectorAll<HTMLButtonElement>("[data-del-rule]").forEach((b) =>
+      b.addEventListener("click", () => {
+        const r = project.rules.find((x) => x.id === b.dataset.delRule);
+        if (!r || !askConfirm(`この技の決まりを消しますか？\n「${r.title}」\n工程の結果は残ります。消すと戻せません。`)) return;
+        commit(removeTechRule(project, r.id, today()));
+        paintAll();
+      }),
+    );
+  }
+
   function paintAll() {
     paintHead();
     paintClues();
     paintGo();
     paintPlan();
     paintNext();
+    paintRules();
   }
 
-  // ---- 帳面へ（帳面の聞き取りと同じ流れ：案 → 職人が直す → 確かめの窓 → 足す） ----
+  // ---- この技の決まりへ（帳面の聞き取りと同じ手順：案 → 職人が直す → 確かめの窓 → 足す。入れる先は、この記録の中だけ） ----
 
   async function makeRule(li: HTMLElement, plan: RestorePlan, s: PlanStep, i: number) {
     const found = resultFor(project, plan, s);
@@ -799,20 +833,20 @@ function mountProject(root: HTMLElement, id: string) {
       li.querySelector<HTMLTextAreaElement>(".rs-note-field")!.focus();
       return st("決まりにするには、試して分かったことを、職人の言葉で残してください。");
     }
-    const ledger = store.ledger();
-    const name = masterName(ledger);
+    // 帳面から読むのは職人の名前だけ。帳面の中身は Claude に渡さない
+    const name = masterName(store.ledger());
     const slot = li.querySelector<HTMLElement>(".proposal-slot")!;
     const direct = (why: string) => {
       st(why);
-      showProposal(li, plan, s, i, { title: `${project.name}：${s.title}`, text: said, reason: "（理由はまだ聞いていない）", quote: said });
+      showProposal(li, plan, s, i, { title: s.title, text: said, reason: "（理由はまだ聞いていない）", quote: said });
     };
     slot.innerHTML = "";
     const pass = store.password() || (await askPassword(true));
     if (!pass) return direct("合言葉がないので、職人の言葉をそのまま案にしました。直してから足せます。");
     st("Claude が決まりの案にまとめています…");
     const r = await callTool<ProposeRuleInput>({
-      system: keepPrompt(ledger, name),
-      user: ruleRequest(project.name, s.title, s.detail, name, said),
+      system: techRulePrompt(project, name),
+      user: ruleRequest(s.title, s.detail, name, said),
       tool: TOOLS.find((t) => t.name === "propose_rule")!,
       parse: (x) => {
         const parsed = parseToolCall("propose_rule", x);
@@ -830,7 +864,7 @@ function mountProject(root: HTMLElement, id: string) {
     showProposal(li, plan, s, i, r.value);
   }
 
-  /** 決まりの案を見せる。職人が「これでいい」を押して、確かめの窓で OK したときだけ帳面に入る */
+  /** 決まりの案を見せる。職人が「これでいい」を押して、確かめの窓で OK したときだけ、この技の決まりに入る */
   function showProposal(li: HTMLElement, plan: RestorePlan, s: PlanStep, i: number, p: ProposeRuleInput) {
     const slot = li.querySelector<HTMLElement>(".proposal-slot")!;
     slot.innerHTML = `<div class="proposal">
@@ -847,16 +881,12 @@ function mountProject(root: HTMLElement, id: string) {
       const title = read("title");
       const text = read("text");
       if (!title || !text) return void (li.querySelector(".rs-rule-st")!.textContent = "短い名前と決まりは、空にできません。");
-      const ledger = store.ledger();
-      const book = bookTitle(bookLabel(ledger));
-      if (!askConfirm(`この決まりを「${book}」に入れますか？\n設計の確かめと、学ぶ人への答えに使われます。`)) return;
-      // 指輪の値（param）には結びつけない。別の技の決まりで、爪などの値が変わらないように
-      const next = addRule(ledger, { title, text, reason: read("reason"), quote: p.quote, example: p.example, source: { kind: "craftsman", name: masterName(ledger) }, date: today() });
-      const rule = next.rules[next.rules.length - 1];
-      store.setLedger(next);
-      commit({ ...project, kept: [...project.kept, { stepKey: s.key, ruleId: rule.id, title, book, date: today() }], updated: today() });
+      if (!askConfirm("この決まりを、この技の決まりに入れますか？\nこの記録の中だけに残ります。指輪の設計の確かめや、学ぶ人への答えには使いません。")) return;
+      commit(addTechRule(project, plan, s, { title, text, reason: read("reason"), quote: p.quote, by: masterName(store.ledger()) }, today()));
       paintStep(li, plan, s, i);
-      flash(`帳面に入れました：${title}`);
+      paintHead();
+      paintRules();
+      flash(`この技の決まりに入れました：${title}`);
     });
   }
 
@@ -908,6 +938,11 @@ function mountProject(root: HTMLElement, id: string) {
   });
   // 根拠の番号を押すと、その手がかりへ
   $(".rs-plan-body").addEventListener("click", (e) => {
+    if ((e.target as HTMLElement).closest(".rs-to-rules")) {
+      e.preventDefault();
+      $("#rs-rules").scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
     const b = (e.target as HTMLElement).closest<HTMLButtonElement>(".cid");
     if (!b) return;
     const li = view.querySelector<HTMLElement>(`#rs-clue-${CSS.escape(b.dataset.cid!)}`);
@@ -919,7 +954,7 @@ function mountProject(root: HTMLElement, id: string) {
   });
   $(".rs-export").addEventListener("click", () => void exportFile());
   $(".rs-delete").addEventListener("click", async () => {
-    if (!askConfirm(`「${project.name}」の記録を消しますか？\n手がかり・案・試した結果・写真が全部なくなります。消すと戻せません。\n（書き出したファイルがあれば、あとで読み込めます）`)) return;
+    if (!askConfirm(`「${project.name}」の記録を消しますか？\n手がかり・案・試した結果・決まり・写真が全部なくなります。消すと戻せません。\n（書き出したファイルがあれば、あとで読み込めます）`)) return;
     const pid = project.id;
     const photos = project.clues.filter((c) => c.photo).map((c) => c.id);
     removeProject(pid);

@@ -117,11 +117,35 @@ export function restoreContent(p: RestoreProject, photos: readonly { id: string;
   return blocks;
 }
 
-/** 試して確かめた工程を帳面の決まりにまとめてもらう、人の言葉（指示は帳面の聞き取りと同じ keepPrompt） */
-export function ruleRequest(techName: string, stepTitle: string, stepDetail: string, master: string, said: string): string {
-  return `${master}さんが、途切れた技「${techName}」の工程を試して、確かめました。
-工程の案：${stepTitle}（${stepDetail}）
+/**
+ * 試して確かめた工程を「この技の決まり」にまとめてもらう指示。
+ * 指輪の帳面は渡さない（別の技の決まりなので）。渡すのは、この技の今の決まりだけ。
+ */
+export function techRulePrompt(p: RestoreProject, master: string): string {
+  const now = p.rules.map((r) => `- ${r.title}：${r.text}`).join("\n") || "（まだありません）";
+  return `あなたは「継ぐ」の書き手です。${master}さんが、途切れた技「${p.name}」の工程を試して、確かめました。
+その言葉を、この技の決まり 1 つにまとめ、propose_rule で${master}さんに見せます。この決まりは、この技の記録の中だけに残ります。
+
+## まとめ方
+
+- propose_rule を 1 回だけ呼びます。title は短く（20 文字ほど）、text は「いつ・何を・どこまで」が分かる 1〜2 文、reason は${master}さんが言った理由。
+- quote には${master}さんの言葉を、聞き間違いと思われる所だけ直して、なるべくそのまま入れます。
+- ${master}さんが言っていない数字・理由・コツは足しません。強めたり、言い換えて意味を変えたりしません。
+- 理由を言っていないときは、reason に「（理由はまだ聞いていない）」と書きます。推し量って埋めません。
+- 指輪の値の決まりではないので、param と value は付けません。
+- Markdown の記号は使いません。
+
+## この技の今の決まり（同じことをくり返さないため）
+
+<rules>
+${now}
+</rules>`;
+}
+
+/** 決まりにまとめてもらう、人の言葉 */
+export function ruleRequest(stepTitle: string, stepDetail: string, master: string, said: string): string {
+  return `工程の案：${stepTitle}（${stepDetail}）
 ${master}さんの言葉：${said}
 
-${master}さんの言葉から、決まりを 1 つまとめてください。title は「${techName}：短い名前」の形にしてください。工程の案にあって${master}さんの言葉にないことは、足さないでください。これは指輪の値の決まりではないので、param と value は付けないでください。`;
+${master}さんの言葉から、決まりを 1 つまとめてください。工程の案にあって${master}さんの言葉にないことは、足さないでください。param と value は付けないでください。`;
 }

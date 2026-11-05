@@ -116,13 +116,23 @@ export interface RestorePlan {
   notes: string[];
 }
 
-/** 職人が確かめて帳面に入れた決まりの控え */
-export interface KeptRule {
+/**
+ * この技の決まり：職人が試して確かめた工程から作った決まり。この記録の中だけに持つ。
+ * 指輪の帳面（src/rules/ledger.ts）には入れないので、指輪の設計の確かめと、学ぶの答えには混ざらない。
+ */
+export interface TechRule {
+  /** R1 など。消しても番号は使い回さない */
+  id: string;
   stepKey: string;
-  ruleId: string;
+  stepTitle: string;
+  planVersion: number;
   title: string;
-  /** どの帳面に入れたか */
-  book: string;
+  text: string;
+  reason: string;
+  /** 職人の言葉そのまま */
+  quote?: string;
+  /** 職人の名前 */
+  by: string;
   date: string;
 }
 
@@ -134,10 +144,12 @@ export interface RestoreProject {
   clues: RestoreClue[];
   plans: RestorePlan[];
   results: TrialResult[];
-  kept: KeptRule[];
+  /** この技の決まり */
+  rules: TechRule[];
   nextClue: number;
   nextResult: number;
   nextStep: number;
+  nextRule: number;
 }
 
 /** Claude が出した案（src/rebuild/restore-tools.ts で確かめたあとの形） */
@@ -151,7 +163,7 @@ export interface RestorationOutput {
 }
 
 export function newProject(id: string, name: string, date: string): RestoreProject {
-  return { id, name: name.trim().slice(0, TEXT_LIMITS.name), created: date, updated: date, clues: [], plans: [], results: [], kept: [], nextClue: 1, nextResult: 1, nextStep: 1 };
+  return { id, name: name.trim().slice(0, TEXT_LIMITS.name), created: date, updated: date, clues: [], plans: [], results: [], rules: [], nextClue: 1, nextResult: 1, nextStep: 1, nextRule: 1 };
 }
 
 export function renameProject(p: RestoreProject, name: string, date: string): RestoreProject {
@@ -244,6 +256,28 @@ export function resultFor(p: RestoreProject, plan: RestorePlan, step: PlanStep):
 /** 前の案までの、この工程の結果（新しい順） */
 export function pastResults(p: RestoreProject, plan: RestorePlan, step: PlanStep): TrialResult[] {
   return p.results.filter((r) => r.stepKey === step.key && r.planVersion < plan.version).sort((a, b) => b.planVersion - a.planVersion);
+}
+
+/** 確かめた工程を、この技の決まりにする */
+export function addTechRule(p: RestoreProject, plan: RestorePlan, step: PlanStep, input: { title: string; text: string; reason: string; quote?: string; by: string }, date: string): RestoreProject {
+  const rule: TechRule = {
+    id: `R${p.nextRule}`,
+    stepKey: step.key,
+    stepTitle: step.title,
+    planVersion: plan.version,
+    title: input.title.trim().slice(0, TEXT_LIMITS.title),
+    text: input.text.trim().slice(0, TEXT_LIMITS.text),
+    reason: input.reason.trim().slice(0, TEXT_LIMITS.text),
+    by: input.by,
+    date,
+  };
+  const quote = input.quote?.trim();
+  if (quote) rule.quote = quote.slice(0, TEXT_LIMITS.note);
+  return { ...p, rules: [...p.rules, rule], nextRule: p.nextRule + 1, updated: date };
+}
+
+export function removeTechRule(p: RestoreProject, id: string, date: string): RestoreProject {
+  return { ...p, rules: p.rules.filter((r) => r.id !== id), updated: date };
 }
 
 /** 前の案のあとに増えた・減った手がかりと結果の数（「もう一度組み立て直す」に出す） */
@@ -402,8 +436,8 @@ export function planDiff(plan: RestorePlan): { same: number; changed: number; ad
 }
 
 /** 一覧に出す数 */
-export function projectCounts(p: RestoreProject): { clues: number; plans: number; ok: number; ng: number } {
-  return { clues: p.clues.length, plans: p.plans.length, ok: p.results.filter((r) => r.outcome === "ok").length, ng: p.results.filter((r) => r.outcome === "ng").length };
+export function projectCounts(p: RestoreProject): { clues: number; plans: number; ok: number; ng: number; rules: number } {
+  return { clues: p.clues.length, plans: p.plans.length, rules: p.rules.length, ok: p.results.filter((r) => r.outcome === "ok").length, ng: p.results.filter((r) => r.outcome === "ng").length };
 }
 
 // ---- 書き出しと読み込み ----
@@ -442,6 +476,7 @@ const strList = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is
 const CLUE_ID = /^C\d+$/;
 const RESULT_ID = /^T\d+$/;
 const STEP_KEY = /^s\d+$/;
+const RULE_ID = /^R\d+$/;
 const numAfter = (id: string) => Number(id.slice(1));
 
 function readClue(v: unknown, fallbackDate: string): RestoreClue | null {
@@ -522,6 +557,17 @@ function readResult(v: unknown, fallbackDate: string): TrialResult | null {
   return { id: v.id, stepKey: v.stepKey, stepTitle: str(v.stepTitle), planVersion: int(v.planVersion), outcome: v.outcome, note: str(v.note, TEXT_LIMITS.note), date: dateOr(v.date, fallbackDate) };
 }
 
+function readRule(v: unknown, fallbackDate: string): TechRule | null {
+  if (!isRec(v) || typeof v.id !== "string" || !RULE_ID.test(v.id) || typeof v.stepKey !== "string" || !STEP_KEY.test(v.stepKey)) return null;
+  const title = str(v.title, TEXT_LIMITS.title);
+  const text = str(v.text, TEXT_LIMITS.text);
+  if (!title.trim() || !text.trim()) return null;
+  const rule: TechRule = { id: v.id, stepKey: v.stepKey, stepTitle: str(v.stepTitle), planVersion: int(v.planVersion), title, text, reason: str(v.reason, TEXT_LIMITS.text), by: str(v.by, 80), date: dateOr(v.date, fallbackDate) };
+  const quote = optStr(v.quote, TEXT_LIMITS.note);
+  if (quote) rule.quote = quote;
+  return rule;
+}
+
 /** 保存した・読み込んだ記録を、画面がそのまま描ける形にする。読めなければ null */
 export function readProject(raw: unknown): RestoreProject | null {
   if (!isRec(raw) || typeof raw.id !== "string" || !/^[A-Za-z0-9_-]{1,40}$/.test(raw.id)) return null;
@@ -535,7 +581,7 @@ export function readProject(raw: unknown): RestoreProject | null {
   // 案の番号は、結果と結びついているので、順に増えていること
   if (okPlans.some((v, i) => i > 0 && v.version <= okPlans[i - 1].version)) return null;
   const results = (Array.isArray(raw.results) ? raw.results : []).map((r) => readResult(r, created)).filter((r): r is TrialResult => !!r);
-  const kept = (Array.isArray(raw.kept) ? raw.kept : []).filter(isRec).map((k) => ({ stepKey: str(k.stepKey, 40), ruleId: str(k.ruleId, 120), title: str(k.title), book: str(k.book, 80), date: dateOr(k.date, created) }));
+  const rules = (Array.isArray(raw.rules) ? raw.rules : []).map((r) => readRule(r, created)).filter((r): r is TechRule => !!r);
   // 番号の続きは、中身から数え直す（手で直した記録でも、番号が重ならないように）
   const after = (ids: number[], stored: unknown) => Math.max(int(stored, 1), ...ids.map((n) => n + 1), 1);
   const stepNums = okPlans.flatMap((v) => v.steps.map((s) => numAfter(s.key)));
@@ -547,10 +593,11 @@ export function readProject(raw: unknown): RestoreProject | null {
     clues,
     plans: okPlans,
     results,
-    kept,
+    rules,
     nextClue: after(clues.map((c) => numAfter(c.id)), raw.nextClue),
     nextResult: after(results.map((r) => numAfter(r.id)), raw.nextResult),
     nextStep: after(stepNums, raw.nextStep),
+    nextRule: after(rules.map((r) => numAfter(r.id)), raw.nextRule),
   };
 }
 

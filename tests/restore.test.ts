@@ -1,10 +1,11 @@
 // 「自分の技を組み立て直す」（本番）のテスト。手がかりと結果の記録、Claude の案の確かめ、前の案との違い、書き出しと読み込み、保存の失敗。
 import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { isAllowedToolName } from "../src/claude/tools";
 import { listProjects, loadDraft, loadProject, removeProject, SAVE_FAILED, saveDraft, saveProject, type StorageLike } from "../src/app/restore-store";
 import {
   addClue,
+  addTechRule,
   applyPlan,
   clueRefs,
   freshSince,
@@ -16,6 +17,7 @@ import {
   planDiff,
   readProject,
   removeClue,
+  removeTechRule,
   resultFor,
   setResult,
   sourceText,
@@ -25,7 +27,7 @@ import {
   type RestorationOutput,
   type RestoreProject,
 } from "../src/rebuild/restore";
-import { clueText, PHOTO_SEND, photosToSend, restoreContent, restorePrompt, ruleRequest } from "../src/rebuild/restore-prompt";
+import { clueText, PHOTO_SEND, photosToSend, restoreContent, restorePrompt, ruleRequest, techRulePrompt } from "../src/rebuild/restore-prompt";
 import { parseRestoration, PROPOSE_RESTORATION } from "../src/rebuild/restore-tools";
 
 const DAY = "2026-11-05";
@@ -339,7 +341,7 @@ describe("Claude への指示", () => {
 
   it("サーバーが新しい道具を通す。決まりにする頼みに、職人の言葉と、値に結びつけないことが入る", () => {
     expect(isAllowedToolName(PROPOSE_RESTORATION.name)).toBe(true);
-    const q = ruleRequest("試しの技", "灰を洗う", "灰を水で洗う", "石川", "三度洗うと白く出た");
+    const q = ruleRequest("灰を洗う", "灰を水で洗う", "石川", "三度洗うと白く出た");
     expect(q).toContain("石川さんの言葉：三度洗うと白く出た");
     expect(q).toContain("param と value は付けない");
   });
@@ -413,6 +415,116 @@ describe("書き出しと読み込み", () => {
     expect(r.project.name).toContain("架空");
     expect(r.warnings).toEqual([]);
     for (const c of r.project.clues) expect(c.text).toContain("架空");
+    for (const t of r.project.results) expect(t.note).toContain("架空");
+    expect(r.project.rules).toEqual([]);
+  });
+});
+
+describe("この技の決まり", () => {
+  const RULE = { title: "霜灰の洗い方", text: "灰は、ひしゃく三杯の水で洗う。", reason: "（理由はまだ聞いていない）", quote: "灰はひしゃく三杯で洗う", by: "石川" };
+
+  function withRule() {
+    let p = withPlan();
+    const plan = p.plans[0];
+    p = setResult(p, plan, plan.steps[0], { outcome: "ok", note: RULE.quote }, DAY);
+    return addTechRule(p, plan, plan.steps[0], RULE, DAY);
+  }
+
+  it("記録の中に足し、どの工程からか残す。消しても番号を使い回さない", () => {
+    const p = withRule();
+    expect(p.rules).toEqual([{ id: "R1", stepKey: "s1", stepTitle: "灰を洗う", planVersion: 1, date: DAY, ...RULE }]);
+    const gone = removeTechRule(p, "R1", DAY);
+    expect(gone.rules).toEqual([]);
+    const plan = gone.plans[0];
+    expect(addTechRule(gone, plan, plan.steps[1], RULE, DAY).rules[0].id).toBe("R2");
+  });
+
+  it("書き出しと読み込みに入る。保存して読み直しても残る", () => {
+    const p = withRule();
+    const r = parseRestoreFile(JSON.parse(JSON.stringify(toFile(p, {}, DAY))));
+    if (!r.ok) throw new Error(r.error);
+    expect(r.project.rules).toEqual(p.rules);
+    expect(r.project.nextRule).toBe(2);
+    const s = fakeStorage();
+    saveProject(p, s);
+    expect(loadProject(p.id, s)?.rules).toEqual(p.rules);
+  });
+
+  it("読み込むとき、形のおかしい決まりは外す", () => {
+    const raw = JSON.parse(JSON.stringify(withRule()));
+    raw.rules.push({ id: "../x", stepKey: "s1", title: "おかしい番号", text: "x" }, { id: "R5", stepKey: "s1", title: "", text: "x" });
+    raw.nextRule = 0;
+    const back = readProject(raw)!;
+    expect(back.rules.map((r) => r.id)).toEqual(["R1"]);
+    expect(back.nextRule).toBe(2);
+  });
+
+  it("決まりの案の指示には、この技の決まりだけが入り、指輪の帳面は入らない", async () => {
+    const { seedLedger } = await import("../src/rules/ledger");
+    const prompt = techRulePrompt(withRule(), "石川");
+    expect(prompt).toContain(RULE.title);
+    expect(prompt).toContain("試しの技");
+    expect(prompt).not.toContain("<ledger>");
+    for (const r of seedLedger().rules) expect(prompt).not.toContain(r.title);
+  });
+
+  it("指輪の帳面・設計の確かめ・学ぶの答えに混ざらない（このブラウザの保存の形で通す）", async () => {
+    const s = fakeStorage();
+    vi.stubGlobal("localStorage", s);
+    try {
+      const open = async () => {
+        vi.resetModules();
+        const [{ store }, ledger, prompts, search] = await Promise.all([import("../src/app/store"), import("../src/rules/ledger"), import("../src/claude/prompt"), import("../src/rules/search")]);
+        return { store, ledger, prompts, search };
+      };
+      const a = await open();
+      // 職人の決まりを 1 つ足してあるブラウザ（帳面が保存された状態）から始める
+      a.store.setLedger(a.ledger.addRule(a.store.ledger(), { title: "前からの決まり", text: "爪は太く", reason: "もつ", source: { kind: "craftsman", name: "石川" }, date: DAY }));
+      const ledgerBefore = JSON.stringify(a.store.ledger());
+      const guidesBefore = a.ledger.effectiveGuides(a.store.ledger(), 8);
+      const designBefore = a.prompts.designPrompt(a.store.ledger());
+      const askBefore = a.prompts.askPrompt(a.store.ledger(), "石川");
+      const techBefore = JSON.stringify(a.store.techLedger("mokume"));
+      const keysBefore = new Map(s.map);
+
+      // この技の決まりを足して保存する
+      const p = withRule();
+      expect(saveProject(p, s)).toEqual({ ok: true });
+
+      // 変わったのは、この記録の鍵だけ
+      const changed = [...s.map.keys()].filter((k) => s.map.get(k) !== keysBefore.get(k));
+      expect(changed).toEqual([`tsugu.restore.${p.id}.v1`]);
+
+      // 読み直しても、帳面・設計の確かめの値・指示は 1 字も変わらない
+      const b = await open();
+      expect(JSON.stringify(b.store.ledger())).toBe(ledgerBefore);
+      expect(b.ledger.effectiveGuides(b.store.ledger(), 8)).toEqual(guidesBefore);
+      expect(b.prompts.designPrompt(b.store.ledger())).toBe(designBefore);
+      expect(b.prompts.askPrompt(b.store.ledger(), "石川")).toBe(askBefore);
+      expect(JSON.stringify(b.store.techLedger("mokume"))).toBe(techBefore);
+      const asked = `${RULE.title} ${RULE.text}`;
+      const rules = b.ledger.activeRules(b.store.ledger());
+      expect(rules.some((r) => r.title === RULE.title)).toBe(false);
+      expect(b.search.findRules(asked, rules, 0, 100).map((r) => r.title)).not.toContain(RULE.title);
+      expect(b.prompts.askPrompt(b.store.ledger(), "石川")).not.toContain(RULE.title);
+      expect(b.prompts.designPrompt(b.store.ledger())).not.toContain(RULE.title);
+
+      // 見張りが効いている証し：帳面に入れたなら、指示にも検索にも出る
+      const wrong = b.ledger.addRule(b.store.ledger(), { title: RULE.title, text: RULE.text, reason: RULE.reason, source: { kind: "craftsman", name: "石川" }, date: DAY });
+      expect(b.prompts.askPrompt(wrong, "石川")).toContain(RULE.title);
+      expect(b.prompts.designPrompt(wrong)).toContain(RULE.title);
+      expect(b.search.findRules(asked, b.ledger.activeRules(wrong), 0, 100).map((r) => r.title)).toContain(RULE.title);
+    } finally {
+      vi.unstubAllGlobals();
+      vi.resetModules();
+    }
+  });
+
+  it("この頁のコードは、指輪の帳面を書き換えない・Claude に渡さない", () => {
+    const read = (p: string) => readFileSync(new URL(`../src/${p}`, import.meta.url), "utf8");
+    const page = read("app/restore.ts");
+    for (const name of ["setLedger", "setTechLedger", "setWorkshops", "setQueue", "addRule", "applyDraft", "keepPrompt", "ledgerText", "rules/ledger"]) expect(page).not.toContain(name);
+    for (const file of ["rebuild/restore.ts", "rebuild/restore-prompt.ts", "rebuild/restore-tools.ts", "app/restore-store.ts"]) expect(read(file)).not.toMatch(/from\s+"[^"]*rules\/(ledger|techniques|workshops)/);
   });
 });
 
