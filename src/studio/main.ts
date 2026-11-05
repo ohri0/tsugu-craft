@@ -171,7 +171,8 @@ viewer.setDark(true);
 let dims: Dim[] = [];
 let showDims = true;
 /** 寸法のうち、隠しているもの（寸法のボタンを長く押す・右の小さな ▾ で選ぶ） */
-const hiddenDims = new Set<string>(JSON.parse(localStorage.getItem("tsugu.hiddenDims") ?? "[]"));
+// スマホは画面が小さく、札が指輪にかぶる。人がまだ選んでいなければ、内径と石の札を隠して始める（▾ で出せる）
+const hiddenDims = new Set<string>(JSON.parse(localStorage.getItem("tsugu.hiddenDims") ?? (!filming() && matchMedia("(max-width: 760px)").matches ? `["inner","stone"]` : "[]")));
 const DIM_NAMES: [string, string][] = [["inner", "内径"], ["stone", "石の大きさ"], ["culet", "石の先〜指（石のいちばん下から指まで）"], ["height", "指から上（指から石座のいちばん上まで）"]];
 /** 見せ場の間は寸法を出さない（最後に 1 本ずつ出す） */
 let holdDims = false;
@@ -1060,12 +1061,57 @@ function showSheet() {
   el.hidden = false;
   $(".pro").classList.add("drawing-on");
   const body = drawingSheetHtml();
-  el.innerHTML = `<iframe title="図面" srcdoc="${esc(`<!doctype html><meta charset="utf-8"><style>${DRAWING_CSS}
+  el.innerHTML = `${filming() ? "" : `<button type="button" class="sheet-big">大きく見る</button>`}<iframe title="図面" srcdoc="${esc(`<!doctype html><meta charset="utf-8"><style>${DRAWING_CSS}
     html,body{margin:0;height:100%;background:#1c1c1e;overflow:hidden;font-family:-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}
     .wrap{position:absolute;left:50%;top:50%;transform-origin:center}
     .dw{background:#fff;color:#111;box-shadow:0 20px 60px rgba(0,0,0,.5)}</style>
     <div class="wrap">${body}</div>
     <script>const w=document.querySelector('.wrap');function fit(){const r=w.firstElementChild.getBoundingClientRect();const k=Math.min(innerWidth/(r.width/(w._k||1)),innerHeight/(r.height/(w._k||1)))*0.92;w._k=k;w.style.transform='translate(-50%,-50%) scale('+k+')'}addEventListener('resize',fit);requestAnimationFrame(fit);</script>`)}"></iframe>`;
+  el.querySelector(".sheet-big")?.addEventListener("click", openSheetFull);
+}
+/** 図面を全画面で。＋ − で大きくして、指やマウスで動かして読む（スマホでは小さくて読めず、拡大もできなかった） */
+function openSheetFull() {
+  const body = drawingSheetHtml();
+  if (!body) return;
+  const el = document.createElement("div");
+  el.className = "sheet-full";
+  el.setAttribute("role", "dialog");
+  el.setAttribute("aria-label", "図面を大きく見る");
+  el.innerHTML = `<div class="sf-bar"><button type="button" class="sf-out" aria-label="小さくする">−</button><span class="sf-pct"></span><button type="button" class="sf-in" aria-label="大きくする">＋</button><button type="button" class="sf-close">閉じる</button></div>
+    <div class="sf-scroll"><div class="sf-size"><iframe title="図面" tabindex="-1" srcdoc="${esc(`<!doctype html><meta charset="utf-8"><style>${DRAWING_CSS}html,body{margin:0;background:#fff;color:#111;width:max-content;font-family:-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif}</style>${body}`)}"></iframe></div></div>`;
+  document.body.appendChild(el);
+  const scroller = el.querySelector<HTMLElement>(".sf-scroll")!;
+  const size = el.querySelector<HTMLElement>(".sf-size")!;
+  const frame = el.querySelector("iframe")!;
+  let nat = { w: 1, h: 1 };
+  let fit = 1;
+  let zoom = 1;
+  const apply = () => {
+    const k = fit * zoom;
+    size.style.width = `${nat.w * k}px`;
+    size.style.height = `${nat.h * k}px`;
+    frame.style.width = `${nat.w}px`;
+    frame.style.height = `${nat.h}px`;
+    frame.style.transform = `scale(${k})`;
+    el.querySelector(".sf-pct")!.textContent = `${Math.round(zoom * 100)}%`;
+  };
+  frame.addEventListener("load", () => {
+    const page = frame.contentDocument?.body.firstElementChild?.getBoundingClientRect();
+    if (page?.width) nat = { w: page.width, h: page.height };
+    fit = scroller.clientWidth / nat.w;
+    apply();
+  });
+  const zoomBy = (m: number) => {
+    const cx = (scroller.scrollLeft + scroller.clientWidth / 2) / (nat.w * fit * zoom);
+    const cy = (scroller.scrollTop + scroller.clientHeight / 2) / (nat.h * fit * zoom);
+    zoom = Math.min(5, Math.max(1, zoom * m));
+    apply();
+    scroller.scrollLeft = cx * nat.w * fit * zoom - scroller.clientWidth / 2;
+    scroller.scrollTop = cy * nat.h * fit * zoom - scroller.clientHeight / 2;
+  };
+  el.querySelector(".sf-in")!.addEventListener("click", () => zoomBy(1.5));
+  el.querySelector(".sf-out")!.addEventListener("click", () => zoomBy(1 / 1.5));
+  el.querySelector(".sf-close")!.addEventListener("click", () => el.remove());
 }
 function hideSheet() {
   sheetOn = false;
