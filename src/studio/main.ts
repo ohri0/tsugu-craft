@@ -3918,6 +3918,8 @@ function solitaireDrawing(b: Built, problems: string[], sess: RingSession = sess
   const xs = pts.map((q) => q.x);
   const ys = pts.map((q) => q.y);
   const girdleZ = t.translateZ + h.culetZ + h.pavilionMm + lift;
+  const culetZ = t.translateZ + h.culetZ + lift;
+  const tableZ = t.translateZ + h.tableZ + lift;
   const fingerTop = lift + ri;
   const bad = new Set(b.problems.map((p) => p.check));
   const wide = Math.max(...xs) - Math.min(...xs);
@@ -3976,6 +3978,9 @@ function solitaireDrawing(b: Built, problems: string[], sess: RingSession = sess
             { a: [0, 0, 0], b: [0, 0, top], ext: [0, box.max[1] + 3, 0], label: `全高 ${top.toFixed(1)}` },
             { a: [0, 0, fingerTop], b: [0, 0, top], ext: [0, box.min[1] - 3, 0], label: `${r.setting.tension ? "指から腕の上まで" : "指から石の上まで"} ${(top - fingerTop).toFixed(1)}`, bad: bad.has("tip-height") },
             { a: [0, 0, 0], b: [0, 0, r.shank.thicknessMm], ext: [0, box.min[1] - 3, 0], label: `厚み ${r.shank.thicknessMm.toFixed(1)}` },
+            // 石の深さ（テーブルから石の先まで）：「指から石の上まで」と並べて読むと、石の先が指にどれだけ近いかが分かる（2026-11-06 作者の声）。
+            // 石の右の、全高の線の内側に引く（石座と腕の肩にかからない所）
+            ...(r.setting.tension ? [] : [{ a: [0, 0, culetZ] as V3, b: [0, 0, tableZ] as V3, ext: [0, Math.max(...ys.map(Math.abs)) + 2.2, 0] as V3, label: `石の深さ ${(tableZ - culetZ).toFixed(2)}` }]),
           ];
         if (v === "side")
           return [
@@ -4415,6 +4420,8 @@ if (!filming()) {
     can: () => $(".pro").dataset.mode === "refine" && kind === "solitaire" && session?.state.style === "prong" && !measure?.on && !placeOn && !presentOn && !sheetOn && !compare,
     toast,
     tipLabel: PRONG_TIP_LABEL,
+    // 爪の欄のつまみを動かしている間は、右の欄を描き直さない（離したときに描き直す）
+    hold: (on) => (holdPanel = on),
   });
 }
 // 動画を 1 コマずつ撮るとき（?rec）：3D をページの外から回せるようにする
