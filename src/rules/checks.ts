@@ -392,8 +392,10 @@ export function checkTension(s: Pick<SettingResult, "tension">, g: Guides = GUID
       target: { kind: "band-end", point: [0, armEnd.planeY, armEnd.wireTopZ] },
     });
   }
-  // 石が腕の幅の外へ大きくはみ出す（腕に挟まるのが、石の長さの 3 分の 1 より短い）
-  if (info.overhangRatio > t.maxOverhangRatio + 1e-9) {
+  // 石が腕の幅の外へ大きくはみ出す（腕に挟まるのが、石の長さの 3 分の 1 より短い）。
+  // 三角を長い辺の両はしの角で挟む形は、石のいちばん長い所を挟むので、この線で止めない（作者が本物の指輪をこの向きで作った。2026-11-07）。
+  // 残りの角が横へ出ることは、tensionCautions で職人に確かめる
+  if (info.overhangRatio > t.maxOverhangRatio + 1e-9 && !longTriangle(info)) {
     const turn = info.grips.length > 1 && info.grip === "short";
     const seat = armEnd.contactWidthMm > 0 ? armEnd.contactWidthMm : info.ends[1].contactWidthMm;
     out.push({
@@ -410,6 +412,11 @@ export function checkTension(s: Pick<SettingResult, "tension">, g: Guides = GUID
     });
   }
   return out;
+}
+
+/** 三角を、いちばん長い辺の両はしの角で挟む形か */
+export function longTriangle(info: Pick<NonNullable<SettingResult["tension"]>, "mode" | "cornerCount">): boolean {
+  return info.mode === "corner-corner" && info.cornerCount === 3;
 }
 
 /** 形を作るために止める開きの最低（geometry/tension.ts と同じ。これ以下は作れない） */

@@ -10,6 +10,7 @@ import type { TensionGrip, TensionInfo } from "../geometry/tension";
 import type { StoneParams } from "../geometry/stone";
 import { FIXES, checkRing, cornerDistances, grooveNote, holdRatio, tensionInsert, tensionNotes, tensionOpening, tensionOpeningText, type FixId, type Problem } from "../rules/checks";
 import { springForClaude, springIdOf, tensionCautions, tensionSpring } from "../rules/tension-calc";
+import { holdForClaude, tensionHoldSet } from "../rules/tension-hold";
 import { GUIDES, requiredHold, stoneSizeMm, type Guides, type HeightOption, type MetalId, type StonePosition } from "../rules/guides";
 import { effectiveGuides, prongMinOverride, ruleForCheck, type Ledger, type Rule } from "../rules/ledger";
 import { INPUT_BOUNDS } from "../claude/tools";
@@ -57,6 +58,9 @@ export interface RingState {
   beforeTension?: Pick<RingState, "shankSection" | "shankWidthMm" | "shankThicknessMm" | "sectionPoints" | "sectionCurve">;
   /** テンションの挟む向き（なければ石の形の既定） */
   tensionGrip?: TensionGrip;
+  /** テンションの角のくぼみ・辺の溝の深さ（mm。「浅く留めたいとき」で選んだ値。なければ職人の値 GUIDES.tension） */
+  tensionPitMm?: number;
+  tensionGrooveMm?: number;
   /** 爪の本数（なければ石の形から自動） */
   prongCount?: number;
   /** 爪の太さ（mm、なければ標準） */
@@ -179,6 +183,8 @@ export function carryDesign(prev: RingState, base: RingState, same: { shape?: bo
     out.prongCount = prev.prongCount;
     out.prongPositions = prev.prongPositions && [...prev.prongPositions];
     out.tensionGrip = prev.tensionGrip;
+    out.tensionPitMm = prev.tensionPitMm;
+    out.tensionGrooveMm = prev.tensionGrooveMm;
   }
   if (same.shape && same.size) {
     out.prongMm = prev.prongMm;
@@ -517,7 +523,10 @@ export class RingSession implements ToolHost<RingState> {
       others,
       joinHeads: trio,
       stone: this.stone,
-      tension: s.style === "tension" && s.tensionGrip ? { grip: s.tensionGrip } : undefined,
+      tension:
+        s.style === "tension" && (s.tensionGrip || s.tensionPitMm !== undefined || s.tensionGrooveMm !== undefined)
+          ? { ...(s.tensionGrip ? { grip: s.tensionGrip } : {}), ...(s.tensionPitMm !== undefined ? { cornerPitMm: s.tensionPitMm } : {}), ...(s.tensionGrooveMm !== undefined ? { edgeGrooveMm: s.tensionGrooveMm } : {}) }
+          : undefined,
       setting: {
         style: s.style,
         height: s.height,
@@ -961,6 +970,13 @@ export class RingSession implements ToolHost<RingState> {
     s.stones = s.stones.map((x) => ({ ...x, longMm: Math.round(x.longMm * SMALLER_STEP * 10) / 10 }));
   }
 
+  /** テンションのくぼみと溝の深さを変える（「浅く留めたいとき」のつまみ）。undefined は職人の値に戻す */
+  setTensionDepths(pitMm: number | undefined, grooveMm: number | undefined, why = "手で"): Built {
+    this.state.tensionPitMm = pitMm;
+    this.state.tensionGrooveMm = grooveMm;
+    return this.build(why);
+  }
+
   check(): CheckResult {
     const b = this.built ?? this.build();
     const std = b.ring.setting.standardProngMm;
@@ -986,6 +1002,7 @@ export class RingSession implements ToolHost<RingState> {
         ? {
             tension_calc: {
               ...springForClaude(spring),
+              hold: holdForClaude(tensionHoldSet(spring, b.ring.metalWeightG, springIdOf(this.state.metal), springIdOf(this.state.metal), this.guides())),
               cautions: tensionCautions(b.ring.setting, spring, springIdOf(this.state.metal), this.guides()).map((c) => ({ title: c.title, text: c.text })),
             },
           }

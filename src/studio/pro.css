@@ -1088,6 +1088,21 @@ html.fit .command { flex: 1 1 320px; min-width: 0; }
 .tn-table tbody tr.on th, .tn-table tbody tr.on td { background: var(--accent-weak); }
 .tn-table td.short { color: #e3c27a; text-align: left; white-space: normal; }
 .tn-table i { font-style: normal; font-size: 12px; margin-left: 6px; color: #e3c27a; }
+.tn-hold { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line-2); }
+.tn-hold p { margin: 0; font-size: 13px; line-height: 1.7; color: var(--fg-2); }
+.tn-hold .sliders { display: grid; gap: 10px; margin: 0; }
+.tn-hold .slider { grid-template-columns: 32px 1fr 32px 78px; row-gap: 4px; line-height: 1.4; }
+.tn-hold .slider .sl-name { grid-column: 1 / -1; font-size: 12px; }
+.tn-verdict { display: grid; gap: 2px; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--line-2); }
+.tn-verdict b { font-weight: 600; font-size: 14px; }
+.tn-verdict small { font-size: 12px; color: var(--fg-2); }
+.tn-verdict.hold { background: rgba(48, 209, 88, 0.08); border-color: rgba(48, 209, 88, 0.3); }
+.tn-verdict.hold b { color: #30d158; }
+.tn-verdict.tight { background: rgba(255, 214, 10, 0.08); border-color: rgba(255, 214, 10, 0.3); }
+.tn-verdict.tight b { color: #ffd60a; }
+.tn-verdict.short { background: rgba(255, 69, 58, 0.08); border-color: rgba(255, 69, 58, 0.3); }
+.tn-verdict.short b { color: #ff6961; }
+.tn-ideas { margin: 0; padding: 0 0 0 1.1em; display: grid; gap: 4px; font-size: 13px; color: var(--fg-2); }
 .tn-more summary { cursor: pointer; font-size: 12px; color: var(--fg-2); padding: 4px 0; }
 .tn-more p, .tn-more li { margin: 4px 0; font-size: 12px; color: var(--fg-2); }
 .tn-more ul { margin: 4px 0; padding: 0; list-style: none; }

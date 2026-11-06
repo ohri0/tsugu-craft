@@ -8,6 +8,7 @@ import { GUIDE_NOTE, GUIDES } from "../rules/guides.js";
 import { PARAMS, type ParamId } from "../rules/ledger.js";
 import { SECTION_INPUT, sectionCurveProblem } from "../geometry/section-input.js";
 import type { ReliefKind } from "../geometry/shank-relief.js";
+import type { holdForClaude } from "../rules/tension-hold.js";
 import type { ClaudeTool } from "./wire.js";
 
 export const TOOL_NAMES = ["set_setting", "set_shank", "check", "look", "propose_rule", "ask_teacher", "set_stones", "choose_stone"] as const;
@@ -340,6 +341,8 @@ export interface CheckResult {
     }[];
     note: string;
     cautions: { title: string; text: string }[];
+    /** 外れにくさの目安（今の地金・今の深さ。落とす高さと摩擦は仮。合否にしない。src/rules/tension-hold.ts） */
+    hold?: ReturnType<typeof holdForClaude>;
   };
 }
 
@@ -448,7 +451,7 @@ export const TOOLS: ClaudeTool[] = [
           type: "string",
           enum: ["prong", "bezel", "tension"],
           description:
-            `留め方。prong＝爪留め、bezel＝覆輪（石の縁をぐるりと壁で包む。いちばん取れにくいが、見た目が大きく変わる）、tension＝テンション（開いた腕の両はしで石を挟む。三角の石は、片方の端のくぼみに角の先を ${GUIDES.tension.cornerPitMm} mm、もう片方の端の溝に辺を ${GUIDES.tension.edgeGrooveMm} mm 入れる。職人の値。腕は φ${GUIDES.tension.wireMm} mm の丸線に替わる。地金は加工硬化した硬い状態が条件。爪・高さ・向きの項目は使わない。挟む向きは tension_grip。check の tension_calc に、地金ごとの大まかな計算がある）`,
+            `留め方。prong＝爪留め、bezel＝覆輪（石の縁をぐるりと壁で包む。いちばん取れにくいが、見た目が大きく変わる）、tension＝テンション（開いた腕の両はしで石を挟む。三角の石は、片方の端のくぼみに角の先を ${GUIDES.tension.cornerPitMm} mm、もう片方の端の溝に辺を ${GUIDES.tension.edgeGrooveMm} mm 入れる（tension_grip の corner なら、いちばん長い辺の両はしの角を、両方くぼみに ${GUIDES.tension.cornerPitMm} mm。作者の本物の指輪の向き）。職人の値。腕は φ${GUIDES.tension.wireMm} mm の丸線に替わる。地金は加工硬化した硬い状態が条件。爪・高さ・向きの項目は使わない。挟む向きは tension_grip。check の tension_calc に、地金ごとの大まかな計算がある）`,
         },
         prong_positions: {
           type: "array",
@@ -483,7 +486,7 @@ export const TOOLS: ClaudeTool[] = [
           type: "string",
           enum: ["short", "long", "corner"],
           description:
-            "テンションで石のどこを挟むか（テンションのときだけ。石の形で選べないものは、自動で short になる）。short＝いちばん狭い幅を挟む（長い向きは腕の幅の外へ出る）、long＝長い向きを挟む（短い辺や丸い端を溝に。開きは広くなる）、corner＝向かい合う 2 つの角をくぼみに（横にずれないが、挟む力が角の先にかかる）",
+            "テンションで石のどこを挟むか（テンションのときだけ。石の形で選べないものは、自動で short になる。三角は short と corner、しずく形は short だけ）。short＝いちばん狭い幅を挟む（長い向きは腕の幅の外へ出る。三角は角をくぼみ・向かいの辺を溝に）、long＝長い向きを挟む（短い辺や丸い端を溝に。開きは広くなる）、corner＝向かい合う 2 つの角をくぼみに（横にずれないが、挟む力が角の先にかかる。三角は、いちばん長い辺の両はしの角を挟み、残りの角は腕の幅の外へ出る。作者の本物の指輪はこの向き）",
         },
         prong_tip: {
           type: "string",

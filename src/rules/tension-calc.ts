@@ -3,7 +3,7 @@
 import type { Metal } from "../claude/tools";
 import type { SettingResult } from "../geometry/setting";
 import type { ShankResult } from "../geometry/shank";
-import { elasticOpeningMm, HARD_STATE_LABEL, type HardState, type SpringMetal } from "./checks";
+import { elasticOpeningMm, HARD_STATE_LABEL, longTriangle, type HardState, type SpringMetal } from "./checks";
 import { GUIDE_NOTE, GUIDES, type Guides } from "./guides";
 
 export type SpringMetalId = SpringMetal;
@@ -149,7 +149,13 @@ export function tensionCautions(s: Pick<SettingResult, "tension">, table: Spring
   if (!info || !table) return [];
   const out: TensionCaution[] = [];
   if (info.slides) out.push({ id: "no-stop", title: "横に止める物がない", text: "両はしともまっすぐな溝です。締まりの力だけで止まります。止め方は職人が決めます" });
-  if (info.overhangRatio > g.tension.askOverhangRatio + 1e-9 && info.overhangRatio <= g.tension.maxOverhangRatio + 1e-9)
+  if (longTriangle(info) && info.overhangMm > 0)
+    out.push({
+      id: "long-triangle",
+      title: "残りの角が横へ出る",
+      text: `長い辺の両はしの角を挟むので、残りの角が腕の幅の外へ、片側 ${info.overhangMm.toFixed(2)} mm 出ます。作者の本物の指輪はこの向きです。出た角をぶつけると、2 つの角を結ぶ線のまわりに石が回ろうとします。留まるかは職人が確かめてください`,
+    });
+  else if (info.overhangRatio > g.tension.askOverhangRatio + 1e-9 && info.overhangRatio <= g.tension.maxOverhangRatio + 1e-9)
     out.push({
       id: "overhang",
       title: "腕の幅の外へ大きく出る",

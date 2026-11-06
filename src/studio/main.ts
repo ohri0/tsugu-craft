@@ -63,7 +63,8 @@ import { bindSectionEditor, sectionEditorHtml, startShape } from "./section-edit
 import { SHANK_SECTIONS, SHANK_SECTION_LABEL, shankSizeWords, type ShankSection } from "../geometry/shank";
 import { placePoint, rebuildShank } from "../geometry/ring";
 import { TENSION_OPENING_NOTE, TENSION_WORDS_NOTE, checkShank, grooveNote, tensionInsert, tensionNotes, type GrooveNote, type Problem } from "../rules/checks";
-import { SPRING_PREMISE, springIdOf, springSummary, tensionCautions, tensionSpring, type SpringRow, type TensionCaution } from "../rules/tension-calc";
+import { SPRING_PREMISE, springIdOf, springSummary, tensionCautions, tensionSpring, type SpringRow, type SpringTable, type TensionCaution } from "../rules/tension-calc";
+import { HOLD_PREMISE, HOLD_VERDICT_LABEL, tensionHoldSet } from "../rules/tension-hold";
 import type { TensionGrip } from "../geometry/tension";
 import { presentHtml, STONE_SIZES, type PresentGroup } from "./present";
 import { MAX_SECONDS, playVoice, putVoice, startRecording, voiceIds } from "./voice-notes";
@@ -2112,6 +2113,14 @@ function wireSlider(b: Built): SliderSpec {
 /** 開いて読む欄のうち、開いているもの（形を作り直して欄を描き直しても、閉じない） */
 const tnOpen = new Set<string>();
 const GRIP_LABEL: Record<TensionGrip, string> = { short: "短い向きで挟む", long: "長い向きで挟む", corner: "角で挟む" };
+/** 三角の石の挟む向きの言葉（作者の本物の指輪は、長い辺の両はしの角を挟む。2026-11-07） */
+const GRIP_LABEL_TRI: Partial<Record<TensionGrip, string>> = { short: "角と辺を挟む", corner: "長い辺の両はしの角を挟む" };
+const GRIP_NOTE_TRI: Partial<Record<TensionGrip, string>> = {
+  short: "1 つの角をくぼみに、向かいの辺を溝に入れます。腕は石のいちばん狭い幅を挟みます",
+  corner: "いちばん長い辺の両はしの角を、両方くぼみに入れます（作者の本物の指輪の向き）。残りの角は腕の幅の外へ出ます",
+};
+const gripLabel = (x: TensionGrip, info: { cornerCount: number }) => (info.cornerCount === 3 ? GRIP_LABEL_TRI[x] : undefined) ?? GRIP_LABEL[x];
+const gripNote = (x: TensionGrip, info: { cornerCount: number }) => (info.cornerCount === 3 ? GRIP_NOTE_TRI[x] : undefined) ?? GRIP_NOTE[x];
 const GRIP_NOTE: Record<TensionGrip, string> = {
   short: "石のいちばん狭い幅を腕で挟みます。長い向きは指に沿って、腕の幅の外へ出ます",
   long: "石の長い向きを腕で挟みます。腕の開きは広くなり、腕の幅の外へ出る所は小さくなります",
@@ -2180,8 +2189,111 @@ function tensionCardHtml(b: Built): string {
       <p>${esc(SPRING_PREMISE)}</p>
     </div>
     ${more("calc", "式と前提と出典を読む", `<p>${esc(TENSION_OPENING_NOTE)}。</p><p>${esc(TENSION_WORDS_NOTE)}。今は R ${table.radiusMm.toFixed(2)} mm（指の半径 ＋ 太さ ÷ 2）・d ${table.wireMm.toFixed(1)} mm。</p><p>開ける限界（戻れる範囲で開ける量）：${table.rows.map((x) => `${esc(x.name)} ${x.limitMm.toFixed(2)}${x.provisional ? "（仮）" : ""}`).join("・")} mm。これは、この式の値です。太い輪は線の内側で曲げが強まるので、「小さめに作る」は、限界を ${table.factor.toFixed(2)} で割ってから、開いて入れるのに要る量（${esc(table.needText)}）を引きました（ばねの手引きの式）。割ると足りないときは「ぎりぎり」です。</p><ul>${basis}</ul><p>帳面の決まり「テンションの角はくぼみ、辺は溝」「テンションの地金は硬い状態で」とつながっています。${filming() ? "" : `<a class="link" href="app.html#ledger">帳面で読む →</a>`}</p>`)}
+    ${holdSectionHtml(b, table)}
     ${more("notes", `気をつけること（${notes.length}）`, `<ul class="tension-notes">${notes.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>`)}
   </section>`;
+}
+/** 図面の表題欄の行：詰める量と外れにくさ（目安・仮） */
+function tensionHoldRows(b: Built, sess: RingSession): { label: string; value: string }[] {
+  const r = b.ring;
+  if (!r.setting.tension) return [];
+  const g = sess.guides();
+  const mine = springIdOf(sess.state.metal);
+  const table = tensionSpring(r.setting, r.shank, "hardened", g);
+  if (!table) return [];
+  const row = table.rows.find((x) => x.metal === mine)!;
+  const h = tensionHoldSet(table, r.metalWeightG, mine, mine, g).now;
+  const need = Number.isFinite(h.needSqueezeMm) ? h.needSqueezeMm.toFixed(2) : "—";
+  return [
+    {
+      label: "開きを詰める（目安・仮。最後は職人が決める）",
+      value: `${row.shrinkMm !== null ? `約 ${row.shrinkMm.toFixed(2)} 小さめに ・ 作る時の開き 約 ${row.makeGapMm!.toFixed(2)}` : "開く量が足りない見込み"} ・ 留めるのに要る 約 ${need} ・ ${HOLD_VERDICT_LABEL[h.verdict]}`,
+    },
+  ];
+}
+/** 浅く留めたいときのつまみ（くぼみ・溝の深さ）。両方あれば 2 本、片方だけなら 1 本 */
+function holdSliders(b: Built): SliderSpec[] {
+  const info = b.ring.setting.tension!;
+  const pit = info.ends.find((e) => e.kind === "pit");
+  const groove = info.ends.find((e) => e.kind === "groove");
+  const both = info.ends[0].kind === info.ends[1].kind ? "（両はし）" : "";
+  const spec = (cls: string, label: string, v: number): SliderSpec => ({ cls, label, min: HOLD_DEPTH_RANGE.min, max: HOLD_DEPTH_RANGE.max, step: 0.05, value: Math.min(HOLD_DEPTH_RANGE.max, Math.max(HOLD_DEPTH_RANGE.min, v)), unit: "mm" });
+  return [...(pit ? [spec("r-hold-pit", `角のくぼみの深さ${both}`, pit.depthMm)] : []), ...(groove ? [spec("r-hold-groove", `辺の溝の深さ${both}`, groove.depthMm)] : [])];
+}
+/** 深さのつまみの範囲（mm。形を作るための決まり。作者の頼み 2026-11-07「0.2〜0.8 mm くらい」） */
+const HOLD_DEPTH_RANGE = { min: 0.2, max: 0.8 };
+/**
+ * 浅く留めたいとき（作者の頼み 2026-11-07）：今の深さで、留めるのに要る詰める量と、腕が戻れる範囲で詰められる量。
+ * いちばん浅い深さ、足りないときのほかの手。値の多くは仮。最後は職人が決める（src/rules/tension-hold.ts）
+ */
+function holdSectionHtml(b: Built, table: SpringTable): string {
+  const r = b.ring;
+  const info = r.setting.tension!;
+  const g = session!.guides();
+  const mine = springIdOf(session!.state.metal);
+  const set = tensionHoldSet(table, r.metalWeightG, mine, mine, g);
+  const h = set.now;
+  const row = table.rows.find((x) => x.metal === mine)!;
+  const kari = "（仮）";
+  const num = (v: number) => (Number.isFinite(v) ? `${v.toFixed(2)} mm` : "—");
+  // 両はしが同じ種類なら「両はしのくぼみ 0.30」、ちがえば「くぼみ 0.30・溝 0.20」
+  const word = (k: "pit" | "groove") => (k === "pit" ? "くぼみ" : "溝");
+  const same = info.ends[0].kind === info.ends[1].kind && Math.abs(info.ends[0].depthMm - info.ends[1].depthMm) < 1e-9;
+  const depthWords = (d: (e: (typeof info.ends)[number]) => number) => (same ? `両はしの${word(info.ends[0].kind)} ${d(info.ends[0]).toFixed(2)}` : info.ends.map((e) => `${word(e.kind)} ${d(e).toFixed(2)}`).join("・"));
+  const ends = depthWords((e) => e.depthMm);
+  // いちばん浅い深さを、今の深さの割合で両はしに分ける
+  const split = (sum: number) => depthWords((e) => (sum * e.depthMm) / Math.max(1e-9, table.needMm));
+  const min = h.minDepthSumMm;
+  const minTight = h.minDepthSumTightMm;
+  const shallow =
+    min === null
+      ? `<p>この地金・この太さ・この号では、どの深さでも、腕が戻れる範囲の詰め方では「留まる見込み」になりません${kari}。</p>`
+      : `<p>この指輪（${esc(row.name)}・ø ${table.wireMm.toFixed(1)} mm・${r.shank.gou} 号）で、留まる見込みになるいちばん浅い深さ：両はしの和 約 ${min.toFixed(2)} mm（例：${split(min)} mm。そのとき詰める量 約 ${(table.factor > 0 ? row.limitMm / table.factor - min : 0).toFixed(2)} mm）${minTight !== null ? `。ぎりぎりなら 約 ${minTight.toFixed(2)} mm` : ""}${kari}。</p>`;
+  const parts = set.atAppSqueeze?.work ?? h.work;
+  const pct = (v: number) => `${Math.round((100 * v) / Math.max(1e-9, parts.total))} %`;
+  const app = set.atAppSqueeze
+    ? `<p>地金ごとの計算の「小さめに作る」約 ${row.shrinkMm!.toFixed(2)} mm で作ると、外れにくさは求める分の 約 ${set.atAppSqueeze.margin.toFixed(2)} 倍${kari}。内わけ：深さのかかり ${pct(parts.lock)}・詰めた分 ${pct(parts.squeeze)}・摩擦 ${pct(parts.friction)}。</p>`
+    : "";
+  const ideas: string[] = [];
+  if (h.verdict !== "hold") {
+    ideas.push("もっと硬くする（加工硬化を強める・熱で硬くする合金にする）と、詰められる量が増えます。硬さの値は仮なので、職人が確かめます");
+    if (min !== null && min > h.depthSumMm) ideas.push(`深くする：両はしの和 約 ${min.toFixed(2)} mm 以上（例：${split(min)} mm）${kari}`);
+    const ok = set.options.filter((o) => o.verdict === "hold");
+    if (ok.length) ideas.push(`同じ深さで留まる見込み：${ok.map((o) => `${o.label}（要る ${num(o.needSqueezeMm)}・詰められる ${num(o.safeSqueezeMm)}）`).join("、")}${kari}`);
+    const tight = set.options.filter((o) => o.verdict === "tight");
+    if (tight.length) ideas.push(`ぎりぎり：${tight.map((o) => o.label).join("、")}${kari}`);
+  }
+  const fromCraft = session!.state.tensionPitMm !== undefined || session!.state.tensionGrooveMm !== undefined;
+  return `<section class="tn-hold" data-v="${h.verdict}">
+    <div class="tn-head"><b>浅く留めたいとき</b>${fromCraft ? `<button type="button" class="link hold-reset">職人の値に戻す</button>` : ""}</div>
+    <small class="tn-note">深さを変えると、留めるのに要る詰める量（締めつけ）と、腕が戻れる範囲で詰められる量を比べます。形・図面・作り方も、この深さに変わります。</small>
+    <div class="sliders">${holdSliders(b).map(sliderHtml).join("")}</div>
+    <p class="tn-verdict ${h.verdict}"><b>${esc(HOLD_VERDICT_LABEL[h.verdict])}</b><small>${esc(ends)} mm（和 ${h.depthSumMm.toFixed(2)} mm）・${esc(row.name)}・目安・仮</small></p>
+    <dl class="tn-facts">
+      <div><dt>留めるのに要る詰める量</dt><dd>${Number.isFinite(h.needSqueezeMm) ? `約 ${h.needSqueezeMm.toFixed(2)} mm` : "—"}</dd></div>
+      <div><dt>詰められる量（太い輪の分）</dt><dd>約 ${h.safeSqueezeMm.toFixed(2)} mm</dd></div>
+      <div><dt>詰められる上限（細い輪の式）</dt><dd>約 ${h.limitSqueezeMm.toFixed(2)} mm</dd></div>
+      <div><dt>図面の開き</dt><dd>${h.gapMm.toFixed(2)} mm</dd></div>
+      <div><dt>${h.verdict === "short" ? "詰められるだけ詰めて作る時の開き" : "要る量で作る時の開き"}</dt><dd>約 ${h.makeGapMm.toFixed(2)} mm</dd></div>
+      <div><dt>そのとき広げて入れる量</dt><dd>約 ${h.spreadMm.toFixed(2)} mm</dd></div>
+      <div><dt>広げられる限界（細い輪の式）</dt><dd>約 ${row.limitMm.toFixed(2)} mm</dd></div>
+    </dl>
+    ${app}
+    ${shallow}
+    ${ideas.length ? `<ul class="tn-ideas">${ideas.map((t) => `<li>${esc(t)}</li>`).join("")}</ul>` : ""}
+    <small class="tn-note">${esc(HOLD_PREMISE)}。落とす高さ ${(h.dropMm / 1000).toFixed(1)} m・摩擦 ${h.mu}・壁の傾き ${h.wallDeg}° は仮の値で、帳面で職人が変えられます。</small>
+  </section>`;
+}
+function bindHold(box: HTMLElement, b: Built): void {
+  const info = b.ring.setting.tension;
+  if (!info) return;
+  const cur = () => ({ pit: info.ends.find((e) => e.kind === "pit")?.depthMm, groove: info.ends.find((e) => e.kind === "groove")?.depthMm });
+  for (const sp of holdSliders(b))
+    bindSlider(box, sp, (v) => {
+      const c = cur();
+      session!.setTensionDepths(sp.cls === "r-hold-pit" ? v : c.pit, sp.cls === "r-hold-groove" ? v : c.groove);
+    });
+  box.querySelector(".hold-reset")?.addEventListener("click", () => session!.setTensionDepths(undefined, undefined));
 }
 function gouSlider(gou: number): SliderSpec {
   return { cls: "r-gou", label: "号", min: RING_GOU_RANGE.min, max: RING_GOU_RANGE.max, step: 1, value: gou, unit: "号" };
@@ -2245,7 +2357,7 @@ function renderCheck() {
       ${s.style === "prong" && !filming() ? prongHintHtml(b) : ""}
       ${pick("留め方", patternOf(b), PATTERNS.filter(([v]) => v !== "v"))}
       ${s.style === "prong" ? pick("爪の本数", s.prongCount ?? 0, [[0, "自動"], [3, "3"], [4, "4"], [5, "5"], [6, "6"]]) : ""}
-      ${b.ring.setting.tension && b.ring.setting.tension.grips.length > 1 ? `${pick("挟む向き", b.ring.setting.tension.grip, b.ring.setting.tension.grips.map((x) => [x, GRIP_LABEL[x]] as [TensionGrip, string]))}<ul class="pick-notes">${b.ring.setting.tension.grips.map((x) => `<li${x === b.ring.setting.tension!.grip ? ' class="on"' : ""}><b>${GRIP_LABEL[x]}</b>${esc(GRIP_NOTE[x])}</li>`).join("")}</ul>` : ""}
+      ${b.ring.setting.tension && b.ring.setting.tension.grips.length > 1 ? `${pick("挟む向き", b.ring.setting.tension.grip, b.ring.setting.tension.grips.map((x) => [x, gripLabel(x, b.ring.setting.tension!)] as [TensionGrip, string]))}<ul class="pick-notes">${b.ring.setting.tension.grips.map((x) => `<li${x === b.ring.setting.tension!.grip ? ' class="on"' : ""}><b>${gripLabel(x, b.ring.setting.tension!)}</b>${esc(gripNote(x, b.ring.setting.tension!))}</li>`).join("")}</ul>` : ""}
       ${s.style === "tension" ? "" : pick("高さ", s.height, [["low", "低め"], ["standard", "標準"], ["high", "高め"]])}
       ${s.style === "tension" ? "" : pick("向き", s.orientation, [["along", "縦"], ["across", "横"]])}
       ${s.style === "prong" ? prongTipPickHtml(pick, b.ring.setting.prongTip) : ""}
@@ -2329,6 +2441,7 @@ function renderCheck() {
   );
   if (s.style === "prong") bindSlider(box, prongSlider(b), (v) => session!.setSetting({ prong_mm: v, reason: "手で" }));
   if (s.style === "tension") bindSlider(box, wireSlider(b), (v) => session!.setShank({ width_mm: v, thickness_mm: v, reason: "手で" }));
+  bindHold(box, b);
   bindSlider(box, gouSlider(s.gou), (v) => session!.setShank({ gou: v, reason: "手で" }));
   bindSlider(
     box,
@@ -2832,7 +2945,7 @@ interface StoneInfo {
 }
 const currentStone = (): StoneInfo => ({ shapeName: stone!.shapeName, outlineMm: stone!.measured.outlineMm, longMm: stone!.measured.longMm, widthMm: stone!.measured.widthMm, depthMm: stone!.depthMm });
 function howInput(b: Built, sess: RingSession = session!, info: StoneInfo = currentStone()) {
-  return { ring: b.ring, outlineMm: info.outlineMm, longMm: info.longMm, widthMm: info.widthMm, depthMm: info.depthMm, metalLabel: METAL_LABEL[sess.state.metal], alloy: alloyOf(sess.state.metal), springMetal: springIdOf(sess.state.metal) };
+  return { ring: b.ring, outlineMm: info.outlineMm, longMm: info.longMm, widthMm: info.widthMm, depthMm: info.depthMm, metalLabel: METAL_LABEL[sess.state.metal], alloy: alloyOf(sess.state.metal), springMetal: springIdOf(sess.state.metal), guides: sess.guides() };
 }
 function sheet(): string | undefined {
   if (!stone) return;
@@ -3770,7 +3883,8 @@ function solitaireDrawing(b: Built, problems: string[], sess: RingSession = sess
         : [{ label: "腕", value: `${SHANK_SECTION_LABEL[r.shank.section]} 幅 ${r.shank.widthMm.toFixed(1)} × 厚み ${r.shank.thicknessMm.toFixed(1)} mm` }]),
       ...(r.setting.tension
         ? [
-            { label: "腕の両はし", value: r.setting.tension.ends.map((e) => `${e.kind === "pit" ? "角のくぼみ" : "辺の溝"} ${e.depthMm.toFixed(2)}`).join(" ・ ") },
+            { label: "腕の両はし", value: `${r.setting.tension.ends.map((e) => `${e.kind === "pit" ? "角のくぼみ" : "辺の溝"} ${e.depthMm.toFixed(2)}`).join(" ・ ")}${sess.state.tensionPitMm !== undefined || sess.state.tensionGrooveMm !== undefined ? "（浅く留める案）" : ""}` },
+            ...tensionHoldRows(b, sess),
             { label: "腕の線", value: `${SHANK_SECTION_LABEL[r.shank.section]} ${r.shank.widthMm.toFixed(1)}${r.setting.tension.liftMm > 0 ? ` ・ 両はしを ${r.setting.tension.liftMm.toFixed(2)} 持ち上げる` : ""}` },
           ]
         : []),
