@@ -87,7 +87,7 @@ export function mountInterview(root: HTMLElement, target: InterviewTarget, opts:
     const my = ++seq;
     root.innerHTML = `
       <div class="iv-head">
-        <p class="eyebrow">${gap.kind === "asked" ? "学ぶ人から質問が届いています" : "Claude から質問が 1 つあります"} <span class="iv-mode">${isMihon() ? "見本（Claude は呼びません）" : claude ? "Claude が聞いています" : "Claude なし"}</span></p>
+        <p class="eyebrow">${gap.kind === "asked" ? "学ぶ人から質問が届いています" : "Claude から質問が 1 つあります"} <span class="iv-mode">${isMihon() ? (plain ? "見本" : "見本（Claude は呼びません）") : claude ? "Claude が聞いています" : "Claude なし"}</span></p>
         <span class="iv-count">${plain ? (gaps.length > 1 ? `ほかに ${gaps.length - 1} 問` : "") : `まだ決まっていない所 ${gaps.length}`}</span>
       </div>
       <p class="iv-q" aria-live="polite">${esc(gap.question)}</p>

@@ -76,19 +76,25 @@ export function flowStrip(id: HowtoId, opts: { at?: FlowStepId; compact?: boolea
     return `<li class="fl-step ${s.who}${s.done ? " done" : ""}${s.current ? " current" : ""}${at ? " at" : ""}">
       <a href="${stepHref(id, s.id)}" data-step="${s.id}"${at ? ` aria-current="step"` : ""} aria-label="${i + 1}. ${esc(s.next)}${s.done ? "（できた）" : ""}${at ? "（いまここ）" : next ? "（次はここ）" : ""}">
         <span class="fl-icon"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">${ICONS[s.id]}</svg>${s.done ? `<i class="fl-ok">${CHECK}</i>` : ""}</span>
-        <span class="fl-txt"><span class="fl-label">${esc(s.label)}</span><span class="fl-sub">${at ? "いまここ" : next ? "次はここ" : esc(stepCount(s.id, c))}</span></span>
+        <span class="fl-txt"><span class="fl-label"><i class="fl-no" aria-hidden="true">${i + 1}</i>${esc(s.label)}</span><span class="fl-sub">${at ? "いまここ" : next ? "次はここ" : esc(stepCount(s.id, c))}</span></span>
       </a>
     </li>`;
   };
-  const who = `<div class="fl-who" aria-hidden="true"><span class="master">職人が残す</span><span class="learner">学ぶ人が受け取る</span></div>`;
-  const alert =
+  // 2026-11-06（作者：パッと見て何のページか分からない）：4 つの段を「職人がすること」「学ぶ人がすること」の 2 組に分けて並べ、
+  // 組の間に矢印。下に、学ぶ人から職人へ戻る道（質問）を 1 行で。質問が届いていれば赤い帯に替わる
+  const group = (who: "master" | "learner", head: string) =>
+    `<div class="fl-group ${who}"><p class="fl-gh">${head}</p><ol class="fl-steps">${st.steps
+      .map((s, i) => [s, i] as const)
+      .filter(([s]) => s.who === who)
+      .map(([s, i]) => node(s, i))
+      .join("")}</ol></div>`;
+  const back =
     !opts.compact && c.questions
       ? `<a class="fl-back has" href="#waza/${id}?step=answer"><b>${c.questions}</b><span>学ぶ人から質問が届いています</span><span class="fl-back-go">答える ›</span></a>`
-      : "";
-  return `<nav class="flow${opts.compact ? " compact" : ""}" aria-label="${esc(techName(id))}の流れ">
-    ${who}
-    <ol class="fl-steps">${st.steps.map(node).join("")}</ol>
-    ${alert}
+      : `<p class="fl-loop"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d="M13 3v4a3 3 0 0 1-3 3H3m3-3L3 10l3 3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>分からないことは、学ぶ人から職人へ質問が届きます</p>`;
+  return `<nav class="flow fl-guide${opts.compact ? " compact" : ""}" aria-label="${esc(techName(id))}の流れ">
+    <div class="fl-groups">${group("master", "職人がすること")}<span class="fl-arrow" aria-hidden="true"><svg viewBox="0 0 16 16" width="16" height="16"><path d="M3 8h9m-3-4 4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>${group("learner", "学ぶ人がすること")}</div>
+    ${back}
   </nav>`;
 }
 
