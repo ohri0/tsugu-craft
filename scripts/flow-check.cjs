@@ -201,7 +201,8 @@ export async function trackVideo(video, opts) {
   await p.goto(`${BASE}/app.html?nointro#waza/mokume`);
   await p.waitForSelector('.tp-steps:visible');
   assert.equal(await p.locator('#screen-waza .flow').count(), 0);
-  assert.equal((await p.locator('.nav a').first().innerText()).trim(), '設計');
+  // 設計のタブには、別の画面へ移る印（↗）が付く（59f6e44）
+  assert.match((await p.locator('.nav a').first().innerText()).trim(), /^設計/);
 
   await b.close();
   if (bad.length) { console.error('画面のエラー', bad); process.exit(1); }

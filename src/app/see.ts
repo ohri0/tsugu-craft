@@ -24,6 +24,7 @@ import { masterName } from "./master";
 import { askPassword, resetPassword } from "./password";
 import { esc, store, today } from "./store";
 import { getVideo } from "./video-store";
+import { loadPair, mountPair, type PairDemo } from "./hands-pair";
 
 /** 手本：記録と、その動画の URL */
 interface Example {
@@ -76,16 +77,29 @@ async function localExamples(): Promise<Example[]> {
   return out;
 }
 
+/** いい例の動画を、自分の手と比べる手本に使うときの id（技の手本がまだないとき） */
+const PAIR_GOOD = "pair-good";
+
 export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: string): void; flow(): void } {
   const flow = flowUI();
+  // はじめに「いい例・よくない例」を見せる（ふつうに開いたとき。見本の流れと撮影の入口は前のまま）
+  const demo = flow && !isMihon();
   root.innerHTML = `
-  <section class="view see${flow ? " in-flow" : ""}">
-    ${flow ? `<div class="fl-slot"></div><div class="tech-pick-slot"></div>` : ""}
+  <section class="view see${flow ? " in-flow" : ""}${demo ? " with-pair" : ""}">
+    ${flow ? `<div class="fl-slot"></div>${demo ? "" : `<div class="tech-pick-slot"></div>`}` : ""}
     <a class="back" href="#learn">← 職人に聞く</a>
-    <header class="view-head">
+    ${
+      demo
+        ? `<div class="pair-slot"></div>
+    <section class="mine">
+    <h3 class="mine-h">自分の手で比べる</h3>
+    <div class="tech-pick-slot"></div>
+    <p class="small see-title"></p>`
+        : `<header class="view-head">
       <h2>手の動きで比べる</h2>
       <p class="lead see-title"></p>
-    </header>
+    </header>`
+    }
     <div class="examples"></div>
     <div class="stage master-stage" hidden>
       <div class="frame"><video class="mv" playsinline muted preload="auto"></video><canvas class="mc"></canvas>
@@ -110,6 +124,7 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
     <div class="result" hidden></div>
     <p class="small status"></p>
     <video class="lv" playsinline muted preload="auto" hidden></video>
+    ${demo ? "</section>" : ""}
   </section>`;
   const $ = <T extends HTMLElement = HTMLElement>(s: string) => root.querySelector<T>(s)!;
   const mv = $<HTMLVideoElement>(".mv");
@@ -126,9 +141,16 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
   let cmp: PoseComparison | null = null;
   /** いま比べている技（なければ全部の手本を出す。前の #learn/hands のまま） */
   let tech: HowtoId | undefined;
+  /** いい例・よくない例（読むのは 1 回だけ） */
+  let pair: Promise<PairDemo | null> | null = null;
+  let pairShown = false;
 
   /** 職人の呼び名 */
   const masterOf = () => (isMihon() ? MIHON_NAME : masterName(store.mainLedger()));
+  /** 比べる相手の呼び名（いい例を手本に使うときは「いい例」） */
+  const masterLabel = () => (current?.id === PAIR_GOOD ? "いい例" : san(current?.record.craftsman || masterOf()));
+  /** 分からないことを聞く相手（いい例を使っていても、帳面の職人） */
+  const askName = () => (current?.id === PAIR_GOOD ? masterOf() : current?.record.craftsman || masterOf());
   /** その技の決まり */
   const rulesNow = (): Rule[] => (tech && tech !== "ring" ? (activeRules(store.techLedger(tech)) as unknown as Rule[]) : activeRules(store.ledger()));
   const textNow = (): string => (tech && tech !== "ring" ? techLedgerText(store.techLedger(tech)) : ledgerText(store.ledger()));
@@ -164,10 +186,14 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
     const name = masterOf();
     const my = ++seq;
     // 見本の手本は、職人の本物の手元でもヤスリがけ。技の手本だとは言わない
-    $(".see-title").textContent = isMihon() ? "見本の手本（職人の本物の手元・ヤスリがけ）と、学ぶ人の手の動きを比べます。" : tech ? `${san(name)}の手本（${techName(tech)}）と、あなたの手の動きを比べます。` : `${name}さんの手本の動画と、あなたの手の動きを比べます。`;
-    const samples = await loadSamples();
-    const local = (await localExamples()).filter((e) => !tech || (e.record.technique ?? "ring") === tech);
+    $(".see-title").textContent = isMihon() ? "見本の手本（職人の本物の手元・ヤスリがけ）と、学ぶ人の手の動きを比べます。" : tech ? `${san(name)}の手本（${techName(tech)}）と、あなたの手を比べます。` : `${name}さんの手本の動画と、あなたの手の動きを比べます。`;
+    if (demo && !pair) pair = loadPair();
+    const [samples, local, pd] = await Promise.all([loadSamples(), localExamples().then((l) => l.filter((e) => !tech || (e.record.technique ?? "ring") === tech)), demo ? pair! : Promise.resolve(null)]);
     if (my !== seq) return;
+    if (pd && !pairShown) {
+      pairShown = true;
+      mountPair($(".pair-slot"), pd);
+    }
     const mihon = isMihon();
     examples = [...(samples && !mihon && (!tech || tech === "ring") ? [samples.master] : []), ...local];
     sampleLearner = samples?.learner;
@@ -180,8 +206,25 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
       $(".cta b").textContent = "学ぶ人の手を、手本と比べる";
       $(".cta small").textContent = "本当は、自分の手を撮ります。見本では、同じ職人の別の場面を、学ぶ人の手に見立てて使います。";
     }
+    const toMaster = tech ? `#waza/${tech}?step=model` : "#ledger/motion";
+    // 技の手本がまだないときは、いい例の動画と比べられる（行き止まりにしない）
+    if (!examples.length && pd) {
+      const good: Example = { id: PAIR_GOOD, record: { ...pd.good.record, title: `いい例（${pd.info.work}）` }, videoUrl: pd.good.videoUrl, sample: true };
+      examples = [good];
+      $(".see-title").hidden = true;
+      $(".examples").innerHTML = `<p class="no-model">${tech ? `${esc(techName(tech))}の手本は、まだありません。` : "手本の動画は、まだありません。"}<a class="linklike" href="${toMaster}">職人が手本を残す →</a></p>`;
+      $(".cta b").textContent = `${pd.info.work}を撮って、いい例と比べる`;
+      $(".cta small").textContent = "手首から指先まで入るように、10〜30 秒。";
+      if (current?.id !== PAIR_GOOD) choose(good);
+      else current = good;
+      return;
+    }
+    $(".see-title").hidden = false;
+    if (demo) {
+      $(".cta b").textContent = "あなたの手を撮って比べる";
+      $(".cta small").textContent = "手本と同じ向き・同じ距離で、手首から指先まで入るように 20〜30 秒。";
+    }
     if (!examples.length) {
-      const toMaster = tech ? `#waza/${tech}?step=model` : "#ledger/motion";
       $(".examples").innerHTML = `<div class="no-example"><p>${tech ? `${esc(techName(tech))}の手本は、まだありません。` : "手本の動画は、まだありません。"}</p><div class="row"><a class="primary btnlike" href="${toMaster}">職人が手本を残す</a></div></div>`;
       $(".master-stage").hidden = true;
       $(".cta").hidden = true;
@@ -199,7 +242,7 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
     root.querySelectorAll<HTMLButtonElement>(".ex").forEach((b) => b.setAttribute("aria-pressed", String(examples[Number(b.dataset.i)] === e)));
     masterTrack = { left: poseTrack(e.record.landmarksSampled, "left"), right: poseTrack(e.record.landmarksSampled, "right") };
     mv.src = e.videoUrl;
-    $(".master-stage").hidden = false;
+    $(".master-stage").hidden = e.id === PAIR_GOOD;
     $(".cta").hidden = false;
     $(".result").hidden = true;
     cmp = null;
@@ -338,7 +381,6 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
   function renderResult() {
     if (!cmp || !current || !learner) return;
     const c = cmp;
-    const name = current.record.craftsman || masterOf();
     const rule = holdRule();
     const r = c.ratio;
     const head = r >= 1.3 ? `手が、手本の <em>${r.toFixed(1)} 倍</em> 動いています` : r <= 0.77 ? `手本より、手の動きが小さいです` : `手本とほぼ同じ動きです`;
@@ -350,15 +392,15 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
         <p class="eyebrow">比べた結果 ・ ${c.side === "right" ? "画面の右の手" : "画面の左の手"}</p>
         <h3>${head}</h3>
         <div class="bars">
-          <div><span>${esc(san(name))}</span><i style="--w:${((100 * c.masterWobble) / max).toFixed(1)}%" class="gold"></i></div>
+          <div><span>${esc(masterLabel())}</span><i style="--w:${((100 * c.masterWobble) / max).toFixed(1)}%" class="gold"></i></div>
           <div><span>あなた</span><i style="--w:${((100 * c.learnerWobble) / max).toFixed(1)}%" class="red"></i></div>
         </div>
-        <p class="small">手のひらの中心が、前後 1 秒の真ん中の位置からどれだけ離れたか（ふらつき）の平均。手本 ${c.masterWobble.toFixed(2)}・あなた ${c.learnerWobble.toFixed(2)}（手のひらの長さを 1 として）。</p>
-        ${isMihon() ? `<p class="small muted">職人の本物の手元（ヤスリがけ）の 2 つの場面を、手本と学ぶ人に見立てて比べた結果です。</p>` : ""}
+        <p class="small" title="手のひらの中心が、前後 1 秒の真ん中の位置からどれだけ離れたかの平均（手のひらの長さを 1 として）">ふらつき（手のひらの中心の揺れ）：手本 ${c.masterWobble.toFixed(2)}・あなた ${c.learnerWobble.toFixed(2)}</p>
+        ${isMihon() ? `<p class="small muted">職人の本物の手元（ヤスリがけ）の 2 つの場面を、手本と学ぶ人に見立てて比べた結果です。</p>` : current.id === PAIR_GOOD ? `<p class="small muted">いい例（職人の本物の手元・ヤスリがけ）と比べた結果です。</p>` : ""}
         ${rule ? `<blockquote>「${esc(rule.quote || rule.text)}」<small>${esc(quoteWho(rule))} ・ ${esc(rule.title)}</small></blockquote>` : ""}
       </div>
       <div class="heat">
-        <p class="small">あなたの動画で、手本より大きく揺れた所（赤いほど違う）</p>
+        <p class="small">手本より大きく揺れた所（赤いほど違う。数字を押すと、その瞬間）</p>
         <div class="heatbar">${c.heat
           .map((h, i) => {
             const next = c.heat[i + 1]?.t ?? h.t + 0.1;
@@ -381,10 +423,10 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
     if (!current || !learner || !cmp) return;
     root.querySelectorAll<HTMLButtonElement>(".mk").forEach((b) => b.classList.toggle("on", Number(b.dataset.m) === i));
     const box = $(".moment");
-    const name = current.record.craftsman || masterOf();
+    const name = askName();
     box.innerHTML = `
       <div class="pair">
-        <figure><div class="shot"><canvas class="cm"></canvas><div class="pen pen-m"></div></div><figcaption>${esc(san(name))} ・ ${m.masterT !== null ? clock(m.masterT) : "-"}<small>いちばん似た形のこま</small></figcaption></figure>
+        <figure><div class="shot"><canvas class="cm"></canvas><div class="pen pen-m"></div></div><figcaption>${esc(masterLabel())} ・ ${m.masterT !== null ? clock(m.masterT) : "-"}<small>いちばん似た形のこま</small></figcaption></figure>
         <figure><div class="shot"><canvas class="cl"></canvas><div class="pen pen-l"></div></div><figcaption>あなた ・ ${clock(m.t)}<small>違いがいちばん大きいこま</small></figcaption></figure>
       </div>
       <p class="legend"><i class="gold"></i>手本の手の通った跡 <i class="red"></i>あなたの手の通った跡（前後 1 秒）${m.angleDiff !== null && Math.abs(m.angleDiff) >= 8 ? ` ・ 手の向きが手本より ${Math.abs(m.angleDiff).toFixed(0)}° ${m.angleDiff > 0 ? "左に回っています" : "右に回っています"}` : ""}</p>
@@ -453,7 +495,7 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
 
   async function redPen(m: Moment, box: HTMLElement) {
     if (!current || !learner || !cmp) return;
-    const name = current.record.craftsman || masterOf();
+    const name = askName();
     const pass = store.password() || (await askPassword(true));
     const note = box.querySelector<HTMLElement>(".pen-note")!;
     note.hidden = false;
