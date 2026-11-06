@@ -12,7 +12,7 @@ import { SPRING_SHORT_TEXT, tensionSpring, type SpringMetalId } from "../rules/t
 import { howtoFor, type HowtoStep } from "../rules/howto-steps";
 import { TSUCHIME_STYLE_LABEL, TSUCHIME_STYLE_NOTE, tsuchimeSpec, tsuchimeStyleOf, type RingFinish } from "../geometry/finish";
 import { NUNOME_AROUND, NUNOME_FORM, NUNOME_LABEL, NUNOME_METAL_LABEL, NUNOME_NOTE, defaultNunome, nunomeLayout, nunomeMetal, nunomeOf } from "../geometry/nunome";
-import { holdSummary, tensionHoldSet } from "../rules/tension-hold";
+import { HOLD_WORDS, holdSummary, tensionHoldSet } from "../rules/tension-hold";
 import type { AlloyId, Detail } from "./process";
 import { castSteps, dropVDetails, finishStep, forgeSteps, settingStep } from "./steps";
 
@@ -489,21 +489,21 @@ function tensionSteps(o: HowToInput, method: Method): Step[] {
   const closeSpecs: Spec[] =
     row.shrinkMm !== null
       ? [
-          { label: "詰める量", value: `図面の開きより 約 ${row.shrinkMm.toFixed(2)} mm 小さめに（${row.name}・硬い状態の大まかな計算${kari}。上限 約 ${row.shrinkMaxMm!.toFixed(2)} mm。最後は職人が決める）` },
-          { label: "作る時の開き", value: `約 ${row.makeGapMm!.toFixed(2)} mm（同じ計算${kari}）` },
+          { label: "縮める量", value: `図面の開きより 約 ${row.shrinkMm.toFixed(2)} mm 狭く作る（${row.verdict === "room" ? `${HOLD_WORDS.safe}。` : ""}${row.name}・硬い状態の大まかな計算${kari}。${HOLD_WORDS.limit} 約 ${row.shrinkMaxMm!.toFixed(2)} mm。最後は職人が決める）` },
+          { label: HOLD_WORDS.make, value: `約 ${row.makeGapMm!.toFixed(2)} mm（同じ計算${kari}）` },
         ]
-      : [{ label: "詰める量", value: `${row.name}は、この腕のままでは開ききらない見込み（限界 約 ${row.limitMm.toFixed(2)} mm、要る量 ${spring.needMm.toFixed(2)} mm。大まかな計算${kari}）。地金ごとに腕の太さ・形を変えて組み直す。${SPRING_SHORT_TEXT}` }];
-  // 外れにくさ（浅く留めたいとき。src/rules/tension-hold.ts）：選んだ深さで、留めるのに要る詰める量と、答え
+      : [{ label: "縮める量", value: `${row.name}は、この腕のままでは開ききらない見込み（限界 約 ${row.limitMm.toFixed(2)} mm、要る量 ${spring.needMm.toFixed(2)} mm。大まかな計算${kari}）。地金ごとに腕の太さ・形を変えて組み直す。${SPRING_SHORT_TEXT}` }];
+  // 外れにくさ（浅く留めたいとき。src/rules/tension-hold.ts）：選んだ深さで、石を留めるのに縮める量と、答え
   const hold = tensionHoldSet(spring, r.metalWeightG, row.metal, row.metal, o.guides ?? GUIDES);
   const depthWords = info.ends.map((e) => `${e.kind === "pit" ? "くぼみ" : "溝"} ${mm(e.depthMm, 2)}`).join("・");
   const holdSpecs: Spec[] = [
     { label: "深さ", value: `${depthWords}（和 ${mm(hold.now.depthSumMm, 2)}）` },
-    { label: "外れにくさ（目安・仮）", value: `${holdSummary(hold.now, row.name)}${hold.atAppSqueeze ? `。上の詰める量なら、求める分の 約 ${hold.atAppSqueeze.margin.toFixed(2)} 倍` : ""}。最後は職人が決める` },
+    { label: "外れにくさ（目安・仮）", value: `${holdSummary(hold.now, row.name)}${hold.atAppSqueeze ? `。上の縮める量なら、求める分の 約 ${hold.atAppSqueeze.margin.toFixed(2)} 倍` : ""}。最後は職人が決める` },
   ];
   const close: Step = {
     id: "tension_close",
-    title: "開きを詰める",
-    text: "地金を硬くしながら、腕の開きを石より小さめに詰める（プリロード＝石を押さえる力の分）。図面の開きには入れない。",
+    title: "開きを縮める",
+    text: "地金を硬くしながら、腕の開きを図面の開きより少し狭く縮める（プリロード＝石を押さえる力の分）。図面の開きには入れない。",
     specs: [gap, ...closeSpecs, ...holdSpecs],
     watch: "硬くなったあとに曲げすぎると割れやすい（資料の声）。",
   };
@@ -514,7 +514,7 @@ function tensionSteps(o: HowToInput, method: Method): Step[] {
     specs: [
       ...endSpecs,
       ...(row.spreadMm !== null
-        ? [{ label: "広げて入れる量", value: `約 ${row.spreadMm.toFixed(2)} mm（作る時の開きから石が通る ${mm(spring.spanMm, 2)} まで。限界 約 ${row.limitMm.toFixed(2)} mm。大まかな計算${kari}。最後は職人が決める）` }]
+        ? [{ label: HOLD_WORDS.spread, value: `約 ${row.spreadMm.toFixed(2)} mm（作る時の開きから石が通る ${mm(spring.spanMm, 2)} まで。${HOLD_WORDS.spreadLimit} 約 ${row.limitMm.toFixed(2)} mm。大まかな計算${kari}。最後は職人が決める）` }]
         : []),
       ...(row.slideShrinkMm !== null ? [{ label: "横から滑らせるとき", value: `開くのは締まりの分だけ。小さめに作れる量は 約 ${row.slideShrinkMm.toFixed(2)} mm まで（大まかな計算${kari}。作者の考えで、まだ試していない）` }] : []),
       { label: "石と指のすき間", value: mm(r.culetGapMm, 2) },

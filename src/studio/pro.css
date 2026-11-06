@@ -1140,6 +1140,23 @@ html.fit .command { flex: 1 1 320px; min-width: 0; }
 .tn-hold .sliders { display: grid; gap: 10px; margin: 0; }
 .tn-hold .slider { grid-template-columns: 32px 1fr 32px 78px; row-gap: 4px; line-height: 1.4; }
 .tn-hold .slider .sl-name { grid-column: 1 / -1; font-size: 12px; }
+/* 「？」と言葉の意味（作者の声 2026-11-07：言葉が分かりにくい）。スマホでは押せる大きさを 44 px に */
+.tn-hold .tn-title { display: inline-flex; align-items: center; gap: 8px; }
+.hold-help-btn { display: inline-flex; align-items: center; justify-content: center; padding: 0; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line-2); background: transparent; color: var(--fg-2); font: inherit; font-size: 12px; line-height: 1; cursor: pointer; }
+.hold-help-btn:hover, .hold-help-btn[aria-expanded="true"] { color: var(--accent-2); border-color: var(--accent-2); }
+.hold-help { padding: 12px 14px; border-radius: 12px; background: rgba(64, 156, 255, 0.07); border: 1px solid rgba(64, 156, 255, 0.18); font-size: 13px; line-height: 1.75; color: var(--fg); }
+.hold-help[hidden] { display: none; }
+.tn-hold .hold-help p { color: var(--fg); }
+.hold-help dl { margin: 8px 0 6px; display: grid; gap: 6px; }
+.hold-help dl div { display: grid; gap: 0; }
+.hold-help dt { font-weight: 600; font-size: 12px; }
+.hold-help dd { margin: 0; font-size: 12px; color: var(--fg-2); line-height: 1.65; }
+.hold-help small { display: block; color: var(--fg-3); font-size: 11px; }
+.tn-hold .tn-facts dt { white-space: normal; }
+.tn-hold .tn-facts dd small { margin-left: 4px; font-size: 11px; color: var(--fg-3); }
+@media (max-width: 760px) {
+  html.fit .hold-help-btn { width: 44px; height: 44px; border: 11px solid transparent; background-clip: padding-box; box-shadow: inset 0 0 0 1px var(--line-2); margin-block: -11px; }
+}
 .tn-verdict { display: grid; gap: 2px; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--line-2); }
 .tn-verdict b { font-weight: 600; font-size: 14px; }
 .tn-verdict small { font-size: 12px; color: var(--fg-2); }

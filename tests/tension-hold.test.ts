@@ -9,7 +9,7 @@ import { GUIDES, type Guides } from "../src/rules/guides";
 import repo from "../ledger/jewelry.json";
 import { activeRules, addRule, effectiveGuides, seedLedger, type Ledger } from "../src/rules/ledger";
 import { tensionSpring } from "../src/rules/tension-calc";
-import { dropWorkNmm, frictionFactor, holdForClaude, holdWork, ringStiffnessNPerMm, tensionHold, tensionHoldSet, type HoldInput } from "../src/rules/tension-hold";
+import { dropWorkNmm, frictionFactor, HOLD_WORDS, holdForClaude, holdSummary, holdWork, ringStiffnessNPerMm, tensionHold, tensionHoldSet, type HoldInput } from "../src/rules/tension-hold";
 import { howToMake } from "../src/studio/howto";
 import { DEFAULT_STATE, RingSession } from "../src/studio/session";
 
@@ -138,29 +138,39 @@ describe("作者の本物の指輪（SV925・φ4・14 号・三角）", () => {
     expect(shallow.options.map((o) => o.id)).toEqual(expect.arrayContaining(["metal:k18y", "metal:pt900", "wire:4.5"]));
   });
 
-  it("作者が作った指輪（短い辺を溝に・反対の角をくぼみに。くぼみも溝も 0.5 mm）は既定の深さで、留まる見込み。帳面に職人の言葉がある", () => {
+  it("作者が作った指輪（短い辺を溝に・反対の角をくぼみに。角のくぼみ 0.4・辺の溝 0.3 mm）は既定の深さで、ぎりぎり・職人が確かめる。帳面に職人の言葉がある", () => {
     const r = authorRing("side");
     const i = r.setting.tension!;
     expect(i.ends.map((e) => [e.kind, e.depthMm])).toEqual([["pit", GUIDES.tension.shortSidePitMm], ["groove", GUIDES.tension.shortSideGrooveMm]]);
+    expect(i.ends.map((e) => e.depthMm)).toEqual([0.4, 0.3]);
     const set = holdOf(r);
-    expect(set.now.depthSumMm).toBeCloseTo(1, 6);
-    expect(set.now.verdict).toBe("hold");
-    expect(set.now.needSqueezeMm).toBeCloseTo(0.24, 2);
-    expect(set.now.safeSqueezeMm).toBeCloseTo(0.34, 2);
-    expect(set.now.limitSqueezeMm).toBeCloseTo(0.56, 2);
-    // 図面の開き ＝ 角から短い辺までの長さ − 1.0 mm。要る量で作るなら、その分だけ小さく作り、深さ ＋ 要る量だけ広げて入れる
-    expect(set.now.gapMm).toBeCloseTo(i.spanMm - 1, 6);
+    expect(set.now.depthSumMm).toBeCloseTo(0.7, 6);
+    // 要る量（約 0.71）が、腕が戻れる範囲で縮められる量（太い輪の分 約 0.64）を少し超え、限界（細い輪の式 約 0.86）の内
+    expect(set.now.verdict).toBe("tight");
+    expect(set.now.needSqueezeMm).toBeCloseTo(0.71, 2);
+    expect(set.now.safeSqueezeMm).toBeCloseTo(0.64, 2);
+    expect(set.now.limitSqueezeMm).toBeCloseTo(0.86, 2);
+    // 図面の開き ＝ 角から短い辺までの長さ − 0.7 mm。要る量で作るなら、その分だけ小さく作り、深さ ＋ 要る量だけ広げて入れる
+    expect(set.now.gapMm).toBeCloseTo(i.spanMm - 0.7, 6);
     expect(set.now.makeGapMm).toBeCloseTo(i.gapMm - set.now.needSqueezeMm, 6);
-    expect(set.now.spreadMm).toBeCloseTo(1 + set.now.needSqueezeMm, 6);
-    // 限界まで詰めると、求める分の 1.1 倍ほど。詰めた分が 3 分の 1 ほどを受け持つ
+    expect(set.now.spreadMm).toBeCloseTo(0.7 + set.now.needSqueezeMm, 6);
+    // 広げて入れる量（約 1.41）は、広げられる限界（約 1.56）の内
+    expect(set.now.spreadMm).toBeLessThan(tensionSpring(r.setting, r.shank)!.rows.find((x) => x.metal === "sv925")!.limitMm);
+    // 太い輪の分の限界まで縮めても、求める分の 約 0.94 倍（1 に届かない）。縮めた分が半分ほどを受け持つ
     const app = set.atAppSqueeze!;
-    expect(app.margin).toBeGreaterThan(1.1);
-    expect(app.work.squeeze / app.work.total).toBeGreaterThan(0.25);
+    expect(app.squeezeMm).toBeCloseTo(set.now.safeSqueezeMm, 6);
+    expect(app.margin).toBeGreaterThan(0.9);
+    expect(app.margin).toBeLessThan(1);
+    expect(app.work.squeeze / app.work.total).toBeGreaterThan(0.5);
+    // はじめに聞いた深さ（くぼみも溝も 0.5）なら、留まる見込みだった
+    expect(holdOf(authorRing("side", 0.5, 0.5)).now.verdict).toBe("hold");
     const rule = activeRules(repo as unknown as Ledger).find((x) => x.id === "rule-tension-side-ishikawa")!;
     expect(rule.source).toEqual({ kind: "craftsman", name: "石川" });
     expect(rule.date).toBe("2026-11-07");
-    expect(rule.quote).toBe("角を 1 個入れて、辺を 1 個溝に落とした（実際に作った指輪。くぼみも溝も 0.5 ぐらい）");
+    expect(rule.quote).toBe("角を 1 個入れて、辺を 1 個溝に落とした（実際に作った指輪。角のくぼみ 0.4、辺の溝 0.3 ぐらい）");
     expect(rule.title).toContain("短い辺を溝に");
+    expect(rule.text).toContain("0.4");
+    expect(rule.text).toContain("0.3");
     expect(rule.text).not.toContain("両はしの角");
     expect(rule.calc).toBe("tension");
     // 聞きちがえた前の決まり（長い辺の両はしの角）は帳面から外した
@@ -178,6 +188,22 @@ describe("作者の本物の指輪（SV925・φ4・14 号・三角）", () => {
     expect(shallow.needSqueezeMm).toBeLessThanOrEqual(shallow.limitSqueezeMm);
   });
 
+  it("作者の向きで、くぼみ 0.2 → 0.4（溝 0.3 のまま）：足りない → ぎりぎり（0.3 で変わる）→ 作者の指輪の 0.4 / 0.3 もぎりぎり。和 0.8 から留まる見込み", () => {
+    const v = (pit: number, groove: number) => holdOf(authorRing("side", pit, groove)).now.verdict;
+    expect([0.2, 0.25, 0.3, 0.35, 0.4].map((p) => v(p, 0.3))).toEqual(["short", "short", "tight", "tight", "tight"]);
+    expect(v(0.45, 0.35)).toBe("hold");
+    expect(v(0.4, 0.4)).toBe("hold");
+  });
+
+  it("分かりにくかった言葉を言いかえた（作者の声 2026-11-07）：答えの文に「詰める」「太い輪」「細い輪の式」を出さない", () => {
+    const text = holdSummary(holdOf(authorRing("side")).now, "SV925");
+    expect(text).toContain(HOLD_WORDS.need);
+    expect(text).toContain(HOLD_WORDS.safe);
+    expect(text).toContain(HOLD_WORDS.limit);
+    expect(text).not.toMatch(/詰め|太い輪|細い輪/);
+    expect(HOLD_WORDS).toMatchObject({ need: "石を留めるのに縮める量", safe: "安全に縮められる量", limit: "縮められる限界", make: "作る時の開き", spread: "石を入れる時に広げる量", spreadLimit: "広げられる限界" });
+  });
+
   it("長い辺の両はしの角（両方くぼみ。作者の指輪の向きではない）：既定は角のくぼみの値。0.8 ＋ 0.8 はまっすぐ開くだけでは入らない、0.5 は留まる見込み、0.3 はぎりぎり、0.2 は足りない", () => {
     expect(authorRing("corner").setting.tension!.ends.map((e) => e.depthMm)).toEqual([GUIDES.tension.cornerPitMm, GUIDES.tension.cornerPitMm]);
     expect(holdOf(authorRing("corner", 0.8)).now.verdict).toBe("short");
@@ -187,7 +213,7 @@ describe("作者の本物の指輪（SV925・φ4・14 号・三角）", () => {
     expect(holdOf(authorRing("corner", 0.2)).now.verdict).toBe("short");
   });
 
-  it("Claude が読む形と、作り方の「開きを詰める」に、深さと外れにくさが出る", () => {
+  it("Claude が読む形と、作り方の「開きを縮める」に、深さと外れにくさが出る", () => {
     const r = authorRing("side", 0.3, 0.3);
     const c = holdForClaude(holdOf(r));
     expect(c.depth_sum_mm).toBeCloseTo(0.6, 6);
@@ -207,14 +233,17 @@ describe("作者の本物の指輪（SV925・φ4・14 号・三角）", () => {
     const s = new RingSession(tri(), () => seedLedger() as Ledger, () => undefined, () => "");
     s.state = { ...DEFAULT_STATE, gou: 14, metal: "sv925" };
     s.setSetting({ style: "tension", tension_grip: "side", reason: "作者の向き" });
-    // 短い辺を溝に・反対の角をくぼみに の既定は、職人の値 0.5 mm・0.5 mm（作者が実際に作った指輪の深さ）
+    // 短い辺を溝に・反対の角をくぼみに の既定は、職人の値 角のくぼみ 0.4 mm・辺の溝 0.3 mm（作者が実際に作った指輪を見た感じの深さ）
+    expect(s.built!.ring.setting.tension!.ends.map((e) => e.depthMm)).toEqual([0.4, 0.3]);
+    expect(s.check().tension_calc!.hold!.verdict).toBe("ぎりぎり・職人が確かめる");
+    s.setTensionDepths(0.5, 0.5);
     expect(s.built!.ring.setting.tension!.ends.map((e) => e.depthMm)).toEqual([0.5, 0.5]);
     expect(s.check().tension_calc!.hold!.verdict).toBe("留まる見込み");
     s.setTensionDepths(0.3, 0.3);
     expect(s.built!.ring.setting.tension!.ends.map((e) => e.depthMm)).toEqual([0.3, 0.3]);
     expect(s.check().tension_calc!.hold!.verdict).toBe("ぎりぎり・職人が確かめる");
     s.setTensionDepths(undefined, undefined);
-    expect(s.built!.ring.setting.tension!.ends.map((e) => e.depthMm)).toEqual([0.5, 0.5]);
+    expect(s.built!.ring.setting.tension!.ends.map((e) => e.depthMm)).toEqual([0.4, 0.3]);
     // 長い辺を溝に入れる向きに戻すと、0.8・0.5 のまま
     s.setSetting({ tension_grip: "short", reason: "戻す" });
     expect(s.built!.ring.setting.tension!.ends.map((e) => e.depthMm)).toEqual([0.8, 0.5]);
