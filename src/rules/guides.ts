@@ -419,14 +419,28 @@ export const GUIDES = {
       large: { markMm: 1.4, depthMm: 0.1 },
     },
     /**
+     * 槌目の種類（2026-11-07 作者の声「いろんなバリエーション」）。鎚の面の形で跡の形が決まる（tsuchime-hammer-kind：ならし鎚・いも鎚・荒らし鎚）。
+     * - maru（丸槌目）：丸みのある面（いも鎚）。丸いくぼみ。大きさは tsuchime の小・中・大。
+     * - kaku（角槌目・平槌目）：平らな面（ならし鎚）を少し傾けて打つ。平らな小さな面が角で接する。大きさは小・中・大。
+     * - tate（縦槌目・筋目）：細長い面の鎚で、腕に沿って細長い跡を並べる。elongation：跡の長さ ÷ 幅（**仮**）。幅が小・中・大。
+     * - arashi（荒らし槌目）：面を荒らした荒らし鎚で、細かく密に打つ（つやを抑えた質感）。大きさは選ばない：markMm・depthMm（**仮**）。
+     * mm の数はどれも資料にない（**仮**。作者が見て直す）
+     */
+    tsuchimeStyle: {
+      tate: { elongation: 2.6 },
+      arashi: { markMm: 0.3, depthMm: 0.03 },
+    },
+    /**
      * ミル打ち。粒の大きさは鏨のくぼみの大きさで、手打ちの鏨は 0.25〜0.75 mm（milgrain-tool）。
      * 粒は「離さず、重ねず」（milgrain-no-overlap）なので、粒の間かく ＝ 粒の大きさ。
      * 覆輪の縁では、粒の大きさ ＝ 縁の幅（milgrain-edge-width）。
-     * - beadMm：腕の縁に打つ粒の大きさ（**仮**。鏨の幅の真ん中をとった）。
+     * - beadMm：腕の縁に打つ粒の大きさ（**仮**。作者の声「0.3〜0.5 mm くらい」の真ん中。2026-11-07 に 0.5 から直した）。
      * - rowsPerBeadWidth：腕の縁に 2 列打つとき、腕の幅は粒いくつ分あればよいか（2 列 ＋ 間に粒 1 つ分の地。**仮**）。
-     * - domeRatio：粒の面から出る高さ（粒の半径に対する割合）。ミルの粒は縁の地金を押しこんで作る、低い丸い山なので、球をのせた形にしない（形を作るための値。**仮**）
+     * - domeRatio：粒が面から出る高さ（粒の半径に対する割合）。ミルの粒は縁の地金を鏨で押し上げた山で、球の半分より低く、地金に埋まっている（形の値。**仮**）。
+     * - notchRatio：となりの粒と V 字に接する所の高さ（山の高さに対する割合。形の値。**仮**）。
+     * - rimWidthRatio・rimHeightRatio：粒の列の下の細い縁（低い平たい山）の幅（粒の大きさに対する割合）と高さ（山の高さに対する割合。形の値。**仮**）
      */
-    milgrain: { toolMinMm: 0.25, toolMaxMm: 0.75, beadMm: 0.5, rowsPerBeadWidth: 3, domeRatio: 0.65 },
+    milgrain: { toolMinMm: 0.25, toolMaxMm: 0.75, beadMm: 0.4, rowsPerBeadWidth: 3, domeRatio: 0.55, notchRatio: 0.5, rimWidthRatio: 1.4, rimHeightRatio: 0.35 },
     /**
      * 布目象嵌（帯の模様）。京象嵌は 1 mm に 7〜8 本の溝（nunome-grid）、はめこむ線は直径 0.15〜1.0 mm（nunome-wire）。
      * - bandMm：腕の外の真ん中に入れる帯の幅（**仮**）。lineMm：帯の模様の線の太さ（線の資料の幅の中。**仮**）

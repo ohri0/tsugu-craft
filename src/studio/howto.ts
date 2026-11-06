@@ -9,6 +9,8 @@ import { perimeter } from "../geometry/polygon";
 import { tensionInsert } from "../rules/checks";
 import { GUIDES } from "../rules/guides";
 import { SPRING_SHORT_TEXT, tensionSpring, type SpringMetalId } from "../rules/tension-calc";
+import { howtoFor, type HowtoStep } from "../rules/howto-steps";
+import { TSUCHIME_STYLE_LABEL, TSUCHIME_STYLE_NOTE, tsuchimeSpec, tsuchimeStyleOf } from "../geometry/finish";
 import type { AlloyId, Detail } from "./process";
 import { castSteps, dropVDetails, finishStep, forgeSteps, settingStep } from "./steps";
 
@@ -32,6 +34,94 @@ export interface Step {
   details?: Detail[];
   /** V 字の爪がある指輪か（記録から帳面を作るときに、V 字の爪の手順を出すか決める） */
   vProngs?: boolean;
+  /** 出どころ（技の作り方の目安帳 ledger/technique-howto.json の工程から。札の下に小さく出す） */
+  sources?: { label: string; url?: string }[];
+  /** 職人がこの工程を読んで確かめた（だれが・いつ） */
+  checkedBy?: string;
+}
+
+/** 技の作り方の目安帳の工程（題で引く）。出どころと、職人が確かめたことを、札に渡す形で */
+function ledgerStep(tech: "tsuchime" | "milgrain" | "nunome", title: string): HowtoStep {
+  const st = howtoFor(tech).steps.find((x) => x.title === title);
+  if (!st) throw new Error(`作り方の目安帳に ${tech} の「${title}」がない`);
+  return st;
+}
+const srcOf = (...steps: HowtoStep[]): Pick<Step, "sources" | "checkedBy"> => {
+  const seen = new Set<string>();
+  const sources = steps.flatMap((st) => st.sources).filter((x) => (seen.has(x.label) ? false : (seen.add(x.label), true))).map((x) => ({ label: x.label, ...(x.url ? { url: x.url } : {}) }));
+  const checked = steps.map((st) => st.checkedBy).filter((x): x is string => !!x);
+  return { sources, ...(checked.length ? { checkedBy: [...new Set(checked)].join("、") } : {}) };
+};
+
+/**
+ * 布目象嵌の工程（作者の声 2026-11-07：象嵌を選んだら、どう作るのかが分かるように）。
+ * 手順・道具・失敗しやすい所・出どころは、技の作り方の目安帳（ledger/technique-howto.json の nunome）のまま。指輪の数字（帯・線）は GUIDES.finish.nunome（仮）。
+ * 伝統の布目象嵌は鉄の地で、最後に錆を出して止め、焼き付けて地を黒くする。鉄でない地金の指輪では、その工程は「代わりにどうするか」を書く（色金なら煮色、ほかは職人に聞く）
+ */
+function nunomeSteps(o: HowToInput): Step[] {
+  const gold = !o.metalLabel.startsWith("K18");
+  const metal = gold ? "純金" : "純銀";
+  const prep = ledgerStep("nunome", "地鉄をみがき、下絵を描く");
+  const cut = ledgerStep("nunome", "布目を切る");
+  const set = ledgerStep("nunome", "金銀を打ちこむ（入嵌）");
+  const close = ledgerStep("nunome", "叩きしめ、布目を消す");
+  const rust = ledgerStep("nunome", "錆を出し、錆を止める");
+  const bake = ledgerStep("nunome", "焼き付けて仕上げる");
+  return [
+    {
+      id: "nunome_prep",
+      title: "象嵌の下ごしらえ（みがく・図案を写す）",
+      text: "はめこむ所（腕の外の真ん中の帯）を、少しの水をのせたサンドペーパーでみがき、汚れを全部とる。和紙に描いた図案（この指輪では、両縁の線と菱つなぎ）を、筆ではめこむ所へ写す。",
+      specs: [
+        { label: "帯", value: `幅 約 ${mm(GUIDES.finish.nunome.bandMm)}・腕の外の真ん中（仮）` },
+        { label: "道具", value: "サンドペーパー・水・和紙の図案・筆（肥後象嵌の工程）" },
+      ],
+      watch: prep.fail,
+      ...srcOf(prep),
+    },
+    {
+      id: "nunome_cut",
+      title: "布目を切る",
+      text: cut.text,
+      specs: [
+        { label: "布目", value: "京象嵌の例：1 mm 四方に 7〜8 本、縦横に" },
+        { label: "道具", value: cut.tools ?? "布目切り鏨・金づち" },
+      ],
+      watch: cut.fail,
+      ...srcOf(cut),
+    },
+    {
+      id: "nunome",
+      title: `${metal}を打ちこむ（入嵌）`,
+      text: set.text,
+      specs: [
+        { label: "線", value: `${metal} ø 約 ${mm(GUIDES.finish.nunome.lineMm, 2)}（資料：0.15〜1.0 mm の線。太さは仮）` },
+        { label: "道具", value: set.tools ?? "鹿の角の槌" },
+      ],
+      watch: set.fail,
+      ...srcOf(set),
+    },
+    {
+      id: "nunome_close",
+      title: "叩きしめ、布目を消す",
+      text: close.text,
+      specs: close.tools ? [{ label: "道具", value: close.tools }] : [],
+      watch: close.fail,
+      ...srcOf(close),
+    },
+    {
+      id: "nunome_ground",
+      title: "地を仕上げる（錆付け・焼き付けの代わり）",
+      text:
+        "伝統の布目象嵌は鉄の地で、ここで錆を出して止め（肥後象嵌：錆出しの液を塗って焼く → お茶の液で煮る）、焼き付けて地を黒くし、金銀を引き立てる（京象嵌は漆を 3〜4 回焼き付けて研ぎ出す。肥後象嵌は油を塗って焼き付ける）。" +
+        (o.irogane
+          ? `この指輪は${IROGANE_WORDS[o.irogane].name}なので、錆付けのかわりに、あとの煮色で地の色（${IROGANE_WORDS[o.irogane].color}）を出す。はめこんだ金・銀は色が変わらない。`
+          : `この指輪の地金（${o.metalLabel}）は鉄ではないので、錆付け・焼き付けはしない。地をどう仕上げるか（みがく・いぶす など）は資料に無い（職人に聞く）。`),
+      specs: [],
+      watch: o.irogane ? "煮色の前に、脂をよく落とす（あとの工程）。" : "錆出しの液の中身・日数・回数は資料に無い（秘伝。職人に聞く）。",
+      ...srcOf(rust, bake),
+    },
+  ];
 }
 
 const mm = (v: number, d = 1) => `${v.toFixed(d)} mm`;
@@ -132,16 +222,30 @@ function withTraditional(steps: Step[], o: HowToInput): Step[] {
   }
   // 槌目：腕を丸めて芯金で整えたあと（鋳造なら鋳込んだあと）、石座を付ける前に
   if (f?.tsuchime) {
-    const t = GUIDES.finish.tsuchime[f.tsuchime.size];
+    const t = tsuchimeSpec(f.tsuchime);
+    const style = tsuchimeStyleOf(f.tsuchime);
+    const where = f.tsuchime.area === "all" ? "腕の外の面と横の面" : "腕の外の面";
+    // 鎚の選び方は目安帳（tsuchime-hammer-kind：ならし鎚・いも鎚・荒らし鎚）。縦槌目の鎚の名前は資料に無い
+    const how: Record<typeof style, string> = {
+      maru: `腕を芯金にはめ、丸みのあるいも鎚で、${where}に丸い跡を、半分ほど重ねながらむらなく並べて打つ。`,
+      kaku: `腕を芯金にはめ、面をみがいたならし鎚（平らな面）を少し傾けて当て、${where}に平らな小さな面を並べて打つ。`,
+      tate: `腕を芯金にはめ、細長い面の鎚で、${where}に腕に沿った細長い跡を、少しずつずらして並べて打つ（鎚の名前と形は職人に聞く）。`,
+      arashi: `面を荒らした荒らし鎚で、${where}を細かく密に打つ。荒らし鎚は焼きが入っているので、芯金や金床の上では使わない（当て方は職人に聞く）。`,
+    };
+    const size = style === "arashi" ? "細かく密に（大きさは選ばない）" : f.tsuchime.size === "small" ? "小さい槌：細かな輝き" : f.tsuchime.size === "large" ? "大きい槌：荒々しい表情" : "中くらいの槌";
+    const pick = ledgerStep("tsuchime", "金づちと当て金を選ぶ");
+    const even = ledgerStep("tsuchime", "そろえて打つ");
     const step: Step = {
       id: "tsuchime",
-      title: "槌目を打つ",
-      text: `腕を芯金にはめ、面をみがいたならし鎚か、丸みのあるいも鎚で、${f.tsuchime.area === "all" ? "腕の外の面と横の面" : "腕の外の面"}に跡を並べて打つ。指に当たる内側は打たない。`,
+      title: `槌目を打つ（${TSUCHIME_STYLE_LABEL[style]}）`,
+      text: `${how[style]}指に当たる内側は打たない。`,
       specs: [
-        { label: "跡の大きさ", value: `約 ${mm(t.markMm)}（${f.tsuchime.size === "small" ? "小さい槌：細かな輝き" : f.tsuchime.size === "large" ? "大きい槌：荒々しい表情" : "中くらいの槌"}。大きさは仮の目安）` },
+        { label: "種類", value: TSUCHIME_STYLE_NOTE[style] },
+        { label: "跡の大きさ", value: `${style === "tate" ? `幅 約 ${mm(t.markMm)} × 長さ 約 ${mm(t.lengthMm)}` : `約 ${mm(t.markMm)}`}（${size}。大きさは仮の目安）` },
         { label: "跡の深さ", value: `約 ${mm(t.depthMm, 2)}（仮）・打ったあとの腕の厚み 約 ${mm((o.ring.shank.minThicknessMm ?? o.ring.shank.thicknessMm) - t.depthMm, 2)}` },
       ],
       watch: "打つたびに形がゆがむので、ゆがみを取りながら、跡の大きさと深さをそろえる。材や厚みが変わったら、先に見本を打って確かめる。硬くなったら焼きなます。",
+      ...srcOf(pick, even),
     };
     const i = Math.max(at("true"), at("cut_sprue"));
     const seat = out.findIndex((x) => x.id === "prong" || x.id === "bezel");
@@ -155,29 +259,17 @@ function withTraditional(steps: Step[], o: HowToInput): Step[] {
     extra.push({
       id: "milgrain",
       title: "ミルを打つ",
-      text: "腕の外の面の両縁に、基準の 1 粒を打ち、毛彫り鏨で縁と平行な溝を同じ深さで彫る。その溝に合わせて、ミル鏨を一粒ずつ押しこむ。",
+      text: "腕の外の面の両縁に、粒の幅の細い縁を残す。基準の 1 粒を打ち、毛彫り鏨で縁と平行な溝を同じ深さで彫る。その溝に合わせて、ミル鏨を一粒ずつ押しこむ（粒は縁の地金を押し上げてでき、半分ほど縁に埋まる）。",
       specs: [
         { label: "粒", value: `ø ${mm(d, 2)}（手打ちの鏨は 0.25〜0.75 mm。大きさは仮の目安）` },
         { label: "間かく", value: `${mm(d, 2)}（となりと離さず、重ねず）` },
         ...(mg?.count ? [{ label: "粒の数", value: `${mg.count} 粒（片側 約 ${Math.round(mg.count / 2)} 粒。3D データに入っている）` }] : []),
       ],
       watch: "鏨をすべらせない（えぐれた縁は直せない）。何粒か打つたびにルーペで、列がまっすぐか、粒がそろっているかを見る。",
+      ...srcOf(ledgerStep("milgrain", "縁に溝を彫る"), ledgerStep("milgrain", "一粒ずつ打つ")),
     });
   }
-  if (f?.inlay) {
-    const gold = !o.metalLabel.startsWith("K18");
-    extra.push({
-      id: "nunome",
-      title: "布目象嵌を入れる",
-      text: `腕の外の真ん中の帯に、目切り鏨で細い溝を縦横に刻み（布目）、${gold ? "純金" : "純銀"}の線を鹿の角の槌で打ちこむ。叩きしめてから、まわりの布目を消す。`,
-      specs: [
-        { label: "帯", value: `幅 約 ${mm(GUIDES.finish.nunome.bandMm)}・腕の外の真ん中（仮）` },
-        { label: "線", value: `${gold ? "純金" : "純銀"} ø 約 ${mm(GUIDES.finish.nunome.lineMm, 2)}（資料：0.15〜1.0 mm の線。太さは仮）` },
-        { label: "布目", value: "京象嵌の例：1 mm に 7〜8 本、縦横に" },
-      ],
-      watch: "布目の溝が浅いと、金銀がはがれる。鉄の槌は使わない（布目の針が曲がる）。",
-    });
-  }
+  if (f?.inlay) extra.push(...nunomeSteps(o));
   const fin = at("finish");
   if (fin >= 0 && f?.tsuchime) out[fin] = { ...out[fin], watch: [out[fin].watch, "槌目の面は、ヤスリや紙ヤスリをかけない（跡が消える）。"].filter(Boolean).join(" ") };
   const niiro: Step[] = ir
@@ -217,7 +309,7 @@ function withTraditional(steps: Step[], o: HowToInput): Step[] {
     out.splice(s2, 1, ...extra, { ...finish, title: "みがく", text: finish.text.replace("全体を磨く", "全体を磨く（煮色の前）") }, ...niiro, { ...seatStep, watch: [seatStep.watch, "石は煮色のあとに留める（煮る液と熱に石を入れない。仮の順・職人に聞く）。煮色の面を傷つけないよう、道具の当たる所を守る。"].filter(Boolean).join(" ") });
   } else {
     // 象嵌は叩いて打ちこむので石を留める前に。ミルは石留めのあと、仕上げの前（日本の作り手の例）
-    const inlay = extra.filter((x) => x.id === "nunome");
+    const inlay = extra.filter((x) => x.id?.startsWith("nunome"));
     const mil = extra.filter((x) => x.id === "milgrain");
     const si = out.findIndex((x) => x.id === "prong" || x.id === "bezel" || x.id === "tension_set");
     if (inlay.length) out.splice(si >= 0 ? si : out.length, 0, ...inlay);

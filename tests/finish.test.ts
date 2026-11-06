@@ -1,7 +1,7 @@
 // 伝統の仕上げ：ミル打ちの粒（本当の形）、槌目とミルの確かめ、色金の重さ、Claude の道具の入力（src/geometry/finish.ts ほか）
 import { describe, expect, it } from "vitest";
 import { openEdges } from "../src/cad/solid";
-import { milgrainBeads } from "../src/geometry/finish";
+import { BEAD_TRIANGLES, milgrainBeads, sectionArc, tsuchimeSpec, tsuchimeWords } from "../src/geometry/finish";
 import { buildRing, type RingParams } from "../src/geometry/ring";
 import { meshVolume } from "../src/geometry/stone";
 import { checkRing } from "../src/rules/checks";
@@ -24,20 +24,33 @@ function beadsOf(withBeads: ReturnType<typeof buildRing>, plain: ReturnType<type
   return withBeads.ringPositions.shank.subarray(plain.ringPositions.shank.length);
 }
 
-describe("ミル打ち：腕の縁の粒は本当の形", () => {
+describe("ミル打ち：腕の縁の細い山と、半分沈んだ粒（本当の形）", () => {
   const plain = buildRing(params());
   const ring = buildRing(params({ finish: { milgrain: "edges" } }));
   const beads = beadsOf(ring, plain);
   const d = GUIDES.finish.milgrain.beadMm;
+  const raw = milgrainBeads(plain.ringPositions.shank, plain.ringPositions.setting);
 
-  it("粒は両縁に並び、1 つずつ閉じた球で、外向き（STL に出せる）", () => {
+  it("粒は両縁に並び、粒も細い縁も 1 つずつ閉じた形で、外向き（STL に出せる）", () => {
     expect(ring.milgrain!.count).toBeGreaterThan(100);
     expect(ring.milgrain!.count % 2).toBe(0);
-    expect(beads.length / 9).toBe(ring.milgrain!.count * 320);
+    expect(beads.length / 9).toBe(ring.milgrain!.triangles);
+    // 粒（320 の三角形ずつ）のほかに、細い縁の管がある
+    expect(ring.milgrain!.triangles).toBeGreaterThan(ring.milgrain!.count * BEAD_TRIANGLES);
     expect(openEdges(beads)).toBe(0);
     expect(meshVolume(beads)).toBeGreaterThan(0);
-    // 粒 1 つも閉じている
-    expect(openEdges(beads.subarray(0, 320 * 9))).toBe(0);
+    // 最後の粒 1 つも閉じている
+    expect(openEdges(beads.subarray(beads.length - BEAD_TRIANGLES * 9))).toBe(0);
+  });
+
+  it("粒は半分ほど地金に沈む（面にのせた玉ではない）：面の上に出た体積は、球の半分より小さい", () => {
+    const r = d / 2;
+    const sphere = (4 / 3) * Math.PI * r ** 3;
+    expect(raw.count).toBe(ring.milgrain!.count);
+    // 粒の分（縁の管を除く）の出た体積 ＜ 粒の数 × 球の半分
+    expect(raw.volumeMm3).toBeLessThan(raw.count * sphere * 0.5 + 1);
+    expect(d).toBeGreaterThanOrEqual(0.3);
+    expect(d).toBeLessThanOrEqual(0.5);
   });
 
   it("腕と粒を合わせた STL も閉じたまま。重さは粒の分だけ増える", () => {
@@ -53,18 +66,7 @@ describe("ミル打ち：腕の縁の粒は本当の形", () => {
     let maxX = 0;
     for (let i = 0; i < plain.ringPositions.shank.length; i += 3) maxX = Math.max(maxX, Math.abs(plain.ringPositions.shank[i]));
     const centers: [number, number, number][] = [];
-    for (let b = 0; b < beads.length; b += 320 * 9) {
-      let cx = 0;
-      let cy = 0;
-      let cz = 0;
-      const n = 320 * 3;
-      for (let i = b; i < b + 320 * 9; i += 3) {
-        cx += beads[i];
-        cy += beads[i + 1];
-        cz += beads[i + 2];
-      }
-      centers.push([cx / n, cy / n, cz / n]);
-    }
+    for (let b = 0; b < raw.centers.length; b += 3) centers.push([raw.centers[b], raw.centers[b + 1], raw.centers[b + 2]]);
     for (const c of centers) expect(Math.abs(c[0]) + d / 2).toBeLessThan(maxX + 0.03);
     // 同じ縁のとなりの粒の間（中心どうし）は、粒の大きさ ± 少し
     const side = centers.filter((c) => c[0] > 0).sort((a, b) => Math.atan2(a[1], a[2]) - Math.atan2(b[1], b[2]));
@@ -115,7 +117,7 @@ describe("仕上げの確かめ（仮の決まり）", () => {
   it("細い腕の両縁には、ミルの粒が収まらない", () => {
     const ok = buildRing(params({ finish: { milgrain: "edges" } }));
     expect(checkRing(ok).some((p) => p.check === "milgrain-fit")).toBe(false);
-    const thin = buildRing(params({ shank: { gou: 11, widthMm: 1.2, thicknessMm: 1.6 }, finish: { milgrain: "edges" } }));
+    const thin = buildRing(params({ shank: { gou: 11, widthMm: 1.0, thicknessMm: 1.6 }, finish: { milgrain: "edges" } }));
     const p = checkRing(thin).find((x) => x.check === "milgrain-fit");
     expect(p).toBeDefined();
     expect(p!.requiredValue).toBeCloseTo(GUIDES.finish.milgrain.beadMm * GUIDES.finish.milgrain.rowsPerBeadWidth, 9);
@@ -163,9 +165,9 @@ describe("Claude の道具：set_shank の地金と仕上げ", () => {
 
   it("書いた項目だけ変わり、none でなくなる", () => {
     const a = finishFrom({ tsuchime: "medium" }, undefined);
-    expect(a).toEqual({ tsuchime: { size: "medium", area: "outer" } });
+    expect(a).toEqual({ tsuchime: { size: "medium", area: "outer", style: "maru" } });
     const b = finishFrom({ milgrain: "edges", tsuchime_area: "all" }, a);
-    expect(b).toEqual({ tsuchime: { size: "medium", area: "all" }, milgrain: "edges" });
+    expect(b).toEqual({ tsuchime: { size: "medium", area: "all", style: "maru" }, milgrain: "edges" });
     expect(finishFrom({ tsuchime: "none", milgrain: "none" }, b)).toBeUndefined();
     expect(smallerTsuchime(b)).toBe("small");
     expect(smallerTsuchime({ tsuchime: { size: "small", area: "outer" } })).toBe("none");
@@ -225,5 +227,122 @@ describe("作り方：伝統の仕上げの工程", () => {
     expect(ids).not.toContain("tsuchime");
     expect(ids).not.toContain("niiro");
     expect(ids).toContain("invest");
+  });
+});
+
+describe("槌目の種類（丸・角・縦・荒らし）", () => {
+  it("縦槌目は腕に沿って細長く、荒らし槌目は大きさを選ばず細かく浅い（仮の値）", () => {
+    const tate = tsuchimeSpec({ size: "medium", area: "outer", style: "tate" });
+    expect(tate.markMm).toBe(GUIDES.finish.tsuchime.medium.markMm);
+    expect(tate.lengthMm).toBeCloseTo(tate.markMm * GUIDES.finish.tsuchimeStyle.tate.elongation, 9);
+    const arashiS = tsuchimeSpec({ size: "small", area: "outer", style: "arashi" });
+    const arashiL = tsuchimeSpec({ size: "large", area: "outer", style: "arashi" });
+    expect(arashiS).toEqual(arashiL);
+    expect(arashiS.markMm).toBeLessThan(GUIDES.finish.tsuchime.small.markMm);
+    // 前の記録（種類なし）は丸槌目
+    expect(tsuchimeSpec({ size: "large", area: "outer" })).toEqual({ ...GUIDES.finish.tsuchime.large, lengthMm: GUIDES.finish.tsuchime.large.markMm });
+    expect(tsuchimeWords({ size: "medium", area: "outer" })).toBe("丸槌目・中・腕の外側");
+    expect(tsuchimeWords({ size: "medium", area: "all", style: "arashi" })).toBe("荒らし槌目・外側と横");
+  });
+
+  it("種類を言うと、大きさと場所はそのまま。種類だけでも槌目が入る（中）", () => {
+    const a = finishFrom({ tsuchime_style: "kaku" }, undefined);
+    expect(a).toEqual({ tsuchime: { size: "medium", area: "outer", style: "kaku" } });
+    const b = finishFrom({ tsuchime: "large" }, a);
+    expect(b!.tsuchime).toEqual({ size: "large", area: "outer", style: "kaku" });
+    const c = finishFrom({ tsuchime_style: "tate", tsuchime_area: "all" }, b);
+    expect(c!.tsuchime).toEqual({ size: "large", area: "all", style: "tate" });
+    // 荒らし槌目は小さくできないので、直し方はやめる
+    expect(smallerTsuchime({ tsuchime: { size: "large", area: "outer", style: "arashi" } })).toBe("none");
+  });
+
+  it("Claude の道具：種類の入力が通り、知らない種類は断る", () => {
+    const base = { reason: "縦槌目で" };
+    expect(parseToolCall("set_shank", { ...base, finish: { tsuchime_style: "tate" } }).ok).toBe(true);
+    expect(parseToolCall("set_shank", { ...base, finish: { tsuchime: "small", tsuchime_style: "arashi" } }).ok).toBe(true);
+    expect(parseToolCall("set_shank", { ...base, finish: { tsuchime_style: "zigzag" } }).ok).toBe(false);
+    const line = toolLogLine({ tool: "set_shank", input: { ...base, finish: { tsuchime: "medium", tsuchime_style: "kaku" } }, ok: true });
+    expect(line.text).toContain("角槌目");
+    expect(line.text).not.toMatch(/kaku|tsuchime_style/);
+  });
+
+  it("荒らし槌目の確かめは、荒らしの深さ（浅い）で見る", () => {
+    const ring = buildRing(params({ shank: { gou: 11, widthMm: 2.2, thicknessMm: 1.25 }, finish: { tsuchime: { size: "large", area: "outer", style: "arashi" } } }));
+    expect(checkRing(ring).some((p) => p.check === "tsuchime-thin")).toBe(false);
+  });
+});
+
+describe("槌目・象嵌の模様の座標：断面に沿った長さ", () => {
+  const ring = buildRing(params());
+  const pos = ring.ringPositions.shank;
+  const s = sectionArc(pos, ring.shank.innerRadiusMm);
+
+  it("真ん中の上で 0、+x の側が正。甲丸の縁では、幅の位置より長い（縁で跡がつぶれない）", () => {
+    let maxS = 0;
+    let minS = 0;
+    let checked = 0;
+    for (let i = 0; i < s.length; i++) {
+      const x = pos[i * 3];
+      const rr = Math.hypot(pos[i * 3 + 1], pos[i * 3 + 2]);
+      // 外の面（内側の面より外）だけ
+      if (rr < ring.shank.innerRadiusMm + 0.05) continue;
+      maxS = Math.max(maxS, s[i]);
+      minS = Math.min(minS, s[i]);
+      if (Math.abs(x) > 0.05) {
+        expect(Math.sign(s[i])).toBe(Math.sign(x));
+        // 断面に沿った長さは、幅の位置（まっすぐの長さ）より短くならない
+        expect(Math.abs(s[i])).toBeGreaterThanOrEqual(Math.abs(x) - 0.02);
+        checked++;
+      }
+    }
+    expect(checked).toBeGreaterThan(100);
+    // 甲丸 2.2 × 1.6 の外の線の半分は、幅の半分 1.1 mm よりずっと長い
+    expect(maxS).toBeGreaterThan(1.5);
+    expect(-minS).toBeGreaterThan(1.5);
+    expect(Math.abs(maxS + minS)).toBeLessThan(0.1);
+  });
+});
+
+describe("作り方：布目象嵌の工程（技の作り方の目安帳から）", () => {
+  const stone = triangleStone();
+  const make = (metal?: "shakudo") => {
+    const ring = buildRing(params({ shank: { gou: 11, widthMm: 2.2, thicknessMm: 1.6, ...(metal ? { metal } : {}) }, finish: { inlay: "nunome" } }));
+    return howToMake(
+      { ring, outlineMm: stone.outlineMm, longMm: stone.longMm, widthMm: stone.widthMm, depthMm: stone.depthMm, metalLabel: metal ? "赤銅（煮色）" : "K18 イエロー", alloy: metal ? null : "k18y", irogane: metal },
+      "hand",
+    );
+  };
+
+  it("下ごしらえ → 布目を切る → 金銀を打ちこむ → 叩きしめ・布目を消す → 地を仕上げる の順で、石を留める前", () => {
+    const ids = make().map((s) => s.id);
+    const at = (id: string) => ids.indexOf(id);
+    expect(at("nunome_prep")).toBeGreaterThan(0);
+    expect(at("nunome_prep")).toBeLessThan(at("nunome_cut"));
+    expect(at("nunome_cut")).toBeLessThan(at("nunome"));
+    expect(at("nunome")).toBeLessThan(at("nunome_close"));
+    expect(at("nunome_close")).toBeLessThan(at("nunome_ground"));
+    expect(at("nunome_ground")).toBeLessThan(at("prong"));
+  });
+
+  it("手順の文と出どころは目安帳のまま。職人が確かめた工程には、だれが・いつ", () => {
+    const steps = make();
+    const cut = steps.find((s) => s.id === "nunome_cut")!;
+    expect(cut.text).toContain("1 mm 四方に 7〜8 本");
+    expect(cut.checkedBy).toContain("石川工房");
+    expect(cut.sources!.length).toBeGreaterThan(1);
+    const set = steps.find((s) => s.id === "nunome")!;
+    expect(set.title).toContain("純銀");
+    expect(set.text).toContain("鹿の角");
+    expect(set.sources!.some((x) => x.url?.startsWith("https://"))).toBe(true);
+    // K18 の地は鉄ではないので、錆付けはしない（職人に聞く）
+    expect(steps.find((s) => s.id === "nunome_ground")!.text).toContain("錆付け・焼き付けはしない");
+  });
+
+  it("色金なら、錆付けのかわりに煮色で地の色を出す（煮色は象嵌のあと）", () => {
+    const steps = make("shakudo");
+    const ids = steps.map((s) => s.id);
+    expect(steps.find((s) => s.id === "nunome_ground")!.text).toContain("煮色");
+    expect(steps.find((s) => s.id === "nunome")!.title).toContain("純金");
+    expect(ids.indexOf("nunome_ground")).toBeLessThan(ids.indexOf("niiro"));
   });
 });

@@ -14,7 +14,7 @@ import { springForClaude, springIdOf, tensionCautions, tensionSpring } from "../
 import { GUIDES, requiredHold, stoneSizeMm, type Guides, type HeightOption, type MetalId, type StonePosition } from "../rules/guides";
 import { effectiveGuides, prongMinOverride, ruleForCheck, type Ledger, type Rule } from "../rules/ledger";
 import { INPUT_BOUNDS } from "../claude/tools";
-import { finishWords, hasFinish, type RingFinish } from "../geometry/finish";
+import { finishWords, hasFinish, tsuchimeSpec, tsuchimeStyleOf, type RingFinish } from "../geometry/finish";
 import type {
   CheckResult,
   FinishInput,
@@ -300,6 +300,8 @@ export const METAL_LABEL: Record<Metal, string> = { pt900: "Pt900", k18yg: "K18 
 
 /** 直し方「槌目を小さくする」の行き先：1 段小さく（いちばん小さければ、やめる） */
 export function smallerTsuchime(f: RingFinish | undefined): NonNullable<FinishInput["tsuchime"]> {
+  // 荒らし槌目は大きさを選ばない（いちばん浅い）。小さくできないので、やめる
+  if (f?.tsuchime && tsuchimeStyleOf(f.tsuchime) === "arashi") return "none";
   const size = f?.tsuchime?.size;
   return size === "large" ? "medium" : size === "medium" ? "small" : "none";
 }
@@ -308,7 +310,8 @@ export function smallerTsuchime(f: RingFinish | undefined): NonNullable<FinishIn
 export function finishFrom(input: FinishInput, prev: RingFinish | undefined): RingFinish | undefined {
   const out: RingFinish = { ...(prev ?? {}) };
   if (input.tsuchime === "none") delete out.tsuchime;
-  else if (input.tsuchime) out.tsuchime = { size: input.tsuchime, area: input.tsuchime_area ?? out.tsuchime?.area ?? "outer" };
+  else if (input.tsuchime) out.tsuchime = { size: input.tsuchime, area: input.tsuchime_area ?? out.tsuchime?.area ?? "outer", style: input.tsuchime_style ?? out.tsuchime?.style ?? "maru" };
+  else if (input.tsuchime_style) out.tsuchime = { size: out.tsuchime?.size ?? "medium", area: input.tsuchime_area ?? out.tsuchime?.area ?? "outer", style: input.tsuchime_style };
   else if (input.tsuchime_area && out.tsuchime) out.tsuchime = { ...out.tsuchime, area: input.tsuchime_area };
   if (input.milgrain === "none") delete out.milgrain;
   else if (input.milgrain) out.milgrain = input.milgrain;
@@ -320,7 +323,7 @@ export function finishFrom(input: FinishInput, prev: RingFinish | undefined): Ri
 /** 仕上げの返事（Claude へ）：選んだ仕上げと、ミルの粒の数・大きさ */
 export function finishOut(f: RingFinish, ring: RingDesign): FinishState {
   return {
-    ...(f.tsuchime ? { tsuchime: f.tsuchime.size, tsuchime_area: f.tsuchime.area, tsuchime_mark_mm: GUIDES.finish.tsuchime[f.tsuchime.size].markMm } : {}),
+    ...(f.tsuchime ? { tsuchime: f.tsuchime.size, tsuchime_style: tsuchimeStyleOf(f.tsuchime), tsuchime_area: f.tsuchime.area, tsuchime_mark_mm: tsuchimeSpec(f.tsuchime).markMm } : {}),
     ...(f.milgrain ? { milgrain: f.milgrain, milgrain_beads: ring.milgrain?.count ?? 0, milgrain_bead_mm: ring.milgrain?.beadMm ?? GUIDES.finish.milgrain.beadMm } : {}),
     ...(f.inlay ? { inlay: f.inlay } : {}),
     words: finishWords(f).join("・"),
