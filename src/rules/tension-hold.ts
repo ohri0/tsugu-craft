@@ -120,7 +120,7 @@ function minDepthFor(capMm: number, demand: number, k: number, eta: number): num
   return capMm - Math.sqrt(d);
 }
 
-/** 深さの和と地金から、留めるのに要る詰める量・詰められる量・答え。squeezeMm を渡すと、その量で作ったときの外れにくさ */
+/** 深さの和と地金から、石を留めるのに縮める量・安全に縮められる量・答え。squeezeMm を渡すと、その量で作ったときの外れにくさ */
 export function tensionHold(input: HoldInput, g: Guides = GUIDES, squeezeMm?: number): HoldResult {
   const t = g.tension;
   const e = Math.max(0, input.depthSumMm);
@@ -217,6 +217,27 @@ export function tensionHoldSet(table: SpringTable, massG: number, metal: SpringM
   return { now, atAppSqueeze, options };
 }
 
+/**
+ * 画面・作り方・図面の表題欄で使う言葉（作者の声 2026-11-07：「留めるのに要る詰める量」「詰められる量（太い輪の分）」「詰められる上限（細い輪の式）」が分かりにくい）。
+ * 「詰める」を「（開きを）縮める」に、式の名前を「安全に」「限界」に言いかえた。言葉はここ 1 か所
+ */
+export const HOLD_WORDS = {
+  /** 留めるのに要る詰める量（needSqueezeMm） */
+  need: "石を留めるのに縮める量",
+  /** 腕が戻れる範囲で詰められる量・太い輪の分（safeSqueezeMm） */
+  safe: "安全に縮められる量",
+  /** 詰められる上限・細い輪の式（limitSqueezeMm） */
+  limit: "縮められる限界",
+  /** 図面の開き（石が入ったとき） */
+  gap: "図面の開き",
+  /** 作る時の開き（makeGapMm） */
+  make: "作る時の開き",
+  /** 広げて入れる量（spreadMm） */
+  spread: "石を入れる時に広げる量",
+  /** 広げられる限界（細い輪の式。limitMm） */
+  spreadLimit: "広げられる限界",
+} as const;
+
 /** 前提の一言（画面と作り方） */
 export const HOLD_PREMISE =
   "外れにくさの目安：指輪を落として石から当たったとき、腕が石の深さの分だけ開かされる仕事で受け止められるか、の大まかな計算です。落とす高さ・摩擦・壁の傾きは仮の値です。合否にはしません。最後は職人が決めます";
@@ -224,7 +245,7 @@ export const HOLD_PREMISE =
 /** 短い答えの文（作り方・図面） */
 export function holdSummary(h: HoldResult, name: string): string {
   const need = Number.isFinite(h.needSqueezeMm) ? `約 ${h.needSqueezeMm.toFixed(2)} mm` : "決まらない（深さが 0）";
-  return `${HOLD_VERDICT_LABEL[h.verdict]}（${name}・深さの和 ${h.depthSumMm.toFixed(2)} mm：留めるのに要る詰める量 ${need}、詰められる量 約 ${h.safeSqueezeMm.toFixed(2)} mm・上限 約 ${h.limitSqueezeMm.toFixed(2)} mm。落とす高さ ${(h.dropMm / 1000).toFixed(1)} m の仮の目安）`;
+  return `${HOLD_VERDICT_LABEL[h.verdict]}（${name}・深さの和 ${h.depthSumMm.toFixed(2)} mm：${HOLD_WORDS.need} ${need}、${HOLD_WORDS.safe} 約 ${h.safeSqueezeMm.toFixed(2)} mm・${HOLD_WORDS.limit} 約 ${h.limitSqueezeMm.toFixed(2)} mm。落とす高さ ${(h.dropMm / 1000).toFixed(1)} m の仮の目安）`;
 }
 
 const r2 = (v: number | null) => (v === null || !Number.isFinite(v) ? null : Math.round(v * 100) / 100);

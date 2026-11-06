@@ -20,7 +20,7 @@ export type TensionMode = "corner-edge" | "edge-edge" | "corner-corner";
  * short：いちばん狭い幅を挟む（長い向きは指に沿って、腕の幅の外へ出る）。三角では、いちばん長い辺を溝に・向かいの角をくぼみに。
  * long：長い向きを挟む（短い辺や丸い端を溝に）。corner：向かい合う 2 つの角をくぼみに。
  * side：三角だけ。いちばん短い辺を溝に・反対の角（いちばん長い辺の片はし）をくぼみに。角から辺までが short より長い所を挟む。
- * 作者が実際に作った指輪の向き（職人 石川 2026-11-07「角を 1 個入れて、辺を 1 個溝に落とした」。くぼみも溝も 0.5 mm くらい）。
+ * 作者が実際に作った指輪の向き（職人 石川 2026-11-07「角を 1 個入れて、辺を 1 個溝に落とした」。角のくぼみ 0.4 mm・辺の溝 0.3 mm くらい。見た感じの値）。
  */
 export type TensionGrip = "short" | "long" | "corner" | "side";
 
@@ -392,7 +392,7 @@ export function buildTensionBand(p: ShankParams, stone: StoneParams, o: TensionO
   const clear = o.clearanceMm ?? g.clearanceMm;
   // 石の向き：上から見て回し、くぼみの幅の真ん中（なければ石の真ん中）を腕の幅の真ん中へ
   const pose = stonePose(stone, o.grip);
-  // 深さ：三角の短い辺を溝に・反対の角をくぼみに入れるときは、作者が実際に作った指輪の値（職人 2026-11-07。くぼみも溝も 0.5 mm）。ほかは角と辺の値
+  // 深さ：三角の短い辺を溝に・反対の角をくぼみに入れるときは、作者が実際に作った指輪の値（職人 2026-11-07。角のくぼみ 0.4・辺の溝 0.3 mm）。ほかは角と辺の値
   const sideTri = pose.grip === "side";
   const pitDepth = o.cornerPitMm ?? (sideTri ? g.shortSidePitMm : g.cornerPitMm);
   const grooveDepth = o.edgeGrooveMm ?? (sideTri ? g.shortSideGrooveMm : g.edgeGrooveMm);

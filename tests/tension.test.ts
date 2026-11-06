@@ -426,7 +426,7 @@ describe("帳面と作り方", () => {
     const text = JSON.stringify(howTo("hand"));
     expect(text).toContain("職人が決める");
     const close = howTo("hand").find((s) => s.id === "tension_close")!;
-    expect(close.specs.find((x) => x.label === "詰める量")!.value).toContain("職人が決める");
+    expect(close.specs.find((x) => x.label === "縮める量")!.value).toContain("職人が決める");
   });
 
   it("鋳造でも工程が出て、硬さは職人が決める", () => {
