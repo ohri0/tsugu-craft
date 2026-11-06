@@ -5,11 +5,11 @@ import { openEdges } from "../src/cad/solid";
 import { buildRing } from "../src/geometry/ring";
 import { buildShank, sectionOutline, type ShankParams, type ShankStation } from "../src/geometry/shank";
 import { commonRows, pchip } from "../src/geometry/shank-loft";
-import { makeReliefField, reliefPattern } from "../src/geometry/shank-relief";
+import { makeReliefField, reliefPattern, RELIEF_KINDS } from "../src/geometry/shank-relief";
 import { sectionCurveProblem } from "../src/geometry/section-input";
 import { checkRing, checkShank, grooveNote, outlineValleys, shankWidthNote } from "../src/rules/checks";
 import { GUIDES, innerDiameterMm } from "../src/rules/guides";
-import { parseToolCall, TOOLS } from "../src/claude/tools";
+import { parseToolCall, RELIEF_PATTERNS, TOOLS } from "../src/claude/tools";
 import { seedLedger } from "../src/rules/ledger";
 import { PRESETS, presetOutline } from "../src/studio/presets";
 import { RingSession, bandFixInput, carryDesign, DEFAULT_STATE, reliefFixInput } from "../src/studio/session";
@@ -372,7 +372,7 @@ describe("設計の場（session）", () => {
 
 describe("腕の彫り", () => {
   const relief = { kind: "arch" as const, count: 3, depthMm: 0.25, fromDeg: 25, toDeg: 100 };
-  it.each(["arch", "diamond", "wave", "beads", "lines", "leaf"] as const)("%s：腕の間に挟む石座でも閉じた 1 つの形で、内径と腕の端は変わらない", (kind) => {
+  it.each(["arch", "diamond", "wave", "beads", "lines", "leaf", "chevron", "zigzag", "fan", "steps", "panel", "flutes"] as const)("%s：腕の間に挟む石座でも閉じた 1 つの形で、内径と腕の端は変わらない", (kind) => {
     const stone = roundStone();
     const setting = { style: "prong" as const, height: "standard" as const, join: "between" as const };
     const shank = { gou: 11, widthMm: 2.8, thicknessMm: 1.8, section: "hirauchi" as const };
@@ -488,7 +488,7 @@ describe("腕の彫りの仕上がり（作者の声：縁がギザギザ、ブ�
   });
 
   it("腕の縁には彫らない", () => {
-    for (const kind of ["arch", "diamond", "wave", "beads", "lines", "leaf"] as const) {
+    for (const kind of RELIEF_KINDS) {
       for (let u = 0; u < 6; u += 0.013) {
         // 外の面の線の長さの半分 1.5 mm のとき、縁から 0.12 mm の内までは、どの模様も深さ 0
         expect(reliefPattern(kind, u, 1.5 - 0.1, 4, 1.5, 1), kind).toBe(0);
@@ -610,3 +610,139 @@ describe("段と溝の断面（モールディング）と、重ねる彫り", (
   });
 });
 
+describe("線の性格の模様（直線・段・くり返し・放射）", () => {
+  // 外の面の線の長さの半分 2.5 mm・升の長さ 2 mm の帯で、模様の深さを格子に取る
+  const ARC = 2.5;
+  const L = 2;
+  const grid = (kind: (typeof RELIEF_KINDS)[number], cols = 1) => {
+    const out: number[][] = [];
+    for (let i = 0; i <= 120; i++) {
+      const row: number[] = [];
+      for (let j = 0; j <= 100; j++) row.push(reliefPattern(kind, 1 + i / 60, -ARC + (j / 100) * 2 * ARC, L, ARC, cols));
+      out.push(row);
+    }
+    return out;
+  };
+
+  it("道具の模様の名前は、形の処理の模様と同じ並び", () => {
+    expect([...RELIEF_PATTERNS]).toEqual([...RELIEF_KINDS]);
+    for (const kind of RELIEF_KINDS) expect(parseToolCall("set_shank", { relief: { pattern: kind }, reason: "x" }).ok, kind).toBe(true);
+  });
+
+  it.each(["chevron", "zigzag", "fan", "steps", "panel", "flutes"] as const)("%s：深さは 0〜1 で、左右対称（腕の真ん中の線で折り返すと同じ）", (kind) => {
+    const g = grid(kind);
+    let any = 0;
+    for (const row of g)
+      for (let j = 0; j <= 100; j++) {
+        expect(row[j]).toBeGreaterThanOrEqual(0);
+        expect(row[j]).toBeLessThanOrEqual(1 + 1e-9);
+        // zigzag は列の真ん中で折り返さない（振れる線）。それ以外は左右対称
+        if (kind !== "zigzag") expect(row[j]).toBeCloseTo(row[100 - j], 9);
+        any = Math.max(any, row[j]);
+      }
+    expect(any).toBeGreaterThan(0.5);
+  });
+
+  it("山形：V の先は石座の側を向く（真ん中の線が、列の縁より石座に近い）", () => {
+    // 1 本の V の線：真ん中（x = 0）と縁の近く（x = 1.6）で、いちばん深い所の u を探す
+    const peakU = (x: number) => {
+      let best = 0;
+      let bu = 0;
+      for (let u = 1; u < 2; u += 0.002) {
+        const d = reliefPattern("chevron", u, x, L, ARC, 1);
+        if (d > best) [best, bu] = [d, u];
+      }
+      return bu;
+    };
+    const mid = peakU(0);
+    const side = peakU(1.6);
+    // 縁の方が石座から遠い（u が大きい）。ただし 1 升の中で
+    expect(((side - mid + 1) % 1)).toBeGreaterThan(0.2);
+  });
+
+  it("段の窓：平らな面が段々に深くなる（深さが 3 つの平らな値に分かれ、真ん中がいちばん深い）", () => {
+    const vals = new Map<number, number>();
+    for (let u = 1; u < 2; u += 0.01)
+      for (let x = -2; x <= 2; x += 0.02) {
+        const d = reliefPattern("steps", u, x, L, ARC, 1);
+        if (d > 0.01) vals.set(Math.round(d * 3), (vals.get(Math.round(d * 3)) ?? 0) + 1);
+      }
+    // 1/3・2/3・1 の面が、それぞれ広く出る
+    for (const k of [1, 2, 3]) expect(vals.get(k) ?? 0).toBeGreaterThan(200);
+    expect(reliefPattern("steps", 1.5, 0, L, ARC, 1)).toBeCloseTo(1, 3);
+  });
+
+  it("平行の溝：腕に沿って続き（升で切れない）、幅の向きに 3 本以上並ぶ", () => {
+    for (const x of [-1.5, -0.3, 0.4, 1.2]) {
+      const a = reliefPattern("flutes", 1.1, x, L, ARC, 1);
+      for (let u = 1.1; u < 3; u += 0.07) expect(reliefPattern("flutes", u, x, L, ARC, 1)).toBeCloseTo(a, 9);
+    }
+    let crossings = 0;
+    let prev = 0;
+    for (let x = -2.4; x <= 2.4; x += 0.005) {
+      const d = reliefPattern("flutes", 1.5, x, L, ARC, 1);
+      if (d > 0.5 && prev <= 0.5) crossings++;
+      prev = d;
+    }
+    expect(crossings).toBeGreaterThanOrEqual(3);
+  });
+
+  it("扇：かなめの側（石座から遠い側）は狭く、石座の側へ広がる", () => {
+    const widthAt = (y: number) => {
+      let lo = Infinity;
+      let hi = -Infinity;
+      for (let x = -2.4; x <= 2.4; x += 0.01)
+        if (reliefPattern("fan", 1 + y / L, x, L, ARC, 1) > 0.3) {
+          lo = Math.min(lo, x);
+          hi = Math.max(hi, x);
+        }
+      return hi - lo;
+    };
+    expect(widthAt(0.6)).toBeGreaterThan(widthAt(1.6) + 0.5);
+  });
+
+  it("帯が真ん中から始まると、真ん中をまたぐ 1 つの窓になる（真ん中の線で 2 つに割れない）", () => {
+    // 段の窓：いちばん深い所が真ん中に来る
+    expect(reliefPattern("steps", 1.5, 0, L, ARC, 1, [0, 0.5])).toBeCloseTo(1, 3);
+    // 長方形の区切り：真ん中に縦の線が出ない（底の浅い平らな面のまま）
+    expect(reliefPattern("panel", 1.5, 0, L, ARC, 1, [0, 0.5])).toBeCloseTo(0.5, 3);
+    // 帯が真ん中から離れていれば、今までどおり左右に 1 つずつ
+    expect(reliefPattern("steps", 1.5, 0, L, ARC, 1, [0.1, 0.5])).toBe(0);
+  });
+
+  it("帯に収めると、帯の外には彫らない（新しい模様も）", () => {
+    for (const kind of ["chevron", "zigzag", "fan", "steps", "panel", "flutes"] as const)
+      for (let u = 0; u < 3; u += 0.05) {
+        expect(reliefPattern(kind, u, 0.2, 3, 2.5, 1, [0.3, 0.6]), kind).toBe(0);
+        expect(reliefPattern(kind, u, 1.8, 3, 2.5, 1, [0.3, 0.6]), kind).toBe(0);
+      }
+  });
+
+  it("新しい模様と、平らな段の断面・場所ごとの形を重ねても、閉じた 1 つの形で、彫りの下に地金が残る", () => {
+    const mirror = (half: { x: number; y: number }[]) => [...half, ...[...half].reverse().filter((q) => q.x !== 0).map((q) => ({ x: -q.x, y: q.y }))];
+    const c2 = (x: number, y: number) => [{ x, y }, { x, y }];
+    // 平らな上面を段々に重ねた断面（真ん中は尖らせない）
+    const TERRACE = mirror([{ x: 1, y: 0 }, ...c2(1, 0.5), ...c2(0.78, 0.5), ...c2(0.78, 0.72), ...c2(0.5, 0.72), ...c2(0.5, 0.9), ...c2(0.2, 0.9), ...c2(0.2, 1), { x: 0, y: 1 }]);
+    const r = buildRing({
+      stone: triangleStone(),
+      setting: { style: "prong", height: "standard", join: "on" },
+      shank: {
+        gou: 11,
+        widthMm: 4.5,
+        thicknessMm: 2.8,
+        section: "free",
+        sectionCurve: { points: TERRACE },
+        stations: [
+          { atDeg: 60, widthMm: 6, thicknessMm: 3.4, curve: { points: TERRACE } },
+          { atDeg: 180, widthMm: 4, thicknessMm: 2, section: "hirauchi" },
+        ],
+        relief: { kind: "steps", count: 5, depthMm: 0.35, fromDeg: 30, toDeg: 105, across: [0.52, 0.76] },
+        reliefMore: [{ kind: "chevron", count: 9, depthMm: 0.3, fromDeg: 30, toDeg: 105, across: [0, 0.18] }, { kind: "fan", count: 2, depthMm: 0.3, fromDeg: 110, toDeg: 140 }],
+      },
+    });
+    expect(openEdges(r.shank.positions)).toBe(0);
+    expect(components(r.shank.positions)).toBe(1);
+    expect(r.shank.relief!.localUnderMm).toBeGreaterThanOrEqual(GUIDES.band.relief.keepMm - 1e-9);
+    expect(innerRadius(r.shank.positions)).toBeCloseTo(innerDiameterMm(11) / 2, 3);
+  });
+});

@@ -156,7 +156,7 @@ const METAL: Record<string, string> = { pt900: "プラチナ", k18yg: "18 金イ
 const SECTION: Record<string, string> = { kouman: "甲丸", hirauchi: "平甲丸", hangouman: "平甲丸", kaku: "角", maru: "丸線", free: "手で描いた形" };
 const VIEW: Record<string, string> = { top: "上から", side: "横から", front: "正面から", angle: "斜めから" };
 const LAYOUT: Record<string, string> = { solo: "一粒", trio: "三石", row: "横一列" };
-const RELIEF: Record<string, string> = { arch: "尖ったアーチ", diamond: "菱の格子", wave: "波の線", beads: "粒", lines: "横の筋", leaf: "葉とつる", mil: "縁の粒", blade: "尖った葉" };
+const RELIEF: Record<string, string> = { arch: "尖ったアーチ", diamond: "菱の格子", wave: "波の線", beads: "粒", lines: "横の筋", leaf: "葉とつる", mil: "縁の粒", blade: "尖った葉", chevron: "山形", zigzag: "ジグザグ", fan: "扇", steps: "段の窓", panel: "長方形の区切り", flutes: "平行の溝" };
 const TOOL_WORD: Record<string, string> = { set_setting: "石座", set_shank: "腕", set_stones: "石の並び", choose_stone: "石", check: "確かめ", look: "見る" };
 
 const num = (v: unknown) => (typeof v === "number" ? String(Math.round(v * 100) / 100) : String(v));
