@@ -110,7 +110,7 @@ export function whyHtml(opts: { standalone?: boolean } = {}): string {
         <figure><figcaption>これまで</figcaption>${flowBeforeSvg()}</figure>
         <figure><figcaption>継ぐがあると</figcaption>${flowAfterSvg()}</figure>
       </div>
-      <p>継ぐの中で、デザインと設計を、職人の判断で確かめながら進めます。だから制作まで進み、戻りは極限まで少なくなります。設計も制作も、人の仕事のままです。</p>
+      <p>継ぐの中で、デザインと設計を、職人の判断で確かめながら進めます。だから制作まで進み、戻りは極限まで少なくなります。</p>
     </div>
   </section>
 
