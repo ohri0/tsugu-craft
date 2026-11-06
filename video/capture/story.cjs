@@ -33,12 +33,12 @@ const SIZE = { ledger3m: [480, 900], waza3m: [480, 900], learn3m: [480, 900], le
   // 最終案 10：全体を見せてから寄る。設計は 1280×720 の 3 倍、帳面・学ぶ・技は 960×540 の 4 倍（全体はそのまま縮め、寄るときは切り抜く）
   word10: [1280, 720], gothic10: [1280, 720], reason10: [1280, 720], make10: [1280, 720], ask10: [960, 540], learn10: [960, 540], rebuild10: [960, 540], ledger10: [960, 540],
   // 最終案 10（作者の声：実際に使っている所を中心に）：手で変える操作と、生成のあとに人が直す流れ
-  ops11: [1280, 720], gothic11: [1280, 720], moyou11: [1280, 720], deco11: [1280, 720], gen12: [1280, 720], learn11: [960, 540] };
+  ops11: [1280, 720], gothic11: [1280, 720], moyou11: [1280, 720], deco11: [1280, 720], gen12: [1280, 720], learn11: [960, 540], ops12: [1280, 720] };
 const DSF = { photo9: 3, gothic9: 3, reason9: 3, make9: 3, word9: 4, ask9: 4, learn9: 4,
-  word10: 3, gothic10: 3, reason10: 3, make10: 3, ask10: 4, learn10: 4, rebuild10: 4, ledger10: 4, ops11: 3, gothic11: 3, moyou11: 3, deco11: 3, gen12: 3, learn11: 4 };
+  word10: 3, gothic10: 3, reason10: 3, make10: 3, ask10: 4, learn10: 4, rebuild10: 4, ledger10: 4, ops11: 3, gothic11: 3, moyou11: 3, deco11: 3, gen12: 3, learn11: 4, ops12: 3 };
 // マウスの印の大きさ（4 倍で撮る章で大きくなりすぎないように）
 const CURK = { word9: 0.5, ask9: 0.5, learn9: 0.5, photo9: 0.72, gothic9: 0.72, reason9: 0.72, make9: 0.72,
-  word10: 0.8, gothic10: 0.8, reason10: 0.8, make10: 0.8, ask10: 0.62, learn10: 0.62, rebuild10: 0.62, ledger10: 0.62, ops11: 0.8, gothic11: 0.8, moyou11: 0.8, deco11: 0.8, gen12: 0.8, learn11: 0.62 };
+  word10: 0.8, gothic10: 0.8, reason10: 0.8, make10: 0.8, ask10: 0.62, learn10: 0.62, rebuild10: 0.62, ledger10: 0.62, ops11: 0.8, gothic11: 0.8, moyou11: 0.8, deco11: 0.8, gen12: 0.8, learn11: 0.62, ops12: 0.8 };
 // 最終案 9：本物の Claude の返事を章ごと・順番ごとに覚える（work/story/_claude9/）。撮り直しでは覚えた返事を使うので、Claude は呼ばない（呼ぶのは最初の 1 回だけ）
 const CLAUDE9 = new Set(['word9', 'ask9', 'learn9', 'gothic9', 'reason9', 'word10', 'ask10', 'learn10', 'gothic10', 'reason10', 'gothic11', 'deco11', 'gen12', 'learn11']);
 // 最終案 10：同じ操作の章は、前に覚えた本物の Claude の返事をそのまま使う（新しく呼ばない）。gothic11 は gothic10（今のアプリで本物の Claude が組んだ「ゴシックな感じ」）の返事
@@ -49,8 +49,11 @@ const CLAUDE_ALIAS = { word10: 'word9', ask10: 'ask9', learn10: 'learn9', gothic
   gen12: process.env.GEN_TAG === 'gothic10' ? 'gothic10' : `${process.env.GEN_TAG || 'goth12'}_t${process.env.DECO_USE || process.env.DECO_TRY || '1'}` };
 // 覚えた返事を返す前に待つ時間（ミリ秒。作業の記録が 1 行ずつ増える所を撮るため）
 const CLAUDE9_WAIT = { gothic9: 1600, gothic10: 1600, gothic11: 1600, deco11: 1600, gen12: 1600 };
+// 返事を覚える所。言葉で頼む場面（deco11）は DECO_REPLY_DIR で、ほかの所に置いた本物の返事（000.json…、API の返事そのまま）も使える
+// （アールデコの形を新しい候補に替えるとき：その候補の返事の所を DECO_REPLY_DIR に、または _claude9/deco11_t<番号>/ に置いて DECO_USE=<番号>）
+const claudeDir = (name) => (name === 'deco11' && process.env.DECO_REPLY_DIR) ? process.env.DECO_REPLY_DIR : `${OUT}/_claude9/${CLAUDE_ALIAS[name] || name}`;
 async function cacheClaude(p, name) {
-  const dir = `${OUT}/_claude9/${CLAUDE_ALIAS[name] || name}`;
+  const dir = claudeDir(name);
   fs.mkdirSync(dir, { recursive: true });
   let k = 0;
   await p.route('**/api/claude', async (route) => {
@@ -3343,7 +3346,7 @@ const genChapter = (chName) => async (a) => {
     if (res.probs.length) console.log('deco11 ！！ 作れます で終わっていない（この回は使わない）');
     console.log('deco11 作業の記録', res.worklog.join(' ／ '));
     // Claude を呼んだ回数と、道具を呼んだ回数（覚えた返事から数える）
-    const dir = `${OUT}/_claude9/${CLAUDE_ALIAS[chName]}`;
+    const dir = claudeDir(chName);
     let calls = 0, tools = 0; const names = {};
     if (fs.existsSync(dir)) for (const f of fs.readdirSync(dir).filter((x) => /^\d+\.json$/.test(x)).sort()) {
       calls++;
@@ -3351,7 +3354,8 @@ const genChapter = (chName) => async (a) => {
     }
     fs.mkdirSync(`${OUT}/_deco`, { recursive: true });
     const stem = tag === 'deco11' ? `try${tryNo}` : `${tag}_try${tryNo}`;
-    fs.writeFileSync(`${OUT}/_deco/${stem}.json`, JSON.stringify({ wish: DECO_WISH, try: Number(tryNo), cache: CLAUDE_ALIAS[chName], at: new Date().toISOString(), seconds: secs, apiCalls: calls, toolCalls: tools, toolNames: names, ...res }, null, 1));
+    // 記録は試す回（DECO_ONLY）だけ書く。撮り直し（覚えた返事）で書くと、本物の回の秒が上書きされる（2026-11-06 一度上書きした）
+    if (only) fs.writeFileSync(`${OUT}/_deco/${stem}.json`, JSON.stringify({ wish: DECO_WISH, try: Number(tryNo), cache: CLAUDE_ALIAS[chName], at: new Date().toISOString(), seconds: secs, apiCalls: calls, toolCalls: tools, toolNames: names, ...res }, null, 1));
     console.log('deco11 Claude', calls, '回・道具', tools, '回', JSON.stringify(names), secs, '秒');
     if (only) {
       // 形を見るための静止画（撮影のこまとは別。斜め・横・上）
@@ -3506,6 +3510,88 @@ Object.assign(CH, {
     await a.settle(600);
     a.mark('whole');
     await a.hold(N(150), { turn: TURN9 * 0.8, hide: true });
+  },
+});
+// 手で変える（最終案 12。作者の声：ゆっくり 1 つより、短く何種類かを。描くそばから確かめるのが分かるように）
+//   断面の点を外へ引きすぎる → 断面の図と 3D の腕が赤く → 少し戻すと赤が消える ／ 確かめるで爪を押す → 尖り爪 → 土台を太く、先を力強く ／ 留め方 6 本爪 → 覆輪
+Object.assign(CH, {
+  ops12: async (a) => {
+    const { p } = a;
+    await studioNow9(a); await builtNow9(a);
+    await p.addStyleTag({ content: OPS_CSS11 });
+    await blackVp11(a);
+    await p.evaluate(() => document.querySelector('.ring-shape [data-sec="hirauchi"]')?.click());
+    await fine(a, 200);
+    await p.evaluate(() => { const d = document.querySelector('.ring-shape details.ring-draw'); if (d) d.open = true; });
+    await a.settle(400);
+    await p.evaluate(() => { const e = document.querySelector('.ring-shape details.ring-draw .sec-edit svg'); const c = document.querySelector('.make-panel'); if (e && c) c.scrollTop += e.getBoundingClientRect().top - c.getBoundingClientRect().top - 150; });
+    await a.settle(300);
+    await frame11(a, DIR11, 0.7, 170);
+    a.mark('full'); await a.box('sec', '.ring-shape details.ring-draw .sec-edit', 4);
+    await a.hold(N(14), { turn: TURN9 });
+    const side = await p.evaluate(() => {
+      const svg = document.querySelector('.ring-shape details.ring-draw .sec-edit svg'); const sr = svg.getBoundingClientRect();
+      const gs = [...svg.querySelectorAll('g.se-h:not(.ghost)')].map((g) => { const r = g.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+      gs.sort((q, w) => q.y - w.y);
+      return gs.filter((q) => q.y > gs[0].y + 12 && q.y < sr.y + sr.height - 30).sort((q, w) => w.x - q.x)[0];
+    });
+    // 外へ引きすぎる（赤）→ 押さえたまま少し戻す（赤が消える）
+    await a.move(side, 14, { turn: TURN9 });
+    await a.shot({ rip: 1, turn: TURN9 });
+    await p.mouse.down();
+    a.mark('grab');
+    const path = (from, to, n) => Array.from({ length: n }, (_, k) => { const e = ease((k + 1) / n); return { x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e }; });
+    const out = { x: side.x + 46, y: side.y - 6 };
+    for (const q of path(side, out, 16)) { await p.mouse.move(q.x, q.y); await a.shot({ rip: 0.55, turn: TURN9 }); }
+    await p.mouse.up();
+    await a.shot({ rip: 0.3, turn: TURN9 });
+    await fine(a, 150);
+    a.mark('red'); console.log('ops12 引きすぎ', JSON.stringify(await probsOf(p)), await p.evaluate(() => document.querySelector('.verdict-chip')?.innerText), await p.evaluate(() => document.querySelector('.ring-shape .se-read')?.innerText.replace(/\s+/g, ' ')));
+    for (let k = 0; k < N(20); k++) await a.shot({ turn: TURN9 });
+    // つまみ直して、少し戻す
+    await a.shot({ rip: 1, turn: TURN9 });
+    await p.mouse.down();
+    const back = { x: side.x + 8, y: side.y };
+    for (const q of path(out, back, 14)) { await p.mouse.move(q.x, q.y); await a.shot({ rip: 0.55, turn: TURN9 }); }
+    await p.mouse.up();
+    await a.shot({ rip: 0.3, turn: TURN9 });
+    await fine(a, 150);
+    a.mark('back'); console.log('ops12 戻した', JSON.stringify(await probsOf(p)), await p.evaluate(() => document.querySelector('.verdict-chip')?.innerText));
+    await a.hold(N(20), { turn: TURN9 });
+    // 確かめるへ：爪を押して形を変える
+    await a.press('.tabs [data-mode="refine"]', { n: 16, after: 0, turn: TURN9 });
+    await a.settle(600);
+    await blackVp11(a);
+    await frame11(a, { x: 0.62, y: -0.95, z: 0.62 }, 0.66, -170);
+    a.mark('refine');
+    await a.hold(N(8), { turn: 0.0008 });
+    const ps = [];
+    for (let i = 0; i < 3; i++) ps.push({ i, ...(await prongAt11(p, i)) });
+    ps.sort((q, w) => q.dist - w.dist);
+    await a.press({ x: ps[0].x, y: ps[0].y }, { n: 16, after: 2 });
+    a.mark('pop'); await a.box('pop', '.prong-pop', 6);
+    await a.hold(N(8));
+    await a.press('.prong-pop [data-tip="oni"]', { n: 12, after: 0 });
+    await fine(a, 150);
+    a.mark('oni'); console.log('ops12 尖り爪', await p.evaluate(() => document.querySelector('.verdict-chip')?.innerText));
+    await a.hold(N(14));
+    await a.press('.prong-pop .pp-strong', { n: 12, after: 0 });
+    await fine(a, 150);
+    a.mark('strong'); console.log('ops12 土台を太く', await p.evaluate(() => document.querySelector('.verdict-chip')?.innerText));
+    await a.hold(N(16));
+    await a.press('.prong-pop .pp-x', { n: 10, after: 2 });
+    // 留め方を変える（手で変える欄の留め方）
+    await a.scroll('.studio-refine [data-k="留め方"][data-v="6"]', { block: 'center', n: 12 });
+    a.mark('setting'); await a.box('settingRow', '.studio-refine .pick:has([data-k="留め方"])', 6);
+    await a.hold(N(6));
+    await a.press('.studio-refine [data-k="留め方"][data-v="6"]', { n: 12, after: 0 });
+    await fine(a, 200);
+    a.mark('six'); console.log('ops12 6 本爪', await p.evaluate(() => document.querySelector('.verdict-chip')?.innerText), JSON.stringify(await probsOf(p)));
+    await a.hold(N(16));
+    await a.press('.studio-refine [data-k="留め方"][data-v="bezel"]', { n: 10, after: 0 });
+    await fine(a, 200);
+    a.mark('bezel'); console.log('ops12 覆輪', await p.evaluate(() => document.querySelector('.verdict-chip')?.innerText), JSON.stringify(await probsOf(p)));
+    await a.hold(N(24), { hide: true });
   },
 });
 // 学ぶ（最終案 11）：作者の決めた、少し専門的で具体的な問い。答えは帳面の「三角の石を 3 本爪で留めるとき」の決まりから出るはず（職人・日付が映るか確かめる）

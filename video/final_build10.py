@@ -26,7 +26,6 @@ VOICE = {
     1: "私は、彫金の職人です。",
     2: "作れるかどうかの判断は、職人の頭の中にあります。",
     3: "職人がいなくなれば、その判断も消えます。",
-    4: "継ぐ。職人の判断を、次の人へ。",
     5: "職人は、ふだんの言葉で話すだけ。",
     6: "Claude が、それを数字のついた決まりに書き直します。",
     7: "職人がよければ、帳面に残ります。",
@@ -39,7 +38,7 @@ VOICE = {
     20: "3D モデルをもとに、鋳造でも鍛造でも、作り方を自動で作成します。",
     21: "次に、学ぶ人へ。",
     22: "学校では、独自のデザインは、先生に聞くしかありません。",
-    23: "長いときは 1 時間待ちます。",
+    23: "先生は少なく、長いときは 1 時間ほど待つこともあります。",
     24: "継ぐなら、すぐ答えが出ます。",
     27: "そして、次の時代へ。",
     28: "伝統的工芸品の作り手は、約 6 割減りました。",
@@ -73,42 +72,48 @@ REAL_KEBORI = has_foot("raw/kebori.mov", "kebori.mov")    # 毛彫りの手本�
 # 場面の並び。pre：声の前の間、post：声の後の間、gap：同じ場面の声の間、xf：前の場面との重ね（秒）。dip：黒をはさむ（章の変わり目）。hold：のばす分
 # ch は章（音楽の区切りと、確かめの表に使う）
 SCENES = [
-    dict(id="flame", ch="序", v=[1], pre=2.2, post=1.4, xf=0),
-    dict(id="hands0", ch="序", v=[2], pre=0.8, post=1.4, xf=0.9),
-    dict(id="vanish10", ch="序", v=[3], pre=0.8, post=2.4, xf=0.9),
-    dict(id="title10", ch="序", v=[4], pre=0.8, post=3.2, xf=0.8),
+    # 最終案 12（作者の声）：はじめの 3 行は、1 行ずつ間を開けて（各行のあとに 1 秒ほどの静けさ。間 ＝ post − 次の xf ＋ 次の pre）
+    dict(id="flame", ch="序", v=[1], pre=2.2, post=1.5, xf=0, fixed=True),
+    dict(id="hands0", ch="序", v=[2], pre=0.7, post=1.6, xf=0.9, fixed=True),
+    dict(id="vanish10", ch="序", v=[3], pre=0.6, post=2.0, xf=0.9, fixed=True),
+    # 題：「継ぐ。」（間）「職人の判断を、次の人へ。」。声は n42 → n41（結と同じ言葉）。絵も長めに
+    dict(id="title10", ch="序", v=[42, 41], gap=1.2, pre=0.9, post=1.8, xf=0.8, fixed=True),
     # 残す（最終案 11）：まず「言葉 → 決まり」を字だけでやさしく（声 n5〜n7）→ 本物の画面（全体 → 確かめるを押す → 入れる → 案 → これでいい → 帳面に入る。声なし）
-    dict(id="rule11", ch="残す", v=[5, 6, 7], gap=0.6, pre=0.9, post=1.4, xf=1.0, dip=True, fixed=True),
-    dict(id="word11", ch="残す", v=[], hold=8.6, xf=0.9),
+    dict(id="rule11", ch="残す", v=[5, 6, 7], gap=0.5, pre=0.9, post=1.0, xf=1.0, dip=True, fixed=True),
+    dict(id="word11", ch="残す", v=[], hold=6.8, xf=0.9),
     # 渡す 1：デザインする人へ。手で変える操作（声なし・見出し 1 つずつ）→ 言葉で頼む → 人が直す → 職人の言葉 → 図面と STL → 作り方
     dict(id="door1h", ch="渡す1", v=[10], pre=0.8, post=1.6, xf=1.0, dip=True),
-    dict(id="flow11", ch="渡す1", v=[11], pre=0.6, post=6.6, xf=0.8, fixed=True),
+    dict(id="flow11", ch="渡す1", v=[11], pre=0.6, post=7.6, xf=0.8, fixed=True),  # 継ぐがあれば を 3 秒以上
     # 操作の結果が、次の場面に重ねて替わる前に 1 秒ほど見えるように（hold ＝ 結果の秒 ＋ 約 1.1 秒 ＋ 次の重ね）
-    dict(id="section11", ch="渡す1", v=[], hold=5.0, xf=0.8),
-    dict(id="measure11", ch="渡す1", v=[], hold=4.85, xf=0.6),
+    # 手で変える（最終案 12）：短く 3 種類、パッ・パッ・パッと（描くそばから確かめる／爪を押して形を変える／留め方を変える）。寸法を引くは外した
+    dict(id="section12", ch="渡す1", v=[], hold=3.0, xf=0.8),
+    # 最終案 12：爪と留め方は、寄った絵へパッと切り替える（重ねると指輪が 2 つに見える）。1 つ 2 秒ほど
+    dict(id="prong12", ch="渡す1", v=[], hold=2.3, xf=0.0),
+    dict(id="setting12", ch="渡す1", v=[], hold=2.0, xf=0.0),
     dict(id="firstnow10", ch="渡す1", v=[13], pre=1.2, post=2.0, xf=0.9),
     dict(id="deco11", ch="渡す1", v=[15], pre=2.8, post=2.2, xf=0.8),
-    dict(id="fix11", ch="渡す1", v=[18, 19], gap=1.2, pre=4.2, post=2.2, xf=0.8, fixed=True),
-    dict(id="out11", ch="渡す1", v=[], hold=5.2, xf=0.8),
-    dict(id="make10", ch="渡す1", v=[20], pre=1.8, post=2.4, xf=0.8),
+    dict(id="fix11", ch="渡す1", v=[18, 19], gap=0.9, pre=4.2, post=1.6, xf=0.8, fixed=True),
+    dict(id="out11", ch="渡す1", v=[], hold=4.0, xf=0.8),
+    dict(id="make10", ch="渡す1", v=[20], pre=1.8, post=1.9, xf=0.8, fixed=True),  # 言い終わったあと 1 拍（作者の声）
 ] + ([dict(id="finished", ch="渡す1", v=[], hold=3.0, xf=0.8)] if REAL_FIN else []) + [
     dict(id="door2", ch="渡す2", v=[21], pre=0.8, post=1.6, xf=1.0, dip=True),
     dict(id="school10", ch="渡す2", v=[22, 23], gap=2.2, pre=0.8, post=2.2, xf=0.8),
-    dict(id="learn10", ch="渡す2", v=[24], pre=2.2, post=2.6, xf=0.8),
+    dict(id="learn10", ch="渡す2", v=[24], pre=2.8, post=4.0, xf=0.8, fixed=True),  # 問いを打つ・答え・職人の言葉を、それぞれ 2 秒以上
     dict(id="door3h", ch="渡す3", v=[27], pre=0.8, post=3.0, xf=1.0, dip=True),
     dict(id="stat", ch="渡す3", v=[28], pre=1.4, post=1.6, xf=1.0),
     dict(id="naiku", ch="渡す3", v=[29], pre=0.8, post=1.6, xf=0.9),
     # 職人が残す → 学ぶ人が受け取る：それぞれの画面を読める長さ（作者の声：移るのが速すぎる）。中の段の秒は kebori10 が声の頭から決める
-    dict(id="kebori10", ch="渡す3", v=[30], pre=0.8, post=8.0, xf=0.9, fixed=True),
+    dict(id="kebori10", ch="渡す3", v=[30], pre=0.8, post=7.0, xf=0.9, fixed=True),
     # 途切れた技：木目金の鐔（n32・n33）→ 模様の試し（別の係の新しい頁。頁の全体の上で n37「11 のうち 9」→ 段が順に出る → 最後の 3 枚に寄って n39）
     dict(id="mokume11", ch="途絶え", v=[32, 33], gap=1.0, pre=0.9, post=1.6, xf=1.0, dip=True),
-    dict(id="moyou11", ch="復元", v=[37, 39], pre=1.4, gap=2.3, post=1.6, xf=0.8, fixed=True),
+    dict(id="moyou11", ch="復元", v=[37, 39], pre=1.4, gap=1.6, post=1.2, xf=0.8, fixed=True),
     # 結（最終案 11）：アールデコの指輪 1 つだけ、ゆっくり回す（字なし）→ 題「継ぐ」と「職人の判断を、次の人へ。」
-    dict(id="decoring", ch="結", v=[], hold=4.4, xf=1.0, dip=True),
-    dict(id="title3", ch="結", v=[41, 42], gap=0.9, pre=0.8, post=2.2, xf=1.2),
+    # 結（最終案 12）：CG の指輪をやめ、実写の手元（磨いて仕上げる）→ 題「継ぐ」→ 間 →「職人の判断を、次の人へ。」
+    dict(id="endhands", ch="結", v=[], hold=3.5, xf=1.0, dip=True),
+    dict(id="title3", ch="結", v=[42, 41], gap=1.2, pre=0.8, post=1.6, xf=1.2, fixed=True),
     dict(id="credit", ch="結", v=[43], pre=0.8, post=1.4, xf=0.8),
     # 出典（作者の判断：途中の画面には出さず、最後にまとめて 2〜3 秒）
-    dict(id="sources", ch="結", v=[], hold=3.4, xf=0.8),
+    dict(id="sources", ch="結", v=[], hold=2.6, xf=0.8),
 ]
 FIXED_PRE = {"flame", "moyou11", "deco11", "fix11", "make10", "learn10"}  # 声の前の間を、全体の倍率でのばし縮みしない場面（本物の画面は、まず全体 → 押す所を見せる時間。模様の試しは、最後の 3 枚が出てから n39）
 

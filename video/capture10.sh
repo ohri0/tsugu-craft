@@ -1,5 +1,5 @@
 #!/bin/zsh
-# 最終案 10 の素材を、コマンド 1 つで撮る（今のアプリを組んで、撮る用のサーバーを立て、撮って、止める）。
+# 最終案 10〜12 の素材を、コマンド 1 つで撮る（今のアプリを組んで、撮る用のサーバーを立て、撮って、止める）。
 # 使い方：zsh video/capture10.sh [章…]（なしなら最終案 10 で使う章を全部。例：zsh video/capture10.sh ops11 gothic11）
 #   本物の Claude の返事は work/story/_claude9/ に覚えてあるので、ふつうは Claude を呼ばない（覚えていない所は止める）。
 #   新しく本物の Claude を呼ぶときだけ CLAUDE9=1 を付ける（開発用のサーバーを 5432 番に立てる。キーは .env からそのサーバーが読む）。
@@ -9,8 +9,13 @@ set -e
 cd "${0:A:h}/.."
 REPO=$PWD
 WORK=${TSUGU_VIDEO_WORK:-$REPO/video/work}
-export DECO_USE=${DECO_USE:-4}  # 言葉で頼む場面は「アールデコな感じ」の 4 回目の返事（覚えた返事。Claude は呼ばない）
-CHAPTERS=(${@:-draw10 first9 word10 ops11 deco11 make10 learn11 kebori9 hands9 moyou11 decoring11})
+# 言葉で頼む場面（deco11）は「アールデコな感じ」の、作者が選んだ回の本物の返事（覚えた返事。Claude は呼ばない）。
+#   2026-11-06 夕方：2 回目の試し（彫りの模様を足した後）の 5 回目＝ work/story/_claude9/deco11_t5/（000.json〜002.json）。
+#   形を替えるとき：選んだ回の返事（API の返事そのまま）を _claude9/deco11_t<番号>/ に置いて DECO_USE=<番号>、
+#   または DECO_REPLY_DIR=<返事の所> を付けて、zsh video/capture10.sh deco11 → python -I video/final9.py --plan 10
+export DECO_USE=${DECO_USE:-5}
+# 最終案 12 で使う章（ops12＝手で操作する 3 つ。結は実写なので decoring11 は使わない）
+CHAPTERS=(${@:-draw10 first9 word10 ops12 deco11 make10 learn11 kebori9 hands9 moyou11})
 echo "今のアプリを組む → $WORK/dist-cap10"
 npx vite build --outDir "$WORK/dist-cap10" --emptyOutDir > /dev/null
 PIDS=()

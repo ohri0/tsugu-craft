@@ -1,6 +1,6 @@
 // 最終案 10・11：行き来の図に使う、継ぐの本物の図面を撮る（Claude は呼ばない）。
 //   thin.png：爪を見た目で分かるほど細くした図面（0.25 mm。作れない形）／ ok.png：帳面の決まりの爪（今の既定）
-//   low.png（最終案 11）：直した 2 回目の図面。爪は直ったが、石を深く沈めすぎて石の先が指の線を越える（石と指のすき間 −0.6 mm）
+//   low.png（最終案 12）：直した 2 回目の図面。爪は直ったが、石の下の余裕が少ない（石と指のすき間 0.15 mm）
 // 使い方：撮る用のサーバー（capture/serve.cjs）を動かしてから TSUGU_CAP=http://localhost:5431 node video/capture/draw10.cjs
 const fs = require('fs');
 const path = require('path');
@@ -12,7 +12,9 @@ const tap = (p, sel) => p.evaluate((s) => document.querySelector(s).click(), sel
 (async () => {
   const b = await chromium.launch({ args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] });
   const only = process.env.DRAW10 ? process.env.DRAW10.split(',') : null;
-  for (const [name, prong, gap] of [['thin', 0.25, null], ['ok', null, null], ['low', null, -0.6]].filter(([n]) => !only || only.includes(n))) {
+  // low：最終案 12（作者の声）。石の先が指に当たる（−0.6 mm）では、デザインの人なら誰でも分かる失敗でリアルでない。
+  //   デザインでは 0.5 mm ほど取るが、鍛造で丸線を叩くと内側がへこむので、0.1〜0.2 mm しか取っていないと当たることがある → 石の下の余裕 0.15 mm
+  for (const [name, prong, gap] of [['thin', 0.25, null], ['ok', null, null], ['low', null, 0.15]].filter(([n]) => !only || only.includes(n))) {
     const ctx = await b.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 4 });
     const p = await ctx.newPage();
     p.on('pageerror', (e) => console.log('pageerror', e.message));
