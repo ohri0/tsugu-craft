@@ -193,7 +193,7 @@ app.innerHTML = `
       <section class="sec"><h4>Claude の作業</h4>
         <div class="wish-slot"></div>
         <p class="make-note" hidden></p>
-        <ol class="worklog"><li class="note">下の欄に希望を書いて「生成」。Claude が組み、作れるか確かめて直します。</li></ol>
+        <ol class="worklog"><li class="note">下の「希望」に書いて「生成」。Claude が組んで、作れるか確かめます。</li></ol>
         <div class="cannot-note" hidden><p></p><button type="button" class="cn-close" aria-label="まだできないことの札を閉じる">×</button></div>
         ${filming() ? "" : `<button type="button" class="next-btn make-next">作れるか確かめる・手で変える →</button>`}
         <button type="button" class="link reset-design">はじめの設計に戻す</button>
@@ -1823,7 +1823,7 @@ function workshopBarHtml(): string {
   return `<section class="ws-bar"><label><span>使う帳面</span><select class="ws-pick">${opts.join("")}<option value="__new">＋ 工房の帳面を作る</option>${hasSample ? "" : `<option value="__sample">＋ 見本の工房を足す（${esc(GUIDES.prong.sampleWorkshop.name)}）</option>`}</select></label>
     <div class="ws-new" hidden><input class="ws-name" type="text" placeholder="工房の名前（例：工房 C）"><button type="button" class="primary ws-make">作る</button></div>
     ${workshopBasicsHtml()}
-    ${ws.list.length ? `<button type="button" class="ghost-d ws-cmp">同じ指輪を、帳面ごとに比べる</button>` : `<p class="hint">工房ごとに決まりと雰囲気はちがいます。工房の帳面を作ると、同じ指輪をそれぞれの帳面で確かめられます。</p>`}
+    ${ws.list.length ? `<button type="button" class="ghost-d ws-cmp">同じ指輪を、帳面ごとに比べる</button>` : `<p class="hint">工房の帳面を作ると、同じ指輪を工房ごとの決まりで確かめられます。</p>`}
     ${ws.list.length && !filming() ? `<a class="link ws-edit" href="app.html#ledger">この帳面の決まりを見る・直す →</a>` : ""}
     <div class="ws-table"></div></section>`;
 }
@@ -1889,9 +1889,10 @@ function askNudgeHtml(b: Built): string {
   const at = ((askIndex % ordered.length) + ordered.length) % ordered.length;
   const g = ordered[at];
   const isNear = near.includes(g);
-  const why = isNear ? `この指輪の石（${size.toFixed(1)} mm）に近い大きさの決まりが、帳面に足りません。` : "帳面に足りない所があります。";
+  // 一般の「足りない所があります」は、題の「Claude から質問」と同じことを言うだけなので出さない（2026-11-07）
+  const why = isNear ? `この指輪の石（${size.toFixed(1)} mm）に近い大きさの決まりが、帳面に足りません。` : "";
   const moves = ordered.length > 1 && !q.has("rec") ? `<button type="button" class="ghost-d ask-prev" aria-label="前の質問">← 前</button><span class="ask-pos">${at + 1} / ${ordered.length}</span><button type="button" class="ghost-d ask-next" aria-label="次の質問">次 →</button>` : "";
-  return `<section class="ask-nudge"><small>Claude から質問</small><b>${esc(g.question)}</b><p>${why}</p><div class="row"><a class="primary" href="app.html#ledger/ask?gap=${encodeURIComponent(g.id)}">答える</a><button type="button" class="ghost-d ask-later">あとで</button>${moves}</div></section>`;
+  return `<section class="ask-nudge"><small>Claude から質問</small><b>${esc(g.question)}</b>${why ? `<p>${why}</p>` : ""}<div class="row"><a class="primary" href="app.html#ledger/ask?gap=${encodeURIComponent(g.id)}">答える</a><button type="button" class="ghost-d ask-later">あとで</button>${moves}</div></section>`;
 }
 
 /** 質問の札の押す所をつなぐ（札を入れ替えたあとも、もう一度呼ぶ） */
@@ -3260,7 +3261,7 @@ function rulesSectionHtml(): string {
   const making = all.filter((r) => !isCheckRule(r));
   const where = (r: Rule) => stepsOfRule(r).map((s) => MAKING_STEPS[s]).join("・");
   return `<section class="sec rules-sec"><h4>職人の決まり<small>確かめに効く ${mine.length} 件</small></h4>
-    <p class="hint">話すと、Claude が決まりの案にします。数字で確かめられる決まりは、「これでいい」を押すとその場で確かめ直します。手の動かし方などの決まりは、手順の工程に入ります。</p>
+    <p class="hint">話すか書くと、Claude が決まりの案にします。数字の決まりはすぐ確かめ直し、手の動かし方は手順に入ります。</p>
     <textarea rows="2" class="ar-text" placeholder="${kind === "band" ? "例：平打ちなら、腕の厚みは最低 1.5 mm" : "例：この大きさの石なら、爪は最低 0.7 mm、基本は 0.8〜1 mm"}">${esc(ruleDraft)}</textarea>
     <div class="row"><button type="button" class="ghost-d ar-mic">話す</button><button type="button" class="primary ar-go">決まりにする</button></div>
     <div class="ar-proposal"></div>

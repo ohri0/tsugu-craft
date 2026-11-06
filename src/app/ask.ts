@@ -17,7 +17,7 @@ import { isMihonSource, learnNav, techName, techPicker, techRules } from "./flow
 import { flowUI, isMihon, MIHON_NAME, MIHON_UNKNOWN } from "./mihon";
 import { esc, store, today } from "./store";
 import { bindVoice } from "./voice";
-import { askPassword, passwordButton, resetPassword } from "./password";
+import { askPassword, resetPassword } from "./password";
 import { bookLabel, masterName, ruleQuote } from "./master";
 import { getVideo } from "./video-store";
 
@@ -38,7 +38,7 @@ export function mountAsk(root: HTMLElement): { refresh(): void; route(tech?: str
     <div class="thread" aria-live="polite">
       <div class="empty">
         <p class="master-lead"></p>
-        ${flow && !isMihon() ? `<p class="learn-pw" hidden><span>いまは Claude なしで、帳面から探して答えます。</span></p>` : ""}
+        ${flow && !isMihon() ? `<p class="learn-pw" hidden><span>いまは Claude なしで、帳面から探します（合言葉は右上）。</span></p>` : ""}
         ${flow ? `<p class="chips-h">例を押すと、すぐ聞けます</p>` : ""}
         <div class="chips"></div>
       </div>
@@ -75,12 +75,12 @@ export function mountAsk(root: HTMLElement): { refresh(): void; route(tech?: str
     const open = openQuestions(store.queue(), tech).length;
     if (flow) {
       // 数だけを並べると何の数か分からなかった（2026-11-06）。言葉で 1 行に
-      $(".master-lead").textContent = unknown || `帳面の決まりから、職人の言葉つきで答えます。帳面にないことは、${label}への質問として届きます。`;
+      $(".master-lead").textContent = unknown || `帳面から、職人の言葉つきで答えます。帳面にないことは、${label}に質問が届きます。`;
       $(".master-stats").innerHTML = `<span class="ms-line">決まり <b>${all.length}</b>（${isMihon() ? "残した" : "職人の言葉"} <b>${mine.length}</b>）${open ? ` ・ <i class="alert">返事待ちの質問 <b>${open}</b></i>` : ""}</span>`;
       const pw = root.querySelector<HTMLElement>(".learn-pw");
       if (pw) {
         pw.hidden = !!store.password();
-        if (!pw.querySelector("button")) pw.append(passwordButton());
+        // 合言葉のボタンは上の帯に 1 つだけ（同じボタンが 2 つあると、どちらを押すか迷う）
       }
     } else {
       $(".master-lead").textContent = `${unknown}下の例を押すか、書いて聞いてください。帳面の決まり ${all.length} から答えます。答えられないことは${label}に回します。`;
