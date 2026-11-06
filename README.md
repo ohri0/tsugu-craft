@@ -222,12 +222,12 @@ Claude Desktop に足す（設定の「開発者」→ 設定ファイル `claud
 | `public/lp/*.webp`（入口のページと README の写真。それぞれ半分の幅の `-sm` つき） | 継ぐの画面を撮ったもの（`scripts/lp-shots.cjs`） | このリポジトリの作品の一部 |
 | `samples/triangle_closeup_2026-11-02.jpg`・`public/stones/triangle.jpg`（同じ写真） | 作者が撮った石の写真（撮影情報は消してある） | このリポジトリの作品の一部 |
 
-動画の素材（最終案 9。`video/work/footage/` に置くだけで、リポジトリにもアプリにも入れない）：
+動画の素材（最終案 9・10。`video/work/footage/` に置くだけで、リポジトリにもアプリにも入れない。最終案 10 では、出典は途中の画面に出さず、最後の出典の画面にまとめる）：
 
 | 素材 | 出典 | 利用条件 |
 | --- | --- | --- |
 | `raw/anneal.mov`（炎で焼きなます手元）・`raw/file_hands.mov`（ヤスリの手元） | 作者が撮った映像 | このリポジトリの作品の一部 |
-| `kari_kebori.mov`（**仮**の手本の映像。金属を彫る手元。作者の映像が来たら外す） | 「Gravieren von Zinngeschirr」Gabriel Simons / LVR-Institut für Landeskunde und Regionalgeschichte、Wikimedia Commons。切り抜いて色を変えた（画面にも出典と変更を書く）。西洋の錫の皿を彫る手元で、毛彫りではないので、動画で毛彫りとは言わない | CC BY 3.0 |
+| `kari_kebori.mov`（手本の映像。金属を彫る手元。作者の判断で、最終案 10 から本番として使う） | 「Gravieren von Zinngeschirr」Gabriel Simons / LVR-Institut für Landeskunde und Regionalgeschichte、Wikimedia Commons。切り抜いて色を変えた（題・作者・出典・ライセンス・変更を、動画の最後の出典の画面にまとめて書く）。西洋の錫の皿を彫る手元で、毛彫りではないので、映像の上で毛彫り・和彫りとは言わない・書かない | CC BY 3.0 |
 
 ## 見本の動画
 

@@ -1031,7 +1031,8 @@ def stat(s, t, f):
     a = ink(a, Hz(x1, y - 44, "1998 年度　約 11.5 万人", "min", S, 0.04, "r"), SHIRO, 0.9 * k)
     a = ink(a, Hz(x0 + (x1 - x0) * r, y + 76, "2022 年度　約 4.8 万人", "min", S, 0.04, "c"), SHIRO, 0.95 * fade(t, a0 + 2.2, 0.8))
     a = ink(a, plate(("v", 1600, TOP - 28, "約[6]割", "thin", XL, 0.0)), SHIRO, fade(t, a0 + 1.6, 0.9))
-    a = ink(a, Hz(x0, 1016, "伝統的工芸品の従業員数。出典：経済産業省の説明資料", "sans", 22, 0.08), SHIRO, 0.82 * fade(t, 0.8, 0.8))
+    if MID_CREDITS:
+        a = ink(a, Hz(x0, 1016, "伝統的工芸品の従業員数。出典：経済産業省の説明資料", "sans", 22, 0.08), SHIRO, 0.82 * fade(t, 0.8, 0.8))
     return a
 
 
@@ -1058,8 +1059,9 @@ def naiku(s, t, f):
     a = ink(a, V(RIGHT - 126, TOP + 6, "受け継ぐ機会が", "min", M, 0.10), SHIRO, fade(t, a0 + 0.5, 0.9))
     a = ink(a, V(RIGHT - 222, TOP + 6, "ない技もある。", "min", M, 0.10), SHIRO, fade(t, a0 + 1.1, 0.9))
     k = fade(t, a0 + 1.6, 0.9)
-    a = ink(a, Hz(LEFT, 1000, "たとえば、伊勢神宮の式年遷宮。関われるのは、多い人で 3 回ほど（国土交通白書）。", "sans", T, 0.04), SHIRO, 0.95 * k)
-    a = ink(a, Hz(LEFT, 1040, "写真：1953 年の内宮（本田照夫 撮影。パブリックドメイン）", "sans", 22, 0.06), SHIRO, 0.82 * k)
+    a = ink(a, Hz(LEFT, 1000, "たとえば、伊勢神宮の式年遷宮。関われるのは、多い人で 3 回ほど" + ("（国土交通白書）。" if MID_CREDITS else "。"), "sans", T, 0.04), SHIRO, 0.95 * k)
+    if MID_CREDITS:
+        a = ink(a, Hz(LEFT, 1040, "写真：1953 年の内宮（本田照夫 撮影。パブリックドメイン）", "sans", 22, 0.06), SHIRO, 0.82 * k)
     return a
 
 
@@ -1344,16 +1346,6 @@ def finale(s, t, f):
 
 
 @scene()
-def title2(s, t, f):
-    a = L.ground().copy()
-    m = title_plate()
-    a = screen(a, L.blur(m, 30)[..., None] * 0.05 * fade(t, 0.3, 1.0))
-    a = ink(a, m, SHIRO, fade(t, vat(s) - 0.5, 1.0))
-    a = ink(a, Hz(W / 2, 800, "TSUGU CRAFT", "thin3", T, 0.62, "c"), SHIRO, 0.9 * fade(t, vat(s) + 0.2, 0.9))
-    return a
-
-
-@scene()
 def credit(s, t, f):
     a = L.ground().copy()
     a0 = vat(s)
@@ -1362,6 +1354,807 @@ def credit(s, t, f):
     g = s.get("git") or {}
     if g.get("commits"):
         a = ink(a, Hz(W / 2, 590, f"{g['first_day']} から {g['commits']} 回のコミット", "sans", T, 0.08, "c"), SHIRO, 0.9 * fade(t, a0 + 0.8, 0.9))
+    return a
+
+
+
+# ================================================================ 最終案 10（作者の声：速すぎる・急に寄った画面から入るので、どこの何の機能か分からない）
+# 画面は、まず全体（アプリのまま）→ 押す所（マウスの印）→ 寄る（撮ったこまの切り抜き。枠は動かさず、重ねて替える）
+NAME_LATIN = os.environ.get("NAME_LATIN", "end")  # 英字の名前（TSUGU CRAFT）：end＝最後の題だけ／none＝出さない／both＝はじめの題にも
+
+
+def kof(ch):
+    m = meta(ch)
+    return m["size"][0] / {"word10": 1280, "gothic10": 1280, "reason10": 1280, "make10": 1280}.get(ch, 960)
+
+
+def full_view(ch, i):
+    """アプリの全体（撮ったこま全体を 1920×1080 に）。こまの番号は、撮った数の中に収める"""
+    return shot(ch, int(clamp(int(i), 0, meta(ch)["frames"] - 1)), None)
+
+
+def zoom_view(ch, i, cx, cy, z=1.0):
+    """寄る：撮ったこま（3〜4 倍）から、点 (cx, cy)（ページの px）のまわりを切り抜く。z＞1 でさらに寄る（くずれない範囲で）"""
+    m = meta(ch)
+    i = int(clamp(int(i), 0, m["frames"] - 1))
+    K = kof(ch)
+    sw, sh = m["size"]
+    w, h = 1920 / z, 1080 / z
+    x = clamp(cx * K - w / 2, 0, sw - w)
+    y = clamp(cy * K - h / 2, 0, sh - h)
+    return shot(ch, int(i), (int(x), int(y), int(w), int(h)))
+
+
+def box_center(ch, key, dx=0, dy=0):
+    b = meta(ch)["boxes"][key]
+    return b["x"] + b["w"] / 2 + dx, b["y"] + b["h"] / 2 + dy
+
+
+def blend_views(a, b, t, t0, d=0.5):
+    k = sm((t - t0) / d)
+    if k <= 0:
+        return a() if callable(a) else a
+    if k >= 1:
+        return b() if callable(b) else b
+    A = a() if callable(a) else a
+    B = b() if callable(b) else b
+    return A * (1 - k) + B * k
+
+
+# ---- 序
+@scene()
+def vanish10(s, t, f):
+    # 字の組を、画面のまん中に（大きな字と小さな 2 行の組の中心が、画面の中心に来るように）
+    return vanishing(s, t, ["職人がいなくなれば、", "その判断も"], "消えます。", 830, fade_at=vend(s) - 0.1)
+
+
+@scene()
+def title10(s, t, f):
+    a = L.ground().copy()
+    m = V(W / 2, 330, "継ぐ", "thin", XL, -0.07)
+    a = screen(a, L.blur(m, 30)[..., None] * 0.05 * fade(t, 0.8, 1.4))
+    a = ink(a, reveal_v(m, t, 0.3, 1.6))
+    if NAME_LATIN == "both":
+        a = ink(a, Hz(W / 2, 840, "TSUGU CRAFT", "thin3", T, 0.62, "c"), SHIRO, 0.9 * fade(t, 1.4, 0.9))
+    return a
+
+
+# ---- 残す：本物の画面の全体 → 職人の言葉を入れる所 → Claude の数字つきの案 → これでいい → 帳面に入る
+@scene("word10")
+def word10(s, t, f):
+    v = s["voice"]
+    a0, a1, a2 = v[0]["at"], v[1]["at"], v[2]["at"]
+    m = meta("word10")["marks"]
+    pts = [(0, m["full"]), (a0 - 0.6, m["full"] + 22), (a0 + 0.9, m["refine"] + 8), (a0 + v[0]["dur"] + 0.2, m["field"] + 4),
+           (a1 - 0.2, m["type"] + 30), (a1 + v[1]["dur"] * 0.45, m["typed"] + 22), (a1 + v[1]["dur"] * 0.65, m["proposal"]),
+           (a2 - 0.1, m["proposal"] + 40), (a2 + v[2]["dur"] * 0.55, m["applied"] + 2), (s["len"], m["applied"] + 40)]
+    i = ramp_frame(pts, t)
+    # 全体：確かめるのタブを押して、欄まで（a0 + 1.6 秒まで）→ 寄る：欄・案・帳面に入った所
+    tz = a0 + v[0]["dur"] - 0.4
+    if i < m["proposal"]:
+        cx, cy = box_center("word10", "field", -150, 40)
+    elif i < m["applied"]:
+        cx, cy = box_center("word10", "proposal", -150, 0)
+    else:
+        cx, cy = box_center("word10", "flash", -150, 60)
+    full = lambda: full_view("word10", i)  # noqa: E731
+    zoom = lambda: zoom_view("word10", i, cx, cy)  # noqa: E731
+    return blend_views(full, zoom, t, tz, 0.6)
+
+
+# ---- 渡す 1：行き来の図（デザイン・設計 ⇄ 制作。制作から何度も戻る）。図面は爪が見た目で分かるほど細い（作れない）
+FLOW10_Y = 880
+FLOW10_X = (560, 1360)  # 2 つの字のまん中
+
+
+@lru_cache(maxsize=2)
+def drawing10(name):
+    """継ぐの本物の図面（story/draw10/）の正面図だけを、画面のまん中に"""
+    d = Image.open(os.path.join(STORY, "draw10", name + ".png")).convert("L")
+    d = d.crop((420, 330, 1780, 1400))
+    k = 0.58
+    d = d.resize((round(d.width * k), round(d.height * k)), Image.LANCZOS)
+    m = 1 - np.asarray(d, F32) / 255.0
+    out = np.zeros((H, W), F32)
+    x0 = (W - m.shape[1]) // 2 + 30
+    y0 = 150
+    out[y0:y0 + m.shape[0], x0:x0 + m.shape[1]] = m
+    return out, x0, y0, k
+
+
+def flow10_row(a, t, k_row=1.0):
+    m = plate(("h", FLOW10_X[0], FLOW10_Y, "デザイン・設計", "min", M, 0.02, "c"), ("h", FLOW10_X[1], FLOW10_Y, "制作", "min", M, 0.02, "c"),
+              ("l", FLOW10_X[0] + 250, FLOW10_Y - 21, FLOW10_X[1] - 90, FLOW10_Y - 21, 1.0),
+              ("l", FLOW10_X[1] - 103, FLOW10_Y - 27, FLOW10_X[1] - 90, FLOW10_Y - 21, 1.0), ("l", FLOW10_X[1] - 103, FLOW10_Y - 15, FLOW10_X[1] - 90, FLOW10_Y - 21, 1.0))
+    a = ink(a, m, INK, k_row)
+    a = ink(a, Hz(FLOW10_X[0], FLOW10_Y + 46, "CAD", "thin3", T, 0.20, "c"), INK, k_row)
+    return a
+
+
+ARC10 = ((FLOW10_X[1] - 10, FLOW10_Y - 70), (FLOW10_X[1] - 140, FLOW10_Y - 270), (FLOW10_X[0] + 140, FLOW10_Y - 270), (FLOW10_X[0] + 10, FLOW10_Y - 76))
+
+
+@lru_cache(maxsize=2)
+def arc10_mask(w=2.8):
+    pen = L.Pen(7)
+    pen.stroke([bez(*ARC10, u) for u in np.linspace(0, 1, 18)], w=w)
+    e = ARC10[3]
+    pen.stroke([(e[0] - 22, e[1] - 40), (e[0], e[1])], w=w)
+    pen.stroke([(e[0] + 32, e[1] - 34), (e[0], e[1])], w=w)
+    return pen.end()
+
+
+@lru_cache(maxsize=2)
+def circle10():
+    """図面の爪に朱の丸（ok.png と thin.png は同じ置き方）"""
+    _, x0, y0, k = drawing10("thin")
+    # 正面図の右の爪（撮った図面の px → 画面）
+    cx, cy = x0 + (1130 - 420) * k, y0 + (520 - 330) * k
+    pen = L.Pen(5)
+    pts = []
+    for u in np.linspace(0.04, 1.10, 30):
+        ang = u * math.tau - 2.0
+        wob = 1 + 0.025 * math.sin(u * 15) + 0.05 * (u - 0.5)
+        pts.append((cx + 52 * wob * math.cos(ang), cy + 74 * wob * math.sin(ang)))
+    pen.stroke(pts, w=2.6)
+    return pen.end(), cx, cy
+
+
+@scene()
+def flow10(s, t, f):
+    a = paper_ground(4).copy()
+    dl, *_ = drawing10("thin")
+    a = ink(a, dl, INK, 0.62)
+    a = ink(a, Hz(W / 2, 112, "デザイン・設計と制作を、行ったり来たり。", "min", M, 0.04, "c"), INK, fade(t, 0.2, 1.0))
+    a = flow10_row(a, t, fade(t, 0.3, 0.8))
+    t0 = vat(s) + 0.2
+    cm, cx, cy = circle10()
+    a = ink(a, cm, SHU, 0.95 * fade(t, t0, 0.5))
+    a = ink(a, Hz(cx + 70, cy + 12, "爪が細すぎる", "min", S - 4, 0.04), SHU, fade(t, t0 + 0.3, 0.6))
+    # 何度も戻る：印が制作へ進み、朱の線に沿って戻る（片道 0.6 秒・1 往復 1.4 秒）。4 回
+    xa, xb = FLOW10_X[0] + 250, FLOW10_X[1] - 90
+    n_done = 0
+    for r in range(4):
+        rt = t - (t0 + 0.6 + r * 1.5)
+        if rt < 0:
+            break
+        n_done = r + 1
+        if rt < 0.6:
+            a = dot(a, xa + (xb - xa) * sm(rt / 0.6), FLOW10_Y - 21, INK)
+        elif rt < 1.3:
+            x, y = bez(*ARC10, sm((rt - 0.6) / 0.7))
+            a = dot(a, x, y, SHU)
+    if t > t0 + 1.1:
+        u = sm((t - (t0 + 1.2)) / 0.7)
+        arc = arc10_mask()
+        if u < 1:
+            xe = ARC10[0][0] - (ARC10[0][0] - ARC10[3][0] + 80) * u
+            arc = arc * L.ramp(xx(), xe - 16, xe + 16)
+        a = ink(a, arc, SHU, min(1.0, 0.7 + 0.1 * (n_done - 1)))
+        a = ink(a, Hz(W / 2, FLOW10_Y - 300, "作れない", "min", S, 0.04, "c"), SHU, fade(t, t0 + 1.6, 0.4))
+    if n_done:
+        a = ink(a, Hz(W / 2, FLOW10_Y - 236, f"{n_done} 回目", "sans", T, 0.08, "c"), SHU, 0.95 * fade(t, t0 + 1.8, 0.3))
+    return a
+
+
+BOX10 = (FLOW10_X[0] - 250, FLOW10_Y - 200, FLOW10_X[0] + 250, FLOW10_Y + 80)
+
+
+@scene()
+def flow10b(s, t, f):
+    a = paper_ground(4).copy()
+    dl, *_ = drawing10("ok")
+    a = ink(a, dl, INK, 0.62)
+    a = ink(a, Hz(W / 2, 112, "継ぐがあれば、戻りは、ごく少なく。", "min", M, 0.04, "c"), INK, fade(t, 0.5, 1.0))
+    a = flow10_row(a, t)
+    x0, y0, x1, y1 = BOX10
+    k = fade(t, 0.2, 0.9)
+    a = ink(a, plate(("l", x0, y0, x1, y0, 1.0), ("l", x1, y0, x1, y1, 1.0), ("l", x1, y1, x0, y1, 1.0), ("l", x0, y1, x0, y0, 1.0)), INK, 0.85 * k)
+    a = ink(a, Hz(x0 + 24, y0 + 46, "継ぐ", "min", S, 0.08), INK, k)
+    a = ink(a, Hz(FLOW10_X[0], FLOW10_Y - 92, "職人の判断", "min", M, 0.02, "c"), SHU, fade(t, 0.6, 0.9))
+    # 戻りはごく細い線だけ。印は制作へまっすぐ
+    pen_faint = faint10()
+    a = ink(a, pen_faint, SHU, 0.45 * fade(t, 1.0, 0.8))
+    rt = t - 1.4
+    if 0 <= rt <= 1.6:
+        a = dot(a, x1 + (FLOW10_X[1] - 90 - x1) * sm(rt / 1.6), FLOW10_Y - 21, INK)
+    return a
+
+
+@lru_cache(maxsize=1)
+def faint10():
+    pen = L.Pen(9)
+    pts = [(FLOW10_X[1] - 10, FLOW10_Y - 70), (FLOW10_X[1] - 110, FLOW10_Y - 200), (BOX10[2] + 50, FLOW10_Y - 236), (BOX10[2] - 40, BOX10[1] - 4)]
+    pen.stroke(pts, w=0.8, taper=False)
+    return pen.end()
+
+
+# ---- 最初の版と今の版：同じ向き・同じ大きさで並べる
+@scene("first9")
+def firstnow10(s, t, f):
+    n = meta("first9")
+    j = int(t * FPS * 0.62)  # 回る速さを少しゆっくりに（左右は同じこまの番号なので、同じ向き）
+    a = L.ground().copy()
+    a[:, :960] = first_half("first9", n["marks"]["first"] + min(j, 189))
+    a[:, 960:] = first_half("first9", n["marks"]["now"] + j)
+    a = a * vign(0.3, 0.55)
+    k = fade(t, 0.4, 0.8)
+    a = ink(a, Ln(960, 96, 960, H - 150, 0.75), SHIRO, 0.5 * k)
+    a = ink(a, Hz(480, 968, "ネットの情報だけ", "min", S, 0.08, "c"), SHIRO, k)
+    a = ink(a, Hz(480, 1016, "最初の版　爪 ø 1.66 mm", "sans", T, 0.06, "c"), SHIRO, 0.9 * k)
+    k2 = fade(t, vat(s) + 1.2, 0.8)
+    a = ink(a, Hz(1440, 968, "職人の言葉から", "min", S, 0.08, "c"), SHIRO, k2)
+    a = ink(a, Hz(1440, 1016, "今の版　爪 ø 0.80 mm", "sans", T, 0.06, "c"), SHIRO, 0.9 * k2)
+    a = ink(a, Hz(W / 2, 1060, "目安・最後は職人が決める", "sans", 22, 0.08, "c"), SHIRO, 0.8 * k2)
+    return a
+
+
+def first_half(ch, i):
+    r0 = shot(ch, int(i), (500, 0, 2200, 1800), (960, 785))
+    r = np.zeros((1080, 960, 3), F32)
+    r[60:60 + 785] = r0
+    s8 = np.ascontiguousarray(r[4::8, 4::8])
+    m = (s8.max(axis=2) > 0.05).astype(F32)
+    g = np.asarray(Image.fromarray(gauss(m, 12) * 0.12 + gauss(m, 4) * 0.06, "F").resize((960, 1080), Image.BICUBIC), F32)
+    bg = np.zeros_like(r)
+    bg[:] = SUMI
+    bg = screen(bg, g[..., None] * np.array((1.0, 0.86, 0.68), F32))
+    return screen(bg, r)
+
+
+# ---- 言葉で腕まで変わる（今のアプリで、本物の Claude が組んだ「ゴシックな感じ」）
+@scene("gothic10")
+def gothic10(s, t, f):
+    a0 = vat(s)
+    d = s["voice"][0]["dur"]
+    m = meta("gothic10")["marks"]
+    pts = [(0, m["full"]), (a0 - 0.8, m["type"]), (a0 + 0.6, m["typed"]), (a0 + 1.2, m["go"]), (a0 + d * 0.62, m["done"]), (a0 + d * 0.82, m["done"] + 40),
+           (a0 + d + 0.4, m["present"]), (s["len"], m["present"] + int((s["len"] - a0 - d - 0.4) * FPS))]
+    i = ramp_frame(pts, t)
+    tz = a0 - 1.0          # 希望の欄に寄る
+    tz2 = a0 + d * 0.5     # 指輪が変わっていく所は全体で
+    tp = a0 + d + 0.4      # 見せる（全体）
+    tp2 = tp + 1.4         # 見せるの指輪に寄る
+    if t < tz2:
+        full = lambda: full_view("gothic10", i)  # noqa: E731
+        zoom = lambda: zoom_view("gothic10", i, *box_center("gothic10", "wish", 160, -150))  # noqa: E731
+        if t < tz + 0.6:
+            return blend_views(full, zoom, t, tz, 0.6)
+        return blend_views(zoom, full, t, tz2 - 0.6, 0.6)
+    if t < tp2:
+        return full_view("gothic10", i)
+    return blend_views(lambda: full_view("gothic10", i), lambda: zoom_view("gothic10", i, 860, 380, 1.0), t, tp2, 0.7)
+
+
+# ---- Claude が職人に聞く（帳面の画面の全体 → 書いて答える → 寄る）
+@scene("ask10")
+def ask10(s, t, f):
+    a0, a1 = vat(s, 0), vat(s, 1)
+    m = meta("ask10")["marks"]
+    d0 = s["voice"][0]["dur"]
+    pts = [(0, m["full"]), (a0 + d0 * 0.6, m["full"] + 26), (a0 + d0 + 0.3, m["answerOpen"] + 6), (a1 - 0.4, m["typed"] + 12), (a1 + 0.1, m["wait"]), (s["len"], m["draft"] + 28)]
+    i = ramp_frame(pts, t)
+    tz = a0 + d0 * 0.7
+    if i < m["answerOpen"]:
+        cx, cy = box_center("ask10", "card", 0, 40)
+    elif i < m["wait"]:
+        cx, cy = box_center("ask10", "cardOpen", 0, 30)
+    else:
+        cx, cy = box_center("ask10", "draftBox", 0, 20)
+    return blend_views(lambda: full_view("ask10", i), lambda: zoom_view("ask10", i, cx, cy), t, tz, 0.6)
+
+
+# ---- 作れない所を、職人の言葉で教える（全体 → 札を押す → 理由の窓に寄る → まとめて直す）
+@scene("reason10")
+def reason10(s, t, f):
+    a0, a1 = vat(s, 0), vat(s, 1)
+    d1 = s["voice"][1]["dur"]
+    m = meta("reason10")["marks"]
+    pts = [(0, m["red"]), (a0 - 0.2, m["red"] + 30), (a0 + 0.7, m["open"]), (a0 + 1.2, m["read"]), (a1 + d1 * 0.5, m["read"] + 70), (a1 + d1 * 0.85, m["press"] + 1), (a1 + d1 * 0.85 + 0.2, m["fixed"]), (s["len"], m["fixed"] + 58)]
+    i = ramp_frame(pts, t)
+    tz = a0 + 1.0
+    cx, cy = box_center("reason10", "pop", -230, 40)
+    return blend_views(lambda: full_view("reason10", i), lambda: zoom_view("reason10", i, cx, cy), t, tz, 0.6)
+
+
+# ---- 作り方を自動で作る（全体 → 手順を押す → 手順の欄に寄る）
+@scene("make10")
+def make10(s, t, f):
+    a0 = vat(s)
+    d = s["voice"][0]["dur"]
+    m = meta("make10")["marks"]
+    pts = [(0, m["full"]), (a0 - 0.3, m["full"] + 34), (a0 + 0.3, m["cast"]), (a0 + d * 0.35, m["cast"] + 36), (a0 + d * 0.5, m["forge"]), (a0 + d * 0.62, m["card"]), (a0 + d * 0.8, m["press"]), (a0 + d * 0.86, m["open"]), (s["len"], m["open"] + 60)]
+    i = ramp_frame(pts, t)
+    tz = a0 + 0.6
+    b = meta("make10")["boxes"]["panel"]
+    cx, cy = b["x"] + b["w"] / 2 - 120, b["y"] + 300
+    return blend_views(lambda: full_view("make10", i), lambda: zoom_view("make10", i, cx, cy), t, tz, 0.6)
+
+
+# ---- 学校：待つ生徒の線が 1 本ずつ増えて、1 時間に
+@scene()
+def school10(s, t, f):
+    a = L.ground().copy()
+    a0, a1 = vat(s, 0), vat(s, 1)
+    k = fade(t, a0 - 0.1, 0.9)
+    a = ink(a, V(RIGHT - 30, TOP + 6, "学校では、", "min", M, 0.10), SHIRO, k)
+    a = ink(a, V(RIGHT - 126, TOP + 6, "独自のデザインは、", "min", M, 0.10), SHIRO, fade(t, a0 + 0.4, 0.9))
+    a = ink(a, V(RIGHT - 222, TOP + 6, "先生に聞くしかない。", "min", M, 0.10), SHIRO, fade(t, a0 + 0.9, 0.9))
+    n = 30
+    x0, x1 = 120, 1160
+    ym0, ym1 = 720, 900
+    # 先生の 1 本はすぐ。生徒の線は 1 本ずつ、たたたた と増える（2 本目の声の頭までに並び終える）
+    a = ink(a, Ln(x0 - 40, Y_THREAD, x1 + 40, Y_THREAD, 0.75), SHIRO, 0.5 * fade(t, 0.2, 0.8))
+    t_start = a0 + 0.6
+    t_end = max(t_start + 1.5, a1 - 0.2)
+    for j in range(n):
+        x = x0 + (x1 - x0) * j / (n - 1)
+        tj = 0.3 if j == 0 else t_start + (t_end - t_start) * (j - 1) / (n - 2)
+        kj = fade(t, tj, 0.12)
+        if kj <= 0:
+            continue
+        col = 0.95 if j == 0 else 0.5
+        a[ym0:ym1, int(x)] = a[ym0:ym1, int(x)] * (1 - kj * col) + np.array(SHIRO, F32) * kj * col
+    a = ink(a, Hz(x0, ym0 - 26, "先生", "sans", T, 0.1, "c"), SHIRO, 0.95 * fade(t, 0.4, 0.8))
+    a = ink(a, Hz(x1, ym0 - 26, "聞きたい生徒", "sans", T, 0.1, "r"), SHIRO, 0.9 * fade(t, t_start + 0.6, 0.8))
+    k2 = fade(t, a1 - 0.1, 0.9)
+    if k2 > 0:
+        a = ink(a, plate(("v", 660, TOP - 28, "[1]時間", "thin", XL, 0.0)), SHIRO, k2)
+    return a
+
+
+# ---- 学ぶ（全体 → 問いを打つ → 答えに寄る）
+@scene("learn10")
+def learn10(s, t, f):
+    a0 = vat(s)
+    m = meta("learn10")["marks"]
+    pts = [(0, m["full"]), (a0 - 1.2, m["full"] + 20), (a0 - 0.2, m["typed"] + 6), (a0 + 0.5, m["wait"]), (s["len"], m["answer"] + 38)]
+    i = ramp_frame(pts, t)
+    tz = a0 + 0.9
+    b = meta("learn10")["boxes"]["thread"]
+    return blend_views(lambda: full_view("learn10", i), lambda: css_crop("learn10", i, b["x"] + b["w"] / 2, box_center("learn10", "answer", 0, 30)[1], min(820, b["w"] + 40)), t, tz, 0.6)
+
+
+# ---- 毛彫りを 1 本：声は n30 だけ。4 つの段を、ゆっくり順に（作り話の注は外した。仮の映像の出典は残す）
+@scene("kebori9", "hands9")
+def kebori10(s, t, f):
+    a0 = vat(s)
+    t_model = a0 + 2.6
+    t_ask = a0 + 4.8
+    t_hand = a0 + 7.0
+    a = L.ground().copy()
+    m = meta("kebori9")["marks"]
+    k_l0 = fade(t, 0.3, 0.8) * (1 - sm((t - t_model) / 0.6))
+    if k_l0 > 0:
+        y = int(meta("kebori9")["boxes"]["ruleHead"]["y"] - 6) * 4
+        a = col_place(a, col_shot("kebori9", m["rule"], y), COL_X[0], k_l0)
+    k_l1 = fade(t, t_model, 0.6)
+    if k_l1 > 0:
+        a = col_place(a, foot_col(t - t_model), COL_X[0], k_l1)
+    # 映像が出ている間は、技の頁の題（技の名前）を横に出さない（映像は西洋の彫りなので、技の名前と結びつけない）
+    k_g = 0.55 * fade(t, 0.5, 0.9) * (1 - sm((t - t_model) / 0.5))
+    if k_g > 0:
+        a = col_place(a, col_shot("kebori9", m["top"], GUIDE_Y), COL_X[1], k_g)
+    k_r0 = fade(t, t_ask, 0.6) * (1 - sm((t - t_hand) / 0.6))
+    if k_r0 > 0:
+        y = max(0, int(meta("kebori9")["boxes"]["thread"]["y"] + 6)) * 4
+        a = col_place(a, col_shot("kebori9", m["answer"], y), COL_X[1], k_r0)
+    k_r1 = fade(t, t_hand, 0.6)
+    if k_r1 > 0:
+        a = col_place(a, col_shot("hands9", meta("hands9")["marks"]["result"], 0), COL_X[1], k_r1)
+    k = fade(t, 0.2, 0.9)
+    a = ink(a, Hz(COL_X[0], 92, "職人が残す", "min", S, 0.08), SHIRO, k)
+    a = ink(a, Hz(COL_X[1], 92, "学ぶ人が受け取る", "min", S, 0.08), SHIRO, fade(t, t_ask - 0.2, 0.8))
+    a = ink(a, Hz(COL_X[0] + COL_W, 92, "答える", "sans", T, 0.08, "r"), SHIRO, 0.95 * k * (1 - sm((t - t_model) / 0.4)))
+    a = ink(a, Hz(COL_X[0] + COL_W, 92, "手本を残す", "sans", T, 0.08, "r"), SHIRO, 0.95 * fade(t, t_model + 0.2, 0.5))
+    a = ink(a, Hz(COL_X[1] + COL_W, 92, "聞く", "sans", T, 0.08, "r"), SHIRO, 0.95 * fade(t, t_ask, 0.5) * (1 - sm((t - t_hand) / 0.4)))
+    a = ink(a, Hz(COL_X[1] + COL_W, 92, "手を比べる", "sans", T, 0.08, "r"), SHIRO, 0.95 * fade(t, t_hand + 0.2, 0.5))
+    a = ink(a, Ln(LEFT, 118, COL_X[0] + COL_W, 118, 0.75), SHIRO, 0.5 * k)
+    a = ink(a, Ln(COL_X[1], 118, COL_X[1] + COL_W, 118, 0.75), SHIRO, 0.5 * fade(t, t_ask - 0.2, 0.8))
+    if MID_CREDITS and kebori_foot().startswith("kari") and k_l1 > 0:
+        a = ink(a, Hz(COL_X[0], 1052, "映像：「Gravieren von Zinngeschirr」Gabriel Simons / LVR-Institut für Landeskunde und Regionalgeschichte（CC BY 3.0）。切り抜き・色を変更", "sans", 22, 0.02), SHIRO, 0.82 * k_l1)
+    return a
+
+
+# ---- 木目金（n34 の声は外した。字だけ残す）
+@scene()
+def mokume10(s, t, f):
+    a = mokume_ground().copy()
+    a0 = vat(s)
+    d = s["voice"][0]["dur"]
+    a = ink(a, V(1540, 126, "木目金", "min", LG, 0.16), SHIRO, fade(t, a0 + d - 1.3, 1.0))
+    k = fade(t, a0 + 0.1, 0.9)
+    a = ink(a, V(1436, 130, "江戸時代の、", "min", S, 0.10), SHIRO, k)
+    a = ink(a, V(1378, 130, "刀の飾りの技。", "min", S, 0.10), SHIRO, k)
+    a = ink(a, V(640, 130, "一時途絶えたとされ、", "min", S, 0.10), SHIRO, fade(t, a0 + d + 0.3, 0.9))
+    a = ink(a, V(582, 130, "のちに復元された。", "min", S, 0.10), SHIRO, fade(t, a0 + d + 0.9, 0.9))
+    a = ink(a, Hz(LEFT, 1056, "鐔：メトロポリタン美術館（CC0）", "sans", 22, 0.08), SHIRO, 0.82 * fade(t, 0.6, 0.8))
+    return a
+
+
+# ---- 途切れた技：木目金の頁の全体 → 手がかり 9 → 職人の帳面も渡すの札（寄りだけ。作り話の品の名前は映さない。注は外した）
+@scene("rebuild10", "restore9")
+def restore10(s, t, f):
+    a0 = vat(s)
+    d = s["voice"][0]["dur"]
+    m = meta("rebuild10")["marks"]
+    sw = a0 + d * 0.55
+    tz = a0 + 0.9
+    pts = [(0, m["full"]), (a0 + 0.6, m["full"] + 26), (a0 + 1.0, m["open"]), (s["len"], m["open"] + 39)]
+    i = ramp_frame(pts, t)
+    if t < sw:
+        full = lambda: full_view("rebuild10", i)  # noqa: E731
+        zoom = lambda: zoom_view("rebuild10", i, *box_center("rebuild10", "cluesBox", 0, -60))  # noqa: E731
+        return blend_views(full, zoom, t, tz, 0.6)
+    mb = meta("restore9")
+    bb = mb["boxes"]["bookCard"]
+    y0, y1 = int((bb["y"] - 14) * 4), int((bb["y"] + bb["h"] + 10) * 4)
+    card = lift(shot("restore9", mb["marks"]["book"], (0, y0, 1920, y1 - y0), (1920, y1 - y0)), 0.05)
+    r1 = np.zeros((H, W, 3), F32)
+    top = (H - card.shape[0]) // 2
+    g = (np.clip(np.arange(card.shape[0], dtype=F32) / 24, 0, 1) * np.clip((card.shape[0] - 1 - np.arange(card.shape[0], dtype=F32)) / 24, 0, 1))[:, None, None]
+    r1[top:top + card.shape[0]] = card * g
+    r0 = zoom_view("rebuild10", i, *box_center("rebuild10", "cluesBox", 0, -60))
+    k = sm((t - sw) / 0.6)
+    return r0 * (1 - k) + r1 * k
+
+
+# ---- 力試し：手がかりだけを渡す（同じ頁の手がかりの欄に寄ったまま）
+@scene("rebuild10")
+def rebuild10(s, t, f):
+    m = meta("rebuild10")["marks"]
+    i = min(m["open"] + 39 + int(t * FPS), meta("rebuild10")["frames"] - 1)
+    return zoom_view("rebuild10", i, *box_center("rebuild10", "cluesBox", 0, 60))
+
+
+# ---- 職人の帳面が加われば（n38 の声は外した）
+@scene()
+def tsuba10(s, t, f):
+    a = tsuba_big().copy()
+    a0 = vat(s)
+    a = ink(a, V(RIGHT - 30, TOP + 6, "職人の帳面が加われば、", "min", M, 0.10), SHIRO, fade(t, a0 - 0.1, 0.9))
+    a = ink(a, V(RIGHT - 126, TOP + 6, "失われた技も、", "min", M, 0.10), SHIRO, fade(t, a0 + 0.9, 0.9))
+    a = ink(a, V(RIGHT - 222, TOP + 6, "組み立て直せるかもしれない。", "min", M, 0.10), SHIRO, fade(t, a0 + 1.8, 0.9))
+    a = ink(a, Hz(LEFT, 1056, "鐔：メトロポリタン美術館（CC0）", "sans", 22, 0.08), SHIRO, 0.82 * fade(t, 0.6, 0.8))
+    return a
+
+
+# ---- 工房に入れておけば：本物の帳面の画面の全体
+@scene("ledger10")
+def ledger10(s, t, f):
+    return full_view("ledger10", meta("ledger10")["marks"]["full"])
+
+
+# ---- 継ぐで作れる形の幅（見本の形と、Claude が組んだゴシック。字なし）
+SHAPES_ORDER = [("shapes10", "attack"), ("shapes10", "crossing"), ("shapes10", "twin")]
+
+
+@scene("shapes10", "gothic10")
+def shapes10(s, t, f):
+    n = len(SHAPES_ORDER)
+    # はじめの形（攻めたゴシック）は、前の場面から黒をはさんで出てくる間（xf）の分だけ長く見せる
+    xf = s.get("xf", 1.0)
+    rest = (s["len"] - xf) / n
+    bounds = [0.0] + [xf + rest * (k + 1) for k in range(n)]
+    j = max(k for k in range(n) if t >= bounds[k]) if t >= 0 else 0
+    seg = bounds[j + 1] - bounds[j]
+    tl = t - bounds[j]
+
+    def ring_at(jj, tt):
+        ch, mk = SHAPES_ORDER[jj]
+        i = meta(ch)["marks"][mk] + int(tt * FPS)
+        return ring_frame(ch, i, None, halo=0.1, color=GOTHIC_WHITE if mk in ("attack",) else (1.0, 0.86, 0.68), bloom=0.2)
+
+    a = ring_at(j, tl)
+    if j + 1 < n and tl > seg - 0.5:
+        k = sm((tl - (seg - 0.5)) / 0.5)
+        a = a * (1 - k) + ring_at(j + 1, 0) * k
+    return a
+
+
+@scene()
+def title2(s, t, f):
+    a = L.ground().copy()
+    m = title_plate()
+    a = screen(a, L.blur(m, 30)[..., None] * 0.05 * fade(t, 0.3, 1.0))
+    a = ink(a, m, SHIRO, fade(t, vat(s) - 0.5, 1.0))
+    if NAME_LATIN in ("end", "both"):
+        a = ink(a, Hz(W / 2, 800, "TSUGU CRAFT", "thin3", T, 0.62, "c"), SHIRO, 0.9 * fade(t, vat(s) + 0.2, 0.9))
+    return a
+
+
+
+# ================================================================ 最終案 10 の続き（2026-11-06 作者の声：実際に使っている所を中心に。カーソルが本当に操作して、指輪がその場で変わる）
+# どの画面も、まず全体 → 押す所 → 寄る（撮ったこまの切り抜きを重ねて替える。枠は動かさない）。手で変える操作は、声なしで短い見出しを 1 つずつ
+# 出典は途中の画面に出さず、最後にまとめる（作者の判断 2026-11-06）。MID_CREDITS=1 で、前のように途中にも出す
+MID_CREDITS = os.environ.get("MID_CREDITS") == "1"
+CSSW = {"ask10": 960, "learn10": 960, "rebuild10": 960, "ledger10": 960}
+
+
+def kof(ch):
+    return meta(ch)["size"][0] / CSSW.get(ch, 1280)
+
+
+def css_crop(ch, i, cx, cy, wcss):
+    """撮ったこまの、ページの点 (cx, cy) を真ん中に、幅 wcss（ページの px）の 16:9 を切り抜いて 1920×1080 に（端ははみ出さない）"""
+    m = meta(ch)
+    i = int(clamp(int(i), 0, m["frames"] - 1))
+    K = kof(ch)
+    sw, sh = m["size"]
+    w = min(sw, wcss * K)
+    h = w * 9 / 16
+    x = clamp(cx * K - w / 2, 0, sw - w)
+    y = clamp(cy * K - h / 2, 0, sh - h)
+    return shot(ch, int(i), (int(x), int(y), int(w), int(h)))
+
+
+@lru_cache(maxsize=1)
+def head_shade():
+    y, x = np.mgrid[0:H, 0:W].astype(F32)
+    d = np.clip(1 - np.sqrt((x / 1250) ** 2 + (y / 330) ** 2), 0, 1)
+    return (d ** 1.2 * 0.7)[..., None]
+
+
+@lru_cache(maxsize=1)
+def head_shade_bl():
+    y, x = np.mgrid[0:H, 0:W].astype(F32)
+    d = np.clip(1 - np.sqrt((x / 1250) ** 2 + ((H - y) / 330) ** 2), 0, 1)
+    return (d ** 1.2 * 0.7)[..., None]
+
+
+def heading(a, text, t, t0, t1=None, pos="tl"):
+    """操作の見出し（左上か左下。後ろを少し暗くして読めるように）"""
+    k = fade(t, t0, 0.5)
+    if t1 is not None:
+        k *= 1 - sm((t - t1) / 0.4)
+    if k <= 0:
+        return a
+    a = a * (1 - (head_shade() if pos == "tl" else head_shade_bl()) * k)
+    return ink(a, Hz(LEFT, 146 if pos == "tl" else H - 104, text, "min", S + 6, 0.08), SHIRO, k)
+
+
+def ops_frame(t, pts):
+    return ramp_frame(pts, t)
+
+
+OPS_Z = (840, 297, 880)       # 作る・確かめるの欄と指輪（右へずらした指輪と、右の欄）
+OPS_MEASURE = (470, 360, 760)  # 正面から見た指輪の内側と、寸法の札
+
+
+@scene("ops11")
+def shape11(s, t, f):
+    m = meta("ops11")["marks"]
+    n = s["len"]
+    i = ramp_frame([(0, 12), (1.35, m["yamagata"] + 2), (2.2, m["hirauchi"] - 13), (2.5, m["hirauchi"] + 2), (n, m["hirauchi"] + 2 + int((n - 2.5) * FPS))], t)
+    tz = 1.5
+    a = blend_views(lambda: full_view("ops11", i), lambda: css_crop("ops11", i, *OPS_Z), t, tz, 0.5)
+    return heading(a, "腕の形を選ぶ", t, tz + 0.15)
+
+
+@scene("ops11")
+def section11(s, t, f):
+    m = meta("ops11")["marks"]
+    n = s["len"]
+    i = ramp_frame([(0, m["hirauchi"] + 36), (0.8, m["draw"] - 18), (1.2, m["draw"]), (1.4, m["draw"] + 10), (3.1, m["dragged"]), (n, m["dragged"] + int((n - 3.1) * FPS))], t)
+    a = css_crop("ops11", i, *OPS_Z)
+    return heading(a, "断面を手で描く", t, 0.25)
+
+
+@scene("ops11")
+def size11(s, t, f):
+    m = meta("ops11")["marks"]
+    n = s["len"]
+    i = ramp_frame([(0, m["dragged"] + 54), (0.7, m["refine"]), (0.85, m["refine"] + 8), (1.15, m["gou0"]), (1.8, m["gou0"] + 28), (2.4, m["gou0"] + 47), (n, min(m["gou0"] + 47 + int((n - 2.4) * FPS), m["gou2"] + 20))], t)
+    tz = 0.85
+    a = blend_views(lambda: full_view("ops11", i), lambda: css_crop("ops11", i, *OPS_Z), t, tz, 0.45)
+    return heading(a, "号を変える", t, tz + 0.15)
+
+
+@scene("ops11")
+def measure11(s, t, f):
+    m = meta("ops11")["marks"]
+    n = s["len"]
+    i = ramp_frame([(0, m["gou2"] + 32), (0.7, m["front"]), (1.05, m["measure"] - 2), (1.85, m["measure"] + 23), (2.65, m["measured"]), (n, m["measured"] + int((n - 2.65) * FPS))], t)
+    tz = 1.15
+    a = blend_views(lambda: full_view("ops11", i), lambda: css_crop("ops11", i, *OPS_MEASURE), t, tz, 0.45)
+    return heading(a, "寸法を引く", t, tz + 0.15, pos="bl")
+
+
+# ---- 言葉で頼む（本物の Claude の「ゴシックな感じ」。組んでいる途中の絵は使わず、作れますの出来上がりへ重ねて替える）
+# 撮った章：gothic11（gothic10 で本物の Claude が組んだ回を、覚えた返事で撮り直した物）。アールデコを試した回は deco11（作者が見て、ゴシックで確定。使わない）
+GEN_CH = os.environ.get("GEN_CH", "gothic11")
+GOTHIC_Z = (520, 300, 880)
+
+
+@scene(GEN_CH)
+def gothic11(s, t, f):
+    m = meta(GEN_CH)["marks"]
+    a0 = vat(s)
+    n = s["len"]
+    t_go = a0 - 0.15            # 生成を押したこまが映る秒
+    t_done = t_go + 0.9         # 出来上がり（作れます）へ重ねて替える秒
+    if t < t_go + 0.05:
+        i = ramp_frame([(0, 4), (0.7, m["type"] + 10), (t_go - 0.85, m["typed"] + 8), (t_go, m["go"] - 2)], t)
+        return full_view(GEN_CH, i)
+    j = m["done"] + int((t - t_done) * FPS) if t > t_done else m["done"]
+    j = min(j, m["refine"] - 24)
+    done_full = lambda: full_view(GEN_CH, j)  # noqa: E731
+    if t < t_done + 0.6:
+        k = sm((t - t_go) / (t_done + 0.6 - t_go))
+        return full_view(GEN_CH, m["go"] - 2) * (1 - k) + done_full() * k
+    return blend_views(done_full, lambda: css_crop(GEN_CH, j, *GOTHIC_Z), t, t_done + 1.6, 0.6)
+
+
+# ---- 人が直す：爪を押して細くする → その場で作れない所 → 職人の言葉 → まとめて直す → 作れます
+FIX_Z = (500, 300, 900)
+
+
+@scene(GEN_CH)
+def fix11(s, t, f):
+    m = meta(GEN_CH)["marks"]
+    a0, a1 = vat(s, 0), vat(s, 1)
+    d1 = s["voice"][1]["dur"]
+    n = s["len"]
+    # 声（n18）の前に：確かめるを押す → 爪を押す → 太さのつまみを左へ → その場で赤（ここまで約 4 秒。台本の pre を 4.2 秒に固定）
+    pts = [(0, m["refine"] - 22), (0.75, m["refine"] + 2), (1.0, m["refine"] + 10), (1.9, m["pop"]), (2.2, m["pop"] + 10),
+           (3.5, m["thin"] - 2), (a0 + 0.1, m["thin"] + 5), (a0 + 1.6, m["thin"] + 30), (a1 - 0.6, m["reason"] - 4), (a1 + 0.3, m["reason"] + 14),
+           (a1 + d1 + 0.2, m["press"] - 2), (a1 + d1 + 0.5, m["fixed"] + 2), (n, min(m["fixed"] + 2 + int((n - a1 - d1 - 0.5) * FPS), m["draw"] - 30))]
+    pts = sorted(pts)
+    i = ramp_frame(pts, t)
+    tz = 1.3
+    # 職人の言葉の窓を読む間は、窓と赤い爪にもう一段寄る
+    tr0, tr1 = a1 - 0.2, a1 + d1 + 0.05
+    if t < tr0 or t > tr1 + 0.5:
+        return blend_views(lambda: full_view(GEN_CH, i), lambda: css_crop(GEN_CH, i, *FIX_Z), t, tz, 0.5)
+    fix = lambda: css_crop(GEN_CH, i, *FIX_Z)  # noqa: E731
+    near = lambda: css_crop(GEN_CH, i, *REASON_Z)  # noqa: E731
+    # 同じこまの切り抜きどうしは、重ねる時間を短く（長いと、指輪が二重に見える）
+    if t < tr1:
+        return blend_views(fix, near, t, tr0, 0.3)
+    return blend_views(near, fix, t, tr1, 0.3)
+
+
+REASON_Z = (640, 250, 700)  # 窓の右の端（934）と、赤い爪（350 あたり）が入る
+
+
+# ---- 図面と STL（声なし）
+DRAW_Z = (480, 330, 900)
+
+
+@scene(GEN_CH)
+def out11(s, t, f):
+    m = meta(GEN_CH)["marks"]
+    n = s["len"]
+    t_stl = 2.7
+    if t < t_stl:
+        i = ramp_frame([(0, m["fixed"] + 30), (0.9, m["draw"] - 2), (1.2, m["draw"] + 8), (t_stl, m["draw"] + 8 + int((t_stl - 1.2) * FPS))], t)
+        a = blend_views(lambda: full_view(GEN_CH, i), lambda: css_crop(GEN_CH, i, *DRAW_Z), t, 1.2, 0.45)
+        if t > t_stl - 0.45:
+            k = sm((t - (t_stl - 0.45)) / 0.45)
+            j = m["stl"] - 16
+            a = a * (1 - k) + full_view(GEN_CH, j) * k
+        # 見出しは、暗い所（全体の画面の上の帯）に出ている間だけ。白い図面の上では消す
+        return heading(a, "図面と STL", t, 0.2, 1.0)
+    i = ramp_frame([(t_stl, m["stl"] - 16), (t_stl + 0.6, m["stl"] + 2), (n, m["stl"] + 2 + int((n - t_stl - 0.6) * FPS))], t)
+    return heading(full_view(GEN_CH, i), "図面と STL", t, t_stl + 0.1)
+
+
+# ---- 章の扉：手元の映像（作者の映像）の上に、章の名前
+@scene()
+def door1h(s, t, f):
+    a = grade_hands(foot_at("raw/file_hands.mov", t, t0=0.3, speed=0.45), 0.72)
+    a = a * vign(0.5, 0.45)
+    a = door_words(a, 0, SHIRO, t)
+    return thread_layer(a, SHIRO, active=0)
+
+
+@scene()
+def door3h(s, t, f):
+    a = grade_flame(foot_at("raw/anneal.mov", t, t0=6.4, speed=0.45))
+    a = a * vign(0.5, 0.45)
+    a = door_words(a, 2, SHIRO, t)
+    return thread_layer(a, SHIRO, active=2)
+
+
+# ---- 行き来の図（1 場面にまとめた）：何度も戻る → 継ぐがあれば、戻りはごく少なく
+@scene()
+def flow11(s, t, f):
+    a0 = vat(s)
+    d = s["voice"][0]["dur"]
+    t_b = a0 + d + 1.1   # 継ぐの枠に替わる
+    if t < t_b + 0.7:
+        a = flow10(s, t, f)
+        if t > t_b:
+            k = sm((t - t_b) / 0.7)
+            a = a * (1 - k) + flow10b(s, t - t_b, f) * k
+        return a
+    return flow10b(s, t - t_b, f)
+
+
+# ---- 途切れた技：木目金の鐔の写真の上で n32・n33
+@scene()
+def mokume11(s, t, f):
+    a = mokume_ground().copy()
+    a1 = vat(s, 1)
+    d1 = s["voice"][1]["dur"]
+    a = ink(a, V(1540, 126, "木目金", "min", LG, 0.16), SHIRO, fade(t, a1 + d1 - 1.5, 1.0))
+    a = ink(a, V(1436, 132, "江戸時代の、刀の飾りの技。", "min", S, 0.10), SHIRO, fade(t, a1 + 0.2, 0.9))
+    return a
+
+
+# ---- 模様の試し（別の係が作った頁）：頁の全体 → 段が順に出る → 最後の 3 枚に寄る。n37 は頁の上で、n39 は 3 枚の上で
+def moyou_zoom():
+    b = meta("moyou11")["boxes"]
+    bs = [b[k] for k in ("big0", "big1", "big2") if k in b]
+    x0 = min(q["x"] for q in bs) - 18
+    x1 = max(q["x"] + q["w"] for q in bs) + 18
+    y0 = min(q["y"] for q in bs) - 14
+    y1 = max(q["y"] + q["h"] for q in bs) + 10
+    return (x0 + x1) / 2, (y0 + y1) / 2, max(x1 - x0, (y1 - y0) * 16 / 9)
+
+
+@scene("moyou11")
+def moyou11(s, t, f):
+    m = meta("moyou11")["marks"]
+    nfr = meta("moyou11")["frames"]
+    a0 = vat(s, 0)
+    a1 = vat(s, 1) if len(s["voice"]) > 1 else s["len"] - 4
+    # 段：n37 の頭で ①、そこから 1.3 秒ごと。最後の 3 枚は、n39 の 1.6 秒前から
+    t_s1 = a0 + 0.1
+    t_fin = a1 - 1.8
+    step = (t_fin - 0.5 - t_s1) / 4.6
+    pts = [(0, m["full"] + 4), (t_s1 - 0.01, m["s1"] - 1)]
+    for k in range(1, 6):
+        tk = t_s1 + (k - 1) * step
+        pts.append((tk, m[f"s{k}"]))
+        nxt = m[f"s{k + 1}"] if k < 5 else m["final"]
+        pts.append((t_s1 + k * step - 0.01 if k < 5 else t_fin - 0.01, nxt - 1))
+    pts.append((t_fin, m["final"]))
+    pts.append((s["len"], min(nfr - 1, m["final"] + int((s["len"] - t_fin) * FPS))))
+    i = ramp_frame(sorted(pts), t)
+    # 最後の 3 枚は頁の幅いっぱいに並ぶので、3 枚まとめては寄れない。1 枚ずつ寄る（本当の手順 → Claude の手順（黄の縁＝はがれ）→ 本物）→ 3 枚の並びに戻る
+    tz = t_fin + 1.45
+    views = [(tz, 0), (tz + 1.5, 1), (tz + 4.4, 2), (tz + 6.2, None)]
+    def view(k):
+        if k is None:
+            return lambda: full_view("moyou11", i)
+        b = meta("moyou11")["boxes"][f"big{k}"]
+        return lambda: css_crop("moyou11", i, b["x"] + b["w"] / 2, b["y"] + b["h"] / 2 - 6, 660)
+    if t < tz:
+        return full_view("moyou11", i)
+    cur = None
+    for j, (t0, k) in enumerate(views):
+        if t >= t0:
+            cur = j
+    t0, k = views[cur]
+    prev = views[cur - 1][1] if cur > 0 else "full"
+    a_prev = (lambda: full_view("moyou11", i)) if prev == "full" else view(prev)
+    # 全体と寄りの間は 0.6 秒、寄りどうし（同じこまの切り抜き）は 0.3 秒（長いと二重に見える）
+    return blend_views(a_prev, view(k), t, t0, 0.3 if (prev not in ("full", None) and k is not None) else 0.6)
+
+
+# ---- 出典（最後にまとめて）
+SOURCES = [
+    ("彫る手元の映像", ["「Gravieren von Zinngeschirr」Gabriel Simons / LVR-Institut für Landeskunde und Regionalgeschichte", "Wikimedia Commons（CC BY 3.0）。切り抜き・色を変更"]),
+    ("木目金の鐔の写真", ["メトロポリタン美術館（CC0）"]),
+    ("1953 年の内宮の写真", ["本田照夫 撮影、Wikimedia Commons（パブリックドメイン）"]),
+    ("伝統的工芸品の作り手の数", ["経済産業省の資料"]),
+    ("式年遷宮に関われる回数", ["国土交通白書"]),
+]
+
+
+@scene()
+def sources(s, t, f):
+    a = L.ground().copy()
+    k = fade(t, 0.15, 0.6)
+    x0, x1 = 300, 760
+    a = ink(a, Hz(x0, 300, "出典", "min", S, 0.12), SHIRO, k)
+    y = 396
+    for name, lines in SOURCES:
+        a = ink(a, Hz(x0, y, name, "sans", T, 0.04), SHIRO, 0.95 * k)
+        for j, ln in enumerate(lines):
+            a = ink(a, Hz(x1, y + j * 40, ln, "sans", T - 2, 0.02), SHIRO, 0.86 * k)
+        y += 40 * len(lines) + 34
     return a
 
 
@@ -1413,7 +2206,7 @@ def seg_frames(doc, idx):
 
 # 場面ごとの動画を使い回すかどうかは、その場面（と前の場面）の関数の中身で決める。
 # 場面に共通の道具（字の板・指輪の光・切り替えなど）を直したときは、COMMON を変える（全部の場面を組み直す）
-COMMON = "2026-11-06e"
+COMMON = "2026-11-06h"
 
 
 def scene_code(sid):
