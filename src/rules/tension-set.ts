@@ -249,14 +249,14 @@ export interface TensionAdvice {
   massG: number;
 }
 
-/** おすすめが探す深さ（mm。両はしとも、この中で、step ごと。職人の「0.3 mm くらいでは絶対抜ける」より深い所だけ） */
+/** おすすめが探す深さ（mm。両はしとも adviceDepthMinMm〜adviceDepthMaxMm を step ごと） */
 export function adviceDepths(g: Guides = GUIDES): number[] {
   const t = g.tension;
   const out: number[] = [];
   const n = Math.round((t.adviceDepthMaxMm - t.adviceDepthMinMm) / t.adviceDepthStepMm);
   for (let i = 0; i <= n; i++) {
     const v = Math.round((t.adviceDepthMinMm + i * t.adviceDepthStepMm) * 1000) / 1000;
-    if (v > t.weakGrooveMm + 1e-9) out.push(v);
+    out.push(v);
   }
   return out;
 }

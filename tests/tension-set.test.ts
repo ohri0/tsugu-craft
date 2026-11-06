@@ -195,7 +195,7 @@ describe("作者の本物の指輪（SV925・φ4・14 号・三角・短い辺�
     expect(adviceText(a)).toBe(`おすすめ：くぼみ 0.65 mm・溝 0.60 mm、作る時の開き ${a.makeGapMm!.toFixed(2)} mm、広げる量 ${a.spreadMm.toFixed(2)} mm（戻りきらない分 約 ${a.setMm.toFixed(2)} mm を見込む）`);
   });
 
-  it("おすすめは、広げる量がいちばん少ない組。ほかの組はどれも、届かないか、同じかもっと広げる。どの端も「0.3 mm くらいでは絶対抜ける」より深い", () => {
+  it("おすすめは、広げる量がいちばん少ない組。ほかの組はどれも、届かないか、同じかもっと広げる。深さは adviceDepthMinMm〜adviceDepthMaxMm", () => {
     const r = authorRing("side", 0.4, 0.4);
     const t = tensionSpring(r.setting, r.shank)!;
     const best = tensionAdvice({ radiusMm: t.radiusMm, wireMm: 4, ...adviceSpringOf("sv925"), kinds: ["pit", "groove"] });
@@ -207,7 +207,7 @@ describe("作者の本物の指輪（SV925・φ4・14 号・三角・短い辺�
     const eta = frictionFactor(g.holdWallDeg, g.holdFriction);
     const demand = dropWorkNmm(bandMassUpperG(t.radiusMm, 4, GUIDES.metals.sv925.densityGPerCm3), g.holdDropMm);
     const depths = adviceDepths();
-    expect(Math.min(...depths)).toBeGreaterThan(g.weakGrooveMm);
+    expect(Math.min(...depths)).toBeCloseTo(g.adviceDepthMinMm, 9);
     expect(Math.max(...depths)).toBeCloseTo(g.adviceDepthMaxMm, 9);
     let found = 0;
     for (const pit of depths)

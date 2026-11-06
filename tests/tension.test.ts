@@ -302,7 +302,7 @@ describe("テンションの参考の計算（開ける量）", () => {
   });
 
   it("合否にしない：足りなくても「作れない」は増えない。石にかかる力の数字は出さない", () => {
-    const pt = buildRing({ stone: triangle, setting: { style: "tension" }, shank: { ...phi4, metal: "pt900" } });
+    const pt = buildRing({ stone: triangle, setting: { style: "tension" }, shank: { ...phi4, metal: "pt900" }, tension: OLD_DEPTHS });
     expect(tensionOpening(pt.setting, pt.shank)!.enough).toBe(false);
     expect(checkRing(pt)).toEqual([]);
     const text = tensionOpeningText(tensionOpening(pt.setting, pt.shank)!);
