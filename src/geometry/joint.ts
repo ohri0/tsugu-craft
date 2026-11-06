@@ -8,7 +8,7 @@ import { GUIDES } from "../rules/guides";
 import type { V3 } from "./mesh";
 import type { SeatCut } from "./notch";
 import type { RingTransform } from "./ring";
-import { buildSolid, smax, smin } from "./sdf";
+import { buildSolid, heavy, smax, smin } from "./sdf";
 import { COLLAR_EDGE_MM, collarTaperTan, polygonDistance, type SettingResult } from "./setting";
 import { BAND_GAP_OVERLAP_MM, shoulderWidth, type ShankResult } from "./shank";
 
@@ -207,6 +207,11 @@ const SOLDER_SCAN_MM = 0.1;
  * ほかの面は輪か腕の中に隠れる。石とはすき間を残す（石の下の面 − すき間 より上は作らない）
  */
 export function buildSolder(rail: Rail, shank: ShankResult, cut: SeatCut | null): Solder {
+  // 重い形（別の糸で作れる。sdf.ts の heavy）
+  return heavy("solder", () => makeSolder(rail, shank, cut));
+}
+
+function makeSolder(rail: Rail, shank: ShankResult, cut: SeatCut | null): Solder {
   const k = GUIDES.gallery.solderFilletRatio * 2 * rail.radiusMm;
   const a = rail.radiusMm;
   const plain = bandDistance(shank, SOLDER_GRID.cellMm / 2);
@@ -379,6 +384,11 @@ function solidExtent(G: (x: number, y: number, z: number) => number, lo: V3, hi:
  * G ＝ max(smin(輪, 腕, k), 輪 − k, 腕 − k)。腕は端で切った形、輪は指の面で下を切った形。指の中には作らない
  */
 export function buildEndSolder(collar: CollarRing, shank: ShankResult): Solder {
+  // 重い形（別の糸で作れる。sdf.ts の heavy）
+  return heavy("end-solder", () => makeEndSolder(collar, shank));
+}
+
+function makeEndSolder(collar: CollarRing, shank: ShankResult): Solder {
   const ends = shank.ends;
   if (!ends) return { positions: new Float32Array(0), normals: new Float32Array(0), contacts: 0, filletMm: 0 };
   // 丸みの大きさ：下の輪の板の厚み × ロウの丸みの割合（腕の上にのせるときの「下の輪の線の太さ × 割合」と同じ決め方）
