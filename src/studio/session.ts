@@ -6,12 +6,12 @@ import { PRESETS, presetOutline } from "./presets";
 import { autoOrientation, tAtOutlineIndex, type JoinStyle, type ProngLook, type ProngTip, type SolidQuality } from "../geometry/setting";
 import type { SectionCurve, SectionPoint, ShankSection, ShankStation } from "../geometry/shank";
 import type { ReliefParams } from "../geometry/shank-relief";
-import type { TensionGrip, TensionInfo } from "../geometry/tension";
+import { tensionDefaultDepths, type TensionGrip, type TensionInfo } from "../geometry/tension";
 import type { StoneParams } from "../geometry/stone";
 import { recordHeavy, replayHeavy } from "../geometry/sdf";
 import { FIXES, checkRing, cornerDistances, grooveNote, holdRatio, shankWidthNote, widthFixMm, tensionInsert, tensionNotes, tensionOpening, tensionOpeningText, type FixId, type Problem } from "../rules/checks";
 import { springForClaude, springIdOf, tensionCautions, tensionSpring } from "../rules/tension-calc";
-import { holdForClaude, tensionHoldSet } from "../rules/tension-hold";
+import { holdAdvice, holdForClaude, tensionHoldSet } from "../rules/tension-hold";
 import { GUIDES, requiredHold, stoneSizeMm, type Guides, type HeightOption, type MetalId, type StonePosition } from "../rules/guides";
 import { effectiveGuides, prongMinOverride, ruleForCheck, type Ledger, type Rule } from "../rules/ledger";
 import { INPUT_BOUNDS, isIrogane, nunomeInput, nunomePatchOf, nunomeState } from "../claude/tools";
@@ -773,10 +773,7 @@ export class RingSession implements ToolHost<RingState> {
       others,
       joinHeads: trio,
       stone: this.stone,
-      tension:
-        s.style === "tension" && (s.tensionGrip || s.tensionPitMm !== undefined || s.tensionGrooveMm !== undefined)
-          ? { ...(s.tensionGrip ? { grip: s.tensionGrip } : {}), ...(s.tensionPitMm !== undefined ? { cornerPitMm: s.tensionPitMm } : {}), ...(s.tensionGrooveMm !== undefined ? { edgeGrooveMm: s.tensionGrooveMm } : {}) }
-          : undefined,
+      tension: s.style === "tension" ? this.tensionOptions() : undefined,
       setting: {
         style: s.style,
         height: s.height,
@@ -1228,7 +1225,27 @@ export class RingSession implements ToolHost<RingState> {
     s.stones = s.stones.map((x) => ({ ...x, longMm: Math.round(x.longMm * SMALLER_STEP * 10) / 10 }));
   }
 
-  /** テンションのくぼみと溝の深さを変える（「浅く留めたいとき」のつまみ）。undefined は職人の値に戻す */
+  /**
+   * テンションの挟む向きと深さ。深さを選んでいなければ既定：三角の短い辺を溝に（side）は職人の値、ほかは戻りきらない分を見込んだおすすめ（仮）。
+   * おすすめは、帳面の値（落とす高さ・戻りきらない割合など）と、選んだ地金（K18 は色ごと）で出す（画面の「おすすめ」と同じ数）
+   */
+  tensionOptions(): { grip?: TensionGrip; cornerPitMm?: number; edgeGrooveMm?: number } {
+    const s = this.state;
+    const def =
+      s.tensionPitMm === undefined || s.tensionGrooveMm === undefined
+        ? tensionDefaultDepths({ gou: s.gou, thicknessMm: s.shankThicknessMm ?? GUIDES.tension.wireMm, metal: metalIdOf(s.metal) }, this.stone, s.tensionGrip, this.guides(), this.tensionSpringOf())
+        : null;
+    return { ...(s.tensionGrip ? { grip: s.tensionGrip } : {}), cornerPitMm: s.tensionPitMm ?? def!.pitMm, edgeGrooveMm: s.tensionGrooveMm ?? def!.grooveMm };
+  }
+
+  /** おすすめの計算に使う、選んだ地金の値（ヤング率・耐力（硬い状態）・密度。帳面の値） */
+  tensionSpringOf(): { youngGpa: number; proofMpa: number; densityGPerCm3: number } {
+    const g = this.guides();
+    const m = g.tension.spring.metals[springIdOf(this.state.metal)];
+    return { youngGpa: m.young.gpa, proofMpa: m.hardened.proofMpa, densityGPerCm3: g.metals[metalIdOf(this.state.metal)].densityGPerCm3 };
+  }
+
+  /** テンションのくぼみと溝の深さを変える（「浅く留めたいとき」のつまみ・「おすすめにする」）。undefined は既定に戻す（side は職人の値、ほかはおすすめ） */
   setTensionDepths(pitMm: number | undefined, grooveMm: number | undefined, why = "手で"): Built {
     this.state.tensionPitMm = pitMm;
     this.state.tensionGrooveMm = grooveMm;
@@ -1265,7 +1282,10 @@ export class RingSession implements ToolHost<RingState> {
         ? {
             tension_calc: {
               ...springForClaude(spring),
-              hold: holdForClaude(tensionHoldSet(spring, b.ring.metalWeightG, springIdOf(this.state.metal), springIdOf(this.state.metal), this.guides())),
+              hold: holdForClaude(
+                tensionHoldSet(spring, b.ring.metalWeightG, springIdOf(this.state.metal), springIdOf(this.state.metal), this.guides()),
+                holdAdvice(spring, b.ring.setting.tension!.ends, this.tensionSpringOf(), this.guides(), b.ring.metalWeightG),
+              ),
               cautions: tensionCautions(b.ring.setting, spring, springIdOf(this.state.metal), this.guides()).map((c) => ({ title: c.title, text: c.text })),
             },
           }

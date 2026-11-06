@@ -471,6 +471,8 @@ export interface CheckResult {
       make_gap_mm: number | null;
       spread_mm: number | null;
       grip_mm: number | null;
+      /** 広げたあと、戻りきらずに開いたまま残る量（仮。grip_mm はこれを引いた量） */
+      stays_open_after_spread_mm: number | null;
       stays_bent_mm: number | null;
       slide_smaller_by_mm: number | null;
     }[];
@@ -651,7 +653,7 @@ export const TOOLS: ClaudeTool[] = [
           type: "string",
           enum: ["prong", "bezel", "tension"],
           description:
-            `留め方。prong＝爪留め、bezel＝覆輪（石の縁をぐるりと壁で包む。いちばん取れにくいが、見た目が大きく変わる）、tension＝テンション（開いた腕の両はしで石を挟む。三角の石は、片方の端のくぼみに角の先を ${GUIDES.tension.cornerPitMm} mm、もう片方の端の溝に辺を ${GUIDES.tension.edgeGrooveMm} mm 入れる（tension_grip の side なら、いちばん短い辺を溝に ${GUIDES.tension.shortSideGrooveMm} mm・反対の角をくぼみに ${GUIDES.tension.shortSidePitMm} mm。作者が実際に作った指輪の向きと深さ）。職人の値。腕は φ${GUIDES.tension.wireMm} mm の丸線に替わる。地金は加工硬化した硬い状態が条件。爪・高さ・向きの項目は使わない。挟む向きは tension_grip。check の tension_calc に、地金ごとの大まかな計算がある）`,
+            `留め方。prong＝爪留め、bezel＝覆輪（石の縁をぐるりと壁で包む。いちばん取れにくいが、見た目が大きく変わる）、tension＝テンション（開いた腕の両はしで石を挟む。三角の石は、片方の端のくぼみに角の先を、もう片方の端の溝に辺を入れる。深さの既定は、広げたあと戻りきらない分を見込んで、広げる量がいちばん少なく留まる見込みになる計算のおすすめ（仮。check の tension_calc.hold.advice）。tension_grip の side なら、いちばん短い辺を溝に ${GUIDES.tension.shortSideGrooveMm} mm・反対の角をくぼみに ${GUIDES.tension.shortSidePitMm} mm（作者が実際に作った指輪の向きと深さ。職人の値）。腕は φ${GUIDES.tension.wireMm} mm の丸線に替わる。地金は加工硬化した硬い状態が条件。爪・高さ・向きの項目は使わない。挟む向きは tension_grip。check の tension_calc に、地金ごとの大まかな計算がある）`,
         },
         prong_positions: {
           type: "array",

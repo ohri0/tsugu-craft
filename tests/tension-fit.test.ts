@@ -62,13 +62,13 @@ describe("石は地金に刺さっていない（網目で測る）", () => {
     }
   }, 120000);
 
-  it("既定の三角（写真から読んだ石）も同じ。くぼみ 0.8 mm・溝 0.5 mm・石の先と指 0.5 mm・縁は腕の 7 割", () => {
+  it("既定の三角（写真から読んだ石）も同じ。深さは戻りきらない分を見込んだおすすめ（K18・11 号でくぼみ 0.65 mm・溝 0.6 mm。仮）・石の先と指 0.5 mm・縁は腕の 7 割", () => {
     const r = ringOf(tri());
     const i = r.setting.tension!;
     const f = fit(r);
     expect(f.depth).toBeLessThan(MESH_TOLERANCE_MM);
     expect(f.clear).toBeGreaterThan(0.02);
-    expect(i.ends.map((e) => [e.kind, e.depthMm])).toEqual([["pit", 0.8], ["groove", 0.5]]);
+    expect(i.ends.map((e) => [e.kind, e.depthMm])).toEqual([["pit", 0.65], ["groove", 0.6]]);
     expect(r.culetGapMm).toBeCloseTo(0.5, 6);
     expect(GUIDES.tension.girdleAtWire).toBe(0.7);
     expect(checkRing(r)).toEqual([]);
@@ -208,16 +208,19 @@ describe("挟む向きを選べる", () => {
     expect(tensionGrips(preset("marquise"))).toEqual(["short", "corner"]);
   });
 
+  // 石の長さ（腕の周りの向き）。開き ＝ 石の長さ − 両はしの深さ（深さの既定は、戻りきらない分を見込んだおすすめ。仮）
   it.each([
-    ["marquise", "corner", 10 - 1.6, ["pit", "pit"]],
-    ["princess", "corner", 5.5 * Math.SQRT2 - 1.6, ["pit", "pit"]],
-    ["emerald", "long", 8 - 1, ["groove", "groove"]],
-    ["oval", "long", 8 - 1, ["groove", "groove"]],
-  ] as [string, TensionGrip, number, string[]][])("%s の %s：開きが変わり、閉じた形で、石は地金に入らない", (id, grip, gap, kinds) => {
-    const r = ringOf(preset(id), 11, { tension: { grip } });
+    ["marquise", "corner", 10, ["pit", "pit"]],
+    ["princess", "corner", 5.5 * Math.SQRT2, ["pit", "pit"]],
+    ["emerald", "long", 8, ["groove", "groove"]],
+    ["oval", "long", 8, ["groove", "groove"]],
+  ] as [string, TensionGrip, number, string[]][])("%s の %s：開きが変わり、閉じた形で、石は地金に入らない", (id, grip, span, kinds) => {
+    // 形の確かめは前の深さ（くぼみ 0.8・溝 0.5）で。既定のおすすめの深さ（マーキスの角 0.6 など）では、網目で測るすき間が 0.015 mm ほどまで狭まる所がある（食いこみはない）
+    const r = ringOf(preset(id), 11, { tension: { grip, cornerPitMm: 0.8, edgeGrooveMm: 0.5 } });
     const i = r.setting.tension!;
     expect(i.grip).toBe(grip);
-    expect(i.gapMm).toBeCloseTo(gap, 1);
+    expect(i.spanMm).toBeCloseTo(span, 1);
+    expect(i.gapMm).toBeCloseTo(i.spanMm - i.ends[0].depthMm - i.ends[1].depthMm, 6);
     expect(i.ends.map((e) => e.kind)).toEqual(kinds);
     expect(topology(r.ringPositions.shank)).toMatchObject({ open: 0, flipped: 0, shells: 1, degenerate: 0 });
     const f = fit(r);
@@ -228,14 +231,15 @@ describe("挟む向きを選べる", () => {
 
   it("三角の長い辺の両はしの角を挟む：両方くぼみ、開きは長い辺 − 両はしの深さ。深さの既定は角のくぼみの値。浅くすれば閉じた形で石は地金に入らない。はみ出しは作れないにせず、職人に聞く", () => {
     const sv14 = { shank: { gou: 14, ...phi4, metal: "sv925" as const } };
-    // 既定は角のくぼみの値 0.8 mm ずつ（この向きの職人の値はない。作者の指輪の 0.5 mm は、短い辺を溝に入れる向きの値）。
-    // 開きは長い辺 − 1.6 mm。とがった角（約 60°）のくぼみは幅が広く、片方は腕の幅に収まらない（作れない、と言う）
-    const deep = ringOf(tri(), 14, { tension: { grip: "corner" }, ...sv14 }).setting.tension!;
+    // 前の角のくぼみの値 0.8 mm ずつ（この向きの職人の値はない）なら、開きは長い辺 − 1.6 mm。とがった角（約 60°）のくぼみは幅が広く、片方は腕の幅に収まらない（作れない、と言う）
+    const deep = ringOf(tri(), 14, { tension: { grip: "corner", cornerPitMm: 0.8 }, ...sv14 }).setting.tension!;
     expect(deep.mode).toBe("corner-corner");
-    expect(deep.ends.map((e) => [e.kind, e.depthMm])).toEqual([["pit", GUIDES.tension.cornerPitMm], ["pit", GUIDES.tension.cornerPitMm]]);
+    expect(deep.ends.map((e) => [e.kind, e.depthMm])).toEqual([["pit", 0.8], ["pit", 0.8]]);
     expect(deep.spanMm).toBeGreaterThan(8.7);
     expect(deep.gapMm).toBeCloseTo(deep.spanMm - 1.6, 6);
-    expect(checkRing(ringOf(tri(), 14, { tension: { grip: "corner" }, ...sv14 })).map((x) => x.check)).toContain("tension-pit");
+    expect(checkRing(ringOf(tri(), 14, { tension: { grip: "corner", cornerPitMm: 0.8 }, ...sv14 })).map((x) => x.check)).toContain("tension-pit");
+    // 既定は、戻りきらない分を見込んだおすすめ（SV925・14 号で 0.6 mm ずつ。仮）
+    expect(ringOf(tri(), 14, { tension: { grip: "corner" }, ...sv14 }).setting.tension!.ends.map((e) => e.depthMm)).toEqual([0.6, 0.6]);
     // 0.5 mm ずつにすると、くぼみは収まる。残りの角は腕の幅より大きく出るが、作れないにせず、職人に聞く
     const r = ringOf(tri(), 14, { tension: { grip: "corner", cornerPitMm: 0.5 }, ...sv14 });
     const i = r.setting.tension!;
@@ -286,9 +290,9 @@ describe("挟む向きを選べる", () => {
     const f = fit(r);
     expect(f.depth).toBeLessThan(MESH_TOLERANCE_MM);
     expect(f.clear).toBeGreaterThan(0.02);
-    // 深さを渡せば、その深さ（長い辺を溝に入れるときの 0.8・0.5 は変わらない）
+    // 深さを渡せば、その深さ（長い辺を溝に入れるときの既定は、おすすめの 0.65・0.6。仮）
     expect(ringOf(stone, 14, { tension: { grip: "side", cornerPitMm: 0.3, edgeGrooveMm: 0.3 }, ...sv14 }).setting.tension!.ends.map((e) => e.depthMm)).toEqual([0.3, 0.3]);
-    expect(short.ends.map((e) => e.depthMm)).toEqual([0.8, 0.5]);
+    expect(short.ends.map((e) => e.depthMm)).toEqual([0.65, 0.6]);
   }, 120000);
 
   it("選べない向きを渡しても、壊れない（既定の向きになる）", () => {
@@ -382,7 +386,8 @@ describe("石の入れ方（形から決まる動き）", () => {
 });
 
 describe("地金ごとの計算（どれだけ小さめに作り、どれだけ広げて入れるか）", () => {
-  const triRing = () => ringOf(tri());
+  // 地金ごとの計算は、前の深さ（くぼみ 0.8・溝 0.5 mm。和 1.3 mm）で確かめる（深さの既定は、2026-11-07 からおすすめ）
+  const triRing = () => ringOf(tri(), 11, { tension: { cornerPitMm: 0.8, edgeGrooveMm: 0.5 } });
   const row = (t: NonNullable<ReturnType<typeof tensionSpring>>, m: string) => t.rows.find((r) => r.metal === m)!;
 
   it("太い輪の割合：ばねの手引きの式（C ＝ 輪の径 ÷ 線の太さ）", () => {
@@ -407,7 +412,9 @@ describe("地金ごとの計算（どれだけ小さめに作り、どれだけ�
     expect(k.shrinkMaxMm).toBeCloseTo(k.limitMm - 1.3, 9);
     // 作る時の開き ＋ 広げて入れる量 ＝ 石が通る寸法
     expect(k.makeGapMm! + k.spreadMm!).toBeCloseTo(t.spanMm, 6);
-    expect(k.gripMm).toBeCloseTo(k.shrinkMm!, 9);
+    // 石を押さえる量は、縮めた量から、広げたあと戻りきらない分（安全な限界まで広げると、広げた分の springSetRatio。仮）を引いた量
+    expect(k.setMm).toBeCloseTo(GUIDES.tension.springSetRatio * k.spreadMm!, 6);
+    expect(k.gripMm).toBeCloseTo(k.shrinkMm! - k.setMm!, 9);
     expect(k.bentMm).toBe(0);
     const sv = row(t, "sv925");
     expect(sv.limitMm).toBeCloseTo(1.42, 2);
@@ -471,8 +478,15 @@ describe("地金ごとの計算（どれだけ小さめに作り、どれだけ�
     expect(c.tension_calc!.metals.map((m) => m.metal)).toEqual(["K18 イエロー", "K18 ピンク", "K18 ホワイト", "Pt900", "SV925"]);
     const k = c.tension_calc!.metals[0];
     expect(k.verdict).toBe("room");
-    expect(k.smaller_by_mm).toBeCloseTo(0.36, 1);
-    expect(c.tension_calc!.cautions.map((x) => x.title).join()).toContain("ぎりぎり");
+    // 深さの既定は、SV925 でのおすすめ。K18 の小さめに作る量は、太い輪の分の限界 − 深さの和
+    expect(k.smaller_by_mm).toBeCloseTo(k.limit_thick_ring_mm! - c.tension_calc!.need_mm!, 1);
+    expect(k.stays_open_after_spread_mm).toBeGreaterThan(0);
+    // SV925・11 号の既定の三角では、戻りきらない分を見込むと、おすすめの組が見つからない（仮の値で。14 号なら見つかる）
+    expect(c.tension_calc!.hold!.advice!.found).toBe(false);
+    expect(c.tension_calc!.hold!.advice!.text).toContain("おすすめ");
+    // 前の深さ（くぼみ 0.8・溝 0.5）にすると、SV925 は開く量がぎりぎり、の注意
+    s.setTensionDepths(0.8, 0.5);
+    expect(s.check().tension_calc!.cautions.map((x) => x.title).join()).toContain("ぎりぎり");
     expect(c.tension_calc!.note).toContain("最後は職人が決める");
     expect(c.note).toContain("石の入れ方");
     s.setSetting({ style: "prong", reason: "戻す" });

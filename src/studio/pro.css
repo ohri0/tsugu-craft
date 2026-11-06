@@ -1327,3 +1327,10 @@ html.fit .trad-note, html.fit .trad-foot { font-size: 12px; }
 .nm-cell[aria-pressed="true"] { background: #e9b54a; border-color: #e9b54a; }
 html.fit .nm-note, html.fit .nm-pat { font-size: 12px; }
 @media (max-width: 820px) { .nm-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+/* テンションのおすすめ（深さと作る時の開き。戻りきらない分を見込む。2026-11-07） */
+.tn-hold .tn-advice { display: grid; gap: 6px; justify-items: start; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--line-2); }
+.tn-hold .tn-advice p { display: grid; gap: 2px; }
+.tn-hold .tn-advice p b { font-weight: 600; color: var(--fg); }
+.tn-hold .tn-advice p small { font-size: 12px; color: var(--fg-2); }
+.tn-hold .tn-advice.none { border-color: rgba(255, 69, 58, 0.3); }
+.tn-hold .hold-advice-apply { font-size: 13px; padding: 4px 10px; }

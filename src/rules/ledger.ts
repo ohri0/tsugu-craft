@@ -27,6 +27,7 @@ export const PARAMS = {
   "band.minWidthMm": { label: "腕の幅（これ以下は赤）", unit: "mm", checks: ["band-narrow"] },
   "tension.holdDropMm": { label: "テンションの外れにくさ：落としても外れない高さ（仮の目安 1000 mm）", unit: "mm", checks: [] },
   "tension.holdFriction": { label: "テンションの外れにくさ：石と地金の摩擦の係数（仮の目安 0.1）", unit: "", checks: [] },
+  "tension.springSetRatio": { label: "テンションの戻りきらない分：安全な限界まで広げたとき、広げた分のうち開いたまま残る割合（仮の目安 0.05）", unit: "", checks: [] },
   "hold.cornerSet": { label: "角が 3 つの石を、角に 1 本ずつの爪 3 本で留めたとき 4 本と同じ留まりとみなす（1 ＝ みなす）", unit: "", checks: ["hold"] },
   "inlay.wireMinMm": { label: "布目象嵌：打ちこむ線の太さ（最低）", unit: "mm", checks: ["nunome-line"] },
   "inlay.wireMaxMm": { label: "布目象嵌：打ちこむ線の太さ（最大）", unit: "mm", checks: ["nunome-line"] },

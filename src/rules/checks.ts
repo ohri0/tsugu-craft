@@ -10,6 +10,7 @@ import type { TensionEnd, TensionInfo } from "../geometry/tension";
 import { checkNunome, faceSpan, nunomeOf, type NunomeCheck, type NunomeDesign, type NunomeIssue } from "../geometry/nunome";
 import { GUIDE_NOTE, GUIDES, type Guides, type StonePosition } from "./guides";
 import { prongMinOverride } from "./ledger";
+import { elasticOpeningMm } from "./tension-set";
 
 /** 画面に必ず添える、留まりの注意 */
 export const HOLD_NOTE = "「留まり」は爪を片持ちの棒と見なした目安の比較で、強度計算の代わりではない";
@@ -501,16 +502,8 @@ export function tensionInsert(info: Pick<TensionInfo, "mode" | "slides">): Tensi
   return { kind: "open", how: "腕を開いて、片側を溝へ入れてから、もう片側を入れます", hold: "溝が石の丸みに沿うので、腕が開かないと横へ動きません", noStop: false };
 }
 
-/**
- * 開いた輪を、まっすぐ押し開くとき、地金が戻れる範囲（耐力を超えない範囲）で開ける量（mm）。
- * 切れ目のある輪の曲げ：開く量 δ ＝ 3π F R³ ÷（E I）、いちばん大きい曲げ（開きの反対側）M ＝ 2 F R、σ ＝ M（d ÷ 2）÷ I。
- * F と I を消すと δ ≒ 3π R² σ ÷（E d）。I が消えるので、断面の形によらず、高さ d で決まる。
- * 前提：細い輪の近似（R が d より十分大きい。太い輪では内側の曲げが強くなるので、実際は少なめになりやすい）、まっすぐ押し開く（ねじらない）、端の溝は無視。
- * radiusMm：中心の半径 R。wireMm：線の高さ d。youngGpa：ヤング率 E。proofMpa：耐力 σ
- */
-export function elasticOpeningMm(radiusMm: number, wireMm: number, youngGpa: number, proofMpa: number): number {
-  return (3 * Math.PI * radiusMm * radiusMm * proofMpa) / (youngGpa * 1000 * wireMm);
-}
+/** 開いた輪を、まっすぐ押し開くとき、地金が戻れる範囲で開ける量（mm）。式と前提は src/rules/tension-set.ts（形の側からも読むので、そこに置いた） */
+export { elasticOpeningMm };
 
 export type HardState = "hardened" | "annealed";
 /** テンションの計算の地金（K18 は色ごと） */

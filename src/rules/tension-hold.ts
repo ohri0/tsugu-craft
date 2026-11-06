@@ -11,48 +11,30 @@
 //   - 摩擦で足す分：石は壁をすべり上がるので、こすれる分だけ多く要る。壁の傾き β・摩擦 μ で、全体に η ＝ tanβ（1 ＋ μ tanβ）÷（tanβ − μ）をかける。
 // - 求める側：指輪を高さ h から落として石から当たると、腕の重さ m の勢い m × g × h が、石を押し出す向きにかかる、とみなす（いちばん悪い場合）。
 // - 外れにくさ ÷ 求める側 が 1 以上なら「留まる見込み」。詰める量はばねの限界まで（広げて入れる量 e ＋ s が、太い輪の分を見た限界まで）。
-import { elasticOpeningMm } from "./checks";
+// - 広げたあと戻りきらない分（2026-11-07 作者の声。src/rules/tension-set.ts・RESEARCH 15 節。仮）：石を入れたあとの締まりは、縮めた量 − 戻りきらない分。
+//   答えはこの締まりで決め、作り方は戻りきらない分を見込んで縮める（作る時の開きをその分だけ狭く）。
 import { GUIDES, type Guides } from "./guides";
-import { curvedWireFactor, type SpringMetalId, type SpringRow, type SpringTable } from "./tension-calc";
+import { type SpringMetalId, type SpringRow, type SpringTable } from "./tension-calc";
+import {
+  compensateSet,
+  curvedWireFactor,
+  dropWorkNmm,
+  elasticOpeningMm,
+  frictionFactor,
+  holdWork,
+  needSqueezeMm as needFor,
+  permanentSetMm,
+  planAt,
+  ringStiffnessNPerMm,
+  setCurve,
+  tensionAdvice,
+  type HoldWork,
+  type SetCurve,
+  type TensionAdvice,
+} from "./tension-set";
 
-const G_MS2 = 9.81;
-
-/** 腕のばねの硬さ（N/mm）：開いた輪の両はしを 1 mm 開く力。丸い線。細い輪の式 */
-export function ringStiffnessNPerMm(radiusMm: number, wireMm: number, youngGpa: number): number {
-  const i = (Math.PI * wireMm ** 4) / 64;
-  return (youngGpa * 1000 * i) / (3 * Math.PI * radiusMm ** 3);
-}
-
-/** 壁をすべり上がるときの摩擦の割合 η（1 以上）。壁が摩擦より寝ているとき（tanβ ≤ μ）は、押しても出ない（Infinity） */
-export function frictionFactor(wallDeg: number, mu: number): number {
-  const t = Math.tan((wallDeg * Math.PI) / 180);
-  return t <= mu ? Infinity : (t * (1 + mu * t)) / (t - mu);
-}
-
-/** 外れにくさの内わけ（N·mm ＝ mJ） */
-export interface HoldWork {
-  /** 深さで止める分 */
-  lock: number;
-  /** 詰めて足す分 */
-  squeeze: number;
-  /** 摩擦で足す分 */
-  friction: number;
-  total: number;
-}
-
-/** 深さの和 e・詰めた量 s で、石を押し出すのに要る仕事（N·mm） */
-export function holdWork(kNPerMm: number, eMm: number, sMm: number, eta: number): HoldWork {
-  const lock = (kNPerMm * eMm * eMm) / 2;
-  const squeeze = kNPerMm * eMm * Math.max(0, sMm);
-  const base = lock + squeeze;
-  const friction = Number.isFinite(eta) ? base * (eta - 1) : Infinity;
-  return { lock, squeeze, friction, total: base + friction };
-}
-
-/** 落としたときに受け止める仕事（N·mm）：腕の重さ（g）× 重力 × 高さ（mm） */
-export function dropWorkNmm(massG: number, heightMm: number): number {
-  return (massG / 1000) * G_MS2 * heightMm;
-}
+// 式は src/rules/tension-set.ts（形の側からも読むので、そこに置いた）。前からの名前で読めるように
+export { dropWorkNmm, frictionFactor, holdWork, ringStiffnessNPerMm, type HoldWork };
 
 /** 留まる見込み／ぎりぎり・職人が確かめる／この地金・この太さでは足りない */
 export type HoldVerdict = "hold" | "tight" | "short";
@@ -94,25 +76,44 @@ export interface HoldResult {
   dropMm: number;
   mu: number;
   wallDeg: number;
-  /** 留めるのに要る詰める量（mm。深さが 0 なら Infinity） */
+  /** 石を留めるのに、石を入れたあとに残っていてほしい締まり（mm。深さが 0 なら Infinity） */
   needSqueezeMm: number;
-  /** 腕が戻れる範囲で詰められる量：太い輪の分を見た量（safe）と、細い輪の式の上限（limit）。負なら広げて入れるだけで限界を超える */
+  /**
+   * 広げる量が太い輪の分を見た限界（safe）・細い輪の式の限界（limit）に届くまで縮めたときの、作るときに縮める量。負なら広げて入れるだけで限界を超える。
+   * 戻りきらない分は引いていない（引いた量は safeEffectiveMm・limitEffectiveMm）
+   */
   safeSqueezeMm: number;
   limitSqueezeMm: number;
+  /**
+   * 戻りきらない分を引いた、石を入れたあとに残せる締まりの最大：安全に（広げる量が safe まで）と、限界まで（広げる量が limit まで）。
+   * 要る量が safeEffectiveMm の内なら「留まる見込み」。超えても limitSqueezeMm（戻りきらない分を見ない前の計算）の内なら「ぎりぎり」
+   */
+  safeEffectiveMm: number;
+  limitEffectiveMm: number;
   verdict: HoldVerdict;
-  /** 作るときに詰める量（決めた量。なければ要る量。足りなければ太い輪の分の限界）と、作る時の開き・広げて入れる量（mm） */
+  /**
+   * 作るときに縮める量（決めた量。なければ、戻りきらない分を見込んで、要る量が残る量。足りなければ安全な限界まで広げる量）と、
+   * 作る時の開き・広げて入れる量（mm）
+   */
   squeezeMm: number;
   makeGapMm: number;
   spreadMm: number;
-  /** その詰める量での外れにくさの内わけと、求める側との比 */
+  /** 広げたあと、戻りきらずに開いたまま残る量（mm）と、石を入れたあとに残る締まり（縮める量 − 残る量。負なら石との間にすき間） */
+  setMm: number;
+  effectiveSqueezeMm: number;
+  /** 戻りきらない分の線（残りはじめ・限界・割合） */
+  curve: SetCurve;
+  /** 戻りきらない分を見込まずに、要る量だけ縮めて作ったとき（前の計算の作り方）。深さが 0 なら null */
+  naive: { squeezeMm: number; spreadMm: number; setMm: number; effectiveSqueezeMm: number; margin: number } | null;
+  /** その詰める量での外れにくさの内わけ（残る締まりで）と、求める側との比 */
   work: HoldWork;
   margin: number;
-  /** この地金・この太さで、留まる見込みになるいちばん浅い深さの和（太い輪の分の限界まで詰めたとき。mm。どの深さでも足りなければ null）と、ぎりぎりの深さの和 */
+  /** この地金・この太さで、留まる見込みになるいちばん浅い深さの和（戻りきらない分を見込み、安全な限界まで広げたとき。mm。どの深さでも足りなければ null）と、ぎりぎりの深さの和（前の計算：限界まで、戻りきらない分なし） */
   minDepthSumMm: number | null;
   minDepthSumTightMm: number | null;
 }
 
-/** 詰める量の限界まで詰めたとき、留まる見込みになるいちばん浅い深さの和：k η e（S − e ÷ 2）＝ W を e について解く */
+/** 締まりを残せる最大 C（深さの和をふくむ。広げる量の限界 − 戻りきらない分）で、留まる見込みになるいちばん浅い深さの和：k η e（C − e ÷ 2）＝ W を e について解く */
 function minDepthFor(capMm: number, demand: number, k: number, eta: number): number | null {
   if (!Number.isFinite(eta)) return 0;
   const d = capMm * capMm - (2 * demand) / (k * eta);
@@ -120,21 +121,37 @@ function minDepthFor(capMm: number, demand: number, k: number, eta: number): num
   return capMm - Math.sqrt(d);
 }
 
-/** 深さの和と地金から、石を留めるのに縮める量・安全に縮められる量・答え。squeezeMm を渡すと、その量で作ったときの外れにくさ */
+/**
+ * 深さの和と地金から、石を留めるのに縮める量・安全に縮められる量・答え。squeezeMm を渡すと、その量で作ったときの外れにくさ。
+ * 広げたあと戻りきらない分（src/rules/tension-set.ts。仮）を入れる：答えは、戻りきらない分を引いた残る締まりで決める
+ */
 export function tensionHold(input: HoldInput, g: Guides = GUIDES, squeezeMm?: number): HoldResult {
   const t = g.tension;
   const e = Math.max(0, input.depthSumMm);
   const k = ringStiffnessNPerMm(input.radiusMm, input.wireMm, input.spring.youngGpa);
   const eta = frictionFactor(t.holdWallDeg, t.holdFriction);
   const demand = dropWorkNmm(input.massG, t.holdDropMm);
-  const safeMm = input.spring.limitMm / input.spring.factor;
+  const limitMm = input.spring.limitMm;
+  const safeMm = limitMm / input.spring.factor;
+  const curve = setCurve(safeMm, limitMm, t.springSetRatio);
   const safeSqueezeMm = safeMm - e;
-  const limitSqueezeMm = input.spring.limitMm - e;
-  const needSqueezeMm = e <= 1e-9 ? Infinity : !Number.isFinite(eta) ? 0 : Math.max(0, demand / (k * eta * e) - e / 2);
-  const verdict: HoldVerdict = needSqueezeMm <= safeSqueezeMm + 1e-9 ? "hold" : needSqueezeMm <= limitSqueezeMm + 1e-9 ? "tight" : "short";
-  const s = squeezeMm ?? (verdict === "short" ? Math.max(0, safeSqueezeMm) : needSqueezeMm);
+  const limitSqueezeMm = limitMm - e;
+  const safeEffectiveMm = safeSqueezeMm - permanentSetMm(safeMm, curve);
+  const limitEffectiveMm = limitSqueezeMm - permanentSetMm(limitMm, curve);
+  const needSqueezeMm = needFor(e, demand, k, eta);
+  // 留まる見込み：戻りきらない分を見込んで、安全な限界までに要る量が残る。
+  // ぎりぎり：そうはならないが、限界まで広げて戻りきらない分が出なければ（前の計算）届く。戻りきらない分の値は仮なので、職人が確かめる
+  const verdict: HoldVerdict = needSqueezeMm <= safeEffectiveMm + 1e-9 ? "hold" : needSqueezeMm <= limitSqueezeMm + 1e-9 ? "tight" : "short";
+  const plan =
+    squeezeMm !== undefined
+      ? planAt(e, squeezeMm, curve)
+      : verdict === "hold"
+        ? compensateSet(e, needSqueezeMm, curve, safeMm)!
+        : ((verdict === "tight" ? compensateSet(e, needSqueezeMm, curve, limitMm) : null) ?? planAt(e, Math.max(0, safeSqueezeMm), curve));
   const gapMm = input.spanMm - e;
-  const work = holdWork(k, e, s, eta);
+  const work = holdWork(k, e, plan.effectiveMm, eta);
+  const marginOf = (w: HoldWork) => (demand > 0 ? w.total / demand : Infinity);
+  const naivePlan = Number.isFinite(needSqueezeMm) ? planAt(e, needSqueezeMm, curve) : null;
   return {
     depthSumMm: e,
     gapMm,
@@ -147,14 +164,20 @@ export function tensionHold(input: HoldInput, g: Guides = GUIDES, squeezeMm?: nu
     needSqueezeMm,
     safeSqueezeMm,
     limitSqueezeMm,
+    safeEffectiveMm,
+    limitEffectiveMm,
     verdict,
-    squeezeMm: s,
-    makeGapMm: gapMm - s,
-    spreadMm: e + s,
+    squeezeMm: plan.squeezeMm,
+    makeGapMm: gapMm - plan.squeezeMm,
+    spreadMm: plan.spreadMm,
+    setMm: plan.setMm,
+    effectiveSqueezeMm: plan.effectiveMm,
+    curve,
+    naive: naivePlan ? { squeezeMm: naivePlan.squeezeMm, spreadMm: naivePlan.spreadMm, setMm: naivePlan.setMm, effectiveSqueezeMm: naivePlan.effectiveMm, margin: marginOf(holdWork(k, e, naivePlan.effectiveMm, eta)) } : null,
     work,
-    margin: demand > 0 ? work.total / demand : Infinity,
-    minDepthSumMm: minDepthFor(safeMm, demand, k, eta),
-    minDepthSumTightMm: minDepthFor(input.spring.limitMm, demand, k, eta),
+    margin: marginOf(work),
+    minDepthSumMm: minDepthFor(safeMm - permanentSetMm(safeMm, curve), demand, k, eta),
+    minDepthSumTightMm: minDepthFor(limitMm, demand, k, eta),
   };
 }
 
@@ -174,6 +197,7 @@ export interface HoldOption {
   label: string;
   verdict: HoldVerdict;
   needSqueezeMm: number;
+  /** 戻りきらない分を引いて、安全に残せる締まり（mm） */
   safeSqueezeMm: number;
   provisional: boolean;
 }
@@ -202,7 +226,7 @@ export function tensionHoldSet(table: SpringTable, massG: number, metal: SpringM
   for (const r of table.rows) {
     if (r.metal === metal) continue;
     const h = tensionHold({ ...base, massG: mass(r.metal), spring: holdSpringOf(r, table.factor) }, g);
-    options.push({ id: `metal:${r.metal}`, label: r.name, verdict: h.verdict, needSqueezeMm: h.needSqueezeMm, safeSqueezeMm: h.safeSqueezeMm, provisional: r.provisional });
+    options.push({ id: `metal:${r.metal}`, label: r.name, verdict: h.verdict, needSqueezeMm: h.needSqueezeMm, safeSqueezeMm: h.safeEffectiveMm, provisional: r.provisional });
   }
   // 線を 0.5 mm 太くする（同じ地金。重さは断面と輪の径に比例、限界は太さに反比例、太い輪の割合も変わる）
   const d = table.wireMm + 0.5;
@@ -212,7 +236,7 @@ export function tensionHoldSet(table: SpringTable, massG: number, metal: SpringM
     const limitMm = elasticOpeningMm(radiusMm, d, m.young.gpa, m.hardened.proofMpa);
     const massD = mass(metal) * (d / table.wireMm) ** 2 * (radiusMm / table.radiusMm);
     const h = tensionHold({ ...base, radiusMm, wireMm: d, massG: massD, spring: { ...spring, limitMm, factor: curvedWireFactor(radiusMm, d) } }, g);
-    options.push({ id: `wire:${d.toFixed(1)}`, label: `${row.name}・線 ø ${d.toFixed(1)} mm`, verdict: h.verdict, needSqueezeMm: h.needSqueezeMm, safeSqueezeMm: h.safeSqueezeMm, provisional: row.provisional });
+    options.push({ id: `wire:${d.toFixed(1)}`, label: `${row.name}・線 ø ${d.toFixed(1)} mm`, verdict: h.verdict, needSqueezeMm: h.needSqueezeMm, safeSqueezeMm: h.safeEffectiveMm, provisional: row.provisional });
   }
   return { now, atAppSqueeze, options };
 }
@@ -236,22 +260,64 @@ export const HOLD_WORDS = {
   spread: "石を入れる時に広げる量",
   /** 広げられる限界（細い輪の式。limitMm） */
   spreadLimit: "広げられる限界",
+  /** 広げたあと戻りきらない分（setMm。作者の声 2026-11-07「1 に戻るんじゃなくて 1.2 とか」） */
+  set: "広げたあと、戻りきらずに開いたまま残る量",
+  /** 戻りきらない分を見込んだ作る時の開き（makeGapMm） */
+  makeWithSet: "戻りきらない分を見込んだ、作る時の開き",
+  /** 深さと開きのおすすめ（tensionAdvice） */
+  advice: "おすすめ",
 } as const;
 
 /** 前提の一言（画面と作り方） */
 export const HOLD_PREMISE =
-  "外れにくさの目安：指輪を落として石から当たったとき、腕が石の深さの分だけ開かされる仕事で受け止められるか、の大まかな計算です。落とす高さ・摩擦・壁の傾きは仮の値です。合否にはしません。最後は職人が決めます";
+  "外れにくさの目安：指輪を落として石から当たったとき、腕が石の深さの分だけ開かされる仕事で受け止められるか、の大まかな計算です。広げたあと戻りきらない分を引いた締まりで見ます。落とす高さ・摩擦・壁の傾き・戻りきらない割合は仮の値です。合否にはしません。最後は職人が決めます";
 
-/** 短い答えの文（作り方・図面） */
+/** 短い答えの文（作り方・図面）。安全に縮められる量・限界は、戻りきらない分を引いた、石を入れたあとに残せる締まり */
 export function holdSummary(h: HoldResult, name: string): string {
   const need = Number.isFinite(h.needSqueezeMm) ? `約 ${h.needSqueezeMm.toFixed(2)} mm` : "決まらない（深さが 0）";
-  return `${HOLD_VERDICT_LABEL[h.verdict]}（${name}・深さの和 ${h.depthSumMm.toFixed(2)} mm：${HOLD_WORDS.need} ${need}、${HOLD_WORDS.safe} 約 ${h.safeSqueezeMm.toFixed(2)} mm・${HOLD_WORDS.limit} 約 ${h.limitSqueezeMm.toFixed(2)} mm。落とす高さ ${(h.dropMm / 1000).toFixed(1)} m の仮の目安）`;
+  return `${HOLD_VERDICT_LABEL[h.verdict]}（${name}・深さの和 ${h.depthSumMm.toFixed(2)} mm：${HOLD_WORDS.need} ${need}、${HOLD_WORDS.safe} 約 ${h.safeEffectiveMm.toFixed(2)} mm・${HOLD_WORDS.limit} 約 ${h.limitEffectiveMm.toFixed(2)} mm（${HOLD_WORDS.set}を引いて）。落とす高さ ${(h.dropMm / 1000).toFixed(1)} m・戻りきらない割合 ${h.curve.ratio} の仮の目安）`;
+}
+
+/** 戻りきらない分の一言（作り方・図面）：広げる量、残る量、見込んだ作る時の開き */
+export function setSummary(h: HoldResult): string {
+  return `${HOLD_WORDS.spread} 約 ${h.spreadMm.toFixed(2)} mm で、${HOLD_WORDS.set} 約 ${h.setMm.toFixed(2)} mm（仮）。${HOLD_WORDS.makeWithSet} 約 ${h.makeGapMm.toFixed(2)} mm（図面の開きより ${h.squeezeMm.toFixed(2)} mm 狭く）`;
+}
+
+/** 今の深さが、おすすめと同じか */
+export function isAdvised(depths: readonly { kind: "pit" | "groove"; depthMm: number }[], a: TensionAdvice): boolean {
+  return depths.every((e) => Math.abs(e.depthMm - ((e.kind === "pit" ? a.pitMm : a.grooveMm) ?? NaN)) < 1e-6);
+}
+
+/** この設計（table：硬い状態の tensionSpring、ends：両はし、spring：選んだ地金の値）の、深さと開きのおすすめ。形の既定（tensionDefaultDepths）と同じ計算 */
+export function holdAdvice(table: Pick<SpringTable, "radiusMm" | "wireMm" | "spanMm">, ends: readonly { kind: "pit" | "groove" }[], spring: { youngGpa: number; proofMpa: number; densityGPerCm3: number }, g: Guides = GUIDES, actualMassG?: number): TensionAdvice {
+  return tensionAdvice({ radiusMm: table.radiusMm, wireMm: table.wireMm, ...spring, kinds: ends.map((e) => e.kind), spanMm: table.spanMm, actualMassG }, g);
+}
+
+/** おすすめの一文（作者の頼みの形：くぼみ・溝、作る時の開き、広げる量、戻りきらない分） */
+export function adviceText(a: TensionAdvice): string {
+  const depth = [a.pitMm !== null ? `くぼみ ${a.pitMm.toFixed(2)} mm` : "", a.grooveMm !== null ? `溝 ${a.grooveMm.toFixed(2)} mm` : ""].filter(Boolean).join("・");
+  const make = a.makeGapMm !== null ? `作る時の開き ${a.makeGapMm.toFixed(2)} mm、` : "";
+  const set = a.noSet ? "広げても戻りきらない分は出ない見込み" : `戻りきらない分 約 ${a.setMm.toFixed(2)} mm を見込む`;
+  return `${HOLD_WORDS.advice}：${depth}、${make}広げる量 ${a.spreadMm.toFixed(2)} mm（${set}）`;
+}
+
+/** おすすめが届かないときの手（線を太く・もっと硬く・深く）。数は仮 */
+export function adviceLevers(table: Pick<SpringTable, "radiusMm" | "wireMm" | "spanMm">, ends: readonly { kind: "pit" | "groove" }[], spring: { youngGpa: number; proofMpa: number; densityGPerCm3: number }, g: Guides = GUIDES): string[] {
+  const out: string[] = [];
+  const d = table.wireMm + 0.5;
+  if (d <= g.tension.wireMaxMm + 1e-9) {
+    const a = holdAdvice({ radiusMm: table.radiusMm + 0.25, wireMm: d, spanMm: table.spanMm }, ends, spring, g);
+    out.push(a.ok ? `線を太くする：ø ${d.toFixed(1)} mm なら、${adviceText({ ...a, makeGapMm: null })}（仮）` : `線を太くする（ø ${d.toFixed(1)} mm でも、まだ足りない見込み。仮）`);
+  }
+  out.push("もっと硬くする（加工硬化を強める・熱で硬くする合金にする）と、戻りきらない分が減り、縮められる量が増えます。硬さの値は仮なので、職人が確かめます");
+  out.push(`深く彫る（${g.tension.adviceDepthMaxMm.toFixed(1)} mm より深く。くぼみの両わきの地金が薄くなるので、形の確かめも見ます）`);
+  return out;
 }
 
 const r2 = (v: number | null) => (v === null || !Number.isFinite(v) ? null : Math.round(v * 100) / 100);
 
-/** Claude が読む形 */
-export function holdForClaude(set: TensionHoldSet) {
+/** Claude が読む形。advice があれば、おすすめも */
+export function holdForClaude(set: TensionHoldSet, advice?: TensionAdvice) {
   const h = set.now;
   return {
     depth_sum_mm: r2(h.depthSumMm),
@@ -260,10 +326,32 @@ export function holdForClaude(set: TensionHoldSet) {
     need_squeeze_mm: r2(h.needSqueezeMm),
     safe_squeeze_mm: r2(h.safeSqueezeMm),
     limit_squeeze_mm: r2(h.limitSqueezeMm),
+    safe_squeeze_after_set_mm: r2(h.safeEffectiveMm),
+    limit_squeeze_after_set_mm: r2(h.limitEffectiveMm),
     verdict: HOLD_VERDICT_LABEL[h.verdict],
+    set_ratio: h.curve.ratio,
+    set_starts_at_spread_mm: r2(h.curve.onsetMm),
+    plan: { make_smaller_by_mm: r2(h.squeezeMm), make_gap_mm: r2(h.makeGapMm), spread_mm: r2(h.spreadMm), stays_open_mm: r2(h.setMm), grip_after_set_mm: r2(h.effectiveSqueezeMm), margin: r2(h.margin) },
+    without_set_allowance: h.naive ? { make_smaller_by_mm: r2(h.naive.squeezeMm), stays_open_mm: r2(h.naive.setMm), grip_after_set_mm: r2(h.naive.effectiveSqueezeMm), margin: r2(h.naive.margin) } : null,
     margin_at_calc_squeeze: set.atAppSqueeze ? r2(set.atAppSqueeze.margin) : null,
     shallowest_depth_sum_mm: r2(h.minDepthSumMm),
     other_ways: set.options.map((o) => ({ way: o.label, verdict: HOLD_VERDICT_LABEL[o.verdict], need_squeeze_mm: r2(o.needSqueezeMm), can_squeeze_mm: r2(o.safeSqueezeMm) })),
-    note: `${HOLD_PREMISE}。落とす高さ（tension.holdDropMm）と摩擦（tension.holdFriction）は、職人が帳面で決められる。`,
+    ...(advice
+      ? {
+          advice: {
+            found: advice.ok,
+            pit_mm: advice.pitMm,
+            groove_mm: advice.grooveMm,
+            make_gap_mm: r2(advice.makeGapMm),
+            make_smaller_by_mm: r2(advice.squeezeMm),
+            spread_mm: r2(advice.spreadMm),
+            stays_open_mm: r2(advice.setMm),
+            grip_after_set_mm: r2(advice.effectiveMm),
+            no_set: advice.noSet,
+            text: adviceText(advice),
+          },
+        }
+      : {}),
+    note: `${HOLD_PREMISE}。広げたあと戻りきらない分（仮）を引いた締まりで答えを出す。落とす高さ（tension.holdDropMm）・摩擦（tension.holdFriction）・戻りきらない割合（tension.springSetRatio）は、職人が帳面で決められる。`,
   };
 }

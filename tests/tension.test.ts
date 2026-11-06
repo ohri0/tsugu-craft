@@ -22,7 +22,12 @@ const TRI: Point[] = [
 ];
 const triangle: StoneParams = { outlineMm: TRI, longMm: 8.88, widthMm: 7.52, depthMm: 4.24 };
 const phi4 = { gou: 11, metal: "k18y" as const, section: "maru" as ShankSection, widthMm: 4, thicknessMm: 4 };
-const ringOf = (stone: StoneParams, extra: Partial<RingParams> = {}) => buildRing({ stone, setting: { style: "tension" }, shank: phi4, ...extra });
+/**
+ * 形の確かめは、前の深さ（くぼみ 0.8・溝 0.5 mm）で作る。2026-11-07 から深さの既定は、戻りきらない分を見込んだおすすめ（仮。tests/tension-set.test.ts）。
+ * 前の 0.8・0.5 は、作者が「適当に言ってるだけ。気にしなくていい」と言った値で、形の式（開き ＝ 石の長さ − 深さ）を確かめる数として使う
+ */
+const OLD_DEPTHS = { cornerPitMm: 0.8, edgeGrooveMm: 0.5 };
+const ringOf = (stone: StoneParams, extra: Partial<RingParams> = {}) => buildRing({ stone, setting: { style: "tension" }, shank: phi4, tension: OLD_DEPTHS, ...extra });
 const stones = (): [string, StoneParams][] =>
   PRESETS.map((p) => [p.name, { outlineMm: presetOutline(p), longMm: p.longMm, widthMm: p.widthMm, depthMm: p.depthMm }]);
 
@@ -81,14 +86,14 @@ function hitY(p: Float32Array, x: number, z: number, y0: number, dir: 1 | -1): n
   return best;
 }
 
-describe("テンションの形（職人の値）", () => {
-  it("目安の値は guides の 1 か所（くぼみ 0.8 mm・溝 0.5 mm・丸線 φ4）", () => {
+describe("テンションの形（前の深さ 0.8・0.5 で確かめる）", () => {
+  it("目安の値は guides の 1 か所（前の値 くぼみ 0.8 mm・溝 0.5 mm は残すが既定には使わない・丸線 φ4）", () => {
     expect(GUIDES.tension.cornerPitMm).toBe(0.8);
     expect(GUIDES.tension.edgeGrooveMm).toBe(0.5);
     expect(GUIDES.tension.wireMm).toBe(4);
   });
 
-  it("三角の既定：開きは石が入る寸法（7.52 − 0.8 − 0.5 ＝ 6.22 mm）。プリロードは入れない", () => {
+  it("三角（前の深さ）：開きは石が入る寸法（7.52 − 0.8 − 0.5 ＝ 6.22 mm）。プリロードは入れない", () => {
     const info = ringOf(triangle).setting.tension!;
     expect(info.mode).toBe("corner-edge");
     expect(info.gapMm).toBeCloseTo(6.22, 2);
@@ -219,18 +224,18 @@ describe("テンションの形（職人の値）", () => {
 });
 
 describe("テンションの確かめ", () => {
-  it("三角の既定は「作れない」がない", () => {
+  it("三角（前の深さ）は「作れない」がない", () => {
     expect(checkRing(ringOf(triangle))).toEqual([]);
   });
 
   it("腕が細いと、溝で切れる・溝の高さが収まらない", () => {
-    const thin = checkRing(buildRing({ stone: triangle, setting: { style: "tension" }, shank: { ...phi4, widthMm: 1.2, thicknessMm: 1.2 } }));
+    const thin = checkRing(buildRing({ stone: triangle, setting: { style: "tension" }, shank: { ...phi4, widthMm: 1.2, thicknessMm: 1.2 }, tension: OLD_DEPTHS }));
     expect(thin.some((p) => p.check === "tension-cut" || p.check === "tension-lip")).toBe(true);
     for (const p of thin.filter((x) => x.check.startsWith("tension-"))) expect(p.options.map((o) => o.id)).toContain("thickerWire");
   });
 
   it("くぼみが腕の幅より広いと、くぼみの両わきに地金が残らない", () => {
-    const narrow = checkRing(buildRing({ stone: triangle, setting: { style: "tension" }, shank: { ...phi4, section: "kaku", widthMm: 1, thicknessMm: 4 } }));
+    const narrow = checkRing(buildRing({ stone: triangle, setting: { style: "tension" }, shank: { ...phi4, section: "kaku", widthMm: 1, thicknessMm: 4 }, tension: OLD_DEPTHS }));
     expect(narrow.some((p) => p.check === "tension-pit")).toBe(true);
   });
 
@@ -262,7 +267,7 @@ describe("テンションの参考の計算（開ける量）", () => {
     expect(elasticOpeningMm(20, 4, 100, 500)).toBeCloseTo(4 * elasticOpeningMm(10, 4, 100, 500), 9);
   });
 
-  it("既定（φ4・11 号・K18）：R は指の半径 ＋ 太さ ÷ 2。要る量は くぼみ 0.8 ＋ 溝 0.5 ＝ 1.3 mm", () => {
+  it("φ4・11 号・K18（前の深さ）：R は指の半径 ＋ 太さ ÷ 2。要る量は くぼみ 0.8 ＋ 溝 0.5 ＝ 1.3 mm", () => {
     const ring = ringOf(triangle);
     const o = tensionOpening(ring.setting, ring.shank)!;
     expect(o.radiusMm).toBeCloseTo(ring.shank.innerRadiusMm + 2, 9);
@@ -290,7 +295,7 @@ describe("テンションの参考の計算（開ける量）", () => {
     const ring = ringOf(triangle);
     expect(tensionOpening(ring.setting, ring.shank)!.enough).toBe(true);
     expect(tensionOpeningText(tensionOpening(ring.setting, ring.shank)!)).not.toContain(TENSION_SHORT_TEXT);
-    const pt = buildRing({ stone: triangle, setting: { style: "tension" }, shank: { ...phi4, metal: "pt900" } });
+    const pt = buildRing({ stone: triangle, setting: { style: "tension" }, shank: { ...phi4, metal: "pt900" }, tension: OLD_DEPTHS });
     const o = tensionOpening(pt.setting, pt.shank)!;
     expect(o.enough).toBe(false);
     expect(tensionOpeningText(o)).toContain(TENSION_SHORT_TEXT);
@@ -334,7 +339,8 @@ describe("設計の場と道具", () => {
     s.setShank({ section: "hirauchi", width_mm: 3, thickness_mm: 1.5, reason: "前の腕" });
     const res = s.setSetting({ style: "tension", reason: "挟む" });
     expect(res.setting.style).toBe("tension");
-    expect(res.setting.tension!.gap_mm).toBeCloseTo(6.22, 2);
+    // 深さの既定は、戻りきらない分を見込んだおすすめ（K18・11 号でくぼみ 0.65・溝 0.6 mm。仮）
+    expect(res.setting.tension!.gap_mm).toBeCloseTo(7.52 - 0.65 - 0.6, 2);
     expect(res.setting.prong_count).toBeNull();
     expect(s.built!.ring.shank.section).toBe("maru");
     expect(s.built!.ring.shank.widthMm).toBe(4);
@@ -367,41 +373,28 @@ describe("設計の場と道具", () => {
 });
 
 describe("帳面と作り方", () => {
-  it("帳面に職人の決まりがある（出どころ 職人：石川、2026-11-05）", () => {
+  it("帳面に職人の決まりがある（出どころ 職人：石川、2026-11-05）。前の深さの決まり（0.8・0.5）は外した", () => {
     const rules = activeRules(repo as unknown as Ledger);
-    const depth = rules.find((r) => r.id === "rule-tension-depth-ishikawa")!;
     const hard = rules.find((r) => r.id === "rule-tension-hard-ishikawa")!;
-    expect(depth.source).toEqual({ kind: "craftsman", name: "石川" });
-    expect(depth.date).toBe("2026-11-05");
-    expect(depth.quote).toContain("角はくぼみに 0.8 ミリとかで");
-    expect(depth.quote).toContain("辺は溝に 0.5 mm");
+    expect(hard.source).toEqual({ kind: "craftsman", name: "石川" });
+    expect(hard.date).toBe("2026-11-05");
     expect(hard.quote).toContain("硬い状態でないと取れる");
-  });
-
-  it("本文は今の値（0.8 mm）で、決め直した日が分かる。計算とつながっている。「最後は職人が決める」はそのまま", () => {
-    const rules = activeRules(repo as unknown as Ledger);
-    const depth = rules.find((r) => r.id === "rule-tension-depth-ishikawa")!;
-    const hard = rules.find((r) => r.id === "rule-tension-hard-ishikawa")!;
-    expect(depth.text).toContain("角の先を 0.8 mm くらい");
-    expect(depth.text).toContain("2026-11-05 に 1 mm くらいから 0.8 mm に決め直した");
-    expect(depth.text).toContain(`辺を ${GUIDES.tension.edgeGrooveMm} mm`);
-    expect(GUIDES.tension.cornerPitMm).toBe(0.8);
     expect(hard.text).toContain("最後は職人が決める");
-    expect(depth.calc).toBe("tension");
     expect(hard.calc).toBe("tension");
+    // 作者（2026-11-07）：「適当に言ってるだけ。気にしなくていい。忘れてもいい」。帳面から外し（retired）、深さの既定は計算のおすすめ（仮）
+    expect(rules.find((r) => r.id === "rule-tension-depth-ishikawa")).toBeUndefined();
+    expect((repo as { retired: string[] }).retired).toContain("rule-tension-depth-ishikawa");
+    expect(GUIDES.tension.cornerPitMm).toBe(0.8);
+    expect(GUIDES.tension.edgeGrooveMm).toBe(0.5);
   });
 
-  it("このブラウザに前の文のまま残った決まりは、新しい文になる。職人が書き直した文は残す", () => {
+  it("このブラウザに残った決まり：外した決まりはリポジトリの文にしない（読みこみで retired として外れる）。職人が書き直した文は残す。計算とのつながりは足す", () => {
     const rules = activeRules(repo as unknown as Ledger);
-    const depth = rules.find((r) => r.id === "rule-tension-depth-ishikawa")!;
     const hard = rules.find((r) => r.id === "rule-tension-hard-ishikawa")!;
-    const oldText = "三角の石を腕の両はしで挟むとき、片方の端に小さなくぼみを掘って、角の先を 1 mm くらい入れる。もう片方の端には、辺に沿ったまっすぐな溝を切って、辺を 0.5 mm 差し込む。角がくぼみで止まるので、石は横にずれない";
-    const old = { ...depth, text: oldText, quote: "角はくぼみに 1 mm くらい。辺は溝に 0.5 mm", calc: undefined };
-    const fresh = freshenRules([old], rules)[0];
-    expect(fresh.text).toBe(depth.text);
-    expect(fresh.quote).toBe(depth.quote);
-    const mine = { ...depth, text: "うちは 0.7 mm", calc: undefined };
-    expect(freshenRules([mine], rules)[0].text).toBe("うちは 0.7 mm");
+    const oldDepth = { ...hard, id: "rule-tension-depth-ishikawa", text: "三角の石を腕の両はしで挟むとき、片方の端に小さなくぼみを掘って、角の先を 0.8 mm くらい入れる。もう片方の端には、辺に沿ったまっすぐな溝を切って、辺を 0.5 mm 差し込む。角がくぼみで止まるので、石は横にずれない" };
+    expect(freshenRules([oldDepth], rules)[0]).toBe(oldDepth);
+    const mine = { ...hard, text: "うちは焼き入れする", calc: undefined };
+    expect(freshenRules([mine], rules)[0].text).toBe("うちは焼き入れする");
     expect(freshenRules([mine], rules)[0].calc).toBe("tension");
     const { calc: _drop, ...noCalc } = hard;
     expect(freshenRules([noCalc], rules)[0].calc).toBe("tension");

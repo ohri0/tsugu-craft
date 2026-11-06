@@ -354,6 +354,24 @@ export const GUIDES = {
     holdDropMm: 1000,
     holdFriction: 0.1,
     holdWallDeg: 45,
+    /**
+     * **仮**：戻りきらない分（src/rules/tension-set.ts。作者の声 2026-11-07「1 やって 1.5 に開いたら 1 に戻るんじゃなくて 1.2 とか」）。
+     * 太い輪の分を見た安全な限界まで広げて離したとき、広げた分のうち、戻りきらずに開いたまま残る割合。職人が帳面で変えられる（tension.springSetRatio）。
+     * 0.05 は、耐力の決め方（0.2 % 残る所）と、少しずつ降伏する地金の式（Ramberg–Osgood の n ＝ 5。n は仮）で、φ4・14 号の輪を計算した 約 5 %（n ＝ 10 なら 約 1.4 %）から。
+     * 測った値ではない。作者の例（広げた 0.5 のうち 0.2 が残る＝4 割）は例えの数で、測った値ではないので使っていない。
+     * この割合から、残りはじめ（これより少なく広げれば残らない）を決める。細い輪の式の限界を超えて広げた分は、すべて残る。
+     */
+    springSetRatio: 0.05,
+    /**
+     * **仮**：深さと開きのおすすめが探す深さ（mm。形を作るための決まり。深さのつまみと同じ 0.2〜0.8 mm（作者の頼み 2026-11-07「0.2〜0.8 mm くらい」）を 0.05 mm ごと）。
+     * 職人の「0.3 mm くらいでは絶対抜ける」（weakGrooveMm）より深い所だけを選ぶ。
+     * 2026-11-07 から、三角の短い辺を溝に入れる向き（side。職人の値 shortSidePitMm・shortSideGrooveMm）のほかは、深さの既定をこのおすすめにした。
+     * 作者が前の 0.8・0.5（cornerPitMm・edgeGrooveMm）を「適当に言ってるだけ。気にしなくていい。忘れてもいい」と言ったので、職人の値ではない。
+     * cornerPitMm・edgeGrooveMm は前の値として残すだけで、形の既定には使わない（上の古い説明の「職人の言葉」は、帳面から外した決まり rule-tension-depth-ishikawa のこと）。
+     */
+    adviceDepthMinMm: 0.2,
+    adviceDepthMaxMm: 0.8,
+    adviceDepthStepMm: 0.05,
     spring: {
       hvToProofMpa: 3,
       metals: {
