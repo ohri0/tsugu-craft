@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import repo from "../ledger/jewelry.json";
 import bandShowcase from "../src/lp/band-showcase.json";
+import claudeGothic from "../src/lp/claude-gothic.json";
 import { activeRules, ledgerCounts, type Ledger } from "../src/rules/ledger";
 
 const src = readFileSync(new URL("../src/lp/main.ts", import.meta.url), "utf8");
@@ -19,9 +20,12 @@ describe("入口のページ", () => {
     expect(src).toContain("切り口を見せています");
   });
 
-  it("ゴシックの絵は、だれが数字を決めたかを事実どおりに書く", () => {
+  it("言葉の場面の絵は本物の Claude が組んだ形で、回数と秒は記録どおり。攻めた案は作る係の Claude の形と書く", () => {
+    const c = claudeGothic.claude;
+    expect(src).toContain("ring-claude-gothic");
+    expect(src).toContain(`Claude ${c.calls} 回・道具 ${c.tools} 回・${c.seconds} 秒`);
+    expect(src).toContain("「ゴシックな感じ」とだけ頼み");
     expect(src).toContain("ring-gothic-attack");
-    expect(src).not.toContain("ring-gothic-heavy");
     expect(src).toContain("Claude Code（作る係の Claude）が、継ぐの形の道具で数字を決めて組んだ形");
     expect(src).not.toContain("人が数字を整え");
   });

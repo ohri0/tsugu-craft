@@ -166,6 +166,20 @@ const SHOTS = {
       await p.context().close();
     }
   },
+  // 「ゴシックな感じ」と本物の Claude に頼んで組んだ形（src/lp/claude-gothic.json）。はじめの石のまま state を入れて組む。撮るときに Claude は呼ばない。
+  // 大きく写すので、彫りだけ細かい網目（fine）で描く（形の数字は変えない）
+  async claudeGothic() {
+    const show = require('../src/lp/claude-gothic.json');
+    for (const [name, dir, zoom] of [['ring-claude-gothic', { x: 0.62, y: -0.72, z: 0.36 }, 0.98], ['ring-claude-gothic-front', { x: 0, y: -1, z: 0.15 }, 0.98]]) {
+      const p = await stage(1000, 1200);
+      await p.evaluate((st) => { const s = window.__studio.session; const x = structuredClone(st); if (x.shankRelief) x.shankRelief.fine = true; Object.assign(s.state, x); s.build('撮る'); }, show.state);
+      await p.waitForTimeout(9000);
+      console.log(name, await numbers(p));
+      await look(p, dir, zoom);
+      await shot(p, name);
+      await p.context().close();
+    }
+  },
   // テンション：石を腕の力で挟む
   async tension() {
     const p = await stage(1000, 1200);
