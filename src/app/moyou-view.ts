@@ -390,9 +390,9 @@ export function mountMoyou(root: HTMLElement, opts: { onBack?: () => void; auto?
 
       <div class="mo-final">
         <figure class="mo-big bt"><canvas data-big="t" aria-label="本当の手順で作った模様"></canvas>
-          <figcaption><b>本当の手順で作ったら</b><span>層はすべてつながり、目が細かい。</span></figcaption></figure>
+          <figcaption><b>本当の手順で作ったら</b><span><small class="mo-sim">※ 計算で描いたシミュレーション</small>層はすべてつながり、目が細かい。</span></figcaption></figure>
         <figure class="mo-big bc"><canvas data-big="c" aria-label="Claude の手順で作った模様"></canvas>
-          <figcaption><b>Claude の手順で作ったら</b><span>${r.unbonded > 0 ? "黄の縁＝層がはがれた所。" : ""}${r.cycles < MOKUME_VALUES.cycles.value ? "目が粗い。" : ""}${r.unbonded <= 0 && r.cycles >= MOKUME_VALUES.cycles.value ? "本当の手順とほぼ同じ模様。" : ""}</span></figcaption></figure>
+          <figcaption><b>Claude の手順で作ったら</b><span><small class="mo-sim">※ 計算で描いたシミュレーション</small>${r.unbonded > 0 ? "黄の縁＝層がはがれた所。" : ""}${r.cycles < MOKUME_VALUES.cycles.value ? "目が粗い。" : ""}${r.unbonded <= 0 && r.cycles >= MOKUME_VALUES.cycles.value ? "本当の手順とほぼ同じ模様。" : ""}</span></figcaption></figure>
         <figure class="mo-big br"><div class="mo-photo"><img src="heritage/mokume-tsuba-1-black.jpg" width="1352" height="1400" alt="本物の木目金の鐔。黒と赤茶の層が、木の年輪のような目を作っている" loading="lazy"></div>
           <figcaption><b>本物</b><span>木目金の鐔（つば）。19 世紀前半。メトロポリタン美術館・CC0</span></figcaption></figure>
       </div>
