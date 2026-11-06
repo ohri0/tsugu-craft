@@ -33,12 +33,12 @@ const SIZE = { ledger3m: [480, 900], waza3m: [480, 900], learn3m: [480, 900], le
   // 最終案 10：全体を見せてから寄る。設計は 1280×720 の 3 倍、帳面・学ぶ・技は 960×540 の 4 倍（全体はそのまま縮め、寄るときは切り抜く）
   word10: [1280, 720], gothic10: [1280, 720], reason10: [1280, 720], make10: [1280, 720], ask10: [960, 540], learn10: [960, 540], rebuild10: [960, 540], ledger10: [960, 540],
   // 最終案 10（作者の声：実際に使っている所を中心に）：手で変える操作と、生成のあとに人が直す流れ
-  ops11: [1280, 720], gothic11: [1280, 720], moyou11: [1280, 720], deco11: [1280, 720], gen12: [1280, 720], learn11: [960, 540], ops12: [1280, 720] };
+  ops11: [1280, 720], gothic11: [1280, 720], moyou11: [1280, 720], deco11: [1280, 720], gen12: [1280, 720], learn11: [960, 540], ops12: [1280, 720], sec13: [1280, 720] };
 const DSF = { photo9: 3, gothic9: 3, reason9: 3, make9: 3, word9: 4, ask9: 4, learn9: 4,
-  word10: 3, gothic10: 3, reason10: 3, make10: 3, ask10: 4, learn10: 4, rebuild10: 4, ledger10: 4, ops11: 3, gothic11: 3, moyou11: 3, deco11: 3, gen12: 3, learn11: 4, ops12: 3 };
+  word10: 3, gothic10: 3, reason10: 3, make10: 3, ask10: 4, learn10: 4, rebuild10: 4, ledger10: 4, ops11: 3, gothic11: 3, moyou11: 3, deco11: 3, gen12: 3, learn11: 4, ops12: 3, sec13: 3 };
 // マウスの印の大きさ（4 倍で撮る章で大きくなりすぎないように）
 const CURK = { word9: 0.5, ask9: 0.5, learn9: 0.5, photo9: 0.72, gothic9: 0.72, reason9: 0.72, make9: 0.72,
-  word10: 0.8, gothic10: 0.8, reason10: 0.8, make10: 0.8, ask10: 0.62, learn10: 0.62, rebuild10: 0.62, ledger10: 0.62, ops11: 0.8, gothic11: 0.8, moyou11: 0.8, deco11: 0.8, gen12: 0.8, learn11: 0.62, ops12: 0.8 };
+  word10: 0.8, gothic10: 0.8, reason10: 0.8, make10: 0.8, ask10: 0.62, learn10: 0.62, rebuild10: 0.62, ledger10: 0.62, ops11: 0.8, gothic11: 0.8, moyou11: 0.8, deco11: 0.8, gen12: 0.8, learn11: 0.62, ops12: 0.8, sec13: 0.8 };
 // 最終案 9：本物の Claude の返事を章ごと・順番ごとに覚える（work/story/_claude9/）。撮り直しでは覚えた返事を使うので、Claude は呼ばない（呼ぶのは最初の 1 回だけ）
 const CLAUDE9 = new Set(['word9', 'ask9', 'learn9', 'gothic9', 'reason9', 'word10', 'ask10', 'learn10', 'gothic10', 'reason10', 'gothic11', 'deco11', 'gen12', 'learn11']);
 // 最終案 10：同じ操作の章は、前に覚えた本物の Claude の返事をそのまま使う（新しく呼ばない）。gothic11 は gothic10（今のアプリで本物の Claude が組んだ「ゴシックな感じ」）の返事
@@ -2489,11 +2489,12 @@ Object.assign(CH, {
 /** 設計の今の画面。見せたい所だけ残す。stage=true で背景を黒に（見せると同じ映り込み） */
 const CHROME9 = `.tb,.tools,.sb,.vp-tl,.gizmo,.toast,.stage-note,.undo-redo{display:none!important}
   .pro{grid-template-rows:0 1fr auto 0!important;grid-template-columns:0 1fr 340px!important;background:#101012!important} .act-why{display:none}`;
-const studioNow9 = async (a, { intro = false } = {}) => {
+const studioNow9 = async (a, { intro = false, query = '' } = {}) => {
   const { p } = a;
   p.on('dialog', (d) => d.accept());
   if (!intro) await p.addInitScript(() => { try { sessionStorage.setItem('tsugu.studio.introSeen.v1', '1'); localStorage.setItem('tsugu.studio.introSeen.v1', '1'); } catch {} });
-  await p.goto(`${BASE}/studio.html`, { waitUntil: 'load' });
+  // query：最終案 13 の deco11 は ?nooffload（一体の形を別の糸に頼まず、この糸で作る。仮の時計で撮るので、こまごとに必ず一体の形が映る。形は同じ）
+  await p.goto(`${BASE}/studio.html${query}`, { waitUntil: 'load' });
 };
 const builtNow9 = async (a) => {
   const { p } = a;
@@ -3307,7 +3308,7 @@ const genChapter = (chName) => async (a) => {
     const only = !!process.env.DECO_ONLY;
     const tryNo = process.env.DECO_USE || process.env.DECO_TRY || '1';
     const tag = chName === 'gen12' ? (process.env.GEN_TAG || 'goth12') : 'deco11';
-    await studioNow9(a); await builtNow9(a);
+    await studioNow9(a, { query: process.env.DECO_OFFLOAD ? '' : '?nooffload' }); await builtNow9(a);
     const hideToast = await p.addStyleTag({ content: '.toast{display:none!important} .worklog{max-height:none!important}' });
     await blackVp9(a);
     await p.evaluate(() => document.querySelector('.worklog')?.scrollIntoView({ block: 'center' }));
@@ -3390,7 +3391,25 @@ const genChapter = (chName) => async (a) => {
         const X = (val) => b.x + half + ((val - min) / (max - min)) * (b.width - 2 * half);
         return { from: { x: X(v), y: b.y + b.height / 2 }, to: { x: X(0.55), y: b.y + b.height / 2 }, v };
       });
-      await a.drag(th.from, th.to, { n: 30 });
+      // 最終案 13（作者の声：細くすると一度にボンと変わる）：つまみを 2 秒かけてゆっくり動かす。アプリは動かしている間も、目盛りが変わるごとに形を作り直す
+      //   （prong-edit.ts の liveLook）。0.70 mm までは作れます、0.65 mm で赤。drag0〜drag1 が押さえている間
+      await a.move(th.from, 12);
+      await a.shot({ rip: 1 });
+      await p.mouse.down();
+      a.mark('drag0');
+      await a.shot({ rip: 0.8 });
+      const dn = Number(process.env.DECO_DRAG_N || 64);
+      for (let k = 1; k <= dn; k++) {
+        const u = k / dn;
+        const e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2; // ゆるく始まり、ゆるく止まる
+        // a.move で動かす（マウスの印も、つまみといっしょに動く）
+        await a.move({ x: th.from.x + (th.to.x - th.from.x) * e, y: th.from.y }, 1, { rip: 0.55 });
+        if (k % 8 === 0) console.log('deco11 動かしている', k, await p.evaluate(() => [document.querySelector('.prong-pop .slider[data-s="pp-dia"] input[type=range]')?.value, window.__studio.session.built.ring.setting.prongs.map((q) => q.diameterMm.toFixed(2)).join('/'), document.querySelector('.verdict-chip')?.innerText].join(' ')));
+      }
+      for (let k = 0; k < 2; k++) await a.shot({ rip: 0.55 });
+      await p.mouse.up();
+      a.mark('drag1');
+      await a.shot({ rip: 0.3 });
       await fine(a, 200);
       a.mark('thin'); await a.box('chip2', '.verdict-chip', 6); await a.box('bad', '.prong-pop .pp-check', 6);
       console.log('deco11 細くした', await p.evaluate(() => document.querySelector('.verdict-chip')?.innerText), await p.evaluate(() => document.querySelector('.prong-pop .pp-check')?.innerText.replace(/\s+/g, ' ')));
@@ -3592,6 +3611,69 @@ Object.assign(CH, {
     await fine(a, 200);
     a.mark('bezel'); console.log('ops12 覆輪', await p.evaluate(() => document.querySelector('.verdict-chip')?.innerText), JSON.stringify(await probsOf(p)));
     await a.hold(N(24), { hide: true });
+  },
+});
+// 断面を手で描く（最終案 13。作者の声：1 点だけでなく、パッパッパと何度も変える。うち 1 回は引きすぎて赤 → 元に戻すと赤が消える。
+//   最終案 12 は、点は動くのにマウスの印が止まっていた → どの操作も a.drag・a.move で動かし、印が点をつまんで運ぶ）
+//   A：真ん中の上の点を上へ（山形）→ B：横の点を外へ（ふくらむ）→ C：上の角の点を外へ引きすぎる（赤：尖りすぎ）→ 元に戻す（赤が消える）
+Object.assign(CH, {
+  sec13: async (a) => {
+    const { p } = a;
+    await studioNow9(a); await builtNow9(a);
+    await p.addStyleTag({ content: OPS_CSS11 });
+    await blackVp11(a);
+    await p.evaluate(() => document.querySelector('.ring-shape [data-sec="hirauchi"]')?.click());
+    await fine(a, 200);
+    await p.evaluate(() => { const d = document.querySelector('.ring-shape details.ring-draw'); if (d) d.open = true; });
+    await a.settle(400);
+    await p.evaluate(() => { const e = document.querySelector('.ring-shape details.ring-draw .sec-edit svg'); const c = document.querySelector('.make-panel'); if (e && c) c.scrollTop += e.getBoundingClientRect().top - c.getBoundingClientRect().top - 150; });
+    await a.settle(300);
+    await frame11(a, DIR11, 0.7, 170);
+    a.mark('full'); await a.box('sec', '.ring-shape details.ring-draw .sec-edit', 4); await a.box('undo', '.ring-shape .se-undo', 4);
+    await a.hold(N(16), { turn: TURN9 });
+    // 今の点（左右対称なので、右半分の点だけつまめる）
+    const handles = () => p.evaluate(() => {
+      const svg = document.querySelector('.ring-shape details.ring-draw .sec-edit svg');
+      return [...svg.querySelectorAll('g.se-h:not(.ghost)')].map((g) => { const r = g.getBoundingClientRect(); return { i: +g.dataset.i, x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+    });
+    const state = () => p.evaluate(() => [document.querySelector('.ring-shape .sec-edit')?.classList.contains('spiky') ? '赤' : '—', document.querySelector('.verdict-chip')?.innerText, document.querySelector('.ring-shape .se-read')?.innerText.replace(/\s+/g, ' ').slice(0, 40)].join(' '));
+    const T = { turn: TURN9 };
+    let H = await handles();
+    const minY = Math.min(...H.map((q) => q.y));
+    const maxY = Math.max(...H.map((q) => q.y));
+    // 真ん中の上の点：上の列のいちばん左（右半分の端は、真ん中の点）
+    const center = H.filter((q) => q.y < minY + 4).sort((q, w) => q.x - w.x)[0];
+    a.mark('a0');
+    await a.drag(center, { x: center.x, y: center.y - 14 }, { n: 12, pre: 12, o: T, hold: 1 });
+    a.mark('a1');
+    await fine(a, 150);
+    console.log('sec13 A 山形', await state());
+    await a.hold(N(5), T);
+    H = await handles();
+    // 横の点：上下の端でない、いちばん外の点（真ん中の高さに近い物）
+    const mid = (minY + maxY) / 2;
+    const side = H.filter((q) => q.y > minY + 20 && q.y < maxY - 20).sort((q, w) => Math.abs(q.y - mid) - Math.abs(w.y - mid))[0];
+    a.mark('b0');
+    await a.drag(side, { x: side.x + 12, y: side.y }, { n: 12, pre: 10, o: T, hold: 1 });
+    a.mark('b1');
+    await fine(a, 150);
+    console.log('sec13 B ふくらむ', await state());
+    await a.hold(N(5), T);
+    H = await handles();
+    // 上の角の点：上の列のいちばん右。外へ引きすぎる
+    const top2 = Math.min(...H.map((q) => q.y));
+    const corner = H.filter((q) => q.y < top2 + 26).sort((q, w) => w.x - q.x)[0];
+    a.mark('c0');
+    await a.drag(corner, { x: corner.x + 46, y: corner.y - 6 }, { n: 14, pre: 10, o: T, hold: 2 });
+    a.mark('c1');
+    await fine(a, 150);
+    a.mark('red'); console.log('sec13 C 引きすぎ', await state(), JSON.stringify(await probsOf(p)));
+    await a.hold(N(22), T);
+    // 元に戻す（赤が消える）
+    await a.press('.ring-shape .se-undo', { n: 12, after: 0, turn: TURN9 });
+    await fine(a, 150);
+    a.mark('back'); console.log('sec13 元に戻した', await state(), JSON.stringify(await probsOf(p)));
+    await a.hold(N(40), T);
   },
 });
 // 学ぶ（最終案 11）：作者の決めた、少し専門的で具体的な問い。答えは帳面の「三角の石を 3 本爪で留めるとき」の決まりから出るはず（職人・日付が映るか確かめる）
