@@ -2,7 +2,7 @@
 // 指輪の石留めの帳面にも、ほかの技の帳面にも同じ形で使う。
 // Claude がなくても動くように、質問は決まった文、答えは数字を読む簡単なしくみで決まりにする（Claude があれば言い直しを任せる）。
 // 決まりの数字は、職人が答えた言葉の中の数字だけ。ここで数字を作らない。
-import { effectiveGuides, PARAMS, activeRules, addRule, sourceLabel, type Ledger, type ParamId, type Rule, type SizeStep } from "./ledger.js";
+import { effectiveGuides, OFFERED_PARAM_IDS, PARAMS, activeRules, addRule, sourceLabel, type Ledger, type ParamId, type Rule, type SizeStep } from "./ledger.js";
 import { craftProngPoints, mergeCraftPoints, prongPointsRule } from "./prong-points.js";
 import { TECHS, type TechId } from "./techniques.js";
 
@@ -277,7 +277,7 @@ export function ringGaps(ledger: Ledger): Gap[] {
   }
 
   // 3. 帳面にまだ一度も出ていない値
-  for (const id of Object.keys(PARAMS) as ParamId[]) {
+  for (const id of OFFERED_PARAM_IDS) {
     if (RING_SKIP.includes(id) || id === "prong.minDiameterMm" || active.some((r) => r.param === id)) continue;
     const p = PARAMS[id];
     const [group, key] = id.split(".");

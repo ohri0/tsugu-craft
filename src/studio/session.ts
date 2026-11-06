@@ -14,9 +14,9 @@ import { springForClaude, springIdOf, tensionCautions, tensionSpring } from "../
 import { holdForClaude, tensionHoldSet } from "../rules/tension-hold";
 import { GUIDES, requiredHold, stoneSizeMm, type Guides, type HeightOption, type MetalId, type StonePosition } from "../rules/guides";
 import { effectiveGuides, prongMinOverride, ruleForCheck, type Ledger, type Rule } from "../rules/ledger";
-import { INPUT_BOUNDS, nunomeInput, nunomePatchOf, nunomeState } from "../claude/tools";
+import { INPUT_BOUNDS, isIrogane, nunomeInput, nunomePatchOf, nunomeState } from "../claude/tools";
 import { defaultNunome, nunomeOf } from "../geometry/nunome";
-import { finishWords, hasFinish, tsuchimeSpec, tsuchimeStyleOf, type RingFinish } from "../geometry/finish";
+import { FINISHES_OFFERED, finishWords, hasFinish, tsuchimeSpec, tsuchimeStyleOf, type RingFinish } from "../geometry/finish";
 import type {
   CheckResult,
   FinishInput,
@@ -312,6 +312,16 @@ export function metalIdOf(m: Metal): MetalId {
 }
 
 export const METAL_LABEL: Record<Metal, string> = { pt900: "Pt900", k18yg: "K18 イエロー", k18wg: "K18 ホワイト", k18pg: "K18 ピンク", sv925: "SV925", shakudo: "赤銅（煮色）", shibuichi: "四分一（煮色）", copper: "銅（煮色）" };
+
+/** 仕上げを出さない間（FINISHES_OFFERED が false）の地金：前に残した色金（赤銅・四分一・銅）は、ふつうの地金（K18 イエロー）として見せる */
+export const offeredMetal = (m: Metal): Metal => (FINISHES_OFFERED || !isIrogane(m) ? m : DEFAULT_STATE.metal);
+
+/** 仕上げを出さない間、前に残した設計の仕上げ（槌目・ミル打ち・布目象嵌）と色金を外す（その場で直す。出すときは何もしない） */
+export function dropHiddenFinishes(s: RingState): void {
+  if (FINISHES_OFFERED) return;
+  if (s.finish !== undefined) delete s.finish;
+  s.metal = offeredMetal(s.metal);
+}
 
 /** 直し方「槌目を小さくする」の行き先：1 段小さく（いちばん小さければ、やめる） */
 export function smallerTsuchime(f: RingFinish | undefined): NonNullable<FinishInput["tsuchime"]> {
@@ -609,6 +619,8 @@ export class RingSession implements ToolHost<RingState> {
   build(why = ""): Built {
     // 向きを人が選んでいなければ、尖った角が腕に当たらない向きにする（爪は腕を避けるので、角が腕の上だと爪で守れない）
     const st = this.state;
+    // 前に残した設計に、今は出していない仕上げ・色金があれば外す（読めないまま止めない）
+    dropHiddenFinishes(st);
     if (st.style !== "tension" && !st.orientationSet && (st.join ?? "between") === "between" && !st.layout && !st.stones?.length) {
       st.orientation = autoOrientation(this.stone, st.shankWidthMm ?? GUIDES.shank.widthMm);
     }

@@ -29,6 +29,14 @@ export interface RingFinish {
  */
 export const MILGRAIN_OFFERED = true;
 
+/**
+ * 伝統の仕上げ（色金の赤銅・四分一・銅、槌目、ミル打ち、布目象嵌と模様の画面）を、画面と Claude の道具と指示に出すか。
+ * 2026-11-07：作者（職人）の判断で、提出には出さない（色が変わるだけ・自由に作れない・ミル打ちがまだ・象嵌も自由に組めない。docs/LOG.md）。
+ * 形・確かめ・作り方の処理は残す（育てるとき true に戻す）。false の間、前に残した設計の仕上げと色金は、読むときに外す（keep-design.ts の plainDesignState）。
+ * テストでは vi.mock でこの値を true にして、仕上げの処理を確かめる（tests/finish.test.ts など）。
+ */
+export const FINISHES_OFFERED: boolean = false;
+
 export const TSUCHIME_LABEL: Record<TsuchimeSize, string> = { small: "小", medium: "中", large: "大" };
 export const TSUCHIME_STYLE_LABEL: Record<TsuchimeStyle, string> = { maru: "丸槌目", kaku: "角槌目", tate: "縦槌目", arashi: "荒らし槌目" };
 /** 槌目の種類の、ふつうの言葉の一行（画面と作り方） */

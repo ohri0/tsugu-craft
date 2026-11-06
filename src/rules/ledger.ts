@@ -4,6 +4,7 @@
 // 機械で確かめられない決まり（言葉だけの決まり）も残し、Claude が読んで判断に使う。
 import type { CheckId } from "./checks.js";
 import { GUIDES, type Guides } from "./guides.js";
+import { FINISHES_OFFERED } from "../geometry/finish.js";
 import ringPublic from "../../ledger/ring-public.json" with { type: "json" };
 
 /** 決まりの出どころ */
@@ -38,6 +39,12 @@ export const PARAMS = {
 } as const satisfies Record<string, { label: string; unit: string; checks: readonly CheckId[] }>;
 
 export type ParamId = keyof typeof PARAMS;
+
+/**
+ * 人と Claude に選ばせる値（決まりを足す欄・Claude の道具・帳面の足りない所の質問）。
+ * 布目象嵌の値（inlay.*）は、伝統の仕上げを出すときだけ（src/geometry/finish.ts の FINISHES_OFFERED）。目安帳に前からある決まりは、そのまま読めて効く
+ */
+export const OFFERED_PARAM_IDS: readonly ParamId[] = (Object.keys(PARAMS) as ParamId[]).filter((k) => FINISHES_OFFERED || !k.startsWith("inlay."));
 
 /**
  * 決まり 1 つ。P は機械で確かめる値の名前（指輪は PARAMS、ほかの技はその技の値の名前）。

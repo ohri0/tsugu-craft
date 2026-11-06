@@ -12,7 +12,8 @@ import { GUIDE_NOTE, GUIDES, type HeightOption, type MetalId } from "../src/rule
 import { activeRules, addRule, effectiveGuides, ledgerText, PARAMS, sourceLabel, type Ledger, type ParamId, type Rule } from "../src/rules/ledger";
 import { build, DEFAULT_DESIGN, type Design } from "../src/ui/design";
 import { sectionCurveProblem, SECTION_INPUT } from "../src/geometry/section-input";
-import { BAND_WIDTH_WORDS, INPUT_BOUNDS, RELIEF_PATTERN_WORDS, RELIEF_PATTERNS } from "../src/claude/tools";
+import { BAND_WIDTH_WORDS, INPUT_BOUNDS, IROGANE, OFFERED_PARAMS, RELIEF_PATTERN_WORDS, RELIEF_PATTERNS } from "../src/claude/tools";
+import { FINISHES_OFFERED } from "../src/geometry/finish";
 import type { ShankStation } from "../src/geometry/shank";
 import { readLedger, REPO_ROOT, writeLedger } from "./ledger-file";
 import { readyStone, STONE_PRESETS } from "./stone-input";
@@ -36,9 +37,11 @@ const nonEmpty = (label: string) => z.string().trim().min(1, `${label}を書い�
 
 // ---- 入力の形 ----
 
-const paramIds = Object.keys(PARAMS) as [ParamId, ...ParamId[]];
+// 布目象嵌の値（inlay.*）は、伝統の仕上げを出すときだけ（アプリの道具と同じ）
+const paramIds = [...OFFERED_PARAMS] as [ParamId, ...ParamId[]];
 const heightIds = Object.keys(GUIDES.height.options) as [HeightOption, ...HeightOption[]];
-const metalIds = Object.keys(GUIDES.metals) as [MetalId, ...MetalId[]];
+// 色金（赤銅・四分一・銅）は、伝統の仕上げを出すときだけ（アプリの道具と同じ。src/geometry/finish.ts の FINISHES_OFFERED）
+const metalIds = (Object.keys(GUIDES.metals) as MetalId[]).filter((m) => FINISHES_OFFERED || !(IROGANE as readonly string[]).includes(m)) as [MetalId, ...MetalId[]];
 
 const stoneShape = z
   .object({
