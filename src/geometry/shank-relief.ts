@@ -84,6 +84,9 @@ const SHAPE = {
  */
 export const RELIEF_MESH = { baseMm: 0.32, lattice: 16, normal: { minCellMm: 0.06, tolMm: 0.016, normalMm: 0.055 }, fine: { minCellMm: 0.022, tolMm: 0.005, normalMm: 0.024 } };
 
+/** 帯の内側がこれ（外の面の線の長さの半分に対する割合）より真ん中に近ければ、真ん中をまたぐ 1 つの列にする */
+const CENTER_BAND = 0.02;
+
 const TWO_PI = Math.PI * 2;
 const clamp01 = (x: number) => (x < 0 ? 0 : x > 1 ? 1 : x);
 const smooth = (t: number) => {
@@ -221,12 +224,19 @@ export function reliefPattern(kind: ReliefKind, u: number, x: number, L: number,
     const inner = across[0] * arc;
     const outer = Math.min(across[1] * arc, arc);
     const ax = Math.abs(x);
-    if (ax <= inner || ax >= outer) return 0;
     cols = Math.max(1, cols0);
-    const colW = (outer - inner) / cols;
-    const k = Math.min(cols - 1, Math.floor((ax - inner) / colW));
-    lx = ax - (inner + (k + 0.5) * colW);
-    b = colW / 2;
+    const centered = inner <= CENTER_BAND * arc && cols === 1;
+    if ((!centered && ax <= inner) || ax >= outer) return 0;
+    if (centered) {
+      // 帯が真ん中から始まるときは、真ん中をまたぐ 1 つの列（左右に 2 つ並べない。窓が真ん中の線で割れて十字に見えないように）
+      lx = x;
+      b = outer;
+    } else {
+      const colW = (outer - inner) / cols;
+      const k = Math.min(cols - 1, Math.floor((ax - inner) / colW));
+      lx = ax - (inner + (k + 0.5) * colW);
+      b = colW / 2;
+    }
   } else {
     cols = columnsOf(kind, U, cols0);
     const gap = cols > 1 ? SHAPE.colGapMm : 0;

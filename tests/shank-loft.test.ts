@@ -701,6 +701,15 @@ describe("線の性格の模様（直線・段・くり返し・放射）", () =
     expect(widthAt(0.6)).toBeGreaterThan(widthAt(1.6) + 0.5);
   });
 
+  it("帯が真ん中から始まると、真ん中をまたぐ 1 つの窓になる（真ん中の線で 2 つに割れない）", () => {
+    // 段の窓：いちばん深い所が真ん中に来る
+    expect(reliefPattern("steps", 1.5, 0, L, ARC, 1, [0, 0.5])).toBeCloseTo(1, 3);
+    // 長方形の区切り：真ん中に縦の線が出ない（底の浅い平らな面のまま）
+    expect(reliefPattern("panel", 1.5, 0, L, ARC, 1, [0, 0.5])).toBeCloseTo(0.5, 3);
+    // 帯が真ん中から離れていれば、今までどおり左右に 1 つずつ
+    expect(reliefPattern("steps", 1.5, 0, L, ARC, 1, [0.1, 0.5])).toBe(0);
+  });
+
   it("帯に収めると、帯の外には彫らない（新しい模様も）", () => {
     for (const kind of ["chevron", "zigzag", "fan", "steps", "panel", "flutes"] as const)
       for (let u = 0; u < 3; u += 0.05) {
