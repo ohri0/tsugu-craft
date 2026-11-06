@@ -158,7 +158,7 @@ const SHOTS = {
   // 大きく写すので、彫りだけ細かい網目（fine）で描く（形の数字は変えない）
   async artdeco() {
     const show = require('../src/lp/artdeco.json');
-    for (const [name, dir, zoom] of [['ring-artdeco', { x: 0.62, y: -0.72, z: 0.36 }, 0.98], ['ring-artdeco-front', { x: 0, y: -1, z: 0.15 }, 0.98]]) {
+    for (const [name, dir, zoom] of [['ring-artdeco', { x: 0.45, y: -0.85, z: 0.3 }, 0.98], ['ring-artdeco-front', { x: 0, y: -1, z: 0.15 }, 0.98]]) {
       const p = await stage(1000, 1200);
       await p.evaluate((st) => { const s = window.__studio.session; const x = structuredClone(st); if (x.shankRelief) x.shankRelief.fine = true; Object.assign(s.state, x); s.build('撮る'); }, show.state);
       await p.waitForTimeout(9000);

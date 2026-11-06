@@ -150,8 +150,8 @@ const html = `
 
   <section class="word" aria-labelledby="word-h">
     <div class="word-rings">
-      <figure class="rv">${shot("ring-artdeco", 2000, 2400, "本物の Claude が「アールデコな感じ」から組んだ指輪を斜めから。中央に稜線、両わきに段の溝、溝に横の筋、縁に粒の列。白い地金に三角の石、尖った爪 3 本", "(max-width: 760px) 92vw, 56vw")}<figcaption>斜めから ・ 三角の石 ・ Pt900</figcaption></figure>
-      <figure class="rv">${shot("ring-artdeco-front", 2000, 2400, "同じ指輪を正面から。肩が張り出し、段と横の筋が左右対称に並ぶ", "(max-width: 760px) 92vw, 44vw")}<figcaption>正面から ・ 段と横の筋</figcaption></figure>
+      <figure class="rv">${shot("ring-artdeco", 2000, 2400, "本物の Claude が「アールデコな感じ」から組んだ指輪を斜めから。平らな段の断面に、段々の長方形の窓と粒の列が縦に並ぶ。白い地金に三角の石、尖った爪 3 本", "(max-width: 760px) 92vw, 56vw")}<figcaption>斜めから ・ 三角の石 ・ K18 ホワイト</figcaption></figure>
+      <figure class="rv">${shot("ring-artdeco-front", 2000, 2400, "同じ指輪を正面から。段の窓と粒の列が左右対称に並ぶ", "(max-width: 760px) 92vw, 44vw")}<figcaption>正面から ・ 段の窓と粒</figcaption></figure>
     </div>
     <div class="word-t">
       <p class="v word-q rv">「アールデコな感じ」</p>
