@@ -2115,7 +2115,7 @@ def section12(s, t, f):
     return heading(a, "描くそばから、確かめる", t, 0.55)
 
 
-PRONG12_Z = (560, 300, 860)    # 爪を押す：左の指輪と、爪の欄（指輪を大きめに）
+PRONG12_Z = (530, 300, 820)    # 爪を押す：左の指輪と、爪の欄（指輪を大きめに）
 
 
 @scene("ops12")
@@ -2135,7 +2135,7 @@ def chip_ring(cx, cy, w, h, grow):
     d = ImageDraw.Draw(im)
     gw, gh = w / 2 + grow, h / 2 + grow * 0.7
     d.rounded_rectangle((cx - gw, cy - gh, cx + gw, cy + gh), radius=int(gh), outline=255, width=3)
-    return np.asarray(im.filter(ImageFilter.GaussianBlur(0.8)), F32)[..., None] / 255.0
+    return np.asarray(im.filter(ImageFilter.GaussianBlur(0.8)), F32) / 255.0
 
 
 def chip_pulse(a, t, t0, box):
