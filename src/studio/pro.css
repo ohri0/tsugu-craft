@@ -227,6 +227,14 @@ line.ax-z { stroke: #4ea1ff; } text.ax-z { fill: #4ea1ff; }
 .pick-notes li { font-size: 10.5px; line-height: 1.45; color: var(--fg-3); }
 .pick-notes li.on { color: var(--fg-2); }
 .pick-notes b { font-weight: 600; margin-right: 6px; color: inherit; }
+/* 挟む向きの札は言葉が長いので、欄の幅で折り返す（三角は「短い辺を溝に・反対の角をくぼみに」など） */
+.pick > div:has(> button[data-k="挟む向き"]) { min-width: 0; }
+.pick button[data-k="挟む向き"] { white-space: normal; height: auto; min-height: 22px; padding: 3px 8px; display: inline-flex; align-items: center; justify-content: center; line-height: 1.3; text-align: left; word-break: keep-all; }
+/* 三角の挟む向きの小さな絵：細い線が石、太い線が溝に入る辺、点がくぼみに入る角 */
+.grip-fig { width: 20px; height: 16px; margin-right: 5px; vertical-align: -3px; flex: none; }
+.grip-fig .s { fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linejoin: round; opacity: 0.55; }
+.grip-fig .g { stroke: currentColor; stroke-width: 3.2; stroke-linecap: round; }
+.grip-fig circle { fill: currentColor; }
 .tension-calc { margin: 0 0 10px; padding: 10px 12px; border: 1px solid var(--line, rgba(255, 255, 255, 0.14)); border-radius: 8px; font-size: 12px; line-height: 1.55; color: var(--fg-2); }
 .tension-calc b { display: block; margin-bottom: 4px; color: var(--fg-1, inherit); font-weight: 600; }
 .tension-calc table { width: 100%; border-collapse: collapse; margin: 4px 0; }

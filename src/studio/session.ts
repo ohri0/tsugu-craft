@@ -534,10 +534,13 @@ function hintFor(id: FixId, s: RingState, std: number, tension?: TensionInfo | n
   }
 }
 
-/** 直し方「挟む向きを変える」の行き先：角をくぼみに入れられる石はそれを先に（角で止まるので、いちばん横にずれない）。なければ長い向き */
+/**
+ * 直し方「挟む向きを変える」の行き先：三角は、短い辺を溝に・反対の角をくぼみに（作者が実際に作った指輪の向き。腕の幅の外へ出る所も小さい）。
+ * ほかの石は、角をくぼみに入れられればそれを先に（角で止まるので、いちばん横にずれない）。なければ長い向き
+ */
 export function nextGrip(t?: TensionInfo | null): TensionGrip {
   if (!t) return "short";
-  if (t.grip === "short") return t.grips.includes("corner") ? "corner" : t.grips.includes("long") ? "long" : "short";
+  if (t.grip === "short") return t.grips.includes("side") ? "side" : t.grips.includes("corner") ? "corner" : t.grips.includes("long") ? "long" : "short";
   return "short";
 }
 

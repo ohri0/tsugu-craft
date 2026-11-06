@@ -809,7 +809,7 @@ function renderPresent() {
   const r = b.ring;
   const st = r.setting;
   const n = grouped(b).length;
-  const rule = st.tension ? activeRules(store.ledger()).find((x) => x.id === TENSION_RULE_ID) : craftRuleFor("prong-thin");
+  const rule = st.tension ? activeRules(store.ledger()).find((x) => x.id === (st.tension!.grip === "side" ? TENSION_SIDE_RULE_ID : TENSION_RULE_ID)) : craftRuleFor("prong-thin");
   const html = presentHtml(
     {
       title: filming() ? undefined : `${stone.shapeName}の${st.style === "bezel" ? "覆輪の" : st.tension ? "テンションの" : ""}指輪`,
@@ -2144,8 +2144,9 @@ type Pattern = "3" | "4" | "5" | "6" | "v" | "bezel" | "tension";
 function tensionWord(st: SettingResult): string {
   return `テンション ・ 開き ${st.tension!.gapMm.toFixed(2)} mm`;
 }
-/** 見せるに出す、テンションの職人の言葉の決まり */
+/** 見せるに出す、テンションの職人の言葉の決まり（三角の短い辺を溝に入れる向きは、作者が実際に作った指輪の決まり） */
 const TENSION_RULE_ID = "rule-tension-depth-ishikawa";
+const TENSION_SIDE_RULE_ID = "rule-tension-side-ishikawa";
 /**
  * 爪の本数が、石の形に対して不自然に見えるとき、その一言（なければ空）。作れるかどうかとは別の、見た目の注意。
  * 作者の声：四角い石に 6 本爪などは、問題はないが不自然（2026-11-04）
@@ -2266,19 +2267,34 @@ function wireSlider(b: Built): SliderSpec {
 /** テンションの計算の表で見る硬さの状態（硬い状態が、この留め方の条件） */
 /** 開いて読む欄のうち、開いているもの（形を作り直して欄を描き直しても、閉じない） */
 const tnOpen = new Set<string>();
-const GRIP_LABEL: Record<TensionGrip, string> = { short: "短い向きで挟む", long: "長い向きで挟む", corner: "角で挟む" };
-/** 三角の石の挟む向きの言葉（作者の本物の指輪は、長い辺の両はしの角を挟む。2026-11-07） */
-const GRIP_LABEL_TRI: Partial<Record<TensionGrip, string>> = { short: "角と辺を挟む", corner: "長い辺の両はしの角を挟む" };
+const GRIP_LABEL: Record<TensionGrip, string> = { short: "短い向きで挟む", long: "長い向きで挟む", corner: "角で挟む", side: "短い辺を溝に・反対の角をくぼみに" };
+/**
+ * 三角の石の挟む向きの言葉。角と辺で挟む向きは 2 つ（どの辺を溝に落とすか）。
+ * 作者が実際に作った指輪は「短い辺を溝に・反対の角をくぼみに」（職人 2026-11-07「角を 1 個入れて、辺を 1 個溝に落とした」）
+ */
+const GRIP_LABEL_TRI: Partial<Record<TensionGrip, string>> = { short: "長い辺を溝に・向かいの角をくぼみに", side: "短い辺を溝に・反対の角をくぼみに", corner: "長い辺の両はしの角を挟む" };
 const GRIP_NOTE_TRI: Partial<Record<TensionGrip, string>> = {
-  short: "1 つの角をくぼみに、向かいの辺を溝に入れます。腕は石のいちばん狭い幅を挟みます",
-  corner: "いちばん長い辺の両はしの角を、両方くぼみに入れます（作者の本物の指輪の向き）。残りの角は腕の幅の外へ出ます",
+  short: "いちばん長い辺を溝に、向かいの角をくぼみに入れます。腕は石のいちばん狭い幅を挟みます",
+  side: `短い辺を溝に、反対の角（長い辺の片はし）をくぼみに入れます。角から辺までが長い所を挟み、腕の幅の外へ出る所は小さくなります。作者が実際に作った指輪の向きです（くぼみ ${GUIDES.tension.shortSidePitMm} mm・溝 ${GUIDES.tension.shortSideGrooveMm} mm）`,
+  corner: "いちばん長い辺の両はしの角を、両方くぼみに入れます。残りの角は腕の幅の外へ出ます",
 };
+/** 三角の挟む向きの小さな絵：太い線が溝に入る辺、点がくぼみに入る角（上が長い辺の向かいの角） */
+const GRIP_FIG_TRI: Partial<Record<TensionGrip, string>> = {
+  short: '<line class="g" x1="2" y1="17" x2="22" y2="17"/><circle cx="12" cy="3" r="2.2"/>',
+  side: '<line class="g" x1="12" y1="3" x2="2" y2="17"/><circle cx="22" cy="17" r="2.2"/>',
+  corner: '<circle cx="2" cy="17" r="2.2"/><circle cx="22" cy="17" r="2.2"/>',
+};
+const gripFig = (x: TensionGrip) =>
+  GRIP_FIG_TRI[x] ? `<svg class="grip-fig" viewBox="-1 0 26 20" aria-hidden="true"><path class="s" d="M12 3 L22 17 L2 17 Z"/>${GRIP_FIG_TRI[x]}</svg>` : "";
 const gripLabel = (x: TensionGrip, info: { cornerCount: number }) => (info.cornerCount === 3 ? GRIP_LABEL_TRI[x] : undefined) ?? GRIP_LABEL[x];
+/** 挟む向きの札の中身（三角は小さな絵つき。折り返すのは「・」の所だけ） */
+const gripButton = (x: TensionGrip, info: { cornerCount: number }) => `${info.cornerCount === 3 ? gripFig(x) : ""}<span>${esc(gripLabel(x, info)).replaceAll("・", "・<wbr>")}</span>`;
 const gripNote = (x: TensionGrip, info: { cornerCount: number }) => (info.cornerCount === 3 ? GRIP_NOTE_TRI[x] : undefined) ?? GRIP_NOTE[x];
 const GRIP_NOTE: Record<TensionGrip, string> = {
   short: "石のいちばん狭い幅を腕で挟みます。長い向きは指に沿って、腕の幅の外へ出ます",
   long: "石の長い向きを腕で挟みます。腕の開きは広くなり、腕の幅の外へ出る所は小さくなります",
   corner: "向かい合う 2 つの角をくぼみに入れます。横にずれませんが、挟む力が角の先にかかります",
+  side: "短い辺を溝に、反対の角をくぼみに入れます",
 };
 /** 腕の幅の注意（黄色・オレンジ。職人 石川の決まり 2026-11-06。作れない所ではない。赤は作れない所の方に出る） */
 function narrowArmOf(b: Built): WidthNote | null {
@@ -2531,7 +2547,7 @@ function renderCheck() {
       ${s.style === "prong" && !filming() ? prongHintHtml(b) : ""}
       ${pick("留め方", patternOf(b), filming() ? PATTERNS.filter(([v]) => v !== "v" && v !== "3") : patternsFor(b))}
       ${s.style === "prong" ? pick("爪の本数", s.prongCount ?? 0, [[0, "自動"], [3, "3"], [4, "4"], [5, "5"], [6, "6"]]) : ""}
-      ${b.ring.setting.tension && b.ring.setting.tension.grips.length > 1 ? `${pick("挟む向き", b.ring.setting.tension.grip, b.ring.setting.tension.grips.map((x) => [x, gripLabel(x, b.ring.setting.tension!)] as [TensionGrip, string]))}<ul class="pick-notes">${b.ring.setting.tension.grips.map((x) => `<li${x === b.ring.setting.tension!.grip ? ' class="on"' : ""}><b>${gripLabel(x, b.ring.setting.tension!)}</b>${esc(gripNote(x, b.ring.setting.tension!))}</li>`).join("")}</ul>` : ""}
+      ${b.ring.setting.tension && b.ring.setting.tension.grips.length > 1 ? `${pick("挟む向き", b.ring.setting.tension.grip, b.ring.setting.tension.grips.map((x) => [x, gripButton(x, b.ring.setting.tension!)] as [TensionGrip, string]))}<ul class="pick-notes">${b.ring.setting.tension.grips.map((x) => `<li${x === b.ring.setting.tension!.grip ? ' class="on"' : ""}><b>${gripLabel(x, b.ring.setting.tension!)}</b>${esc(gripNote(x, b.ring.setting.tension!))}</li>`).join("")}</ul>` : ""}
       ${s.style === "tension" ? "" : pick("高さ", s.height, [["low", "低め"], ["standard", "標準"], ["high", "高め"]])}
       ${s.style === "tension" ? "" : pick("向き", s.orientation, [["along", "縦"], ["across", "横"]])}
       ${s.style === "prong" ? prongTipPickHtml(pick, b.ring.setting.prongTip) : ""}

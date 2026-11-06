@@ -1,7 +1,7 @@
 // テンション（挟む）の腕：開いた輪の両はしに、石の形（すき間を足した物）を彫る。画面に依存しない純粋な関数。
 // 座標は指輪の座標（shank.ts と同じ）：mm、x が指の向き、z が上、腕は y–z の面。
 // 職人（石川、2026-11-05）の決まり：片方の端は角のくぼみ、もう片方の端は辺の溝。数字は GUIDES.tension の 1 か所。
-// 石の向きは選べる（TensionGrip）：狭い幅を挟む・長い向きを挟む・向かい合う角をくぼみに。
+// 石の向きは選べる（TensionGrip）：狭い幅を挟む・長い向きを挟む・向かい合う角をくぼみに・（三角）短い辺を溝に。
 //
 // 作り方：腕の端の面を「断面の点 (x, h) ごとに、腕に沿ってどこで終わるか」として決める。
 // 腕の端は y 一定の平らな面（図面の開き）で、そこから石の形だけ奥へ彫る。石は下へ行っても上へ行っても細くなるので、
@@ -17,9 +17,12 @@ import { girdleCenter, meshVolume, stoneHeights, stoneKnots, stoneScaleAt, type 
 export type TensionMode = "corner-edge" | "edge-edge" | "corner-corner";
 /**
  * 石のどこを腕で挟むか（上から見た石の向き）。
- * short：いちばん狭い幅を挟む（長い向きは指に沿って、腕の幅の外へ出る）。long：長い向きを挟む（短い辺や丸い端を溝に）。corner：向かい合う 2 つの角をくぼみに。
+ * short：いちばん狭い幅を挟む（長い向きは指に沿って、腕の幅の外へ出る）。三角では、いちばん長い辺を溝に・向かいの角をくぼみに。
+ * long：長い向きを挟む（短い辺や丸い端を溝に）。corner：向かい合う 2 つの角をくぼみに。
+ * side：三角だけ。いちばん短い辺を溝に・反対の角（いちばん長い辺の片はし）をくぼみに。角から辺までが short より長い所を挟む。
+ * 作者が実際に作った指輪の向き（職人 石川 2026-11-07「角を 1 個入れて、辺を 1 個溝に落とした」。くぼみも溝も 0.5 mm くらい）。
  */
-export type TensionGrip = "short" | "long" | "corner";
+export type TensionGrip = "short" | "long" | "corner" | "side";
 
 export interface TensionEnd {
   kind: "pit" | "groove";
@@ -89,9 +92,9 @@ export interface TensionInfo {
 }
 
 export interface TensionOptions {
-  /** 角のくぼみに入れる深さ（mm）。なければ GUIDES.tension.cornerPitMm（三角を長い辺の両はしの角で挟むときは longCornerPitMm） */
+  /** 角のくぼみに入れる深さ（mm）。なければ GUIDES.tension.cornerPitMm（三角の短い辺を溝に入れるとき（side）は shortSidePitMm） */
   cornerPitMm?: number;
-  /** 辺の溝に入れる深さ（mm）。なければ GUIDES.tension.edgeGrooveMm */
+  /** 辺の溝に入れる深さ（mm）。なければ GUIDES.tension.edgeGrooveMm（三角の side のときは shortSideGrooveMm） */
   edgeGrooveMm?: number;
   /** 石のすき間（mm）。なければ GUIDES.tension.clearanceMm */
   clearanceMm?: number;
@@ -99,7 +102,7 @@ export interface TensionOptions {
   culetGapMm?: number;
   /** 腕の両はしを持ち上げるか。なければ GUIDES.tension.liftEnds */
   liftEnds?: boolean;
-  /** 挟む向き。なければ short（角が 1 つの石は、いつも角をくぼみに。三角は short か corner） */
+  /** 挟む向き。なければ short（角が 1 つの石は、いつも角をくぼみに。三角は short・side・corner） */
   grip?: TensionGrip;
   /** 石の縁の高さ（腕の太さのどこか。0.5 は真ん中）。なければ GUIDES.tension.girdleAtWire */
   girdleAtWire?: number;
@@ -212,8 +215,11 @@ function offsetHull(hull: readonly Point[], c: number): Point[] {
 
 const rotate = (p: Point, a: number): Point => ({ x: p.x * Math.cos(a) - p.y * Math.sin(a), y: p.x * Math.sin(a) + p.y * Math.cos(a) });
 
-/** 上から見た石の幅がいちばん狭くなる回し方（x に沿って長く、y に沿って短くなる向き）。同じくらいなら回さない */
-function narrowAngle(hull: readonly Point[]): number {
+/**
+ * 上から見た石の幅がいちばん狭くなる回し方（x に沿って長く、y に沿って短くなる向き）。同じくらいなら回さない。
+ * around・halfDeg を渡すと、その角度のまわり ±halfDeg 度の中だけで探す（三角の短い辺を x に沿わせるとき）
+ */
+function narrowAngle(hull: readonly Point[], around = 0, halfDeg = 90): number {
   const widthAt = (a: number) => {
     let lo = Infinity;
     let hi = -Infinity;
@@ -224,10 +230,10 @@ function narrowAngle(hull: readonly Point[]): number {
     }
     return hi - lo;
   };
-  let best = 0;
-  let bestW = widthAt(0);
-  for (let d = -90; d < 90; d += 0.5) {
-    const a = (d * Math.PI) / 180;
+  let best = around;
+  let bestW = widthAt(around);
+  for (let d = -halfDeg; d < halfDeg; d += 0.5) {
+    const a = around + (d * Math.PI) / 180;
     const w = widthAt(a);
     if (w < bestW - 1e-3) {
       bestW = w;
@@ -261,14 +267,15 @@ function aspectOf(hull: readonly Point[]): number {
 
 /**
  * この石で選べる挟む向き。丸い石に向きはない。角が 1 つ（しずく形）は角をくぼみ・向かいを溝に入れる形だけ。
- * 角が 3 つ（三角）：狭い幅を挟む（角をくぼみ・向かいの辺を溝に）／長い辺の両はしの角を挟む（両方くぼみに）。
- * 長い辺の両はしの角は、作者が本物の指輪をこの向きで作った（2026-11-07「一番長いところが刺さる形」）。前は「角をくぼみ・辺を溝に」だけを職人の決まりとしていた。
+ * 角が 3 つ（三角）：角と辺を挟む向きが 2 つ（short：いちばん長い辺を溝に・向かいの角をくぼみに。side：いちばん短い辺を溝に・反対の角をくぼみに）と、
+ * 長い辺の両はしの角を両方くぼみに入れる向き（corner）。作者が実際に作った指輪は side（職人 2026-11-07「角を 1 個入れて、辺を 1 個溝に落とした」）。
+ * 前（2026-11-07 の昼）は、作者の言葉を聞きちがえて、corner を作者の指輪の向きとしていた。
  * 角が 2 つ（マーキス）：腹を溝に／両先をくぼみに。角が 4 つ以上（スクエアなど）：辺を溝に／角をくぼみに（長方形なら長い向きも）。
  */
 export function tensionGrips(stone: StoneParams): TensionGrip[] {
   const n = sharpCorners(stone).length;
   if (n === 1) return ["short"];
-  if (n === 3) return ["short", "corner"];
+  if (n === 3) return ["short", "side", "corner"];
   const hull = toCounterClockwise(convexHull(toCounterClockwise(stone.outlineMm)));
   const long = aspectOf(hull) >= GUIDES.tension.gripAspect;
   if (n === 2) return ["short", "corner"];
@@ -284,6 +291,28 @@ function stonePose(stone: StoneParams, wanted: TensionGrip | undefined): { mode:
   const n = corners.length;
   const grips = tensionGrips(stone);
   const grip = wanted && grips.includes(wanted) ? wanted : "short";
+  if (n === 3 && grip === "side") {
+    // 三角（短い辺を溝に）：いちばん短い辺（両はしの角を結ぶ線）を x に沿わせ、反対の角を +y へ。
+    // 写真の輪郭の辺は外へ反るので、角を結ぶ線のまわり ±5° で、幅がいちばん狭くなる向きに合わせる（反った辺が溝の中で平らに当たり、溝がまっすぐになる。
+    // 既定の三角では線から 3° ほど回る。線のままだと、腕の幅の中で辺が傾き、溝が辺に沿って曲がった）
+    const pts = corners.map((c) => c.point);
+    let lone = 0;
+    let shortest = Infinity;
+    for (let i = 0; i < 3; i++) {
+      const p = pts[(i + 1) % 3];
+      const q = pts[(i + 2) % 3];
+      const d = Math.hypot(p.x - q.x, p.y - q.y);
+      if (d < shortest - 1e-6) {
+        shortest = d;
+        lone = i;
+      }
+    }
+    const p = pts[(lone + 1) % 3];
+    const q = pts[(lone + 2) % 3];
+    let a = narrowAngle(hull, -Math.atan2(q.y - p.y, q.x - p.x), 5);
+    if (rotate(pts[lone], a).y < (rotate(p, a).y + rotate(q, a).y) / 2) a += Math.PI;
+    return { mode: "corner-edge", rotationZ: a, cornerCount: n, hull, grip, grips };
+  }
   if (n === 3 && grip !== "corner") {
     // 三角（狭い幅を挟む）：いちばん長い辺を x に沿わせ（高さが y に沿う）、向かいの角を +y へ
     let a = narrowAngle(hull);
@@ -363,10 +392,10 @@ export function buildTensionBand(p: ShankParams, stone: StoneParams, o: TensionO
   const clear = o.clearanceMm ?? g.clearanceMm;
   // 石の向き：上から見て回し、くぼみの幅の真ん中（なければ石の真ん中）を腕の幅の真ん中へ
   const pose = stonePose(stone, o.grip);
-  // くぼみの深さ：三角を長い辺の両はしの角で挟むときは、作者が本物の指輪で使った値（職人 2026-11-07）。ほかは角と辺の値
-  const longTri = pose.mode === "corner-corner" && pose.cornerCount === 3;
-  const pitDepth = o.cornerPitMm ?? (longTri ? g.longCornerPitMm : g.cornerPitMm);
-  const grooveDepth = o.edgeGrooveMm ?? g.edgeGrooveMm;
+  // 深さ：三角の短い辺を溝に・反対の角をくぼみに入れるときは、作者が実際に作った指輪の値（職人 2026-11-07。くぼみも溝も 0.5 mm）。ほかは角と辺の値
+  const sideTri = pose.grip === "side";
+  const pitDepth = o.cornerPitMm ?? (sideTri ? g.shortSidePitMm : g.cornerPitMm);
+  const grooveDepth = o.edgeGrooveMm ?? (sideTri ? g.shortSideGrooveMm : g.edgeGrooveMm);
   const pitTop = pose.mode !== "edge-edge";
   const pitBot = pose.mode === "corner-corner";
   const hullR = pose.hull.map((q) => rotate(q, pose.rotationZ));
