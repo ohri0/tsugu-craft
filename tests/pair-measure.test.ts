@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { angleSpread, comparePair, measureHand, shownDifferences, strokeLengths, type PairHands } from "../src/craft/pair-measure";
+import { angleSpread, measureHand, measureTake, strokeLengths, type PairHands } from "../src/craft/pair-measure";
 import { poseTrack } from "../src/craft/pose";
 import type { SampledLandmarks } from "../src/craft/record";
 
@@ -60,47 +60,21 @@ describe("いい例とよくない例を比べる：職人の言った 3 つの�
     expect(angleSpread(tr)!).toBeLessThan(5);
   });
 
-  it("よくない例（角度がぶれる・動きが短い）を比べる。ヤスリの線がないときは、手の向きからと書く", () => {
-    const good = clip(8, (t) => ({ dx: 0.1 * Math.sin(2 * Math.PI * 0.7 * t), tilt: 0.3 }), () => 0);
-    const bad = clip(8, (t) => ({ dx: 0.04 * Math.sin(2 * Math.PI * 1.4 * t), tilt: 0.3 + 0.25 * Math.sin(2 * Math.PI * 0.9 * t) }));
-    const items = comparePair(good, bad, HANDS);
-    const by = Object.fromEntries(items.map((x) => [x.key, x]));
-    expect(by.stroke.ratio!).toBeLessThan(0.6);
-    expect(by.angle.ratio!).toBeGreaterThan(2);
-    expect(by.angle.from).toBe("hand");
-    expect(by.angle.label).toBe("手の向きから見たヤスリの角度のぶれ");
-    // 押さえる手のふらつきは出さない（作者：大事なのはヤスリの角度）
-    expect(items.map((x) => x.key)).toEqual(["angle", "stroke"]);
-    expect(shownDifferences(items).length).toBe(2);
-  });
-
-  it("ヤスリの線があれば、角度はヤスリの線から測る", () => {
-    const a = clip(8, (t) => ({ dx: 0.1 * Math.sin(4 * t), tilt: 0 }));
+  it("1 本の動画を測る：押さえる手のふらつき・ヤスリの線の角度のぶれ・往復の長さ", () => {
+    const take = clip(8, (t) => ({ dx: 0.1 * Math.sin(2 * Math.PI * 0.7 * t), tilt: 0.3 }), (t) => 0.02 * Math.sin(2 * Math.PI * 1.1 * t));
     const line = (deg: number) => ({ angle: deg, x0: 0.2, y0: 0.9, x1: 0.5, y1: 0.5, support: 0.3 });
-    const tools = {
-      fps: 10,
-      good: Array.from({ length: 80 }, (_, i) => line(55 + 0.5 * Math.sin(i))),
-      bad: Array.from({ length: 80 }, (_, i) => line(i % 20 < 8 ? 55 : 66)),
-    };
-    const angle = comparePair(a, a, HANDS, tools).find((x) => x.key === "angle")!;
-    expect(angle.from).toBe("tool");
-    expect(angle.label).toBe("ヤスリの角度のぶれ");
-    expect(angle.ratio!).toBeGreaterThan(3);
+    const m = measureTake(take, HANDS, { fps: 10, lines: Array.from({ length: 80 }, (_, i) => line(i % 20 < 8 ? 55 : 66)) });
+    expect(m.hold!).toBeGreaterThan(0.05);
+    expect(m.angle!).toBeGreaterThan(2);
+    expect(m.strokes.length).toBeGreaterThanOrEqual(5);
+    expect(m.seen.tool).toBe(1);
   });
 
-  it("手が映っていないこまが多いと、数を出さずに「測れなかった」とする", () => {
-    const good = clip(6, (t) => ({ dx: 0.1 * Math.sin(5 * t), tilt: 0 }));
+  it("手が映っていないこまが多い・ヤスリの線がないと、その値は作らない", () => {
     const bad = clip(6, (t) => (t < 1 ? { dx: 0, tilt: 0 } : null));
+    const m = measureTake(bad, HANDS, null);
+    expect(m.strokes).toEqual([]);
+    expect(m.angle).toBeNull();
     expect(measureHand(bad, "left").angleSpread).toBeNull();
-    const items = comparePair(good, bad, HANDS);
-    const angle = items.find((x) => x.key === "angle")!;
-    expect(angle.ratio).toBeNull();
-    expect(angle.missing).toBe("ヤスリを持つ手が映っていない所が多い");
-    expect(shownDifferences(items).some((x) => x.key === "angle")).toBe(false);
-  });
-
-  it("ほぼ同じ所は、違いとして見せない", () => {
-    const a = clip(6, (t) => ({ dx: 0.1 * Math.sin(4 * t), tilt: 0 }));
-    expect(shownDifferences(comparePair(a, a, HANDS))).toEqual([]);
   });
 });

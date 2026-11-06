@@ -1,7 +1,6 @@
-// いい例とよくない例を、職人が言った所で比べる（2026-11-07 職人（石川）の言葉から）。
-//   1. ヤスリの角度：同じ角度を保っているか → ヤスリの線（src/craft/tool-line.ts）の角度のぶれ。線がなければ手の向き
-//   2. 1 回の動きの長さ：ヤスリを長く使っているか → ヤスリを持つ手の、1 回の往復で動いた長さ（手のひらの長さを 1 として）
-// 押さえる手のふらつきも測れるが（measureHand の wobble）、作者の声で画面には出さない。手が映っていないこまが多い・回数が足りないときは「測れなかった」とし、数を出さない。
+// 1 本の動画から、道具の扱いの判定（src/craft/hand-judge.ts）に使う値を測る（2026-11-07 職人（石川）の言葉から）。
+//   金属の固定 → 押さえる手のふらつき／ヤスリの角度 → ヤスリの線（src/craft/tool-line.ts）の角度のぶれ／ストローク → ヤスリを持つ手の往復の長さ
+// 手が映っていないこまが多いときは「測れなかった」とし、数を作らない。
 import { poseTrack, wobble, type PoseFrame, type PoseTrack, type Side } from "./pose";
 import type { SampledLandmarks } from "./record";
 import { lineAngleWobble, type ToolLine } from "./tool-line";
@@ -17,8 +16,6 @@ export const PAIR_MEASURE = {
   minStrokes: 4,
   /** 見えないこまを、これだけ（こま）までは前後からつないで数える */
   maxGap: 3,
-  /** 違いとして見せる倍（これより 1 に近ければ「ほぼ同じ」） */
-  showOver: 1.3,
 } as const;
 
 const median = (xs: readonly number[]) => {
@@ -164,70 +161,42 @@ export function measureHand(s: SampledLandmarks, side: Side): HandMeasure {
   };
 }
 
-export type PairKey = "angle" | "stroke";
-
-export interface PairItem {
-  key: PairKey;
-  /** 画面の 1 行（例：ヤスリの角度のぶれ） */
-  label: string;
-  good: number | null;
-  bad: number | null;
-  /** よくない例 ÷ いい例（測れなかったら null） */
-  ratio: number | null;
-  /** 単位（° など。手のひらの長さを 1 とした値は空） */
-  unit: string;
-  /** 何から測ったか（ヤスリの線・手の点） */
-  from: "tool" | "hand";
-  /** 測れなかったわけ（測れたら空） */
-  missing: string;
-}
-
 /** 押さえる手・ヤスリを持つ手が、画面の右か左か。呼び名も */
 export interface PairHands {
   hold: { side: Side; name: string };
   file: { side: Side; name: string; tool: string };
 }
 
-/** こまごとのヤスリの線（scripts/mihon-tool-line.ts が動画から探した物。見つからないこまは null） */
+/** こまごとのヤスリの線（scripts/mihon-tool-line.ts か、ブラウザの src/app/tool-track.ts が動画から探した物。見つからないこまは null） */
 export interface PairToolLines {
   fps: number;
-  good: (ToolLine | null)[];
-  bad: (ToolLine | null)[];
+  lines: (ToolLine | null)[];
 }
 
-/**
- * いい例とよくない例を比べる（2026-11-07 作者：大事なのはヤスリの角度。手の動きそのものは大事ではない）。
- *   1. ヤスリの角度のぶれ（いちばん大事）：ヤスリそのものの線から。線がなければ、ヤスリを持つ手の向きから（そう書く）
- *   2. 1 回の動きの長さ：ヤスリを持つ手の、1 回の往復で動いた長さ（測れたときだけ）
- * 押さえる手のふらつきは、作者の声で外した（手の動きより、ヤスリの角度）。
- */
-export function comparePair(good: SampledLandmarks, bad: SampledLandmarks, hands: PairHands, tools?: PairToolLines): PairItem[] {
-  const gf = measureHand(good, hands.file.side);
-  const bf = measureHand(bad, hands.file.side);
-  const why = (need: string) => (gf.seen < PAIR_MEASURE.minSeen || bf.seen < PAIR_MEASURE.minSeen ? "ヤスリを持つ手が映っていない所が多い" : need);
-  // いい例がほとんど 0 のときに、倍が大きくなりすぎないよう下限で割る
-  const item = (key: PairKey, label: string, g: number | null, b: number | null, unit: string, from: PairItem["from"], missing: string, floor = 0): PairItem => ({
-    key,
-    label,
-    good: g,
-    bad: b,
-    unit,
-    from,
-    ratio: g !== null && b !== null && Math.max(g, floor) > 0 ? Math.max(b, floor) / Math.max(g, floor) : null,
-    missing: g !== null && b !== null ? "" : missing,
-  });
-  const tg = tools ? lineAngleWobble(tools.good, tools.fps) : null;
-  const tb = tools ? lineAngleWobble(tools.bad, tools.fps) : null;
-  const angle =
-    tg !== null && tb !== null
-      ? item("angle", `${hands.file.tool}の角度のぶれ`, tg, tb, "°", "tool", "", 0.2)
-      : item("angle", `手の向きから見た${hands.file.tool}の角度のぶれ`, gf.angleSpread, bf.angleSpread, "°", "hand", tools ? `${hands.file.tool}の線が見つかったこまが少なく、手の向きも${why("読めたこまが少ない")}` : why("角度を読めたこまが少ない"), 1);
-  return [angle, item("stroke", "1 回の動きの長さ", gf.stroke, bf.stroke, "", "hand", why(`往復を数えられたのが いい例 ${gf.strokes} 回・よくない例 ${bf.strokes} 回で足りない`))];
+/** 1 本の動画の、判定に使う値（測れなかった物は null・空） */
+export interface TakeMeasure {
+  /** 押さえる手のふらつき（手のひらの長さを 1 として） */
+  hold: number | null;
+  /** ヤスリの角度のぶれ（度。ヤスリの線から） */
+  angle: number | null;
+  /** ヤスリを持つ手の、1 回ずつの往復の長さ（手のひらの長さを 1 として） */
+  strokes: number[];
+  /** 手が見えたこまの割合（押さえる手・ヤスリを持つ手）と、ヤスリの線が見つかったこまの割合 */
+  seen: { hold: number; file: number; tool: number };
 }
 
-/** 見せてよい違い（測れて、1 から十分に離れている物）。多くても max 個 */
-export function shownDifferences(items: readonly PairItem[], max = 3): PairItem[] {
-  return items.filter((x) => x.ratio !== null && (x.ratio >= PAIR_MEASURE.showOver || x.ratio <= 1 / PAIR_MEASURE.showOver)).slice(0, max);
+/** 1 本の動画を測る（手の点と、ヤスリの線から） */
+export function measureTake(s: SampledLandmarks, hands: PairHands, tool: PairToolLines | null): TakeMeasure {
+  const h = measureHand(s, hands.hold.side);
+  const ftr = poseTrack(s, hands.file.side);
+  const fileSeen = seenOf(ftr);
+  const toolSeen = tool && tool.lines.length ? tool.lines.filter(Boolean).length / tool.lines.length : 0;
+  return {
+    hold: h.wobble,
+    angle: tool ? lineAngleWobble(tool.lines, tool.fps) : null,
+    strokes: fileSeen >= PAIR_MEASURE.minSeen ? strokeLengths(ftr) : [],
+    seen: { hold: h.seen, file: fileSeen, tool: toolSeen },
+  };
 }
 
 /** 「1.7 倍」「0.6 倍」の字 */

@@ -24,7 +24,10 @@ import { masterName } from "./master";
 import { askPassword, resetPassword } from "./password";
 import { esc, store, today } from "./store";
 import { getVideo } from "./video-store";
-import { loadPair, mountPair, type PairDemo } from "./hands-pair";
+import { judgeHtml, loadPair, mountPair, type PairDemo } from "./hands-pair";
+import { measureTake, type PairToolLines } from "../craft/pair-measure";
+import { judgeTake, type JudgeRow } from "../craft/hand-judge";
+import { toolLinesFromVideo } from "./tool-track";
 
 /** 手本：記録と、その動画の URL */
 interface Example {
@@ -144,6 +147,10 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
   /** いい例・よくない例（読むのは 1 回だけ） */
   let pair: Promise<PairDemo | null> | null = null;
   let pairShown = false;
+  /** 読み終えた いい例・よくない例（いい例と比べる判定に使う） */
+  let pairDemo: PairDemo | null = null;
+  /** 学ぶ人の動画から探したヤスリの線（いい例と比べるときだけ） */
+  let learnerTool: PairToolLines | null = null;
 
   /** 職人の呼び名 */
   const masterOf = () => (isMihon() ? MIHON_NAME : masterName(store.mainLedger()));
@@ -192,6 +199,7 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
     if (my !== seq) return;
     if (pd && !pairShown) {
       pairShown = true;
+      pairDemo = pd;
       mountPair($(".pair-slot"), pd);
     }
     const mihon = isMihon();
@@ -339,6 +347,20 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
           },
         });
         record = createRecord(input, { title: "あなたの動画", craftsman: "", videoName: file.name || "動画" });
+        // いい例と比べるときは、道具（ヤスリ）も同じしくみで追いかける
+        learnerTool = null;
+        if (current.id === PAIR_GOOD && pairDemo) {
+          const t0 = performance.now();
+          try {
+            learnerTool = await toolLinesFromVideo(lv, (d, n) => {
+              bar.style.width = `${(100 * d) / n}%`;
+              $(".ptext").textContent = `${pairDemo!.info.file.tool}を探しています ${Math.round((100 * d) / n)}%`;
+            });
+          } catch {
+            learnerTool = null;
+          }
+          lv.dataset.toolMs = String(Math.round(performance.now() - t0));
+        }
       } catch (e) {
         $(".progress").hidden = true;
         status(`手を読めませんでした：${(e as Error).message}`);
@@ -346,6 +368,7 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
       }
       $(".progress").hidden = true;
     }
+    if ("record" in file) learnerTool = null;
     learner = { record, videoUrl: url };
     lv.src = url;
     compare();
@@ -356,6 +379,16 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
     // 左右の手のうち、手本と学ぶ人の両方でよく見えていて、違いが大きいほうを見せる
     const sides: Side[] = ["right", "left"];
     const cands = sides.map((s) => comparePose(current!.record.landmarksSampled, learner!.record.landmarksSampled, s)).filter((c) => c.seen.master > 0.3 && c.seen.learner > 0.3);
+    // いい例と比べるときは、手が読めなくても、判定できる項目だけで判定を出す（判定できない項目は、そう書く）
+    const rows = judgeRows();
+    if (!cands.length && rows) {
+      cmp = null;
+      $(".result").hidden = false;
+      $(".result").innerHTML = judgeHtml(rows, pairDemo!.info.file.tool, "あなた");
+      $(".result").scrollIntoView({ behavior: "smooth", block: "start" });
+      if (flow) store.flowMark("compared", tech ?? "ring");
+      return;
+    }
     if (!cands.length) {
       status("両方の動画で、同じ手がよく見えませんでした。手首から指先まで入るように撮り直してください。");
       return;
@@ -363,6 +396,13 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
     cmp = cands.sort((a, b) => Math.abs(Math.log(b.ratio)) - Math.abs(Math.log(a.ratio)))[0];
     renderResult();
     if (flow) store.flowMark("compared", tech ?? "ring");
+  }
+
+  /** いい例と比べる判定（いい例を手本にしているときだけ） */
+  function judgeRows(): JudgeRow[] | null {
+    if (!pairDemo || !learner || current?.id !== PAIR_GOOD) return null;
+    const you = measureTake(learner.record.landmarksSampled, pairDemo.info, learnerTool);
+    return judgeTake(pairDemo.good.measure, you, { hold: pairDemo.info.hold.name, tool: pairDemo.info.file.tool });
   }
 
   function holdRule(): Rule | undefined {
@@ -386,8 +426,10 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
     const head = r >= 1.3 ? `手が、手本の <em>${r.toFixed(1)} 倍</em> 動いています` : r <= 0.77 ? `手本より、手の動きが小さいです` : `手本とほぼ同じ動きです`;
     const max = Math.max(c.masterWobble, c.learnerWobble) || 1;
     const dur = learner.record.durationS || 1;
+    const rows = judgeRows();
     $(".result").hidden = false;
     $(".result").innerHTML = `
+      ${rows ? judgeHtml(rows, pairDemo!.info.file.tool, "あなた") : ""}
       <div class="verdict">
         <p class="eyebrow">比べた結果 ・ ${c.side === "right" ? "画面の右の手" : "画面の左の手"}</p>
         <h3>${head}</h3>
