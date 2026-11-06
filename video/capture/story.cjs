@@ -35,14 +35,14 @@ const SIZE = { ledger3m: [480, 900], waza3m: [480, 900], learn3m: [480, 900], le
   word10: [1280, 720], gothic10: [1280, 720], reason10: [1280, 720], make10: [1280, 720], ask10: [960, 540], learn10: [960, 540], rebuild10: [960, 540], ledger10: [960, 540],
   // 最終案 10（作者の声：実際に使っている所を中心に）：手で変える操作と、生成のあとに人が直す流れ
   ops11: [1280, 720], gothic11: [1280, 720], moyou11: [1280, 720], deco11: [1280, 720], gen12: [1280, 720], learn11: [960, 540], ops12: [1280, 720], sec13: [1280, 720],
-  teach14: [1280, 720], make14: [1280, 720], teach15: [1280, 720], finish15: [1280, 720], tension16: [1280, 720] };
+  teach14: [1280, 720], make14: [1280, 720], teach15: [1280, 720], finish15: [1280, 720], tension16: [1280, 720], finish16: [1280, 720] };
 const DSF = { photo9: 3, gothic9: 3, reason9: 3, make9: 3, word9: 4, ask9: 4, learn9: 4,
   word10: 3, gothic10: 3, reason10: 3, make10: 3, ask10: 4, learn10: 4, rebuild10: 4, ledger10: 4, ops11: 3, gothic11: 3, moyou11: 3, deco11: 3, gen12: 3, learn11: 4, ops12: 3, sec13: 3,
-  teach14: 3, make14: 3, teach15: 3, finish15: 3, tension16: 3 };
+  teach14: 3, make14: 3, teach15: 3, finish15: 3, tension16: 3, finish16: 3 };
 // マウスの印の大きさ（4 倍で撮る章で大きくなりすぎないように）
 const CURK = { word9: 0.5, ask9: 0.5, learn9: 0.5, photo9: 0.72, gothic9: 0.72, reason9: 0.72, make9: 0.72,
   word10: 0.8, gothic10: 0.8, reason10: 0.8, make10: 0.8, ask10: 0.62, learn10: 0.62, rebuild10: 0.62, ledger10: 0.62, ops11: 0.8, gothic11: 0.8, moyou11: 0.8, deco11: 0.8, gen12: 0.8, learn11: 0.62, ops12: 0.8, sec13: 0.8,
-  teach14: 0.8, make14: 0.8, teach15: 0.8, finish15: 0.8, tension16: 0.8 };
+  teach14: 0.8, make14: 0.8, teach15: 0.8, finish15: 0.8, tension16: 0.8, finish16: 0.8 };
 // 最終案 9：本物の Claude の返事を章ごと・順番ごとに覚える（work/story/_claude9/）。撮り直しでは覚えた返事を使うので、Claude は呼ばない（呼ぶのは最初の 1 回だけ）
 const CLAUDE9 = new Set(['word9', 'ask9', 'learn9', 'gothic9', 'reason9', 'word10', 'ask10', 'learn10', 'gothic10', 'reason10', 'gothic11', 'deco11', 'gen12', 'learn11', 'teach14', 'teach15']);
 // 最終案 10：同じ操作の章は、前に覚えた本物の Claude の返事をそのまま使う（新しく呼ばない）。gothic11 は gothic10（今のアプリで本物の Claude が組んだ「ゴシックな感じ」）の返事
@@ -4190,6 +4190,101 @@ Object.assign(CH, {
     const v1 = await boxOf(p, '.thread .a-voice');
     if (v1) await a.drift(N(46), { x: v1.x + v1.width * 0.7, y: v1.y + v1.height * 0.45 });
     await a.drift(N(20), { x: (v1 ? v1.x + v1.width * 0.5 : 400), y: (v1 ? v1.y + v1.height + 30 : 400) }, { k: 0.5 });
+  },
+});
+// 最終案 16b（作者の頼み）：伝統の仕上げは、石のない地金のみの指輪（変わった断面「くぼみ」）で見せる（3ce6fb6 の布目象嵌の模様・地金のみの指輪の仕上げ・新しい赤銅の色）。
+//   赤銅（煮色）→ 布目象嵌 → 麻の葉 → 青海波（模様がその場で替わり、緑の点で作れると分かる）→ 手順を押す → 布目を切る（この模様の数字）→ 純金を打ちこむ
+const FIN16_DIR = { x: 0.42, y: -1.0, z: 0.55 };
+/** sel の上の端が、画面の上から y px に来るよう、いちばん近い動かせる親を送る（撮らない） */
+const scrollToY = (p, sel, y) => p.evaluate(({ sel, y }) => {
+  const el = document.querySelector(sel);
+  if (!el) return false;
+  let c = el.parentElement;
+  while (c && !(c.scrollHeight > c.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(c).overflowY))) c = c.parentElement;
+  c = c || document.scrollingElement;
+  c.scrollTop += el.getBoundingClientRect().top - y;
+  return true;
+}, { sel, y });
+Object.assign(CH, {
+  finish16: async (a) => {
+    const { p } = a;
+    await studioNow9(a, { query: '?nooffload' }); await builtNow9(a);
+    await p.addStyleTag({ content: OPS_CSS11 });
+    await p.click('.kinds [data-kind="band"]'); await a.settle(1500);
+    await p.click(`.band-ctrl [data-sec="${process.env.FIN16_SEC || 'kubomi'}"]`); await a.settle(1500);
+    await new Promise((r) => setTimeout(r, 2000)); await a.settle(500);
+    await blackVp11(a);
+    await frame11(a, FIN16_DIR, Number(process.env.FIN16_FRAC || 0.62), Number(process.env.FIN16_DX || 190));
+    await p.evaluate(({ dx, ey }) => {
+      const v = window.__viewer; const w = v.host.clientWidth || 1; const h = v.host.clientHeight || 1;
+      const dy = h * (v.lift || 0) + ((v.insets?.bottom || 0) - (v.insets?.top || 0)) / 2 - ey;
+      for (const cam of [v.cams.persp, v.cams.ortho]) { cam.setViewOffset(w, h, -dx, dy, w, h); cam.updateProjectionMatrix(); }
+      v.dirty = true; v.draw?.();
+    }, { dx: Number(process.env.FIN16_DX || 190), ey: Number(process.env.FIN16_EY || 60) });
+    // 伝統の仕上げの題を、画面の上から 104 px に（色金の行が寄りの上の方に入る）
+    await scrollToY(p, '.band-ctrl .band-trad h4', 104);
+    await a.settle(400);
+    await new Promise((r) => setTimeout(r, 3000));
+    await a.settle(400);
+    const BT = (k, v) => `.band-ctrl [data-bt="${k}"][data-v="${v}"]`;
+    const info = () => p.evaluate(() => [document.querySelector('.band-ctrl .nm-panel h5')?.innerText.replace(/\s+/g, ' '), document.querySelector('.verdict-chip, .big-verdict b')?.innerText].join(' ／ '));
+    const b0 = await boxOf(p, BT('metal', 'shakudo'));
+    if (b0) await a.jump({ x: b0.x + b0.width / 2 - 150, y: b0.y + b0.height / 2 + 90 });
+    a.mark('full'); await a.box('trad', '.band-ctrl .band-trad', 4);
+    // 赤銅（煮色で、ほとんど黒に）
+    await a.drift(N(8), BT('metal', 'shakudo'), { k: 0.45 });
+    await a.press(BT('metal', 'shakudo'), { n: 12, after: 2 });
+    await a.settle(600); await blackVp11(a);
+    a.mark('s0');
+    // 布目象嵌（はじめの模様は菱つなぎ）
+    await a.drift(N(6), BT('inlay', 'nunome'), { k: 0.4 });
+    await a.press(BT('inlay', 'nunome'), { n: 14, after: 2 });
+    await a.settle(800); await blackVp11(a);
+    a.mark('s1'); console.log('finish16 布目象嵌', await info());
+    // 模様の欄が見えるまで、欄をなめらかに送る（印は模様の札の方へ）
+    await glideTo(a, '.band-ctrl .nm-panel', Number(process.env.FIN16_NMY || 214), 14);
+    a.mark('nm'); await a.box('nm', '.band-ctrl .nm-panel', 4);
+    await a.drift(N(6), '.band-ctrl [data-nm-pat="asanoha"]', { k: 0.5 });
+    await a.press('.band-ctrl [data-nm-pat="asanoha"]', { n: 10, after: 2 });
+    await a.settle(800); await blackVp11(a);
+    a.mark('s2'); console.log('finish16 麻の葉', await info());
+    await a.drift(N(4), '.band-ctrl [data-nm-pat="seigaiha"]', { k: 0.5 });
+    await a.press('.band-ctrl [data-nm-pat="seigaiha"]', { n: 8, after: 2 });
+    await a.settle(800); await blackVp11(a);
+    a.mark('s3'); console.log('finish16 青海波', await info());
+    await a.box('pat', '.band-ctrl [data-nm-pat="seigaiha"]', 4);
+    // 作れます（緑の点・緑の札）の上へ
+    const okSel = '.band-ctrl .nm-panel .nm-ok, .band-ctrl .nm-panel .nm-verdict, .band-ctrl .nm-panel [class*="ok"]';
+    const ob = await boxOf(p, okSel);
+    if (ob) await a.drift(N(18), { x: ob.x + ob.width * 0.3, y: ob.y + ob.height * 0.5 });
+    else await a.drift(N(18), { x: a.cur.x - 20, y: a.cur.y + 120 });
+    a.mark('ok');
+    await a.drift(N(14), { x: a.cur.x + 30, y: a.cur.y + 10 });
+    // 作り方：手順を押す（寄りから全体へ切り替える所で、印をタブの近くへ置き直す）
+    const tab = await boxOf(p, '.tabs [data-mode="hand"]');
+    if (tab) await a.jump({ x: tab.x + tab.width / 2 + 150, y: tab.y + tab.height / 2 + 130 });
+    a.mark('cutC');
+    await a.press('.tabs [data-mode="hand"]', { n: 14, after: 2 });
+    await a.settle(800);
+    await blackVp11(a);
+    await a.drift(N(14), { x: a.cur.x + 120, y: a.cur.y + 90 });
+    a.mark('hand');
+    const cards = await p.evaluate(() => [...document.querySelectorAll('.build-panel .mk-card')].map((c, i) => `${i + 1}:${c.querySelector('h3')?.innerText || ''}`));
+    console.log('finish16 手順の札', cards.join(' ／ '));
+    const idx = await p.evaluate(() => { const cs = [...document.querySelectorAll('.build-panel .mk-card')]; return cs.findIndex((c) => /布目を切る/.test(c.querySelector('h3')?.innerText || '')) + 1; });
+    const cS = (k) => `.build-panel .mk-card:nth-child(${k})`;
+    console.log('finish16 布目を切る', await p.evaluate((sel) => document.querySelector(sel)?.innerText.replace(/\s+/g, ' ').slice(0, 300), cS(idx)));
+    await p.evaluate((sel) => { const e = document.querySelector(sel); let c = e?.parentElement; while (c && !(c.scrollHeight > c.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(c).overflowY))) c = c.parentElement; if (e && c) c.scrollTop += e.getBoundingClientRect().top - c.getBoundingClientRect().top - 12; }, cS(idx));
+    await a.settle(300);
+    const c0 = await boxOf(p, `${cS(idx)} h3`);
+    if (c0) await a.jump({ x: c0.x - 6, y: c0.y + c0.height * 0.65 });
+    a.mark('card0'); await a.box('card0', cS(idx), 4);
+    if (c0) await a.drift(N(26), { x: c0.x + c0.width + 16, y: c0.y + c0.height * 0.65 });
+    await glideTo(a, cS(idx + 1), 70, 22);
+    a.mark('card1'); await a.box('card1', cS(idx + 1), 4);
+    const h1 = await boxOf(p, `${cS(idx + 1)} h3`);
+    if (h1) await a.drift(N(26), { x: h1.x + h1.width + 16, y: h1.y + h1.height * 0.65 });
+    await a.drift(N(30), { x: a.cur.x - 30, y: a.cur.y + 40 });
   },
 });
 // 最終案 16（作者の声：本物の指輪が、アールデコの生成のすぐあとに急に出て、その指輪だと思われる）：その前に、テンションの「浅く留めたいとき」を短く。

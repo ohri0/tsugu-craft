@@ -86,6 +86,9 @@ REAL_KEBORI = has_foot("raw/kebori.mov", "kebori.mov")    # 毛彫りの手本�
 STORY = os.path.join(WORK, "story")
 # 最終案 14：デザインする人への章の「伝統の仕上げ」（槌目・四分一や赤銅の煮色・ミル打ち。別の係が作っている）。撮った章 finish14 があるときだけ入れる（FINISH14=0 で外す）
 HAS_FINISH = os.path.exists(os.path.join(STORY, "finish15", "meta.json")) and os.environ.get("FINISH14", "1") != "0"
+# 最終案 16b（作者の頼み）：伝統の仕上げは、石のない地金のみの指輪（撮った章 finish16）で。FINISH16=0 で前の石の指輪（finish15）に戻せる
+FIN_ID = "finish16" if os.path.exists(os.path.join(STORY, "finish16", "meta.json")) and os.environ.get("FINISH16", "1") != "0" else "finish15"
+FIN_HOLD = float(os.environ.get("FIN_HOLD", "6.4" if FIN_ID == "finish16" else "6.05"))  # 最終案 16b：地金のみの指輪は 6.4 秒（＋0.35 秒はテンションと図面と STL から）
 # 最終案 16：本物の指輪の前の、テンションの計算（撮った章 tension16 があるときだけ。TENSION16=0 で外す）
 HAS_TENSION = os.path.exists(os.path.join(STORY, "tension16", "meta.json")) and os.environ.get("TENSION16", "1") != "0"
 # 最終案 15（作者の声：彫りが入ると、はじめが速く感じる）：ふだんは炎とヤスリだけ。OPENING=kebori で最終案 14 の彫りを戻せる（reel9 も同じ値を読む）
@@ -115,16 +118,16 @@ SCENES = [
     # 手で変える（最終案 14）：断面をパッパッパと 3 回（印は止めない）→ 伝統の仕上げ（四分一 → 丸槌目 → 少し寄る、切り替えて 赤銅 → 布目象嵌 → 腕の肌。ミル打ちは見せない）。
     #   爪を押す（prong12）は外した（人が直すの場面で同じ爪の欄を見せる）。留め方（setting12）は、伝統の仕上げを撮ったら、それに替える（3:00 に入れるため）
     dict(id="section13", ch="渡す1", v=[], hold=4.4, xf=0.5),  # 最終案 15：赤を 1 秒ほど見せる
-] + ([dict(id="finish15", ch="渡す1", v=[], hold=6.05, xf=0.0)] if HAS_FINISH else [dict(id="setting12", ch="渡す1", v=[], hold=2.3, xf=0.0)]) + [  # 最終案 15：仕上げのあと、布目象嵌の作り方まで
+] + ([dict(id=FIN_ID, ch="渡す1", v=[], hold=FIN_HOLD, xf=0.0)] if HAS_FINISH else [dict(id="setting12", ch="渡す1", v=[], hold=2.3, xf=0.0)]) + [  # 最終案 15：仕上げのあと、布目象嵌の作り方まで
     dict(id="firstnow10", ch="渡す1", v=[13], pre=1.2, post=2.0, xf=0.6),
     # 最終案 13：n15 は「好きな雰囲気や細かい希望を打ち込むだけで、…」。打つ所は声の前半に重ねる（画面の字はアールデコのまま）
     dict(id="deco11", ch="渡す1", v=[15], pre=0.85, post=0.6, xf=0.8, fixed=True),
     # 最終案 13：爪のつまみを 2 秒かけてゆっくり（目盛りごとに形が変わる → 0.65 mm で赤）。そのあと n18。最終案 14：頭の全体 → 確かめるを少しだけ詰めた
     dict(id="fix11", ch="渡す1", v=[18, 19], gap=0.7, pre=4.6, post=0.6, xf=0.8, fixed=True),  # 最終案 15：頭の動きは、印が動く所を等倍（印が跳ばない）。n18 と n19 の間は 0.7 秒のまま
     # 図面と STL：章の終わり。STL のあとに「この 3D データは、そのまま鋳造できます。あとは仕上げだけ。」（作者の言葉）と、章が変わる前の一息
-    dict(id="out11", ch="渡す1", v=[], hold=2.4, xf=0.8),
+    dict(id="out11", ch="渡す1", v=[], hold=2.25, xf=0.8),
     # 最終案 16（作者の声：本物の指輪が、アールデコの生成のすぐあとに急に出て、その指輪に見える）：テンションの「浅く留めたいとき」を短く（声なし・見出し）
-] + ([dict(id="tension16", ch="渡す1", v=[], hold=3.3, xf=0.6)] if HAS_TENSION else []) + ([dict(id="finished", ch="渡す1", v=[], hold=2.5, xf=0.8)] if REAL_FIN else []) + [  # 最終案 14：作者が継ぐのデータから作った本物の指輪（2026-11-06）
+] + ([dict(id="tension16", ch="渡す1", v=[], hold=3.1, xf=0.6)] if HAS_TENSION else []) + ([dict(id="finished", ch="渡す1", v=[], hold=2.5, xf=0.8)] if REAL_FIN else []) + [  # 最終案 14：作者が継ぐのデータから作った本物の指輪（2026-11-06）
     # 渡す 2：学ぶ人へ（最終案 13：作り方はおもに学ぶ人のため → この章の頭へ）。「次に、学ぶ人へ。」のあと 1 秒ほど静かに
     dict(id="door2", ch="渡す2", v=[21], pre=0.5, post=1.2, xf=1.0, dip=True, fixed=True),
     # 最終案 14：作り方は、帳面の職人の言葉からも作る（n20）。手順のロウ付けの札の「職人の決まり」まで送って寄る（make14）

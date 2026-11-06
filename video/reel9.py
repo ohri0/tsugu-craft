@@ -2580,6 +2580,40 @@ def finish15(s, t, f):
     return heading(a, "作り方まで：布目象嵌の手順", t, FIN15_B + 0.05)
 
 
+# ---- 伝統の仕上げ（最終案 16b。作者の頼み：石の指輪でなく、石のない地金のみの指輪（変わった断面「くぼみ」）で）：
+#   寄った絵で 赤銅 → 布目象嵌 → 麻の葉 → 青海波（模様がその場で替わる。緑の点と「作れます」）→ 全体で手順を押す → 布目を切る（この模様の数字）→ 純金を打ちこむ
+FIN16_Z = (842, 350, 880)      # 指輪（左）と、伝統の仕上げの欄（右）が 1 つの寄りに入る（頁の px：真ん中 x・y と幅）
+
+
+@scene("finish16")
+def finish16(s, t, f):
+    """撮った章 finish16 を、どこも等倍で。寄り（仕上げと模様）→ 全体（手順を押す）→ 手順の札の寄り"""
+    M = meta("finish16")
+    m, nfr = M["marks"], M["frames"]
+    n = s["len"]
+    B = M["boxes"]
+    c1 = m.get("card1", m["card0"] + 48)
+    # 寄り：赤銅を押しに動くところから、青海波を押して 0.45 秒まで。印が動く所・欄を送る所は等倍、押した輪だけ 2 倍（chain）
+    segs = [(m["s0"] - 5, 1), (m["s0"], 2), (m["s1"] - 5, 1), (m["s1"], 2), (m["nm"], 1), (m["s2"] - 5, 1), (m["s2"], 2), (m["s3"] - 5, 1), (m["s3"], 2), (m["s3"] + 14, 1)]
+    pts = chain(0, max(m["full"], m["s0"] - 17), segs)
+    t_a = pts[-1][0]
+    t_c = (m["hand"] - 1 - m["cutC"] + 2) / FPS          # 全体：手順を押す（等倍。こまの数ちょうどの長さにして、端数で跳ばない）
+    if t < t_a:
+        i = min(nfr - 1, int(ramp_frame(pts, t)))
+        a = css_crop("finish16", i, *FIN16_Z)
+        return heading(a, "伝統の仕上げも：煮色・槌目・象嵌", t, 0.0, t_a - 0.35)
+    u = t - t_a
+    if u < t_c:
+        a = full_view("finish16", min(m["hand"] - 1, m["cutC"] + int(round(u * FPS))))   # round：秒の端数で 1 こま止まる・跳ぶのを防ぐ
+    else:
+        v = u - t_c
+        j = min(nfr - 1, m["card0"] + int(round(v * FPS)))
+        tops = [B[k]["y"] for k in ("card0", "card1") if k in B]
+        cy = (min(tops) - 6 + FIN15_STEPS_W * 9 / 32) if tops else 220
+        a = blend_views(lambda: full_view("finish16", m["hand"] - 1), lambda: css_crop("finish16", j, 1280 - FIN15_STEPS_W / 2, cy, FIN15_STEPS_W), t, t_a + t_c, 0.35)
+    return heading(a, "作り方まで：布目象嵌の手順", t, t_a + 0.05)
+
+
 # ---- 言葉で頼む（本物の Claude の「アールデコな感じ」。組んでいる途中の絵は使わず、作れますの出来上がりへ重ねて替える）
 # 撮った章：deco11（本物の Claude に「アールデコな感じ」と頼んだ 4 回目の返事で撮った物。2026-11-06 作者が最終に決めた）。ゴシックの回は gothic11（GEN_CH=gothic11 で戻せる）
 GEN_CH = os.environ.get("GEN_CH", "deco11")
