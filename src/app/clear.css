@@ -203,6 +203,42 @@ html.fit .rebuild .actions .go.ghost { min-height: 44px; font-size: 14px; color:
   html.fit .rebuild :is(.cid, .verdict, .tag) { font-size: 12px; }
 }
 
+/* ---- PC：画面の中の押す所も大きく（上の帯は設計の画面と同じ細さのまま） ---- */
+html.fit main :is(.primary, .ghost, .btnlike, .btn) { min-height: 40px; }
+html.fit main .back { min-height: 36px; }
+html.fit main :is(.rc-del, .rename) { display: inline-flex; align-items: center; min-height: 36px; padding: 0 4px; }
+html.fit .in-flow .chip { min-height: 44px; }
+html.fit .in-flow .composer .send, html.fit .in-flow .composer .icon { height: 44px; min-height: 44px; }
+html.fit .in-flow .composer .icon { width: 44px; }
+html.fit main :is(.tp-more, .caveat, .mo-values, details.clues) > summary { min-height: 44px; }
+html.fit .moyou .mo-runs button { min-height: 36px; font-size: 13px; }
+html.fit .mihon-bar a { display: inline-flex; align-items: center; min-height: 32px; }
+
+/* ---- スマホ：本文は 14 px 以上、押す所は 44 px 以上（技・帳面・学ぶの画面。設計の画面は別のページ） ---- */
+@media (max-width: 720px) {
+  html.fit #app :is(.primary, .ghost, .btnlike, .btn) { font-size: 14px; }
+  html.fit #app :is(.view-head .lead, .tp-head .lead, .small, p.note, .see-title, .back, .rename, .ms-line, .bk-n, .bt-stat, .chips-h, .iv-name-line, .rb-steps, .rc-del, .linklike, .rc-meta, .rs-cross-line, .mihon-link-line) { font-size: 14px; }
+  html.fit #app :is(.tp-block > h3 small, .pub-sec-h small, .book-ring-h small, .tp-more > summary small, .fl-label) { font-size: 13px; }
+  html.fit #app .rc-del { min-height: 44px; }
+  html.fit .rebuild :is(.trials h4, .missed h4) { font-size: 13px; }
+  html.fit .rebuild :is(.trials li b, .missed li b) { font-size: 14px; }
+  html.fit .moyou .mo-runs button { min-height: 44px; font-size: 13px; }
+  html.fit .moyou .mo-cell figcaption { font-size: 13px; }
+  html.fit .moyou .mo-marks { font-size: 13px; }
+  html.fit .moyou .mo-marks em { font-size: 12px; }
+  html.fit .moyou .mo-big figcaption { font-size: 13px; }
+  html.fit .moyou .mo-why li, html.fit .moyou .mo-honest { font-size: 14px; }
+  html.fit .moyou .mo-marks li span { font-size: 13px; }
+  html.fit .moyou .who { font-size: 12px; }
+  html.fit .tech-pick > span { font-size: 13px; }
+  html.fit .mihon-bar { font-size: 13px; }
+  html.fit .mihon-bar a { display: inline-flex; align-items: center; min-height: 44px; }
+  html.fit .sheet .steps span { font-size: 14px; }
+  html.fit .in-flow .chip { min-height: 44px; }
+  html.fit #app .pw-state, html.fit .iv-name-line input { min-height: 44px; }
+  html.fit .iv-why-more summary { min-height: 44px; }
+}
+
 /* ---- 作り方を見る（畳んだ欄の見た目をほかとそろえる） ---- */
 html.fit .tp-howto-more > summary { padding: 0 14px; min-height: 44px; font-size: 14px; }
 html.fit .tp-more > summary, html.fit .tp-gaps > summary { min-height: 44px; padding: 0 14px; font-size: 14px; }
