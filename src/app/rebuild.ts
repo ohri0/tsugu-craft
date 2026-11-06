@@ -9,7 +9,6 @@ import { scoreLine, tally } from "../rebuild/score";
 import { GRADE_PROCESS, PROPOSE_PROCESS, parseGradeProcess, parseProposeProcess, type Verdict } from "../rebuild/tools";
 import { filming } from "./confirm";
 import { askPassword, resetPassword } from "./password";
-import { mountSim } from "./sim-view";
 import { esc, today } from "./store";
 
 import { PUBLISHED_RUNS } from "../rebuild/published";
@@ -195,15 +194,17 @@ export function mountRebuild(root: HTMLElement, opts: { onBack?: () => void } = 
           : ""
       }
 
-      ${h && t.id === "mokume" ? `<div class="block sim-slot"></div>` : ""}
+      ${
+        t.id === "mokume"
+          ? `<a class="mo-link" href="#waza/rebuild/moyou"><span class="mo-link-t"><b>模様の試し</b><small>本当の手順と Claude の手順で作ったら、どんな模様になるか。計算で描いた目安の絵で比べます。</small></span><span aria-hidden="true">›</span></a>`
+          : ""
+      }
 
 
       ${CAVEAT}
     </section>`;
 
     const $ = <T extends HTMLElement = HTMLElement>(s: string) => root.querySelector<T>(s);
-    const slot = $(".sim-slot");
-    if (slot) mountSim(slot);
     $(".back")?.addEventListener("click", () => (TECHNIQUES.length > 1 ? list() : opts.onBack?.()));
     root.querySelectorAll<HTMLButtonElement>(".cond [data-c]").forEach((b) =>
       b.addEventListener("click", () => {
