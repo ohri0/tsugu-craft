@@ -9,8 +9,9 @@ export type ViewName = "top" | "side" | "front" | "angle";
 /** 見る向き（見ている所 → カメラ）。上はほんの少しだけ傾ける（真上だと、上の向きが決まらないため。傾きは 0.0001） */
 export const VIEW_DIR: Record<ViewName, THREE.Vector3> = {
   top: new THREE.Vector3(0, -1e-4, 1).normalize(),
-  side: new THREE.Vector3(1, 0, 0),
-  front: new THREE.Vector3(0, -1, 0),
+  // 正面は指の軸の向きから（指輪が丸く見える。図面の正面図と同じ向き。2026-11-06 作者と決めた）。横は -y から（腕を横から見て、高さが分かる）
+  side: new THREE.Vector3(0, -1, 0),
+  front: new THREE.Vector3(1, 0, 0),
   angle: new THREE.Vector3(0.6, -0.8, 0.6).normalize(),
 };
 

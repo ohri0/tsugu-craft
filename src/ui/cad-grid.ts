@@ -126,7 +126,7 @@ export class CadGrid {
 
   /**
    * 板の面：u・v の 2 本の軸（世界の軸）の張る面を、at を通るように置く。
-   * 床なら x・y、正面の図なら x・z、横の図なら y・z
+   * 床なら x・y、正面の図（指の軸の向きから）なら y・z、横の図なら x・z
    */
   setPlane(u: Axis, v: Axis, at: THREE.Vector3) {
     const unit = { x: new THREE.Vector3(1, 0, 0), y: new THREE.Vector3(0, 1, 0), z: new THREE.Vector3(0, 0, 1) };

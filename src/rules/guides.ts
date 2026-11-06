@@ -65,6 +65,9 @@ export const GUIDES = {
      * diameterMm・flareMm・tipLengthMm・baseScale・tipScale：欄のつまみの範囲（min・max・step）。
      * flareReachRatio：先の反りをかける長さ（縁の上の部分の、先の方のこの割合）。flareLift：反らせた量のこの割合だけ上へも上げる（外へ開くように）。
      * flareContactGapMm：石からこれより離れた爪の先は、押さえている長さに数えない（確かめの先の高さが下がる）。
+     *   plain：角のない石（ラウンド・オーバルなど）。cornered：尖った角のある形の石（三角・ペア・マーキス・プリンセスなど）。
+     *   作者の言葉（2026-11-06）：「三角の石で 0.3 mm が赤くなるのは厳しすぎる。こういう特殊な形の石なら通るようにした方がいい。0.3 は通ると思う」。
+     *   角のある石は 0.2 mm にした（三角の石で反り 0.5 mm まで通り、0.55 mm から赤くなる。角のない石は 0.25 mm まで）。数字の出典はなく、作者の言葉に合わせた仮の値。
      * baseReachRatio：土台の太さが効く長さ（爪の線の、下からこの割合。なめらかに元の太さへ）。
      * tipReachRadii：先の力強さが効く長さ（先から、爪の半径のこの倍）。outwardShift：太った分のこの倍だけ線を外へ（石の側の面が動かない）。
      * aboveGirdleMm・belowTableMm：先の高さは、縁の上からこれだけ上、石の上面からこれだけ下に収める。capOverRatio：丸い先が先の高さから上へ出る量（爪の半径に対する割合。形を作るための決まり）。
@@ -78,7 +81,7 @@ export const GUIDES = {
       tipScale: { min: 1, max: 1.8, step: 0.05 },
       flareReachRatio: 0.5,
       flareLift: 0.35,
-      flareContactGapMm: 0.1,
+      flareContactGapMm: { plain: 0.1, cornered: 0.2 },
       baseReachRatio: 0.6,
       tipReachRadii: 3.2,
       outwardShift: 1.15,

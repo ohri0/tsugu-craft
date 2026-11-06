@@ -11,6 +11,8 @@ import { GUIDES } from "../src/rules/guides";
 import { seedLedger } from "../src/rules/ledger";
 import { presetOutline, PRESETS } from "../src/studio/presets";
 import { carryDesign, DEFAULT_STATE, RingSession } from "../src/studio/session";
+import { stoneFrom } from "./helpers/stones";
+import { triangle } from "./helpers/synth";
 
 const stoneOf = (id: string): StoneParams => {
   const p = PRESETS.find((x) => x.id === id)!;
@@ -248,6 +250,18 @@ describe("確かめのルールは今までどおり効く", () => {
     expect(big).toHaveLength(1);
     const small = checkRing(ring([{ flareMm: 0.1 }, null, null, null]), { position: "top", guides }).filter((p) => p.check === "tip-height");
     expect(small).toHaveLength(0);
+  });
+  it("角のある形の石（三角）は、反り 0.3 mm が通る（作者 2026-11-06：0.3 は通ると思う）", () => {
+    // 既定の三角の石（8.88 × 7.52 × 4.24 mm）
+    const tri = stoneFrom(triangle(0, 0, 888, 752), 8.88, 4.24);
+    const tipProbs = (flareMm: number, join: "on" | "between") =>
+      checkRing(buildRing(params(tri, { join, prongEdits: [{ flareMm }, null, null] })), { position: "top", guides }).filter((p) => p.check === "tip-height");
+    for (const join of ["between", "on"] as const) {
+      expect(tipProbs(0.3, join), join).toHaveLength(0);
+      expect(tipProbs(GUIDES.prong.edit.flareMm.max, join), join).toHaveLength(1);
+    }
+    // 角のない石は、今までどおり 0.1 mm の離れで数える
+    expect(GUIDES.prong.edit.flareContactGapMm.plain).toBeLessThan(GUIDES.prong.edit.flareContactGapMm.cornered);
   });
   it("直していなければ、爪の先の高さの確かめは今までどおり 1 つにまとまる", () => {
     const r = buildRing(params(stone, {}));

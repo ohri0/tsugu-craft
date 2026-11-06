@@ -36,7 +36,7 @@ describe("斜めと平らな図のカメラ", () => {
   });
   it("正面・横・上は、正射のカメラ。見る向きはまっすぐ", () => {
     const { c, target } = setup();
-    for (const [v, dir] of [["front", [0, -1, 0]], ["side", [1, 0, 0]], ["top", [0, 0, 1]]] as const) {
+    for (const [v, dir] of [["front", [1, 0, 0]], ["side", [0, -1, 0]], ["top", [0, 0, 1]]] as const) {
       const cam = c.setView(v, target);
       expect(cam).toBeInstanceOf(THREE.OrthographicCamera);
       const d = cam.position.clone().sub(target).normalize();

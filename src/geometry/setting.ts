@@ -332,15 +332,21 @@ function tipZOf(h: StoneHeights, tz: number, look: ProngLook | undefined, r: num
   return Math.min(tz, Math.max(stoneKnots(h).girdleTop + e.aboveGirdleMm, tz + dz));
 }
 
+/** 反らせた爪の先が、石からどれだけ離れるまで押さえているとみなすか（mm）。角のある形の石は広く（作者 2026-11-06） */
+export function flareContactGapMm(corners: readonly Corner[]): number {
+  const g = GUIDES.prong.edit.flareContactGapMm;
+  return corners.length > 0 ? g.cornered : g.plain;
+}
+
 /**
  * 確かめに使う先の高さ：先を反らせると、先の端は石から離れて押さえなくなる。
- * 石から flareContactGapMm より離れた所は、押さえている長さに数えない（数字は仮）
+ * 石から gap より離れた所は、押さえている長さに数えない（数字は仮）
  */
-function pressTipZ(h: StoneHeights, tz: number, look: ProngLook | undefined): number {
+function pressTipZ(h: StoneHeights, tz: number, look: ProngLook | undefined, gap: number): number {
   const fl = look?.flareMm ?? 0;
   const e = GUIDES.prong.edit;
-  if (fl <= e.flareContactGapMm) return tz;
-  return tz - e.flareReachRatio * (1 - Math.sqrt(e.flareContactGapMm / fl)) * Math.max(0, tz - stoneKnots(h).girdleTop);
+  if (fl <= gap) return tz;
+  return tz - e.flareReachRatio * (1 - Math.sqrt(gap / fl)) * Math.max(0, tz - stoneKnots(h).girdleTop);
 }
 
 /**
@@ -1032,7 +1038,7 @@ export function buildSetting(params: SettingParams): SettingResult {
         legPoints,
         diameterMm: plan.diameterMm,
         lengthMm: tipZOf(h, tz, plan.look, r) - v.upperRingZ,
-        tipZ: pressTipZ(h, tipZOf(h, tz, plan.look, r), plan.look),
+        tipZ: pressTipZ(h, tipZOf(h, tz, plan.look, r), plan.look, flareContactGapMm(corners)),
         tip: tipIsOni(params, plan.look) ? "oni" : "round",
         ...(plan.look ? { look: plan.look } : {}),
         triangles: addPart(closedParts(pieces)),
@@ -2023,7 +2029,7 @@ function betweenHead(f: Frame, params: SettingParams, plans0: ProngPlan[], ctx: 
       legPoints: [{ x: c.x, y: c.y }],
       diameterMm: plan.diameterMm,
       lengthMm: tipZOf(f.h, tz, plan.look, r) - zU,
-      tipZ: pressTipZ(f.h, tipZOf(f.h, tz, plan.look, r), plan.look),
+      tipZ: pressTipZ(f.h, tipZOf(f.h, tz, plan.look, r), plan.look, flareContactGapMm(ctx.corners)),
       tip: tipIsOni(params, plan.look) ? "oni" : "round",
       ...(plan.look ? { look: plan.look } : {}),
       triangles: ctx.addPart(closedParts([tris])),
