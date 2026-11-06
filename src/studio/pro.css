@@ -488,6 +488,38 @@ dialog.sheet input:focus { border-color: var(--accent); }
 .proposal-d .row { margin-top: 8px; }
 .proposal-d .row button { height: 28px; padding: 0 12px; border-radius: var(--r); font-size: 12px; font-weight: 600; border: 1px solid var(--line-2); background: var(--panel-2); }
 .proposal-d .row .primary { border-color: transparent; background: var(--accent); }
+/* Claude に教える：今の設計の一行、職人の点と推測の点の表（作者の頼み 2026-11-06） */
+.teach-sec h4 small { font-weight: 400; }
+.teach-now { display: block; margin: 6px 0 2px; padding: 5px 8px; border-radius: 5px; background: var(--field); border: 1px solid var(--line); font-size: 11.5px; font-variant-numeric: tabular-nums; color: var(--fg); }
+.teach-now small, .pp small, .pt-card > small { font-size: 10.5px; color: var(--fg-3); margin-right: 4px; }
+.rules-sec textarea.ar-text { min-height: 32px; resize: none; overflow: hidden; line-height: 1.5; font-size: 12.5px; }
+.pt-c, .pt-g, .pt-p { display: inline-block; margin-left: 4px; padding: 0 4px; border-radius: 3px; font-style: normal; font-size: 9.5px; font-weight: 600; line-height: 15px; vertical-align: 1px; font-family: var(--sans); letter-spacing: 0; }
+.pt-c { background: rgba(255, 255, 255, 0.9); color: #18181a; }
+.pt-g { border: 1px dashed var(--fg-3); color: var(--fg-2); line-height: 13px; }
+.pt-p { border: 1px solid var(--line-2); color: var(--fg-3); line-height: 13px; }
+.pt-table { width: 100%; margin: 6px 0; border-collapse: collapse; font-size: 11.5px; font-variant-numeric: tabular-nums; }
+.pt-table th, .pt-table td { padding: 4px 3px; text-align: center; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.pt-table thead th { font-weight: 500; color: var(--fg-3); font-family: var(--mono); }
+.pt-table thead th:first-child, .pt-table tbody th { text-align: left; font-family: var(--sans); font-weight: 500; color: var(--fg-3); font-size: 10.5px; }
+.pt-table thead th.pt-now { color: var(--fg); box-shadow: inset 0 -2px 0 var(--accent); }
+.pt-table td { font-family: var(--mono); }
+.pt-table td.is-c { color: var(--fg); font-weight: 600; }
+.pt-table td.is-g { color: var(--fg-2); font-style: italic; }
+.pt-table td.is-p { color: var(--fg-3); }
+.pt-table tr.pt-before td { color: var(--fg-3); font-weight: 400; }
+.pt-table td.chg { background: var(--accent-weak); }
+.pt-table td .pt-c, .pt-table td .pt-g, .pt-table td .pt-p { display: block; width: fit-content; margin: 2px auto 0; }
+.pp { margin: 8px 0 2px; padding: 8px; border-radius: 6px; background: rgba(0, 0, 0, 0.18); border: 1px solid var(--line); }
+.proposal-d .pp p { margin: 3px 0; font-size: 11.5px; }
+.proposal-d .pp-read { color: var(--fg); font-weight: 600; }
+.proposal-d .pp-said { color: var(--fg); }
+.pp-how, .pp-why { color: var(--fg-2); }
+.pp-how small, .pp-why small, .pp-read small, .teach-now small { display: block; margin: 0 0 1px; }
+.pp-note { color: var(--fg-3); font-size: 10.5px !important; }
+.pp-drop { color: var(--warn); font-size: 11px; }
+.pt-card { margin-top: 10px; padding: 8px 9px; border: 1px solid rgba(10, 132, 255, 0.45); border-radius: 6px; background: var(--field); font-size: 12px; }
+.pt-card > b { display: block; }
+.pt-card p { margin: 3px 0; font-size: 11px; }
 .fix-log { margin: 10px 14px 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--field); }
 .verdict-chip.flash { animation: chipFlash 1.2s ease; }
 @keyframes chipFlash { 0% { transform: scale(1); } 20% { transform: scale(1.12); box-shadow: 0 0 0 6px rgba(255, 255, 255, 0.08); } 100% { transform: scale(1); } }

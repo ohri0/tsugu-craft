@@ -16,7 +16,9 @@ import { outlineIndexAtT, type JoinStyle, type ProngTip, type SettingResult } fr
 import { nameShape } from "../geometry/shape";
 import { runClaude, type LogEntry } from "../claude/loop";
 import { cannotFrom, hasJapanese, plainWords, ruleTitles, toolLogLine, withoutCannot, type RuleTitles, type StoneWords } from "../claude/words";
-import { STONE_FREE_NOTE, STONE_KEEP_NOTE, designPrompt, gouNote, keepPrompt } from "../claude/prompt";
+import { STONE_FREE_NOTE, STONE_KEEP_NOTE, correctPrompt, designPrompt, gouNote } from "../claude/prompt";
+import { craftPointsFromProposal, designNowText, isPointProposal, previewPoints, type DesignNow, type PointsPreview } from "../claude/rule-points";
+import { craftProngPoints, craftProngRule, mergeCraftPoints, mmText, prongMinAt, prongPointsRule, prongTable } from "../rules/prong-points";
 import { TOOLS, type ChooseStoneInput, type ChooseStoneResult, type ProposeRuleInput, type ProposeRuleResult, type ToolHost, type Metal } from "../claude/tools";
 import type { ClaudeContentBlockParam } from "../claude/wire";
 import { patternSvg } from "../pattern/sheet";
@@ -2965,9 +2967,11 @@ async function addRuleFromWords(said: string) {
     look: () => Promise.reject(new Error("使わない")),
     snapshot: () => null,
     restore: () => undefined,
-    proposeRule: (p) => propose(slot, p, name),
+    proposeRule: (p) => propose(slot, p, name, said),
   };
-  const r = await runClaude({ host, messages: [{ role: "user", content: `${name}さんが話したこと：${said}` }], system: keepPrompt(store.ledger(), name), tools: TOOLS.filter((t) => t.name === "propose_rule"), password: pass, maxTurns: 3, speed: "fast" });
+  const now = designNow();
+  const design = now ? designNowText(store.ledger(), now) : kind === "band" ? "今の設計：地金だけの指輪（石はない）。" : "今の設計：まだ組み上がっていない。";
+  const r = await runClaude({ host, messages: [{ role: "user", content: `${name}さんが、今の設計を見ながら話したこと：${said}` }], system: correctPrompt(store.ledger(), name, design), tools: TOOLS.filter((t) => t.name === "propose_rule"), password: pass, maxTurns: 3, speed: "fast" });
   if (r.offline || (r.error && !r.log.length)) {
     if (r.error?.code === "wrong_password") resetPassword();
     $(".ar-proposal").innerHTML = `<p class="tech-what">Claude につながりませんでした。${esc(r.error?.message ?? "")}</p>`;
@@ -2982,11 +2986,14 @@ function showProposalSlot() {
   if (filming()) return;
   requestAnimationFrame(() => document.querySelector(".ar-proposal")?.scrollIntoView({ behavior: "smooth", block: "center" }));
 }
-function propose(slot: HTMLElement, p: ProposeRuleInput, name: string): Promise<ProposeRuleResult> {
+function propose(slot: HTMLElement, p: ProposeRuleInput, name: string, said = ""): Promise<ProposeRuleResult> {
   return new Promise((resolve) => {
     // 待っている間に欄が描き直されていても、今の欄に出す
     if (!slot.isConnected) slot = $(".ar-proposal");
-    slot.innerHTML = `<div class="proposal-d"><b>${esc(p.title)}</b><p>${esc(p.text)}</p><p class="tech-what">なぜ：${esc(p.reason)}</p>${p.param ? `<p class="tech-what">値：${p.value}</p>` : ""}${!p.param && p.steps?.length ? `<p class="tech-what">入る工程：${esc(p.steps.map((s) => MAKING_STEPS[s]).join("・"))}</p>` : ""}
+    // 爪の太さを石の大きさで言ったときは、職人の点と、Claude が割合で推し量った点を、前 → 後の表で見せる
+    const pv = isPointProposal(p) ? previewPoints(store.ledger(), p, said, designNow(), today()) : null;
+    const valueLine = pv?.added.length ? "" : p.param ? `<p class="tech-what">値：${p.value}${PARAMS[p.param].unit ? ` ${esc(PARAMS[p.param].unit)}` : ""}</p>` : "";
+    slot.innerHTML = `<div class="proposal-d"><b>${esc(p.title)}</b>${said ? `<p class="pp-said">「${esc(said)}」</p>` : ""}<p>${esc(p.text)}</p><p class="tech-what">なぜ：${esc(p.reason)}</p>${valueLine}${pv ? pointsPreviewHtml(pv) : ""}${!p.param && p.steps?.length ? `<p class="tech-what">入る工程：${esc(p.steps.map((s) => MAKING_STEPS[s]).join("・"))}</p>` : ""}
       <div class="row"><button type="button" class="primary ok">これでいい</button><button type="button" class="ghost-d no">いらない</button></div></div>`;
     showProposalSlot();
     // 案は欄の描き直しで今の欄へ移されることがあるので、案そのものを消す
@@ -2999,18 +3006,58 @@ function propose(slot: HTMLElement, p: ProposeRuleInput, name: string): Promise<
       if (!askConfirm(`この決まりを帳面に入れますか？\n「${p.title}」\n今の設計とこれまでの作品を確かめ直します。`)) return;
       // 押したらすぐ案を消す（2 度押しで同じ決まりが 2 つ入らないように）
       card.remove();
-      resolve({ status: "accepted", rule_id: acceptRule(p, name) });
+      resolve({ status: "accepted", rule_id: acceptRule(p, name, said) });
     });
   });
 }
+/** 職人の点と推測の点を持つ爪の決まりの名前（直すたびに Claude の案の名前が変わらないように、いつも同じ） */
+const PRONG_POINTS_TITLE = "爪の最低の太さ（石の大きさで）";
+/** 「Claude に教える」で、職人が見ている今の設計（石の大きさと爪の太さ）。一粒石の指輪で、組み上がっているときだけ */
+function designNow(): DesignNow | undefined {
+  if (kind !== "solitaire" || !session?.built) return undefined;
+  const st = session.built.ring.setting;
+  const size = Math.round(stoneSizeMm(session.stone.longMm, session.stone.widthMm) * 10) / 10;
+  const prong = st.style === "prong" && !st.tension ? st.prongs[0]?.diameterMm : undefined;
+  return { stoneMm: size, ...(prong !== undefined ? { prongMm: Math.round(prong * 100) / 100 } : {}) };
+}
+/** 石の大きさごとの爪の最低の表（職人の点と推測の点）。before があれば「いま → この案」の 2 行 */
+function pointsTableHtml(rows: { stoneMm: number; after: { value: number; by: string }; before?: { value: number; by: string } }[], nowMm?: number): string {
+  const tag = (by: string) => (by === "craftsman" ? `<i class="pt-c">職人</i>` : by === "inferred" ? `<i class="pt-g">推測</i>` : `<i class="pt-p">目安</i>`);
+  const head = rows.map((r) => `<th${nowMm !== undefined && Math.abs(r.stoneMm - nowMm) < 0.5 ? ` class="pt-now"` : ""}>${mmText(r.stoneMm)}</th>`).join("");
+  const cell = (x: { value: number; by: string }, changed: boolean) => `<td class="${x.by === "craftsman" ? "is-c" : x.by === "inferred" ? "is-g" : "is-p"}${changed ? " chg" : ""}">${x.value.toFixed(2)}${tag(x.by)}</td>`;
+  const hasBefore = rows.some((r) => r.before);
+  return `<table class="pt-table"><thead><tr><th>石の大きさ（mm）</th>${head}</tr></thead><tbody>${
+    hasBefore ? `<tr class="pt-before"><th>いま</th>${rows.map((r) => (r.before ? cell(r.before, false) : "<td></td>")).join("")}</tr>` : ""
+  }<tr class="pt-after"><th>${hasBefore ? "この案" : "爪の最低（mm）"}</th>${rows.map((r) => cell(r.after, Boolean(r.before && (Math.abs(r.before.value - r.after.value) > 0.004 || r.before.by !== r.after.by)))).join("")}</tr></tbody></table>`;
+}
+/** 決まりの案の、職人の点と推測の点（前 → 後） */
+function pointsPreviewHtml(pv: PointsPreview): string {
+  if (!pv.added.length) return pv.dropped.length ? `<p class="pp-drop">${pv.dropped.map(esc).join("<br>")}</p>` : "";
+  const now = designNow();
+  const said = pv.added.map((c) => `石の大きさ ${mmText(c.stoneMm)} mm → 最低 ${mmText(c.value)} mm`).join("、");
+  return `<div class="pp">
+    <p class="pp-read"><small>Claude の読み取り</small>${esc(said)}<i class="pt-c">職人</i></p>
+    ${pointsTableHtml(pv.rows, now?.stoneMm)}
+    <p class="pp-how"><small>推測の出し方</small>${esc(pv.rule.inferNote ?? "")}</p>
+    ${pv.claudeWhy.length ? `<p class="pp-why"><small>Claude の考え</small>${pv.claudeWhy.map(esc).join(" ／ ")}</p>` : pv.claudeRedone ? `<p class="pp-why"><small>Claude の考え</small>Claude の推測を、職人の点をすべて通る同じ計算で出し直しました（表の値）。</p>` : ""}
+    ${pv.dropped.length ? `<p class="pp-drop">${pv.dropped.map(esc).join("<br>")}</p>` : ""}
+    <p class="pp-note">推測は、職人がまだ確かめていない値です。ちがえば一言で直せます（例：「18 ミリなら 1.2 は欲しい」）。${esc(GUIDE_NOTE)}</p>
+  </div>`;
+}
 /** 職人が「これでいい」と言った決まりを帳面に足し、今の設計とこれまでの作品を確かめ直す（Claude の案でも、数字で書いた決まりでも同じ） */
-function acceptRule(p: ProposeRuleInput, _said: string): string {
+function acceptRule(p: ProposeRuleInput, _name: string, said = ""): string {
   // 出どころは、はじめの帳面なら職人の名前、工房の帳面なら工房の名前。知らせには帳面の呼び名（工房 A など）
   const name = sourceName(store.ledger(), store.workshops().active === MAIN);
   const by = bookLabel(store.ledger());
   const isBand = kind === "band";
   const before = isBand ? bandProblems().length : (session?.built?.problems.length ?? 0);
-  const next = addRule(store.ledger(), { title: p.title, text: p.text, reason: p.reason, example: p.example, quote: p.quote, param: p.param, value: p.value, steps: p.steps, bySize: p.by_size?.map((x) => ({ upToMm: x.up_to_mm, value: x.value })), source: { kind: "craftsman", name }, date: today() });
+  // 爪の太さを石の大きさで言ったときは、職人の点を前の職人の点に足し、ほかの大きさは割合で推し量った推測の点にする（src/rules/prong-points.ts）
+  const added = isPointProposal(p) ? craftPointsFromProposal(p, said, designNow(), today()).points : [];
+  const pointsRule = added.length ? prongPointsRule(mergeCraftPoints(craftProngPoints(store.ledger()), added), added[added.length - 1].value) : null;
+  const prev = craftProngRule(store.ledger());
+  const next = pointsRule
+    ? addRule(store.ledger(), { title: PRONG_POINTS_TITLE, reason: prev?.reason && /まだ聞いていない/.test(p.reason) ? prev.reason : p.reason, example: p.example, quote: p.quote ?? said, ...pointsRule, source: { kind: "craftsman", name }, date: today() })
+    : addRule(store.ledger(), { title: p.title, text: p.text, reason: p.reason, example: p.example, quote: p.quote, param: p.param, value: p.value, steps: p.steps, bySize: p.by_size?.map((x) => ({ upToMm: x.up_to_mm, value: x.value })), source: { kind: "craftsman", name }, date: today() });
   store.setLedger(next);
   const id = next.rules[next.rules.length - 1].id;
   lastRule = { by, quote: p.quote || p.text, spoken: Boolean(p.quote), before: !isBand && session?.built ? grouped(session.built).length : before, after: 0, checks: p.param ? [...PARAMS[p.param].checks] : [] };
@@ -3110,11 +3157,16 @@ function rulesSectionHtml(): string {
   const mine = all.filter((r) => isCheckRule(r));
   const making = all.filter((r) => !isCheckRule(r));
   const where = (r: Rule) => stepsOfRule(r).map((s) => MAKING_STEPS[s]).join("・");
-  return `<section class="sec rules-sec"><h4>職人の決まり<small>確かめに効く ${mine.length} 件</small></h4>
-    <p class="hint">話すと、Claude が決まりの案にします。数字で確かめられる決まりは、「これでいい」を押すとその場で確かめ直します。手の動かし方などの決まりは、手順の工程に入ります。</p>
-    <textarea rows="2" class="ar-text" placeholder="${kind === "band" ? "例：平打ちなら、腕の厚みは最低 1.5 mm" : "例：この大きさの石なら、爪は最低 0.7 mm、基本は 0.8〜1 mm"}">${esc(ruleDraft)}</textarea>
-    <div class="row"><button type="button" class="ghost-d ar-mic">話す</button><button type="button" class="primary ar-go">決まりにする</button></div>
+  const now = designNow();
+  const here = now ? prongMinAt(store.ledger(), now.stoneMm) : null;
+  const hereTag = here ? (here.by === "craftsman" ? `<i class="pt-c">職人</i>` : here.by === "inferred" ? `<i class="pt-g">推測</i>` : `<i class="pt-p">目安</i>`) : "";
+  return `<section class="sec rules-sec teach-sec"><h4>Claude に教える<small>職人の決まり ・ 確かめに効く ${mine.length} 件</small></h4>
+    <p class="hint">今の設計を見ながら、一言で教えてください。Claude が読み取って決まりの案にし、ほかの大きさの石も割合で推し量ります（推測）。ちがう所は、また一言で直せます。「これでいい」を押すと、その場で確かめ直します。</p>
+    ${now ? `<p class="teach-now"><small>いまの設計</small>石の大きさ ${now.stoneMm.toFixed(1)} mm${now.prongMm !== undefined ? ` ・ 爪 ø ${now.prongMm.toFixed(2)} mm` : ""} ・ この石の爪の最低 ${here!.value.toFixed(2)} mm${hereTag}</p>` : ""}
+    <textarea rows="1" class="ar-text" placeholder="${kind === "band" ? "例：平打ちなら、腕の厚みは最低 1.5 mm" : "例：18 ミリなら 1.2 は欲しい ／ この爪は細く見えるけど、これで十分"}">${esc(ruleDraft)}</textarea>
+    <div class="row"><button type="button" class="ghost-d ar-mic">話す</button><button type="button" class="primary ar-go">Claude に教える</button></div>
     <div class="ar-proposal"></div>
+    ${prongPointsCardHtml()}
     <details class="more manual-rule"><summary>Claude なしで、数字で書く</summary>
       <label class="mr-row"><span>何の値か</span><select class="mr-param">${(Object.keys(PARAMS) as ParamId[])
         .map((k) => `<option value="${k}"${kind === "band" && k === "band.minThicknessMm" ? " selected" : ""}>${esc(PARAMS[k].label)}${PARAMS[k].unit ? `（${esc(PARAMS[k].unit)}）` : ""}</option>`)
@@ -3126,7 +3178,7 @@ function rulesSectionHtml(): string {
     ${mine.length ? `<ul class="rules-mini">${mine
       .slice()
       .reverse()
-      .map((r) => `<li><b>${esc(r.title)}</b>${r.param && r.value !== undefined && r.param !== "hold.cornerSet" ? `<span class="v">${r.value} ${esc(PARAMS[r.param].unit)}</span>` : ""}${r.quote ? `<small>「${esc(r.quote)}」</small>` : ""}<small>${esc(name)} ・ ${esc(r.date)}</small><span class="voice-row">${voices.has(r.id) ? `<button type="button" class="link voice-play" data-rid="${esc(r.id)}">▶ 声</button>` : ""}<button type="button" class="link voice-rec${stopRec && recFor === r.id ? " on" : ""}" data-rid="${esc(r.id)}">${stopRec && recFor === r.id ? `■ 止める（${MAX_SECONDS} 秒まで）` : voices.has(r.id) ? "録り直す" : "● 理由を声で残す"}</button></span></li>`)
+      .map((r) => `<li><b>${esc(r.title)}</b>${r.param && r.value !== undefined && r.param !== "hold.cornerSet" && !r.sizePoints?.length ? `<span class="v">${r.value} ${esc(PARAMS[r.param].unit)}</span>` : ""}${r.quote ? `<small>「${esc(r.quote)}」</small>` : ""}<small>${esc(name)} ・ ${esc(r.date)}</small><span class="voice-row">${voices.has(r.id) ? `<button type="button" class="link voice-play" data-rid="${esc(r.id)}">▶ 声</button>` : ""}<button type="button" class="link voice-rec${stopRec && recFor === r.id ? " on" : ""}" data-rid="${esc(r.id)}">${stopRec && recFor === r.id ? `■ 止める（${MAX_SECONDS} 秒まで）` : voices.has(r.id) ? "録り直す" : "● 理由を声で残す"}</button></span></li>`)
       .join("")}</ul>` : `<p class="hint">確かめに効く職人の決まりは、まだありません（いまは公開の目安で確かめています）。</p>`}
     ${loadWorks().some((w) => w.design) ? "" : filming() ? `<p class="hint no-works">記録に作品がないので、決まりを足しても「これまでの作品」は確かめ直せません。<button type="button" class="link add-samples">見本の作品を入れて試す</button></p>` : `<p class="hint no-works">設計を記録に残すと、新しい決まりで確かめ直せます。</p>`}
     ${making.length ? `<details class="more making-rules"><summary>作り方の決まり ${making.length} 件（手順の工程に出ます）</summary><ul class="rules-mini">${making
@@ -3135,6 +3187,17 @@ function rulesSectionHtml(): string {
       .map((r) => `<li><b>${esc(r.title)}</b><small class="where">${where(r) ? `工程：${esc(where(r))}` : "工程なし"}</small><small>${esc(name)} ・ ${esc(r.date)}</small></li>`)
       .join("")}</ul></details>` : ""}
   </section>`;
+}
+/** 帳面の爪の太さの決まり（職人の点と推測の点）を、表で */
+function prongPointsCardHtml(): string {
+  const r = kind === "solitaire" ? craftProngRule(store.ledger()) : undefined;
+  if (!r?.sizePoints?.length) return "";
+  const now = designNow();
+  const rows = prongTable(r.sizePoints).map((x) => ({ stoneMm: x.stoneMm, after: x }));
+  return `<div class="pt-card"><b>${esc(r.title)}</b><small>${esc(masterName(store.ledger()))} ・ ${esc(r.date)}</small>
+    ${pointsTableHtml(rows, now?.stoneMm)}
+    ${r.inferNote ? `<p class="pp-how"><small>推測の出し方</small>${esc(r.inferNote)}</p>` : ""}
+    <p class="pp-note">職人の点を先に、次に推測の点で確かめます。${esc(GUIDE_NOTE)}</p></div>`;
 }
 /** 手順の工程の中に出す、職人の作り方の決まり */
 function makingRulesHtml(stepId: string | undefined): string {
@@ -3157,7 +3220,20 @@ function makingRulesHtml(stepId: string | undefined): string {
 function bindRules(box: HTMLElement) {
   const field = box.querySelector<HTMLTextAreaElement>(".ar-text");
   if (!field) return;
+  // 一行の欄。長く話したら、そのぶん伸びる。Enter で Claude に教える（Shift ＋ Enter は改行）
+  const grow = () => {
+    field.style.height = "auto";
+    field.style.height = `${field.scrollHeight + 2}px`;
+  };
+  requestAnimationFrame(grow);
+  field.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
+      e.preventDefault();
+      box.querySelector<HTMLButtonElement>(".ar-go")?.click();
+    }
+  });
   field.addEventListener("input", () => {
+    grow();
     ruleDraft = field.value;
     // 欄を描き直したあとに届いた言葉（止める間際に決まった言葉）も、今の欄に入れる
     const now = document.querySelector<HTMLTextAreaElement>(".ar-text");
@@ -4252,10 +4328,10 @@ if (!filming()) {
 }
 // 動画を 1 コマずつ撮るとき（?rec）：3D をページの外から回せるようにする
 if (new URLSearchParams(location.search).has("rec")) {
-  const w = window as unknown as { __viewer: Viewer; __propose: (p: ProposeRuleInput) => Promise<ProposeRuleResult> };
+  const w = window as unknown as { __viewer: Viewer; __propose: (p: ProposeRuleInput, said?: string) => Promise<ProposeRuleResult> };
   w.__viewer = viewer;
   // 画面の確かめ用：Claude の決まりの案の代わりに、案を直接出す（本番の動画には使わない）
-  w.__propose = (p) => propose($(".ar-proposal"), p, masterName(store.ledger()));
+  w.__propose = (p, said?: string) => propose($(".ar-proposal"), p, masterName(store.ledger()), said ?? p.quote ?? "");
 }
 
 // 前に入れた見本の作品は消す（職人が残した作品は消さない）。撮影は見本を使うので、そのまま
