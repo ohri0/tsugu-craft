@@ -19,7 +19,8 @@ import { cannotFrom, hasJapanese, offlineWhy, plainWords, ruleTitles, toolLogLin
 import { STONE_FREE_NOTE, STONE_KEEP_NOTE, correctPrompt, designPrompt, gouNote } from "../claude/prompt";
 import { craftPointsFromProposal, designNowText, isPointProposal, previewPoints, type DesignNow, type PointsPreview } from "../claude/rule-points";
 import { craftProngPoints, craftProngRule, mergeCraftPoints, mmText, prongMinAt, prongPointsRule, prongTable } from "../rules/prong-points";
-import { TOOLS, type ChooseStoneInput, type ChooseStoneResult, type ProposeRuleInput, type ProposeRuleResult, type ToolHost, type Metal } from "../claude/tools";
+import { TOOLS, isIrogane, type ChooseStoneInput, type ChooseStoneResult, type FinishInput, type ProposeRuleInput, type ProposeRuleResult, type ToolHost, type Metal } from "../claude/tools";
+import { TSUCHIME_AREA_LABEL, finishWords } from "../geometry/finish";
 import type { ClaudeContentBlockParam } from "../claude/wire";
 import { patternSvg } from "../pattern/sheet";
 import { rulePlans } from "../ui/design";
@@ -34,7 +35,7 @@ import { bindVoice } from "../app/voice";
 import { bookLabel, bookTitle, masterName, sourceName } from "../app/master";
 import { toStl } from "../cad/solid";
 import { buildStone } from "../geometry/stone";
-import { LAYOUT_LABEL, METAL_LABEL, RingSession, type RingState, SLOT_SHAPE_LABEL, STONE_LONG_RANGE, bandFixInput, carryDesign, fitStoneDepth, fitStoneLong, reliefFixInput, stationFrom, tuneProngMm, underLedger, type Built, type SlotShape } from "./session";
+import { LAYOUT_LABEL, METAL_LABEL, RingSession, type RingState, SLOT_SHAPE_LABEL, STONE_LONG_RANGE, bandFixInput, carryDesign, smallerTsuchime, fitStoneDepth, fitStoneLong, reliefFixInput, stationFrom, tuneProngMm, underLedger, type Built, type SlotShape } from "./session";
 import { bindShankLine, sectionBinding, shankLineHtml } from "./shank-line";
 import bandShowcase from "../lp/band-showcase.json" with { type: "json" };
 import { renderRingShape, ringSectionInput, ringSectionKind, ringSectionWord, type RingShapeHost } from "./ring-shape";
@@ -1765,6 +1766,8 @@ const SHORT: Record<string, string> = {
   "tension-culet": "石の先が指の側へ出る",
   "tension-sunk": "石が腕に沈む",
   "tension-overhang": "石が腕の幅から出すぎる",
+  "tsuchime-thin": "槌目を打つには腕が薄い",
+  "milgrain-fit": "ミルの粒が腕の縁に収まらない",
 };
 function grouped(b: Built) {
   const groups = new Map<string, { p: (typeof b.problems)[number]; n: number }>();
@@ -2380,6 +2383,7 @@ function renderCheck() {
       ${s.style === "prong" ? prongTipPickHtml(pick, b.ring.setting.prongTip) : ""}
       ${s.style === "prong" && b.ring.stones.length === 1 ? joinPickHtml(pick, b.ring.setting.join) : ""}
       ${pick("地金", s.metal, (["k18yg", "pt900", "k18wg", "k18pg", "sv925"] as Metal[]).map((m) => [m, METAL_LABEL[m]] as [Metal, string]))}
+      ${tradHtml(pick, s)}
       <div class="sliders">
         ${s.style === "prong" ? sliderHtml(prongSlider(b)) : ""}
         ${s.style === "tension" ? sliderHtml(wireSlider(b)) : ""}
@@ -2470,6 +2474,7 @@ function renderCheck() {
       if (k === JOIN_PICK) session!.setSetting({ join: v as JoinStyle, reason: "手で" });
       if (k === PRONG_TIP_PICK) session!.setSetting({ prong_tip: v as ProngTip, reason: "手で" });
       if (k === "地金") session!.setShank({ metal: v as Metal, reason: "手で" });
+      if (k in TRAD_KEYS) tradPick(k as keyof typeof TRAD_KEYS, v);
     }),
   );
   if (s.style === "prong") bindSlider(box, prongSlider(b), (v) => session!.setSetting({ prong_mm: v, reason: "手で" }));
@@ -2495,6 +2500,42 @@ function renderCheck() {
   bindRingSectionEditor(box);
   box.querySelector(".to-build")!.addEventListener("click", () => setMode("hand"));
 }
+// ---- 伝統の仕上げ（煮色の色金・槌目・ミル打ち・布目象嵌）。2026-11-06 作者が作ると決めた ----
+/** 色金を「なし」に戻したときの地金（色金を選ぶ前の地金） */
+let plainMetal: Metal = "k18yg";
+const TRAD_KEYS = { 色金: "metal", 槌目: "tsuchime", 槌目の場所: "tsuchime_area", ミル打ち: "milgrain", 象嵌: "inlay" } as const;
+/** それぞれの技の、ふつうの言葉の一行（数は目安・仮。最後は職人が決める） */
+const TRAD_NOTE: Record<keyof typeof TRAD_KEYS, string> = {
+  色金: "銅に金や銀を混ぜた地金を、液で煮て色を出す（煮色）。赤銅は紫がかった黒、四分一は銀灰、銅は赤茶になる",
+  槌目: "金づちで叩いた跡を、模様として面に残す。小さい跡は細かく光り、大きい跡は力強く見える",
+  槌目の場所: "指に当たる内側には打たない",
+  ミル打ち: "縁に小さな丸い粒を、ミル鏨で一粒ずつ並べて打つ（粒は離さず、重ねず）",
+  象嵌: "細い溝を刻んだ面に、金や銀を打ちこむ（布目象嵌）。腕の真ん中に帯の模様が入る",
+};
+function tradHtml(pick: <T extends string | number>(name: string, cur: T, list: [T, string][]) => string, s: RingState): string {
+  const f = s.finish;
+  const note = (k: keyof typeof TRAD_KEYS) => `<p class="trad-note">${esc(TRAD_NOTE[k])}</p>`;
+  const beadMm = session?.built?.ring.milgrain?.beadMm ?? GUIDES.finish.milgrain.beadMm;
+  return `<section class="trad" aria-label="伝統の仕上げ">
+    <h4>伝統の仕上げ<small>彫金・鍛金の技</small></h4>
+    ${pick("色金", isIrogane(s.metal) ? s.metal : "none", [["none", "なし"], ["shakudo", "赤銅"], ["shibuichi", "四分一"], ["copper", "銅"]])}${note("色金")}
+    ${pick("槌目", f?.tsuchime?.size ?? "none", [["none", "なし"], ["small", "小"], ["medium", "中"], ["large", "大"]])}${note("槌目")}
+    ${f?.tsuchime ? `${pick("槌目の場所", f.tsuchime.area, [["outer", TSUCHIME_AREA_LABEL.outer], ["all", TSUCHIME_AREA_LABEL.all]])}${note("槌目の場所")}` : ""}
+    ${pick("ミル打ち", f?.milgrain ?? "none", [["none", "なし"], ["edges", "腕の縁"]])}${note("ミル打ち")}
+    ${pick("象嵌", f?.inlay ?? "none", [["none", "なし"], ["nunome", "布目象嵌"]])}${note("象嵌")}
+    <p class="trad-foot">槌目の跡 ${f?.tsuchime ? `${GUIDES.finish.tsuchime[f.tsuchime.size].markMm} mm` : `${GUIDES.finish.tsuchime.small.markMm}〜${GUIDES.finish.tsuchime.large.markMm} mm`}・ミルの粒 ø${beadMm.toFixed(2)} mm は仮の目安。最後は職人が決める。</p>
+  </section>`;
+}
+function tradPick(k: keyof typeof TRAD_KEYS, v: string) {
+  const s = session!;
+  if (k === "色金") {
+    if (!isIrogane(s.state.metal)) plainMetal = s.state.metal;
+    s.setShank({ metal: v === "none" ? plainMetal : (v as Metal), reason: "手で" });
+    return;
+  }
+  s.setShank({ finish: { [TRAD_KEYS[k]]: v } as FinishInput, reason: "手で" });
+}
+
 /** 腕の断面を描く画面をつなぐ（確かめるの欄と、作るの腕の形の欄で同じ） */
 function bindRingSectionEditor(box: HTMLElement) {
   // 腕の断面：点を動かしている間は 3D の腕だけ変え（パネルは描き直さない）、離したときに確かめ直す
@@ -2837,6 +2878,15 @@ function applyFix(id: string, sess: RingSession = session!, prob?: Problem) {
       if (relief) session!.setShank({ relief, reason: "直し方から" });
       break;
     }
+    case "smallerTsuchime":
+      session!.setShank({ finish: { tsuchime: smallerTsuchime(s.finish) }, reason: "直し方から" });
+      break;
+    case "noTsuchime":
+      session!.setShank({ finish: { tsuchime: "none" }, reason: "直し方から" });
+      break;
+    case "noMilgrain":
+      session!.setShank({ finish: { milgrain: "none" }, reason: "直し方から" });
+      break;
     case "thickerBand":
       session!.setShank({ ...bandFixInput("thickerBand", s), reason: "直し方から" });
       break;
@@ -2979,7 +3029,8 @@ interface StoneInfo {
 }
 const currentStone = (): StoneInfo => ({ shapeName: stone!.shapeName, outlineMm: stone!.measured.outlineMm, longMm: stone!.measured.longMm, widthMm: stone!.measured.widthMm, depthMm: stone!.depthMm });
 function howInput(b: Built, sess: RingSession = session!, info: StoneInfo = currentStone()) {
-  return { ring: b.ring, outlineMm: info.outlineMm, longMm: info.longMm, widthMm: info.widthMm, depthMm: info.depthMm, metalLabel: METAL_LABEL[sess.state.metal], alloy: alloyOf(sess.state.metal), springMetal: springIdOf(sess.state.metal) };
+  const m = sess.state.metal;
+  return { ring: b.ring, outlineMm: info.outlineMm, longMm: info.longMm, widthMm: info.widthMm, depthMm: info.depthMm, metalLabel: METAL_LABEL[m], alloy: alloyOf(m), springMetal: springIdOf(m), irogane: isIrogane(m) ? m : undefined };
 }
 function sheet(): string | undefined {
   if (!stone) return;
@@ -2996,7 +3047,11 @@ function renderBuild() {
   const box = $(".build-panel");
   const probs = grouped(b);
   box.innerHTML = `
-    <div class="seg method"><button type="button" data-m="hand" aria-pressed="${method === "hand"}">鍛造</button><button type="button" data-m="cast" aria-pressed="${method === "cast"}">鋳造</button></div>
+    ${
+      isIrogane(session.state.metal)
+        ? `<div class="seg method"><button type="button" data-m="hand" aria-pressed="true">鍛造</button><button type="button" data-m="cast" aria-pressed="false" disabled title="色金は板と線から作る">鋳造</button></div><p class="note-b">${esc(METAL_LABEL[session.state.metal])}は、板と線から作ります（色金の鋳造の目安は、資料にありません）。</p>`
+        : `<div class="seg method"><button type="button" data-m="hand" aria-pressed="${method === "hand"}">鍛造</button><button type="button" data-m="cast" aria-pressed="${method === "cast"}">鋳造</button></div>`
+    }
     ${probs.length ? `<p class="build-warn">このままでは作れない所が ${probs.length} あります。<button type="button" class="link to-check">確かめる →</button></p>` : ""}
     ${stepsHtml(steps)}
     <p class="note-b">寸法は、この石とこの形から計算した目安。${NOTE}</p>
@@ -3060,11 +3115,12 @@ function printSheet() {
           { label: "腕", value: `${r.shank.widthMm.toFixed(1)} × ${r.shank.thicknessMm.toFixed(1)} mm` },
           { label: "石と指のすき間", value: `${r.culetGapMm.toFixed(2)} mm` },
           { label: "地金", value: `${METAL_LABEL[session.state.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g` },
+          ...(finishWords(session.state.finish).length ? [{ label: "仕上げ", value: finishWords(session.state.finish).join(" ・ ") }] : []),
           ...widthSpecRow(narrowArmOf(b)),
           ...grooveSpecRow(handGrooveOf(b)),
         ],
         problems: probs.map(({ p }) => `${SHORT[p.check] ?? p.where}（${p.current} → ${p.required}）`),
-        methodLabel: method === "hand" ? "鍛造" : "鋳造",
+        methodLabel: method === "hand" || isIrogane(session.state.metal) ? "鍛造" : "鋳造",
         steps: howToMake(howInput(b), method),
         patternSvg: pick.pattern ? svg : "",
         includeSteps: pick.steps,
@@ -3566,6 +3622,8 @@ const CHECK_CONTROL: Record<string, string> = {
   "tension-culet": '.slider[data-s="r-wire"]',
   "tension-sunk": '.slider[data-s="r-wire"]',
   "tension-overhang": '.pick:has(button[data-k="挟む向き"])',
+  "tsuchime-thin": '.pick:has(button[data-k="槌目"])',
+  "milgrain-fit": '.pick:has(button[data-k="ミル打ち"])',
 };
 function markBadControls() {
   document.querySelectorAll(".ctl-bad, .ctl-warn, .ctl-warn2").forEach((e) => e.classList.remove("ctl-bad", "ctl-warn", "ctl-warn2"));
@@ -4008,7 +4066,8 @@ function solitaireDrawing(b: Built, problems: string[], sess: RingSession = sess
     problems,
     rows: [
       { label: "号", value: `${sess.state.gou} 号（内径 ${(ri * 2).toFixed(1)} mm）` },
-      { label: "地金・重さ", value: `${METAL_LABEL[sess.state.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g` },
+      { label: "地金・重さ", value: `${METAL_LABEL[sess.state.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g${isIrogane(sess.state.metal) && sess.state.metal !== "copper" ? "（密度は仮）" : ""}` },
+      ...(finishWords(sess.state.finish).length ? [{ label: "仕上げ", value: finishWords(sess.state.finish).join(" ・ ") }] : []),
       { label: "石（長さ × 幅 × 深さ）", value: `${info.longMm.toFixed(2)} × ${info.widthMm.toFixed(2)} × ${info.depthMm.toFixed(2)} mm` },
       { label: "留め方", value: r.setting.tension ? tensionWord(r.setting) : r.setting.style === "bezel" ? `覆輪（壁の厚み ${r.setting.bezel?.wallMm.toFixed(2)} mm）` : `爪 ${r.setting.prongs.length} 本（太さ ${prongDiaWord(r.setting)}${r.setting.prongTip === "oni" ? ` ・ ${PRONG_TIP_LABEL.oni}` : ""}）` },
       ...(r.setting.tension

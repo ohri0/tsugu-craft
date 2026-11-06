@@ -9,6 +9,7 @@ import { buildStone, meshVolume, type StoneMesh, type StoneParams } from "./ston
 import { BALL_CUT, stoneSeatCut, type SeatCut } from "./notch";
 import { buildEndSolder, buildSolder, collarInRing, railInRing, type Rail } from "./joint";
 import { concat } from "./mesh";
+import { milgrainBeads, type MilgrainResult, type RingFinish } from "./finish";
 import { joinMesh, nearestRails, type HeadJoin, type RailLine } from "./bridge";
 import { findCorners } from "./corners";
 import { buildTensionBand, type TensionOptions } from "./tension";
@@ -39,6 +40,8 @@ export interface RingParams {
   joinHeads?: boolean;
   /** テンションのくぼみ・溝の深さなど（なければ GUIDES.tension の値） */
   tension?: TensionOptions;
+  /** 伝統の仕上げ（槌目・ミル打ち・象嵌。なければ鏡面の仕上げ）。ミル打ちだけが形を変える */
+  finish?: RingFinish;
 }
 
 /** つなぐ線を作る、輪の外の面どうしの間の上限（mm。形を作るための決まり：これより離れた石座は、短い線ではつながらない） */
@@ -121,9 +124,37 @@ export interface RingDesign {
   stones: PlacedStone[];
   /** となりの石座をつなぐ所（三石。つながなければ空）。形は、番号 b の石の石座の三角形の後ろに入る */
   joins: HeadJoin[];
+  /** ミル打ちの粒（腕の三角形の後ろに入っている。打たなければなし） */
+  milgrain?: Omit<MilgrainResult, "positions" | "normals">;
 }
 
 export function buildRing(p: RingParams): RingDesign {
+  const ring = buildRingShape(p);
+  return p.finish?.milgrain ? withMilgrain(ring) : ring;
+}
+
+/**
+ * ミル打ちの粒を、腕の三角形の後ろに足す（粒は 1 つずつ閉じた球。STL・図面・重さに入る）。
+ * 腕の確かめの数（厚み・幅・断面）は、粒の前の腕のまま
+ */
+function withMilgrain(ring: RingDesign): RingDesign {
+  const beads = milgrainBeads(ring.shank.positions, ring.ringPositions.setting.length ? ring.ringPositions.setting : null);
+  if (!beads.count) return { ...ring, milgrain: { count: 0, beadMm: beads.beadMm, pitchMm: beads.pitchMm, volumeMm3: 0 } };
+  const positions = concat([ring.shank.positions, beads.positions]);
+  // 腕に向きの付いた点がなければ、粒の向きも付けない（画面が面から向きを作る）
+  const normals = ring.shank.normals ? concat([ring.shank.normals, beads.normals]) : undefined;
+  const shank: ShankResult = { ...ring.shank, positions, normals, volumeMm3: ring.shank.volumeMm3 + beads.volumeMm3, weightG: ring.shank.weightG + weightG(beads.volumeMm3, ring.shank.metal) };
+  const { positions: _p, normals: _n, ...info } = beads;
+  return {
+    ...ring,
+    shank,
+    ringPositions: { ...ring.ringPositions, shank: positions },
+    metalWeightG: ring.metalWeightG + weightG(beads.volumeMm3, ring.metal),
+    milgrain: info,
+  };
+}
+
+function buildRingShape(p: RingParams): RingDesign {
   if (p.setting.style === "tension") return tensionRing(p);
   if ((p.others?.length ?? 0) > 0 || (p.atMm ?? 0) !== 0) return buildMulti(p);
   const orientation = p.orientation ?? "along";
