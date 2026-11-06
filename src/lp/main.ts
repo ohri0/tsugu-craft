@@ -149,22 +149,15 @@ const html = `
 
   <section class="word" aria-labelledby="word-h">
     <div class="word-rings">
-      <figure class="rv">${shot("ring-claude-gothic", 2000, 2400, "本物の Claude が「ゴシックな感じ」から組んだ指輪を斜めから。中央に稜線、両わきの溝に尖ったアーチの窓、縁に粒の列。白い地金に三角の石、尖った爪 3 本", "(max-width: 760px) 92vw, 56vw")}<figcaption>斜めから ・ 三角の石 ・ K18 ホワイト</figcaption></figure>
-      <figure class="rv">${shot("ring-claude-gothic-front", 2000, 2400, "同じ指輪を正面から。肩が張り出し、溝に尖ったアーチの窓が並ぶ", "(max-width: 760px) 92vw, 44vw")}<figcaption>正面から ・ 尖ったアーチの窓</figcaption></figure>
+      <figure class="rv">${shot("ring-artdeco", 2000, 2400, "本物の Claude が「アールデコな感じ」から組んだ指輪を斜めから。中央に稜線、両わきに段の溝、溝に横の筋、縁に粒の列。白い地金に三角の石、尖った爪 3 本", "(max-width: 760px) 92vw, 56vw")}<figcaption>斜めから ・ 三角の石 ・ Pt900</figcaption></figure>
+      <figure class="rv">${shot("ring-artdeco-front", 2000, 2400, "同じ指輪を正面から。肩が張り出し、段と横の筋が左右対称に並ぶ", "(max-width: 760px) 92vw, 44vw")}<figcaption>正面から ・ 段と横の筋</figcaption></figure>
     </div>
     <div class="word-t">
-      <p class="v word-q rv">「ゴシックな感じ」</p>
+      <p class="v word-q rv">「アールデコな感じ」</p>
       <div class="word-b">
         <h2 id="word-h" class="rv">言葉で、<wbr>腕の形まで<wbr>変わる。</h2>
-        <p class="rv">職人が残した言葉をもとに、Claude が、次の指輪を組みます。石は、手持ちの石の写真からでも、よくある形からでも選べます。「ゴシックな感じ」と言葉で頼むと、断面の線・場所ごとの太さ・浅い彫りまで Claude が組み、職人の決まりで確かめて直します。</p>
-        <p class="note rv">本物の Claude に「ゴシックな感じ」とだけ頼み、継ぐの形の道具で組んで、職人の決まりで確かめた形です。Claude は途中で自分で確かめ、薄かった所を直しました（Claude 4 回・道具 6 回・38 秒）。</p>
-      </div>
-    </div>
-    <div class="word-more">
-      <figure class="rv">${shot("ring-gothic-attack", 2000, 2400, "もっと攻めたゴシックの指輪。幅の広い腕の側面に、尖った窓と粒の列。肩が石の両わきで立ち上がる。銀の地金に大きなオーバルの石", "(max-width: 760px) 70vw, 300px")}</figure>
-      <div>
-        <h3 class="rv">もっと攻めると。</h3>
-        <p class="note rv">この形は、Claude Code（作る係の Claude）が、継ぐの形の道具で数字を決めて組んだ形です。オーバルの石 12 × 9 mm ・ SV925。</p>
+        <p class="rv">職人が残した言葉をもとに、Claude が、次の指輪を組みます。石は、手持ちの石の写真からでも、よくある形からでも選べます。「アールデコな感じ」と言葉で頼むと、断面の線・場所ごとの太さ・浅い彫りまで Claude が組み、職人の決まりで確かめて直します。</p>
+        <p class="note rv">本物の Claude に「アールデコな感じ」とだけ頼み、継ぐの形の道具で組んで、職人の決まりで確かめた形です（Claude 4 回・道具 5 回・39 秒）。</p>
       </div>
     </div>
   </section>
