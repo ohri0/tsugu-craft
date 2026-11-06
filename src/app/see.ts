@@ -42,12 +42,12 @@ interface SampleManifest {
 const clock = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
 
 async function loadSamples(): Promise<{ master: Example; learner?: Example } | null> {
-  // 見本：学ぶ人の動画だけを使う（手本は職人の段で「残す」と出る）。絵で描いた作り話の動き
+  // 見本：学ぶ人の動画だけを使う（手本は職人の段で「残す」と出る）。職人の本物の手元の、別の場面を学ぶ人に見立てた物
   if (isMihon()) {
     try {
       const c = MIHON_CLIPS.learner;
       const record = importRecord(await (await fetch(c.record)).text());
-      const learner: Example = { id: "mihon-learner", record: { ...record, title: "学ぶ人の動画（作り話）" }, videoUrl: clipUrl(c), sample: true };
+      const learner: Example = { id: "mihon-learner", record: { ...record, title: "学ぶ人の動画（見立てた例）" }, videoUrl: clipUrl(c), sample: true };
       return { master: learner, learner };
     } catch {
       return null;
@@ -163,7 +163,8 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
     renderFlow();
     const name = masterOf();
     const my = ++seq;
-    $(".see-title").textContent = tech ? `${san(name)}の手本（${techName(tech)}）と、あなたの手の動きを比べます。` : `${name}さんの手本の動画と、あなたの手の動きを比べます。`;
+    // 見本の手本は、職人の本物の手元でもヤスリがけ。技の手本だとは言わない
+    $(".see-title").textContent = isMihon() ? "見本の手本（職人の本物の手元・ヤスリがけ）と、学ぶ人の手の動きを比べます。" : tech ? `${san(name)}の手本（${techName(tech)}）と、あなたの手の動きを比べます。` : `${name}さんの手本の動画と、あなたの手の動きを比べます。`;
     const samples = await loadSamples();
     const local = (await localExamples()).filter((e) => !tech || (e.record.technique ?? "ring") === tech);
     if (my !== seq) return;
@@ -171,13 +172,13 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
     examples = [...(samples && !mihon && (!tech || tech === "ring") ? [samples.master] : []), ...local];
     sampleLearner = samples?.learner;
     $(".try-sample").hidden = !sampleLearner;
-    // 見本は、撮らずに作り話の動画で比べる
+    // 見本は、撮らずに見本の動画で比べる
     root.querySelectorAll<HTMLElement>(".cta .row label").forEach((l) => (l.hidden = mihon));
     if (mihon) {
       $(".try-sample").classList.replace("ghost", "primary");
-      $(".try-sample").textContent = "作り話の動画で比べる";
+      $(".try-sample").textContent = "見本の動画で比べる";
       $(".cta b").textContent = "学ぶ人の手を、手本と比べる";
-      $(".cta small").textContent = "本当は、自分の手を撮ります。見本では、絵で描いた動画を使います。";
+      $(".cta small").textContent = "本当は、自分の手を撮ります。見本では、同じ職人の別の場面を、学ぶ人の手に見立てて使います。";
     }
     if (!examples.length) {
       const toMaster = tech ? `#waza/${tech}?step=model` : "#ledger/motion";
@@ -187,7 +188,7 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
       return;
     }
     $(".examples").innerHTML = `<div class="ex-list">${examples
-      .map((e, i) => `<button type="button" class="ex" data-i="${i}" aria-pressed="false"><b>${esc(e.record.title)}</b><small>${esc(e.record.craftsman === MIHON_NAME ? "作り話の例" : `${e.record.craftsman || name}さん`)} ・ ${clock(e.record.durationS)}${e.record.notes.length ? ` ・ 言葉 ${e.record.notes.length}` : ""}${e.sample ? " ・ 見本" : ""}</small></button>`)
+      .map((e, i) => `<button type="button" class="ex" data-i="${i}" aria-pressed="false"><b>${esc(e.record.title)}</b><small>${esc(e.record.craftsman === MIHON_NAME ? "見本・職人の本物の手元" : `${e.record.craftsman || name}さん`)} ・ ${clock(e.record.durationS)}${e.record.notes.length ? ` ・ 言葉 ${e.record.notes.length}` : ""}${e.sample ? " ・ 見本" : ""}</small></button>`)
       .join("")}</div>`;
     root.querySelectorAll<HTMLButtonElement>(".ex").forEach((b) => b.addEventListener("click", () => choose(examples[Number(b.dataset.i)])));
     if (!current || !examples.some((e) => e.id === current!.id)) choose(examples[0]);
@@ -202,7 +203,7 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
     $(".cta").hidden = false;
     $(".result").hidden = true;
     cmp = null;
-    $(".master-meta").textContent = `${e.record.craftsman === MIHON_NAME ? "作り話の例・絵で描いた手" : `${e.record.craftsman || masterOf()}さん`} ・ ${e.record.date} ・ 線は手の骨組み（動画から読んだ手の点）`;
+    $(".master-meta").textContent = `${e.record.craftsman === MIHON_NAME ? "見本・職人の本物の手元（ヤスリがけ）" : `${e.record.craftsman || masterOf()}さん`} ・ ${e.record.date} ・ 線は手の骨組み（動画から読んだ手の点）`;
     $(".pins").innerHTML = e.record.notes
       .map((n, i) => `<button type="button" class="pin" data-i="${i}" style="left:${((100 * n.t) / Math.max(1, e.record.durationS)).toFixed(2)}%" title="${esc(n.text)}"></button>`)
       .join("");
@@ -353,7 +354,7 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
           <div><span>あなた</span><i style="--w:${((100 * c.learnerWobble) / max).toFixed(1)}%" class="red"></i></div>
         </div>
         <p class="small">手のひらの中心が、前後 1 秒の真ん中の位置からどれだけ離れたか（ふらつき）の平均。手本 ${c.masterWobble.toFixed(2)}・あなた ${c.learnerWobble.toFixed(2)}（手のひらの長さを 1 として）。</p>
-        ${isMihon() ? `<p class="small muted">絵で描いた作り話の動きを比べた結果です。</p>` : ""}
+        ${isMihon() ? `<p class="small muted">職人の本物の手元（ヤスリがけ）の 2 つの場面を、手本と学ぶ人に見立てて比べた結果です。</p>` : ""}
         ${rule ? `<blockquote>「${esc(rule.quote || rule.text)}」<small>${esc(quoteWho(rule))} ・ ${esc(rule.title)}</small></blockquote>` : ""}
       </div>
       <div class="heat">

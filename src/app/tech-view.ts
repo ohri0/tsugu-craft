@@ -228,14 +228,14 @@ export function mountTech(root: HTMLElement, id: HowtoId, opts: { gapId?: string
     modelMounted = true;
     const box = $(".model-root");
     if (isMihon()) {
-      box.innerHTML = `<div class="mihon-model"><video src="${clipUrl(MIHON_CLIPS.master)}" muted playsinline controls preload="auto"></video><p class="small muted">手を絵で描いた作り話の動画です。本物の職人の手ではありません。</p><button type="button" class="primary use-mihon-model">この動画を手本にする</button></div>`;
+      box.innerHTML = `<div class="mihon-model"><video src="${clipUrl(MIHON_CLIPS.master)}" muted playsinline controls preload="auto"></video><p class="small muted">見本：職人の本物の手元（ヤスリがけ。毛彫りの動画ではありません）。学ぶ人の手も、同じ職人の別の場面を見立てた例です。</p><button type="button" class="primary use-mihon-model">この動画を手本にする</button></div>`;
       box.querySelector(".use-mihon-model")!.addEventListener("click", async (e) => {
         const b = e.currentTarget as HTMLButtonElement;
         b.disabled = true;
         const record = importRecord(await (await fetch(MIHON_CLIPS.master.record)).text());
         const video = await (await fetch(clipUrl(MIHON_CLIPS.master))).blob();
         await putVideo(record.id, video);
-        const title = `${info.name}の手本（作り話）`;
+        const title = "手本の例（ヤスリがけ）";
         storeRecord({ ...record, technique: id, title, craftsman: MIHON_NAME });
         b.hidden = true;
         modelSaved(title);
