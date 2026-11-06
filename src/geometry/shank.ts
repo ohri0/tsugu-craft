@@ -1147,7 +1147,8 @@ export function shoulderWidth(w: number, outerR: number, head: ShankHead | undef
  * mm は単位の前の数の小数の桁
  */
 export function shankSizeWords(sh: Pick<ShankResult, "widthMm" | "thicknessMm" | "along">, digits = 1): string {
-  const f = (v: number) => v.toFixed(digits);
+  // 0.05 mm の目盛りの値（0.65 など）は丸めずに 2 桁で（0.65 mm を 0.7 mm と書くと、腕の幅の段が違って読める）
+  const f = (v: number) => (Math.abs(v * 10 ** digits - Math.round(v * 10 ** digits)) < 1e-6 ? v.toFixed(digits) : v.toFixed(Math.max(digits, 2)));
   const top = `${f(sh.widthMm)} × ${f(sh.thicknessMm)} mm`;
   const low = sh.along?.[sh.along.length - 1];
   if (!low || (Math.abs(low.widthMm - sh.widthMm) < 0.005 && Math.abs(low.thicknessMm - sh.thicknessMm) < 0.005)) return top;

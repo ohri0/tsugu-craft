@@ -23,12 +23,12 @@ import {
 import { curveFromHalf, curveKnots, normalizeCurve, presetCurve, type SectionCurve, type SectionPoint, type ShankSection } from "../geometry/shank";
 import { innerArc } from "../cad/section";
 import { GUIDES, type Guides } from "../rules/guides";
-import { SPIKE_TEXT, sectionSpots } from "../rules/checks";
+import { SPIKE_TEXT, WIDTH_NOTE_TEXT, sectionSpots, widthLevel } from "../rules/checks";
 
 /** 描く所の広さ（mm）：幅 ±X、厚み yMin〜yMax。点はこの中でだけ動く */
 const VIEW = { x: 3.6, yMin: -0.6, yMax: 3.2 };
 /** 形を作るための決まり：厚みは 0.3 mm、幅は 0.6 mm より小さくしない。点は 5 つより少なくしない */
-const LIMIT = { minT: 0.3, minW: 0.6, minPoints: 5 };
+const LIMIT = { minT: 0.3, minW: GUIDES.band.inputMinWidthMm, minPoints: 5 };
 /**
  * 自由に描いた線に合わせるときの決まり（形を作るための決まり。職人の目安の数ではない）：
  * 描いた線から tolMm より離れない。角と角の間の点は maxPerPart まで。線を stepMm ごとに取り直す。
@@ -537,12 +537,15 @@ export function bindSectionEditor(box: HTMLElement, start: SectionShape, onLive:
     }
     // 厚みは、指の円（内甲丸なら内の線の真ん中）から測る
     const total = m.thicknessMm + lift;
-    const wBad = m.widthMm < g.minWidthMm - 1e-9;
+    // 腕の幅の 3 段（職人の決まり）：赤は作れない所、黄色とオレンジは止めない注意
+    const wLv = widthLevel(m.widthMm, guides);
+    const wBad = wLv === "red";
+    const wCls = wLv === "red" ? "bad" : wLv === "orange" ? "warn2" : wLv === "yellow" ? "warn" : "";
     const tBad = total < g.minThicknessMm - 1e-9;
     const yW = Math.min(view.yMax - lift - 0.12, m.thicknessMm + 0.24);
     q(".se-dims").innerHTML =
       `<line x1="${f3(xMin)}" y1="${f3(sy(yW))}" x2="${f3(xMax)}" y2="${f3(sy(yW))}"/><line x1="${f3(xMin)}" y1="${f3(sy(yW - 0.08))}" x2="${f3(xMin)}" y2="${f3(sy(yW + 0.08))}"/><line x1="${f3(xMax)}" y1="${f3(sy(yW - 0.08))}" x2="${f3(xMax)}" y2="${f3(sy(yW + 0.08))}"/>` +
-      `<text class="${wBad ? "bad" : ""}" x="${f3((xMin + xMax) / 2)}" y="${f3(sy(yW) - 0.07)}" text-anchor="middle">${m.widthMm.toFixed(2)}</text>` +
+      `<text class="${wCls}" x="${f3((xMin + xMax) / 2)}" y="${f3(sy(yW) - 0.07)}" text-anchor="middle">${m.widthMm.toFixed(2)}</text>` +
       `<line x1="${f3(xMax + 0.25)}" y1="${f3(sy(-lift))}" x2="${f3(xMax + 0.25)}" y2="${f3(sy(m.thicknessMm))}"/><line x1="${f3(xMax + 0.17)}" y1="${f3(sy(m.thicknessMm))}" x2="${f3(xMax + 0.33)}" y2="${f3(sy(m.thicknessMm))}"/>` +
       `<text class="${tBad ? "bad" : ""}" x="${f3(xMax + 0.33)}" y="${f3(sy((m.thicknessMm - lift) / 2) + 0.07)}">${total.toFixed(2)}</text>`;
     const wEl = q<HTMLElement>(".se-w");
@@ -551,8 +554,10 @@ export function bindSectionEditor(box: HTMLElement, start: SectionShape, onLive:
     tEl.textContent = `厚み ${total.toFixed(2)} mm`;
     q<HTMLElement>(".se-n").textContent = `点 ${n}`;
     wEl.classList.toggle("bad", wBad);
+    wEl.classList.toggle("warn", wLv === "yellow");
+    wEl.classList.toggle("warn2", wLv === "orange");
     tEl.classList.toggle("bad", tBad);
-    wEl.title = wBad ? `${g.minWidthMm} mm より細い（目安・最後は職人が決める）` : "";
+    wEl.title = wBad ? `${g.minWidthMm} mm 以下は赤（作れなくはないが、職人の決まりで赤）` : wLv === "orange" || wLv === "yellow" ? `${WIDTH_NOTE_TEXT[wLv]}（止めません）` : "";
     tEl.title = tBad ? `${g.minThicknessMm} mm より薄い（目安・最後は職人が決める）` : "";
     root.classList.toggle("bad", wBad || tBad);
     // 局所的に薄い所（とがり・ヒレ）：その所だけを赤く（腕ぜんぶは赤くしない）。内甲丸は、内の線の真ん中から 1 周する線で確かめる
@@ -582,7 +587,8 @@ export function bindSectionEditor(box: HTMLElement, start: SectionShape, onLive:
     const sp = g.spike;
     const notes = [
       spots.length ? `赤い所は${SPIKE_TEXT}（仮の目安：厚み ${sp.minLocalMm} mm・先の角度 ${sp.minTipAngleDeg}°。最後は職人が決める）` : "",
-      wBad || tBad ? `赤い数字は目安（幅 ${g.minWidthMm} mm・厚み ${g.minThicknessMm} mm）より小さい。最後は職人が決める` : "",
+      wBad || tBad ? `赤い数字は${wBad ? `職人の決まりの赤（幅 ${g.minWidthMm} mm 以下）` : ""}${wBad && tBad ? "と、" : ""}${tBad ? `目安（厚み ${g.minThicknessMm} mm）より薄い所` : ""}。最後は職人が決める` : "",
+      wLv === "orange" ? `幅がオレンジ：${WIDTH_NOTE_TEXT.orange}（${g.widthOrangeMm} mm より細い。止めません）` : wLv === "yellow" ? `幅が黄色：${WIDTH_NOTE_TEXT.yellow}（${g.widthYellowMm} mm 以下。止めません）` : "",
     ].filter(Boolean);
     const fingerNote = lift ? "下の丸い線が指の側（内甲丸）" : opts.innerMm === undefined ? "下の線が指の側（いつも平ら）" : "下の線が指の側";
     q<HTMLElement>(".se-hint").textContent = `${hint}。${notes.length ? notes.join("。") : fingerNote}`;

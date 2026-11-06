@@ -6,6 +6,7 @@
 import skillText from "../../.claude/skills/jeweler-guides/SKILL.md?raw";
 import { GUIDE_NOTE } from "../rules/guides";
 import { ledgerText, type Ledger } from "../rules/ledger";
+import { BAND_WIDTH_WORDS } from "./tools";
 
 /** 先頭の --- で囲まれた見出し（Skill の名前と説明）を除いた本文 */
 export function skillBody(text: string): string {
@@ -26,6 +27,7 @@ const ROLE = `あなたは「継ぐ」の中で働く、一粒石の指輪の設
 
 - set_setting（石座）・set_shank（腕）で組み、check で確かめ、問題があれば直して、もう一度 check で確かめます。直して確かめ直すのは ${MAX_FIX_ROUNDS} 周までです。
 - check は答えではなく、直し方の選択肢を見た目への影響つきで返します。どれを選ぶかはあなたが決めます。お客さまの希望（華奢に、手をよく使う、など）から選び、set_setting / set_shank の reason に短い理由を残してください。希望が分からないときは、そう書いたうえで、取れにくさを先に考えて選びます。
+- check の cautions は、止めない注意です（作れない所ではありません）。${BAND_WIDTH_WORDS}。注意だけなら「問題があれば直す」に数えず、細さが希望なら、そのままにして、注意を返事に一言書きます。
 - look で今の指輪の画像を見て、言われた印象になっているかを確かめられます。
 - 道具を使う前に、これから何をするかを日本語で一言書いてください。画面の「作業の記録」に出ます。道具の合間のメモも日本語で書きます。
 - 石の形と大きさは、choose_stone の道具を渡されたときだけ選べます。渡されていなければ、今の石のままで組みます。

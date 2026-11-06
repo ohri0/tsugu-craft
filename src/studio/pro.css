@@ -20,6 +20,8 @@
   --ng: #ff453a;
   --ng-weak: rgba(255, 69, 58, 0.13);
   --warn: #ffd60a;
+  /* 腕の幅のオレンジの注意（黄色より強く、赤より弱い。暗い画面で読める落ち着いたオレンジ） */
+  --warn-2: #f2994a;
   --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Noto Sans CJK JP", "Yu Gothic UI", "Segoe UI", system-ui, sans-serif;
   --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, "Noto Sans Mono", monospace;
   --r: 6px;
@@ -1175,3 +1177,30 @@ html.fit .command { flex: 1 1 320px; min-width: 0; }
   html.fit .pp-strong { height: 44px; font-size: 14px; }
   html.fit .prong-pop .pp-reset { min-height: 44px; font-size: 13px; }
 }
+
+/* 腕の幅の 3 段（職人 石川の決まり 2026-11-06）：黄色・オレンジは止めない注意、赤は作れない所 */
+.verdict-chip.warn2 { color: var(--warn-2); }
+.big-verdict.warn2::before { content: "!"; background: rgba(242, 153, 74, 0.16); color: var(--warn-2); }
+.look-note.w-orange { background: rgba(242, 153, 74, 0.09); border-color: rgba(242, 153, 74, 0.4); }
+.look-note.w-orange b { color: var(--warn-2); }
+.look-note.near { margin: 0 12px 10px; }
+.sec-edit .se-dims text.warn { fill: var(--warn); }
+.sec-edit .se-dims text.warn2 { fill: var(--warn-2); }
+.sec-edit .se-read .warn { color: var(--warn); font-weight: 600; }
+.sec-edit .se-read .warn2 { color: var(--warn-2); font-weight: 600; }
+.ctl-warn { outline: 1.5px solid rgba(255, 214, 10, 0.65); outline-offset: 3px; border-radius: 8px; }
+.ctl-warn2 { outline: 1.5px solid rgba(242, 153, 74, 0.8); outline-offset: 3px; border-radius: 8px; }
+.slider.w-yellow .sl-name { color: var(--warn); }
+.slider.w-yellow .sl-num { border-color: rgba(255, 214, 10, 0.7); }
+.slider.w-orange .sl-name { color: var(--warn-2); }
+.slider.w-orange .sl-num { border-color: var(--warn-2); }
+.slider.w-red .sl-name { color: var(--ng); }
+.slider.w-red .sl-num { border-color: var(--ng); }
+.w-note { display: block; margin: 4px 0 8px; padding: 6px 10px; border-radius: 6px; font-size: 11.5px; line-height: 1.6; color: var(--fg-2); border: 1px solid var(--line-2); }
+.w-note b { margin-right: 8px; font-weight: 600; }
+.w-note.w-yellow { background: rgba(255, 214, 10, 0.07); border-color: rgba(255, 214, 10, 0.3); }
+.w-note.w-yellow b { color: var(--warn); }
+.w-note.w-orange { background: rgba(242, 153, 74, 0.08); border-color: rgba(242, 153, 74, 0.4); }
+.w-note.w-orange b { color: var(--warn-2); }
+.w-note.w-red { background: var(--ng-weak); border-color: rgba(255, 69, 58, 0.4); }
+.w-note.w-red b { color: var(--ng); }

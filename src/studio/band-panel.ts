@@ -3,8 +3,9 @@
 import { SECTION_LABEL, SECTION_LIST, bandCurve, innerLimit, sectionInfo, sectionLoop, sectionPath, type PresetKind } from "../cad/section";
 // 断面の見本・内甲丸の言葉と、はじめの寸法の出どころは cad/section.ts と rules/guides.ts に書いた
 import { GUIDES, type Guides } from "../rules/guides";
+import { widthLevel } from "../rules/checks";
 import type { Metal } from "../claude/tools";
-import { checkBand, curveOf, drawSection, endOf, kindOf, pickSection, setInner, setSize, setSplit, type Band, type BandEndName, type BandProblem } from "./band";
+import { bandWidthNote, checkBand, curveOf, drawSection, endOf, kindOf, pickSection, setInner, setSize, setSplit, type Band, type BandEndName, type BandProblem } from "./band";
 import { bindSectionEditor, sectionEditorHtml, startShape, type SectionShape } from "./section-edit";
 import { METAL_LABEL } from "./session";
 import { bindSlider, sliderHtml, type SliderSpec } from "./slider";
@@ -104,9 +105,9 @@ export function renderBandPanel(box: HTMLElement, host: BandPanelHost): void {
   const size: SliderSpec[] = [];
   const sizeOf = (name: BandEndName, cls: string, prefix: string) => {
     const z = endOf(b, name);
-    if (kindOf(b, name) === "maru") size.push({ cls: `${cls}w`, label: `${prefix}線の太さ`, min: 1, max: 6, step: 0.05, value: z.width, unit: "mm" });
+    if (kindOf(b, name) === "maru") size.push({ cls: `${cls}w`, label: `${prefix}線の太さ`, min: GUIDES.band.inputMinWidthMm, max: 6, step: 0.05, value: z.width, unit: "mm" });
     else {
-      size.push({ cls: `${cls}w`, label: `${prefix}幅`, min: 1, max: 12, step: 0.05, value: z.width, unit: "mm" });
+      size.push({ cls: `${cls}w`, label: `${prefix}幅`, min: GUIDES.band.inputMinWidthMm, max: 12, step: 0.05, value: z.width, unit: "mm" });
       size.push({ cls: `${cls}t`, label: `${prefix}厚み`, min: 0.6, max: 3.5, step: 0.05, value: z.thickness, unit: "mm" });
     }
   };
@@ -127,6 +128,11 @@ export function renderBandPanel(box: HTMLElement, host: BandPanelHost): void {
     <button type="button" class="bs-cut" aria-pressed="${host.cut()}">${host.cut() ? "切るのをやめて、輪で見る" : "切って断面を見る"}</button>
     ${sectionEditorHtml()}
     <div class="sliders">${[gou, ...size].map(sliderHtml).join("")}</div>
+    ${(() => {
+      // 腕の幅の注意（黄色・オレンジ。止めない）。赤は確かめるの欄の「作れない所」に出る
+      const wn = bandWidthNote(b, host.guides());
+      return wn ? `<p class="w-note w-${wn.level}"><b>${wn.where} ${wn.widthMm.toFixed(2)} mm</b>${wn.text}（止めません）</p>` : "";
+    })()}
     ${pickRow("地金", "metal", host.metal(), (["k18yg", "pt900", "k18wg", "k18pg", "sv925"] as Metal[]).map((m) => [m, METAL_LABEL[m]] as [string, string]))}`;
 
   bindSectionGrid(box, (kind) => host.change(pickSection(host.band(), kind, bandTarget(host.band()))));
@@ -193,4 +199,10 @@ export function renderBandPanel(box: HTMLElement, host: BandPanelHost): void {
   );
 
   for (const p of checkBand(b, host.guides())) for (const sel of badControls(p)) box.querySelectorAll(sel).forEach((el) => el.classList.add("ctl-bad"));
+  // 幅のつまみに、段の色（黄色・オレンジ・赤）の印
+  for (const sp of size) {
+    if (!sp.cls.endsWith("w")) continue;
+    const lv = widthLevel(sp.value, host.guides());
+    if (lv) box.querySelector(`.slider[data-s="${sp.cls}"]`)?.classList.add(`w-${lv}`);
+  }
 }

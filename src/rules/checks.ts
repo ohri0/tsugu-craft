@@ -610,16 +610,16 @@ export function checkShank(sh: Pick<ShankResult, "thicknessMm" | "widthMm"> & { 
       target: { kind: "shank" },
     });
   }
-  if (w < g.band.minWidthMm - 1e-9) {
+  if (widthLevel(w, g) === "red") {
     out.push({
       id: "band-narrow",
       check: "band-narrow",
       where: sh.along ? "腕の幅（いちばん細い場所）" : "腕の幅",
       current: mm(w),
-      required: `${mm(g.band.minWidthMm)} 以上（目安）`,
+      required: `${mm(g.band.minWidthMm)} より太く（職人の決まり）`,
       currentValue: w,
       requiredValue: g.band.minWidthMm,
-      reason: "細い腕は曲がって丸くなくなる",
+      reason: WIDTH_RED_TEXT,
       options: fix("widerBand"),
       target: { kind: "shank" },
     });
@@ -681,6 +681,62 @@ type SectionLinesOf = { outlineMm?: [number, number][]; along?: ShankResult["alo
 function sectionLines(sh: SectionLinesOf): { at?: number; pts: readonly (readonly [number, number])[] }[] {
   if (sh.along) return sh.along.map((q) => ({ at: q.atDeg, pts: q.outlineMm }));
   return sh.relief && sh.outlineMm?.length ? [{ pts: sh.outlineMm }] : [];
+}
+
+// ---- 腕の幅の 3 段（職人 石川の決まり 2026-11-06。値は guides.ts の band.widthYellowMm・widthOrangeMm・minWidthMm） ----
+
+/** 腕の幅の段。null ＝ 何も出さない。yellow・orange は止めない注意、red は作れない所 */
+export type WidthLevel = "yellow" | "orange" | "red";
+
+/** 測った幅の小さな誤差（場所ごとの形は輪郭から測るので、0.7 mm に決めた幅が 0.6999999 mm になる）で段を変えない */
+const WIDTH_EPS = 1e-6;
+
+/** 腕の幅の段：1.0 mm 以下は黄色、0.7 mm より細いとオレンジ、0.6 mm 以下は赤（数字は帳面の値） */
+export function widthLevel(widthMm: number, g: Guides = GUIDES): WidthLevel | null {
+  const b = g.band;
+  if (widthMm <= b.minWidthMm + WIDTH_EPS) return "red";
+  if (widthMm < b.widthOrangeMm - WIDTH_EPS) return "orange";
+  if (widthMm <= b.widthYellowMm + WIDTH_EPS) return "yellow";
+  return null;
+}
+
+/**
+ * 赤の腕を直すときの幅：職人が「許容」と言った細さ（オレンジの境目 0.7 mm。黄色の注意は残る）。
+ * 工房の帳面で赤の線をそれより太くしたときは、赤の線より太い次の境目（なければ赤の線 ＋ 0.1 mm）
+ */
+export function widthFixMm(g: Guides = GUIDES): number {
+  const b = g.band;
+  return [b.widthOrangeMm, b.widthYellowMm].find((v) => v > b.minWidthMm + WIDTH_EPS) ?? Math.round((b.minWidthMm + 0.1) * 100) / 100;
+}
+
+/** 赤の理由（作れなくはないが、職人の決まりで赤） */
+export const WIDTH_RED_TEXT = "作れなくはないが、職人の決まりでは赤。細い腕は曲がって丸くなくなる";
+
+/** 黄色・オレンジの言葉（画面と Claude で同じ） */
+export const WIDTH_NOTE_TEXT: Record<"yellow" | "orange", string> = {
+  yellow: "細めの腕です。作れます。曲がりやすいので、職人と細さを確かめます",
+  orange: "かなり細い腕です。作れますが、曲がりやすいので、職人とよく確かめます",
+};
+
+/** 腕の幅の注意（黄色・オレンジ。作れない所ではない） */
+export interface WidthNote {
+  level: "yellow" | "orange";
+  /** どこ（例：腕の幅（いちばん細い場所）） */
+  where: string;
+  widthMm: number;
+  text: string;
+}
+
+/** 幅 1 つの注意（赤と、注意のいらない幅は null。赤は確かめの problems に出る） */
+export function widthNoteOf(widthMm: number, where: string, g: Guides = GUIDES): WidthNote | null {
+  const lv = widthLevel(widthMm, g);
+  if (lv !== "yellow" && lv !== "orange") return null;
+  return { level: lv, where, widthMm, text: WIDTH_NOTE_TEXT[lv] };
+}
+
+/** 石の付いた指輪・テンションの腕の幅の注意（場所ごとの形では、いちばん細い場所で） */
+export function shankWidthNote(sh: Pick<ShankResult, "widthMm"> & { minWidthMm?: number; along?: ShankResult["along"] }, g: Guides = GUIDES): WidthNote | null {
+  return widthNoteOf(sh.minWidthMm ?? sh.widthMm, sh.along ? "腕の幅（いちばん細い場所）" : "腕の幅", g);
 }
 
 /** 細い溝の注意の言葉（画面と確かめで同じ。職人 石川の言葉から 2026-11-06） */
