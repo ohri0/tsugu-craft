@@ -179,7 +179,7 @@ export function bindShankLine(box: HTMLElement, session: RingSession, redraw: ()
         const i = Number(key.split(":")[1]);
         const st = list[i];
         if (v === "free") return;
-        send(list.map((q, k) => (k === i ? { atDeg: st.atDeg, widthMm: st.widthMm, thicknessMm: st.thicknessMm, swayMm: st.swayMm, ...(v === "same" ? {} : { section: v as ShankStation["section"] }) } : q)));
+        send(list.map((q, k) => (k === i ? { atDeg: st.atDeg, widthMm: st.widthMm, thicknessMm: st.thicknessMm, swayMm: st.swayMm, ...(st.step ? { step: true } : {}), ...(v === "same" ? {} : { section: v as ShankStation["section"] }) } : q)));
       }
     }),
   );

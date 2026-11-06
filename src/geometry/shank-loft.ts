@@ -19,6 +19,11 @@ export interface LoftPlace {
   outline: SectionRows;
   /** 指の向きへ寄せる量（mm）。+y の側は +x へ、−y の側は −x へ（S の字の流れ）。いちばん上といちばん下は 0 */
   swayMm: number;
+  /**
+   * ひとつ上の場所からこの場所まで、なめらかにつながず、段で変えるか（階段の段：ひとつ上の形のまま進み、この場所の手前で短い立ち上がりで替わる）。
+   * 肩を段々に細く・薄くする（建物の段のような肩）ときに使う
+   */
+  step?: boolean;
 }
 
 /** ある φ での形を決める数 */
@@ -52,6 +57,8 @@ export interface Loft {
   isCrease(row: number): boolean;
   /** その場所の、外の面の線の長さの半分（mm） */
   arcHalf(f: LoftFrame): number;
+  /** 段で替わる所（いちばん上からの角度の範囲、ラジアン。左右同じ）。網目をここだけ細かくする */
+  risers(): [number, number][];
   /** 腕のまわりの見本：場所ごとの幅・厚み・断面（確かめと画面に使う） */
   samples(): { atDeg: number; widthMm: number; thicknessMm: number; outlineMm: [number, number][] }[];
   /** ぐるりと見て、いちばん細い幅といちばん薄い厚み（どの場所でも、いちばん厚い所の厚み） */
@@ -68,15 +75,22 @@ const CREASE_DEG = 28;
 /** 場所と場所の間の、いちばん狭い角度（形を作るための決まり。急に変わって段に見えないように） */
 const MIN_GAP_RAD = (6 * Math.PI) / 180;
 
-/** 行き過ぎない曲線（PCHIP）。xs は小さい順。両はしの傾きは 0 */
-export function pchip(xs: readonly number[], ys: readonly number[]): (x: number) => number {
+/** 段で替わる場所の、立ち上がりの長さ（角度。形を作るための決まり。11 号の腕の外で約 0.4 mm。網目はここを細かくする） */
+export const RISER_RAD = (2.2 * Math.PI) / 180;
+
+/**
+ * 行き過ぎない曲線（PCHIP）。xs は小さい順。両はしの傾きは 0。
+ * stepIn[i] が true の区間（xs[i]〜xs[i＋1]）は段：ys[i] のまま進み、終わりの riser の長さで ys[i＋1] へ立ち上がる。段の両はしの傾きは 0
+ */
+export function pchip(xs: readonly number[], ys: readonly number[], stepIn?: readonly boolean[], riser = RISER_RAD): (x: number) => number {
   const n = xs.length;
   if (n === 1) return () => ys[0];
   const h: number[] = [];
   const d: number[] = [];
   for (let i = 0; i + 1 < n; i++) {
     h.push(xs[i + 1] - xs[i]);
-    d.push((ys[i + 1] - ys[i]) / h[i]);
+    // 段の区間は、傾きを数えるときは平らとみなす（となりの区間が段の手前と後で行き過ぎない）
+    d.push(stepIn?.[i] ? 0 : (ys[i + 1] - ys[i]) / h[i]);
   }
   const m = new Array<number>(n).fill(0);
   for (let i = 1; i + 1 < n; i++) {
@@ -90,6 +104,7 @@ export function pchip(xs: readonly number[], ys: readonly number[]): (x: number)
     if (x >= xs[n - 1]) return ys[n - 1];
     let i = 0;
     while (i + 2 < n && x > xs[i + 1]) i++;
+    if (stepIn?.[i]) return ys[i] + (ys[i + 1] - ys[i]) * stepRise(x, xs[i], xs[i + 1], riser);
     const s = (x - xs[i]) / h[i];
     const s2 = s * s;
     const s3 = s2 * s;
@@ -98,6 +113,12 @@ export function pchip(xs: readonly number[], ys: readonly number[]): (x: number)
 }
 
 const smooth = (t: number) => t * t * (3 - 2 * t);
+
+/** 段の区間 a0〜a1 の中の、立ち上がりの割合（0：ひとつ上の形のまま、1：この場所の形）。立ち上がりは区間の終わりの riser の長さ（区間の半分まで） */
+export function stepRise(a: number, a0: number, a1: number, riser = RISER_RAD): number {
+  const r = Math.min(riser, (a1 - a0) / 2);
+  return smooth(Math.min(1, Math.max(0, (a - (a1 - r)) / r)));
+}
 
 /** 線の点ごとの、線の長さの割合（0〜1） */
 function fractions(line: SectionRows): number[] {
@@ -195,17 +216,21 @@ export function makeLoft(top: { widthMm: number; thicknessMm: number; outline: S
     const ts = [top.thicknessMm, ...places.map((p) => p.thicknessMm), ...(ends ? [lastPlace.thicknessMm] : [])];
     const ss = [0, ...places.map((p) => p.swayMm), ...(ends ? [0] : [])];
     ss[ss.length - 1] = 0;
-    wAt = pchip(ax, ws);
-    tAt = pchip(ax, ts);
+    // 区間 i（ax[i]〜ax[i＋1]）は、終わりの場所が段なら段
+    stepIn = places.map((p) => !!p.step);
+    wAt = pchip(ax, ws, stepIn);
+    tAt = pchip(ax, ts, stepIn);
     swayAt = pchip(ax, ss);
   };
+  let stepIn: boolean[] = [];
   setHold(0);
 
   const frameAt = (a: number, side: number): LoftFrame => {
     let k = 0;
     while (k + 2 < xs.length && a > xs[k + 1]) k++;
     const span = xs[k + 1] - xs[k];
-    const u = smooth(Math.min(1, Math.max(0, (a - xs[k]) / span)));
+    // 段の区間は、断面の線も立ち上がりの所で替わる
+    const u = stepIn[k] ? stepRise(a, xs[k], xs[k + 1]) : smooth(Math.min(1, Math.max(0, (a - xs[k]) / span)));
     return { w: wAt(a), t: tAt(a), sway: side * swayAt(a), k, u };
   };
   const rowInt = (i: number, f: LoftFrame): [number, number] => {
@@ -318,6 +343,11 @@ export function makeLoft(top: { widthMm: number; thicknessMm: number; outline: S
         len += Math.hypot(((b[0] - a[0]) * f.w) / 2, (b[1] - a[1]) * f.t);
       }
       return len / 2;
+    },
+    risers() {
+      const out: [number, number][] = [];
+      for (let i = 0; i + 1 < xs.length; i++) if (stepIn[i]) out.push([xs[i + 1] - Math.min(RISER_RAD, (xs[i + 1] - xs[i]) / 2), xs[i + 1]]);
+      return out;
     },
     samples() {
       const ats: number[] = [];

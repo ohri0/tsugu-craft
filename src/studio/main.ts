@@ -1089,6 +1089,36 @@ function headKeyOf(b: Built): string {
     c ? [mm(c.topZ), mm(c.bottomZ), mm(c.heightMm), mm(c.wallMm)] : null,
   ]);
 }
+/**
+ * 画面に出している、彫りを入れた腕の作り（腕の数・仕上げ・石座とのつなぎ）。彫らない腕（動かしている間の形）を出しているときは空。
+ * 次の形の腕が「動かしている間の彫らない腕」で、作りがこれと同じなら（爪の太さ・先の形だけを変えている間など）、腕は前の彫った形のまま、石座だけ替える。
+ * 前は、爪の欄のつまみを動かしている間、腕の彫りが消えて見えた（2026-11-07 作者の声：動画でノイズに見える）
+ */
+let shownShank = "";
+function shankKeyOf(b: Built): string {
+  const r = b.ring;
+  const sh = r.params.shank;
+  const st = r.params.stone;
+  const mm = (x: number | undefined) => (x === undefined ? null : Math.round(x * 1000));
+  const c = r.setting.collar;
+  return JSON.stringify([
+    { ...sh, relief: sh.relief ? { ...sh.relief, draft: undefined } : undefined },
+    r.params.finish ?? null,
+    r.setting.style,
+    r.setting.join,
+    r.stones.length,
+    r.orientation,
+    [st.longMm, st.widthMm, st.depthMm, st.outlineMm.length, st.outlineMm[0]?.x, st.outlineMm[0]?.y],
+    mm(r.shank.outerRadiusMm),
+    mm(r.culetGapMm),
+    mm(r.notchDepthMm),
+    // 石座の下の棒の座（溝）の深さは、爪の太さで 0.01 mm ほど変わるので見ない（離したときの細かい形で入る）
+    r.shank.ends?.map((e) => [mm(e.y), mm(e.topZ), mm(e.bottomZ)]) ?? null,
+    c ? [mm(c.topZ), mm(c.bottomZ), mm(c.heightMm), mm(c.wallMm)] : null,
+  ]);
+}
+/** 腕の彫りを、動かしている間だけ省いた形か（前の細かい形の腕をそのまま使った形は、彫りが入っているので ちがう） */
+const draftShank = (b: Built) => !!b.ring.params.shank.relief?.draft && !b.ring.shankReused;
 function onBuilt(b: Built, _why: string, refined = false) {
   if (tuning || !stone || kind !== "solitaire") return;
   keepDesignSoon();
@@ -1108,11 +1138,16 @@ function onBuilt(b: Built, _why: string, refined = false) {
   // すぐの形（一体にしない管の形。一体の形は別の糸で作っていて、すぐ届く）：石・石座が前と同じ作りなら、石座は前の一体の形のまま腕だけ替える
   // （つまみを動かしている間と同じ見せ方。管の形と一体の形が入れ替わって、ちらつかないように）
   const keep = session!.quick && shownHead !== "" && shownHead === headKeyOf(b);
-  if (keep) viewer.updateShank(b.ring.shank, b.problems);
-  else {
+  // 腕は同じ作りで、今の形だけ彫りを省いている（爪の欄のつまみを動かしている間など）：腕は前の彫った形のまま、石座だけ替える
+  const keepShank = !keep && (draftShank(b) || !!b.ring.shankReused) && shownShank !== "" && shownShank === shankKeyOf(b) && viewer.updateSetting(b.ring, b.problems);
+  if (keep) {
+    viewer.updateShank(b.ring.shank, b.problems);
+    if (draftShank(b)) shownShank = "";
+  } else if (!keepShank) {
     viewer.setRing(b.ring, { color: stone.extraction.color, colorless: stone.extraction.colorless, shade: session!.state.metal }, b.problems, narrowArmOf(b)?.level);
     shownHead = b.ring.ringPositions.settingNormals ? headKeyOf(b) : "";
-  }
+    shownShank = draftShank(b) ? "" : shankKeyOf(b);
+  } else shownHead = b.ring.ringPositions.settingNormals ? headKeyOf(b) : "";
   headBox = headBoxOf(b);
   setDims(ringDims(b));
   // 爪の欄の赤い印は、見せている石座の三角形の番号で付ける（前の一体の形のままのときは、一体の形が届いてから）
@@ -4437,8 +4472,12 @@ function fillDrawings(works: WorkRecord[]): WorkRecord[] {
     return next;
   });
   // 3D を、いま作っている形に戻す
+  shownShank = "";
   if (kind === "band") showBand();
-  else if (session?.built && stone) viewer.setRing(session.built.ring, { color: stone.extraction.color, colorless: stone.extraction.colorless, shade: session.state.metal }, session.built.problems, narrowArmOf(session.built)?.level);
+  else if (session?.built && stone) {
+    viewer.setRing(session.built.ring, { color: stone.extraction.color, colorless: stone.extraction.colorless, shade: session.state.metal }, session.built.problems, narrowArmOf(session.built)?.level);
+    if (!draftShank(session.built)) shownShank = shankKeyOf(session.built);
+  }
   return out;
 }
 function thumbnail(): string {

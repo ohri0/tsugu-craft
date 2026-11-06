@@ -8,6 +8,7 @@ import { FullScreenQuad } from "three/examples/jsm/postprocessing/Pass.js";
 import { toCreasedNormals } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { placePoint, type RingDesign } from "../geometry/ring";
 import type { ShankResult } from "../geometry/shank";
+import type { SettingResult } from "../geometry/setting";
 import type { StoneMesh } from "../geometry/stone";
 import type { MetalId } from "../rules/guides";
 import type { Problem } from "../rules/checks";
@@ -124,6 +125,32 @@ function quality(gl: WebGL2RenderingContext | WebGLRenderingContext): { envSize:
   // CPU に付いた GPU（Intel の内蔵）は、石の中を 1 本だけ追う（4 本だと 1 こま 0.2 秒かかり、回すとかくつく）
   if (/intel|iris|uhd/i.test(name)) return { envSize: 512, glow: true, gem: { bounces: LOOK.gemBounces, samples: 1, disperse: true, envMaxLod: maxLod(512) } };
   return { envSize: 1024, glow: true, gem: { bounces: LOOK.gemBounces, samples: 4, disperse: true, envMaxLod: maxLod(512) } };
+}
+
+type StonePart = { setting: SettingResult; ranges: { setting: { start: number; count: number } } };
+
+/** 石座の形：問題のある爪・覆輪・下の輪の三角形だけを、赤い材質の組（1 番）に分ける */
+function settingGeometryOf(ring: RingDesign, stones: readonly StonePart[], badProngs: ReadonlySet<string>, badBezel: ReadonlySet<number>, badCollar: ReadonlySet<number>): THREE.BufferGeometry {
+  const settingGeo = ring.ringPositions.settingNormals ? smoothGeometry(ring.ringPositions.setting, ring.ringPositions.settingNormals) : metalGeometry(ring.ringPositions.setting);
+  const total = ring.ringPositions.setting.length / 9;
+  const ranges = stones
+    .flatMap((st, si) =>
+      badBezel.has(si)
+        ? [{ ...st.ranges.setting, bad: true }]
+        : [
+            ...st.setting.prongs.map((pr, i) => ({ start: st.ranges.setting.start + pr.triangles.start, count: pr.triangles.count, bad: badProngs.has(`${si}:${i}`) })),
+            ...(st.setting.collar ? [{ start: st.ranges.setting.start + st.setting.collar.triangles.start, count: st.setting.collar.triangles.count, bad: badCollar.has(si) }] : []),
+          ].filter((r) => r.bad),
+    )
+    .sort((a, b) => a.start - b.start);
+  let cursor = 0;
+  for (const r of ranges) {
+    if (r.start > cursor) settingGeo.addGroup(cursor * 3, (r.start - cursor) * 3, 0);
+    settingGeo.addGroup(r.start * 3, r.count * 3, 1);
+    cursor = r.start + r.count;
+  }
+  if (cursor < total) settingGeo.addGroup(cursor * 3, (total - cursor) * 3, 0);
+  return settingGeo;
 }
 
 export class Viewer {
@@ -752,25 +779,7 @@ export class Viewer {
     const badCollar = new Set(problems.flatMap((p) => (p.target.kind === "collar" ? [stoneOf(p)] : [])));
     this.warnMat =
       badProngs.size > 0 || badBezel.size > 0 || badCollar.size > 0 || badShank || problems.some((p) => p.target.kind === "corner" || p.target.kind === "gap" || p.target.kind === "shank-spot" || p.target.kind === "space" || p.target.kind === "band-end") ? warn : null;
-    const settingGeo = ring.ringPositions.settingNormals ? smoothGeometry(ring.ringPositions.setting, ring.ringPositions.settingNormals) : metalGeometry(ring.ringPositions.setting);
-    const total = ring.ringPositions.setting.length / 9;
-    const ranges = stones
-      .flatMap((st, si) =>
-        badBezel.has(si)
-          ? [{ ...st.ranges.setting, bad: true }]
-          : [
-              ...st.setting.prongs.map((pr, i) => ({ start: st.ranges.setting.start + pr.triangles.start, count: pr.triangles.count, bad: badProngs.has(`${si}:${i}`) })),
-              ...(st.setting.collar ? [{ start: st.ranges.setting.start + st.setting.collar.triangles.start, count: st.setting.collar.triangles.count, bad: badCollar.has(si) }] : []),
-            ].filter((r) => r.bad),
-      )
-      .sort((a, b) => a.start - b.start);
-    let cursor = 0;
-    for (const r of ranges) {
-      if (r.start > cursor) settingGeo.addGroup(cursor * 3, (r.start - cursor) * 3, 0);
-      settingGeo.addGroup(r.start * 3, r.count * 3, 1);
-      cursor = r.start + r.count;
-    }
-    if (cursor < total) settingGeo.addGroup(cursor * 3, (total - cursor) * 3, 0);
+    const settingGeo = settingGeometryOf(ring, stones, badProngs, badBezel, badCollar);
     const setting = new THREE.Mesh(settingGeo, [metal, warn]);
     const shankGeo = ring.shank.normals ? smoothGeometry(ring.ringPositions.shank, ring.shank.normals) : metalGeometry(ring.ringPositions.shank);
     const shankMat = badShank ? warn : shankTint ? cautionMat(shankTint) : armMetal;
@@ -860,6 +869,37 @@ export class Viewer {
     L.marks = spotMarks(shank, problems, L.lift, L.warn);
     L.marks.forEach((m) => this.content.add(m));
     this.applyMode();
+  }
+
+  /**
+   * 石座だけを差し替える（爪の欄のつまみを動かしている間。腕は前の形のまま。彫りのある腕を、動かしている間の彫らない腕に替えないため）。
+   * 石と腕・影はそのまま。石座の赤い爪の組は、新しい問題で付け直す
+   */
+  updateSetting(ring: RingDesign, problems: Problem[]): boolean {
+    const L = this.live;
+    const m = this.settingMesh;
+    if (!L || !m) return false;
+    this.contentVersion++;
+    const stones = ring.stones?.length ? ring.stones : [{ setting: ring.setting, ranges: { setting: { start: 0, count: ring.ringPositions.setting.length / 9 } } }];
+    const stoneOf = (p: Problem) => Math.min(stones.length - 1, p.stone ?? 0);
+    const badProngs = new Set(problems.flatMap((p) => (p.target.kind === "prong" ? [`${stoneOf(p)}:${p.target.index}`] : [])));
+    const badBezel = new Set(problems.flatMap((p) => (p.target.kind === "bezel" ? [stoneOf(p)] : [])));
+    const badCollar = new Set(problems.flatMap((p) => (p.target.kind === "collar" ? [stoneOf(p)] : [])));
+    const old = m.geometry;
+    m.geometry = settingGeometryOf(ring, stones, badProngs, badBezel, badCollar);
+    old.dispose();
+    if (badProngs.size || badBezel.size || badCollar.size) this.warnMat = L.warn;
+    const ud = m.userData;
+    if (ud.edges) {
+      const e = ud.edges as THREE.LineSegments;
+      e.parent?.remove(e);
+      e.geometry.dispose();
+      ud.edges = undefined;
+    }
+    this.traceParts = [m.geometry, L.shank.geometry];
+    this.syncTrace();
+    this.applyMode();
+    return true;
   }
 
   private addStone(positions: Float32Array, ranges: readonly { start: number; count: number }[] | undefined, look: StoneLook, z: number, depthMm: number) {
