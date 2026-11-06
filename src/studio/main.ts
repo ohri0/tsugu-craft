@@ -2156,7 +2156,7 @@ function tensionCardHtml(b: Built): string {
     const name = `${esc(x.name)}${x.verdict === "tight" ? `<i class="tight">ぎりぎり</i>` : ""}`;
     const cells =
       x.shrinkMm === null
-        ? `<td colspan="3" class="short">足りない（約 ${x.bentMm.toFixed(2)} mm 曲がったまま）</td>`
+        ? `<td colspan="3" class="short">この腕のままでは開ききらない見込み（約 ${x.bentMm.toFixed(2)} mm 曲がりが残る）。腕の太さ・形を変えて組み直す</td>`
         : `<td>${x.shrinkMm.toFixed(2)}</td><td>${x.makeGapMm!.toFixed(2)}</td><td>${x.spreadMm!.toFixed(2)}</td>`;
     return `<tr class="${x.metal === mine ? "on" : ""}"><th>${name}</th>${cells}</tr>`;
   };

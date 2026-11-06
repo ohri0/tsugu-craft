@@ -155,7 +155,7 @@ const SHOTS = {
     await shot(p, 'ring-red');
   },
   // 「ゴシックな感じ」の見本：攻めた案（src/lp/gothic-showcase.json の attack。studio.html?gothic=attack で同じ形が開く）。
-  // 本物の Claude の考え方（指示）に沿って、人が数字を整えた形。撮るときは Claude を呼ばない。大きく写すので細かい網目（fine）で
+  // Claude Code（作る係の Claude）が、継ぐの形の道具で数字を決めて組んだ形。撮るときは Claude を呼ばない。大きく写すので細かい網目（fine）で
   async gothic() {
     for (const [name, dir, zoom] of [['ring-gothic-attack', { x: 0.62, y: -0.72, z: 0.36 }, 0.98], ['ring-gothic-attack-front', { x: 0, y: -1, z: 0.15 }, 0.98]]) {
       const p = await stage(1000, 1200, '&gothic=attack&fine=1');
@@ -178,7 +178,8 @@ const SHOTS = {
   // 地金のみの指輪の見せ場：アプリの断面の編集で作った形（数字は src/lp/band-showcase.json。studio.html?band=<id> で同じ形が開く）
   async bandShow() {
     const { shapes } = require('../src/lp/band-showcase.json');
-    for (const s of shapes) {
+    const only = (process.env.TSUGU_BAND_ONLY || '').split(',').filter(Boolean);
+    for (const s of shapes.filter((x) => !only.length || only.includes(x.id))) {
       const p = await stage(1000, 1000);
       await p.evaluate(([b, cut]) => window.__studio.openShowcaseBand(b, cut), [s.band, !!s.cut]);
       await p.waitForTimeout(3000);

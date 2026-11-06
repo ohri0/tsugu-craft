@@ -81,11 +81,13 @@ figcaption { font-size: 15px; line-height: 1.7; margin-top: 12px; color: var(--w
 
 /* ---- 残す：罫の紙に職人の言葉 ---- */
 .keep { background: var(--paper); color: var(--ink); }
-.paper-ruled { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(28px, 5vw, 80px); padding: clamp(72px, 12vh, 128px) var(--gut); background-image: repeating-linear-gradient(90deg, rgba(190, 50, 30, 0.2) 0 1px, transparent 1px clamp(56px, 6.4vw, 92px)); background-position: right; direction: rtl; min-height: min(88vh, 860px); }
+/* 罫は、縦書きの字の列の幅（字の大きさ × 行の送り）と同じ間隔で引き、言葉の列の右の端にそろえる。字の列が罫の間に入る */
+.keep { --qfs: clamp(32px, 4.2vw, 62px); --rule: calc(var(--qfs) * 1.75); }
+.paper-ruled { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(28px, 5vw, 80px); padding: clamp(72px, 12vh, 128px) var(--gut); background-image: linear-gradient(to right, rgba(190, 50, 30, 0.22) 0 1px, transparent 1px); background-size: var(--rule) 100%; background-repeat: repeat-x; background-position: right var(--gut) top; direction: rtl; min-height: min(88vh, 860px); }
 .paper-ruled > * { direction: ltr; }
-.keep-q { display: flex; flex-direction: row-reverse; justify-content: flex-start; gap: 18px; align-items: flex-start; }
-.say-k { writing-mode: vertical-rl; font-size: 15px; letter-spacing: 0.2em; font-feature-settings: "vpal"; }
-.say-q { font-size: clamp(32px, 4.2vw, 62px); line-height: 1.75; letter-spacing: 0.1em; }
+.keep-q { display: flex; flex-direction: row-reverse; justify-content: flex-start; gap: 0; align-items: flex-start; }
+.say-k { writing-mode: vertical-rl; font-size: 15px; line-height: var(--rule); letter-spacing: 0.2em; font-feature-settings: "vpal"; }
+.say-q { margin: 0; font-size: var(--qfs); line-height: 1.75; letter-spacing: 0.1em; }
 .keep-t { display: flex; flex-direction: row-reverse; gap: clamp(20px, 3vw, 44px); align-items: flex-start; justify-content: flex-end; }
 .keep-h { font-size: clamp(52px, 6.6vw, 96px); line-height: 1; }
 .keep-steps { max-width: 22em; padding-top: 8px; background: var(--paper); }
@@ -214,6 +216,11 @@ figcaption { font-size: 15px; line-height: 1.7; margin-top: 12px; color: var(--w
 .band-p figure:last-child:nth-child(odd) { grid-column: 1 / -1; justify-self: center; width: calc((100% - clamp(24px, 3vw, 44px)) / 2); }
 .band-p figcaption { margin-top: 0; text-align: center; font-size: 15.5px; color: var(--white-2); }
 .band-p figcaption b { display: block; font: 400 21px/1.6 var(--mincho); color: var(--white); letter-spacing: 0.06em; }
+.band-big { max-width: 1320px; }
+.band-rest { grid-template-columns: repeat(6, minmax(0, 1fr)); max-width: 1180px; margin-top: clamp(28px, 4vw, 56px); }
+.band-rest > figure, .band-rest > figure:last-child:nth-child(odd) { grid-column: span 2; width: auto; justify-self: stretch; }
+.band-rest > figure:nth-child(4) { grid-column: 2 / span 2; }
+.band-rest figcaption b { font-size: 18px; }
 .band-n { max-width: 1180px; margin: 28px auto 0; text-align: center; }
 
 /* ---- 学ぶ ---- */
@@ -279,8 +286,9 @@ figcaption { font-size: 15px; line-height: 1.7; margin-top: 12px; color: var(--w
 .own-step { width: 100%; max-width: 600px; }
 .own-shots img { width: 100%; }
 .restore-e { position: relative; max-width: 26em; margin: clamp(72px, 12vh, 128px) auto 0; padding: 0 var(--gut); font: 400 clamp(20px, 2vw, 27px)/1.9 var(--mincho); }
-.ifever { display: flex; justify-content: center; padding: clamp(84px, 14vh, 144px) var(--gut); background-image: repeating-linear-gradient(90deg, rgba(190, 50, 30, 0.2) 0 1px, transparent 1px clamp(56px, 6.4vw, 92px)); }
-.ifever-v { font-size: clamp(27px, 3.6vw, 52px); line-height: 2; }
+.ifever { --ifs: clamp(27px, 3.6vw, 52px); --rule: calc(var(--ifs) * 2); display: flex; justify-content: center; padding: clamp(84px, 14vh, 144px) var(--gut); overflow: hidden; }
+/* 罫は字の列と同じ間隔で、字の列の右の端から引く（両わきにも 4 本ずつ続ける） */
+.ifever-v { font-size: var(--ifs); line-height: 2; padding: 0 calc(var(--rule) * 4); margin: calc(clamp(84px, 14vh, 144px) * -1) 0; padding-block: clamp(84px, 14vh, 144px); background-image: linear-gradient(to right, rgba(190, 50, 30, 0.22) 0 1px, transparent 1px); background-size: var(--rule) 100%; background-repeat: repeat-x; background-position: right calc(var(--rule) * 4) top; }
 
 /* ---- Claude の立ち位置 ---- */
 .stance { max-width: 1000px; margin: 0 auto; padding: var(--gap-sec) var(--gut) 0; display: grid; gap: 22px; }
@@ -349,6 +357,8 @@ figcaption { font-size: 15px; line-height: 1.7; margin-top: 12px; color: var(--w
   .ten-b { padding-top: 16px; }
   .band-p { grid-template-columns: minmax(0, 1fr); }
   .band-p figure:last-child:nth-child(odd) { width: auto; }
+  .band-rest { grid-template-columns: minmax(0, 1fr); }
+  .band-rest > figure, .band-rest > figure:nth-child(4), .band-rest > figure:last-child:nth-child(odd) { grid-column: auto; }
   .learn-sec { grid-template-columns: minmax(0, 1fr); }
   .learn-b { flex-direction: column; align-items: flex-end; }
   .learn-b > div { width: 100%; }
