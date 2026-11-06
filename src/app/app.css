@@ -768,3 +768,5 @@ html.fit .tp-toc a { font-size: 12px; }
 .bk-n .alert { font-style: normal; color: var(--ng-2); }
 .book-ring-h small { font-weight: 400; font-size: 11px; color: var(--fg-3); margin-left: 6px; }
 .fl-slot { scroll-margin-top: calc(var(--bar-h) + 8px); }
+.rule-cards .more-rules > details > summary { cursor: pointer; padding: 12px 14px; min-height: 44px; display: flex; align-items: center; border: 1px dashed var(--line-2); border-radius: 8px; color: var(--fg-2); font-size: 14px; }
+.rule-cards .more-rules > details[open] > summary { margin-bottom: 10px; }

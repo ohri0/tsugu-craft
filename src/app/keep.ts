@@ -237,6 +237,7 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
   }
 
   // ---- 職人の決まり（札） ----
+  const SHOW_RULES = 5;
   function card(r: Rule): string {
     const who = r.source.kind === "craftsman" ? r.source.name : "";
     return `<li class="rule-card">
@@ -252,8 +253,13 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
     const rules = activeRules(store.ledger());
     const mine = rules.filter((r) => r.source.kind === "craftsman");
     const others = rules.filter((r) => r.source.kind !== "craftsman");
+    // 2026-11-06（作者）：決まりが増えたら、新しい 5 つだけ見せて、残りは「ほかの決まりを見る」に畳む
+    const newest = [...mine].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+    const shown = newest.slice(0, SHOW_RULES);
+    const rest = newest.slice(SHOW_RULES);
     $(".rule-cards").innerHTML = mine.length
-      ? mine.map(card).join("")
+      ? shown.map(card).join("") +
+        (rest.length ? `<li class="more-rules"><details><summary>ほかの決まりを見る（${rest.length}）</summary><ul class="rule-cards">${rest.map(card).join("")}</ul></details></li>` : "")
       : `<li class="empty-card"><p>職人の決まりは、まだありません。</p><button type="button" class="primary to-ask">Claude の質問に答える</button></li>`;
     root.querySelector(".to-ask")?.addEventListener("click", () => openInterview());
     void attachVideos();
