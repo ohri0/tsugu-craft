@@ -52,7 +52,8 @@ const RV_LABEL = { ok: "一致", part: "一部", miss: "たどり着けず" } as
 /** テンションの比べ（三角の石 8.88 × 7.52 × 4.24 mm、設計の画面の札と同じ計算の値。決まった値ではない。作者：「この石の場合、という話」） */
 const TENSION_EXAMPLE: { metal: string; small?: string; open?: string; note?: string }[] = [
   { metal: "K18 イエロー", small: "0.36", open: "1.66" },
-  { metal: "Pt900", note: "この腕のままでは開ききらない見込み（約 0.60 mm 曲がりが残る）→ 腕の太さ・形を変えて組み直す" },
+  // Pt900：この腕のままでは開ききらない見込み（約 0.60 mm 曲がりが残る）。ほかの地金と同じ並びで「—」にし、注で一言だけ（2026-11-06 作者：ノイズになる）
+  { metal: "Pt900", note: "—" },
   { metal: "SV925", small: "0.12", open: "1.42" },
 ];
 
@@ -200,10 +201,10 @@ const html = `
         <caption>この三角の石の場合の例（mm）</caption>
         <thead><tr><th scope="col">地金</th><th scope="col">小さく作る</th><th scope="col">広げて入れる</th></tr></thead>
         <tbody>
-          ${TENSION_EXAMPLE.map((r) => `<tr><th scope="row">${r.metal}</th>${r.small ? `<td class="num">約 ${r.small}</td><td class="num">約 ${r.open}</td>` : `<td colspan="2">${r.note}</td>`}</tr>`).join("")}
+          ${TENSION_EXAMPLE.map((r) => `<tr><th scope="row">${r.metal}</th>${r.small ? `<td class="num">約 ${r.small}</td><td class="num">約 ${r.open}</td>` : `<td class="num">${r.note}<sup>※</sup></td><td class="num">${r.note}</td>`}</tr>`).join("")}
         </tbody>
       </table>
-      <p class="note rv">プラチナでも作れます。地金ごとに、腕の太さや形を変えます。値は仮です。目安・最後は職人が決めます。くぼみや溝の深さも、石によって変わります。</p>
+      <p class="note rv">※ Pt900 は、この腕のままでは開ききらない見込みです。地金ごとに、腕の太さや形を変えます。値は仮です。目安・最後は職人が決めます。くぼみや溝の深さも、石によって変わります。</p>
     </div>
   </section>
 
