@@ -5,7 +5,7 @@ import { GUIDES, minProngMm, standardProngMm, stoneSizeMm, type HeightOption } f
 import { findCorners, type Corner } from "./corners";
 import { add, closedPart, closedParts, concat, dot, len, normalize, ringsToTube, scale, smoothPath, stackLoops, sub, sweepTube, type V3 } from "./mesh";
 import { outwardNormals } from "./offset";
-import { buildSolid, smax, type Box, type Field, type Tube } from "./sdf";
+import { buildSolid, heavy, smax, type Box, type Field, type Tube } from "./sdf";
 import { perimeter, resample, toCounterClockwise, type Point } from "./polygon";
 import type { TensionInfo } from "./tension";
 import { girdleCenter, stoneHeights, stoneKnots, stoneScaleAt, type StoneHeights, type StoneParams } from "./stone";
@@ -1378,9 +1378,11 @@ function solidHead(f: Frame, plans: ProngPlan[], v: Vertical, tz: number, wire: 
     return (far > 0.3 ? far : seatDistance(x, y, z)) - cl;
   };
   const fine = quality === "final";
-  return fine
-    ? buildSolid(tubes, { cell: SOLID.cell, blend: SOLID.blend, subtract, boxes, fields })
-    : buildSolid(tubes, { cell: SOLID_PREVIEW.cell, blend: SOLID.blend, smooth: SOLID_PREVIEW.smooth, normalsFrom: "mesh", subtract, boxes, fields });
+  return heavy(`head:${quality}:${tubes.length}`, () =>
+    fine
+      ? buildSolid(tubes, { cell: SOLID.cell, blend: SOLID.blend, subtract, boxes, fields })
+      : buildSolid(tubes, { cell: SOLID_PREVIEW.cell, blend: SOLID.blend, smooth: SOLID_PREVIEW.smooth, normalsFrom: "mesh", subtract, boxes, fields }),
+  );
 }
 
 // ---- 腕の間に挟む石座（職人 石川の言葉 2026-11-04） ----
@@ -2257,7 +2259,7 @@ function solidBetween(f: Frame, plans: ProngPlan[], b: BetweenSolid) {
     return cut;
   };
   const o = { blend: SOLID.blend, subtract, subtractBlend: SEAT_ROUND_MM, fields: [collarField] };
-  return dropSlivers(fine ? buildSolid(tubes, { ...o, cell: SOLID.cell }) : buildSolid(tubes, { ...o, cell: SOLID_PREVIEW.cell, smooth: SOLID_PREVIEW.smooth, normalsFrom: "mesh" }));
+  return heavy(`between:${b.quality}:${tubes.length}`, () => dropSlivers(fine ? buildSolid(tubes, { ...o, cell: SOLID.cell }) : buildSolid(tubes, { ...o, cell: SOLID_PREVIEW.cell, smooth: SOLID_PREVIEW.smooth, normalsFrom: "mesh" })));
 }
 
 /**
@@ -2266,31 +2268,34 @@ function solidBetween(f: Frame, plans: ProngPlan[], b: BetweenSolid) {
  */
 function dropSlivers<T extends { positions: Float32Array; normals?: Float32Array; ranges: Map<number, { start: number; count: number }> }>(solid: T): T {
   const pos = solid.positions;
-  const key = (i: number) => `${pos[i].toFixed(4)},${pos[i + 1].toFixed(4)},${pos[i + 2].toFixed(4)}`;
-  const parent = new Map<string, string>();
-  const find = (a: string): string => {
+  const id = vertexIds(pos);
+  const parent = new Int32Array(id.count);
+  for (let i = 0; i < parent.length; i++) parent[i] = i;
+  const find = (a: number): number => {
     let x = a;
-    while (parent.get(x) !== x) {
-      parent.set(x, parent.get(parent.get(x)!)!);
-      x = parent.get(x)!;
+    while (parent[x] !== x) {
+      parent[x] = parent[parent[x]];
+      x = parent[x];
     }
     return x;
   };
   const triCount = pos.length / 9;
   for (let t = 0; t < triCount; t++) {
-    const v = [key(t * 9), key(t * 9 + 3), key(t * 9 + 6)];
-    for (const a of v) if (!parent.has(a)) parent.set(a, a);
-    parent.set(find(v[0]), find(v[1]));
-    parent.set(find(v[1]), find(v[2]));
+    const a = id.of[t * 3];
+    const b = id.of[t * 3 + 1];
+    const c = id.of[t * 3 + 2];
+    parent[find(a)] = find(b);
+    parent[find(b)] = find(c);
   }
-  const size = new Map<string, number>();
+  const size = new Int32Array(id.count);
+  let parts = 0;
   for (let t = 0; t < triCount; t++) {
-    const r = find(key(t * 9));
-    size.set(r, (size.get(r) ?? 0) + 1);
+    const r = find(id.of[t * 3]);
+    if (size[r]++ === 0) parts++;
   }
-  if (size.size < 2) return solid;
+  if (parts < 2) return solid;
   const limit = triCount * SLIVER_MAX_RATIO;
-  const keep = (t: number) => size.get(find(key(t * 9)))! > limit;
+  const keep = (t: number) => size[find(id.of[t * 3])] > limit;
   const kept: number[] = [];
   const ranges = new Map<number, { start: number; count: number }>();
   for (const [owner, r] of solid.ranges) {
@@ -2305,6 +2310,44 @@ function dropSlivers<T extends { positions: Float32Array; normals?: Float32Array
     if (normals) normals.set(solid.normals!.subarray(t * 9, t * 9 + 9), i * 9);
   });
   return { ...solid, positions, normals, ranges };
+}
+
+/**
+ * 頂点ごとの番号：xyz を小数 4 桁にそろえて同じなら同じ番号（前は頂点ごとに 4 桁の字を作って比べていた。同じ分け方のまま速く）。
+ * 先に、数のビットがまったく同じ頂点を 1 つにまとめ（同じ点を通る三角形は、同じ数を持つ）、まとめた頂点ごとに 1 回だけ字を作る
+ */
+export function vertexIds(pos: Float32Array): { of: Int32Array; count: number } {
+  const nv = pos.length / 3;
+  const bits = new Uint32Array(pos.buffer, pos.byteOffset, pos.length);
+  let size = 1;
+  while (size < nv * 2) size <<= 1;
+  const mask = size - 1;
+  const slot = new Int32Array(size).fill(-1);
+  const of = new Int32Array(nv);
+  const byKey = new Map<string, number>();
+  for (let v = 0; v < nv; v++) {
+    const a = bits[v * 3];
+    const b = bits[v * 3 + 1];
+    const c = bits[v * 3 + 2];
+    let h = (Math.imul(a, 73856093) ^ Math.imul(b, 19349663) ^ Math.imul(c, 83492791)) & mask;
+    for (;;) {
+      const w = slot[h];
+      if (w < 0) {
+        slot[h] = v;
+        const k = `${pos[v * 3].toFixed(4)},${pos[v * 3 + 1].toFixed(4)},${pos[v * 3 + 2].toFixed(4)}`;
+        let n = byKey.get(k);
+        if (n === undefined) byKey.set(k, (n = byKey.size));
+        of[v] = n;
+        break;
+      }
+      if (bits[w * 3] === a && bits[w * 3 + 1] === b && bits[w * 3 + 2] === c) {
+        of[v] = of[w];
+        break;
+      }
+      h = (h + 1) & mask;
+    }
+  }
+  return { of, count: byKey.size };
 }
 
 function wrap(t: number): number {
