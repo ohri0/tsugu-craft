@@ -20,10 +20,10 @@ describe("入口のページ", () => {
     expect(src).toContain("切り口を見せています");
   });
 
-  it("言葉の場面の絵は、本物の Claude が「アールデコな感じ」から組んだ形 1 つだけ。回数と秒は記録どおり", () => {
+  it("言葉の場面の絵は、本物の Claude が「アールデコな感じ」から組んだ形 1 つだけ。回数は書かない（2026-11-06 作者：何度も失敗したように読める）", () => {
     const c = artdeco.claude;
     expect(src).toContain("ring-artdeco");
-    expect(src).toContain(`Claude ${c.calls} 回・道具 ${c.tools} 回・${c.seconds} 秒`);
+    expect(src).not.toContain(`Claude ${c.calls} 回`);
     expect(src).toContain(`「${artdeco.wish}」とだけ頼み`);
     expect(src).toContain(`「${artdeco.wish}」</p>`);
     expect(src).not.toContain("ring-claude-gothic");
