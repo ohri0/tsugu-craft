@@ -89,7 +89,8 @@ figcaption { font-size: 15px; line-height: 1.7; margin-top: 12px; color: var(--w
 .say-k { writing-mode: vertical-rl; font-size: 15px; line-height: var(--rule); letter-spacing: 0.2em; font-feature-settings: "vpal"; }
 .say-q { margin: 0; font-size: var(--qfs); line-height: 1.75; letter-spacing: 0.1em; }
 .keep-t { display: flex; flex-direction: row-reverse; gap: clamp(20px, 3vw, 44px); align-items: flex-start; justify-content: flex-end; }
-.keep-h { font-size: clamp(52px, 6.6vw, 96px); line-height: 1; }
+/* 大きな見出しは罫の間隔と合わないので、紙の色で罫を隠す（言葉の列と同じく、線が字を切らないように。2026-11-06 作者） */
+.keep-h { font-size: clamp(52px, 6.6vw, 96px); line-height: 1; background: var(--paper); padding: 0.12em 0.1em; }
 .keep-steps { max-width: 22em; padding-top: 8px; background: var(--paper); }
 .keep-steps li { padding: 14px 0; border-top: 1px solid var(--hair-ink); }
 .keep-steps li:first-child { border-top: 0; }

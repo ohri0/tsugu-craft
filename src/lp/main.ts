@@ -499,3 +499,28 @@ const hd = root.querySelector<HTMLElement>(".hd")!;
 const onScroll = () => hd.classList.toggle("solid", scrollY > 24);
 addEventListener("scroll", onScroll, { passive: true });
 onScroll();
+
+// 「残す」の大きな見出しを、罫と罫の間の真ん中にそろえる（2026-11-06 作者：字が罫にかかってずれて見える）。
+// 罫は紙の右の端（余白の内側）から --rule の間隔で引いてあるので、見出しの中心をいちばん近い罫の間へ動かす。
+// PC は右へ（左の説明の文から離れる向き）、スマホは左へ（画面の外に出ない向き）だけ動かす。
+function snapKeepHeading() {
+  const paper = root.querySelector<HTMLElement>(".paper-ruled");
+  const h = root.querySelector<HTMLElement>(".keep-h");
+  if (!paper || !h) return;
+  h.style.translate = "";
+  const cs = getComputedStyle(paper);
+  const rule = parseFloat(cs.backgroundSize);
+  if (!(rule > 0)) return;
+  const pr = paper.getBoundingClientRect();
+  const anchor = pr.right - parseFloat(cs.paddingRight);
+  const hr = h.getBoundingClientRect();
+  const c = hr.left + hr.width / 2;
+  const k = (anchor - c) / rule - 0.5; // 中心が何本目の罫の間にあるか（小数）
+  const wide = cs.display === "grid";
+  const kk = wide ? Math.floor(k) : Math.ceil(k);
+  const shift = anchor - (kk + 0.5) * rule - c;
+  if (Math.abs(shift) > 0.5) h.style.translate = `${shift.toFixed(1)}px 0`;
+}
+void document.fonts?.ready.then(snapKeepHeading);
+snapKeepHeading();
+addEventListener("resize", snapKeepHeading, { passive: true });
