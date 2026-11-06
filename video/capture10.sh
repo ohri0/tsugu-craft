@@ -9,7 +9,8 @@ set -e
 cd "${0:A:h}/.."
 REPO=$PWD
 WORK=${TSUGU_VIDEO_WORK:-$REPO/video/work}
-CHAPTERS=(${@:-draw10 ring9 first9 word10 ops11 gothic11 make10 learn10 kebori9 hands9 moyou11 shapes10})
+export DECO_USE=${DECO_USE:-4}  # 言葉で頼む場面は「アールデコな感じ」の 4 回目の返事（覚えた返事。Claude は呼ばない）
+CHAPTERS=(${@:-draw10 first9 word10 ops11 deco11 make10 learn11 kebori9 hands9 moyou11 decoring11})
 echo "今のアプリを組む → $WORK/dist-cap10"
 npx vite build --outDir "$WORK/dist-cap10" --emptyOutDir > /dev/null
 PIDS=()

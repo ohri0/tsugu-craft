@@ -1,5 +1,6 @@
-// 最終案 10：行き来の図に使う、継ぐの本物の図面を 2 枚撮る（Claude は呼ばない）。
+// 最終案 10・11：行き来の図に使う、継ぐの本物の図面を撮る（Claude は呼ばない）。
 //   thin.png：爪を見た目で分かるほど細くした図面（0.25 mm。作れない形）／ ok.png：帳面の決まりの爪（今の既定）
+//   low.png（最終案 11）：直した 2 回目の図面。爪は直ったが、石を深く沈めすぎて石の先が指の線を越える（石と指のすき間 −0.6 mm）
 // 使い方：撮る用のサーバー（capture/serve.cjs）を動かしてから TSUGU_CAP=http://localhost:5431 node video/capture/draw10.cjs
 const fs = require('fs');
 const path = require('path');
@@ -10,20 +11,22 @@ fs.mkdirSync(OUT, { recursive: true });
 const tap = (p, sel) => p.evaluate((s) => document.querySelector(s).click(), sel);
 (async () => {
   const b = await chromium.launch({ args: ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'] });
-  for (const [name, prong] of [['thin', 0.25], ['ok', null]]) {
+  const only = process.env.DRAW10 ? process.env.DRAW10.split(',') : null;
+  for (const [name, prong, gap] of [['thin', 0.25, null], ['ok', null, null], ['low', null, -0.6]].filter(([n]) => !only || only.includes(n))) {
     const ctx = await b.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 4 });
     const p = await ctx.newPage();
     p.on('pageerror', (e) => console.log('pageerror', e.message));
     await p.goto(`${BASE}/studio.html?nointro&rec`, { waitUntil: 'load' });
     await p.waitForFunction(() => window.__studio && window.__studio.session && window.__studio.session.built, null, { timeout: 60000 });
     await p.waitForTimeout(2500);
-    await p.evaluate(({ prong }) => {
+    await p.evaluate(({ prong, gap }) => {
       const s = window.__studio.session;
       s.setShank({ section: 'hirauchi', width_mm: 2.0, thickness_mm: 1.4, reason: '撮る' });
       if (prong) s.setSetting({ prong_mm: prong, reason: '撮る' });
-    }, { prong });
+      if (gap !== null) { s.state = { ...s.state, culetGapMm: gap, joinSet: true }; s.build('撮る'); }
+    }, { prong, gap });
     await p.waitForTimeout(3000);
-    console.log(name, await p.evaluate(() => document.querySelector('.sb .specs')?.innerText.replace(/\s+/g, ' ')));
+    console.log(name, await p.evaluate(() => document.querySelector('.sb .specs')?.innerText.replace(/\s+/g, ' ')), await p.evaluate(() => JSON.stringify(window.__studio.session.built.problems.map((x) => x.check))));
     await tap(p, '.tabs [data-mode="hand"]');
     await p.waitForTimeout(2000);
     await tap(p, '.disp [data-disp="draw"]');

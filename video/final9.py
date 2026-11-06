@@ -1,5 +1,5 @@
 # 最終案 9 を、はじめから終わりまで組む（台本 → 絵 → 音楽 → 声 → 混ぜる → 提出用とスマホ用）。
-# 使い方：python -I video/final9.py [--plan 10] [--jobs 12] [--no-video]（--plan 10 で最終案 10：final_build10.py → final10.json → 継ぐ_デモ_最終案10_仮声.mp4）
+# 使い方：python -I video/final9.py [--plan 10] [--jobs 12] [--no-video]（作者が Mac を使っている間は --jobs 3 くらいに。書き出しの ffmpeg は 4 本の糸まで）（--plan 10 で最終案 10：final_build10.py → final10.json → 継ぐ_デモ_最終案10_仮声.mp4）
 #  1. final_build9.py：台本 final9.json（声の長さから場面の長さを決める。全体は 3:00 以内）
 #  2. reel9.py：場面ごとの動画（変えた場面だけ組み直す）→ work/vc/final9_video.mp4
 #  3. 音楽：work/music9/song.wav があればそれ（作者の曲）。なければ bgm9.py の案 D3 を章の秒に合わせて作る（同じ秒なら作り直さない）
@@ -96,12 +96,12 @@ def main():
     name = f"継ぐ_デモ_最終案{PLAN}_声" if own else f"継ぐ_デモ_最終案{PLAN}_仮声"
     final = os.path.join(VC, name + ".mp4")
     run(["ffmpeg", "-v", "error", "-y", "-i", video, "-i", mixed, "-map", "0:v", "-map", "1:a",
-         "-c:v", "libx264", "-preset", "medium", "-crf", "16", "-tune", "film", "-x264-params", "aq-mode=3:aq-strength=1.1:deblock=-1,-1",
+         "-c:v", "libx264", "-threads", "4", "-preset", "medium", "-crf", "16", "-tune", "film", "-x264-params", "aq-mode=3:aq-strength=1.1:deblock=-1,-1",
          "-pix_fmt", "yuv420p", "-color_primaries", "bt709", "-color_trc", "bt709", "-colorspace", "bt709",
          "-c:a", AAC, "-b:a", "256k", "-movflags", "+faststart", "-shortest", final])
     phone = os.path.join(VC, name + "_スマホ.mp4")
     for crf in (21, 23, 25, 27):
-        run(["ffmpeg", "-v", "error", "-y", "-i", final, "-vf", "scale=1280:-2:flags=lanczos", "-c:v", "libx264", "-preset", "slow", "-crf", str(crf), "-pix_fmt", "yuv420p",
+        run(["ffmpeg", "-v", "error", "-y", "-i", final, "-vf", "scale=1280:-2:flags=lanczos", "-c:v", "libx264", "-threads", "4", "-preset", "slow", "-crf", str(crf), "-pix_fmt", "yuv420p",
              "-c:a", AAC, "-b:a", "192k", "-movflags", "+faststart", phone])
         mb = os.path.getsize(phone) / 1e6
         print("スマホ用", f"crf {crf}", round(mb, 1), "MB")

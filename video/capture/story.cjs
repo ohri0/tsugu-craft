@@ -33,14 +33,14 @@ const SIZE = { ledger3m: [480, 900], waza3m: [480, 900], learn3m: [480, 900], le
   // 最終案 10：全体を見せてから寄る。設計は 1280×720 の 3 倍、帳面・学ぶ・技は 960×540 の 4 倍（全体はそのまま縮め、寄るときは切り抜く）
   word10: [1280, 720], gothic10: [1280, 720], reason10: [1280, 720], make10: [1280, 720], ask10: [960, 540], learn10: [960, 540], rebuild10: [960, 540], ledger10: [960, 540],
   // 最終案 10（作者の声：実際に使っている所を中心に）：手で変える操作と、生成のあとに人が直す流れ
-  ops11: [1280, 720], gothic11: [1280, 720], moyou11: [1280, 720], deco11: [1280, 720], gen12: [1280, 720] };
+  ops11: [1280, 720], gothic11: [1280, 720], moyou11: [1280, 720], deco11: [1280, 720], gen12: [1280, 720], learn11: [960, 540] };
 const DSF = { photo9: 3, gothic9: 3, reason9: 3, make9: 3, word9: 4, ask9: 4, learn9: 4,
-  word10: 3, gothic10: 3, reason10: 3, make10: 3, ask10: 4, learn10: 4, rebuild10: 4, ledger10: 4, ops11: 3, gothic11: 3, moyou11: 3, deco11: 3, gen12: 3 };
+  word10: 3, gothic10: 3, reason10: 3, make10: 3, ask10: 4, learn10: 4, rebuild10: 4, ledger10: 4, ops11: 3, gothic11: 3, moyou11: 3, deco11: 3, gen12: 3, learn11: 4 };
 // マウスの印の大きさ（4 倍で撮る章で大きくなりすぎないように）
 const CURK = { word9: 0.5, ask9: 0.5, learn9: 0.5, photo9: 0.72, gothic9: 0.72, reason9: 0.72, make9: 0.72,
-  word10: 0.8, gothic10: 0.8, reason10: 0.8, make10: 0.8, ask10: 0.62, learn10: 0.62, rebuild10: 0.62, ledger10: 0.62, ops11: 0.8, gothic11: 0.8, moyou11: 0.8, deco11: 0.8, gen12: 0.8 };
+  word10: 0.8, gothic10: 0.8, reason10: 0.8, make10: 0.8, ask10: 0.62, learn10: 0.62, rebuild10: 0.62, ledger10: 0.62, ops11: 0.8, gothic11: 0.8, moyou11: 0.8, deco11: 0.8, gen12: 0.8, learn11: 0.62 };
 // 最終案 9：本物の Claude の返事を章ごと・順番ごとに覚える（work/story/_claude9/）。撮り直しでは覚えた返事を使うので、Claude は呼ばない（呼ぶのは最初の 1 回だけ）
-const CLAUDE9 = new Set(['word9', 'ask9', 'learn9', 'gothic9', 'reason9', 'word10', 'ask10', 'learn10', 'gothic10', 'reason10', 'gothic11', 'deco11', 'gen12']);
+const CLAUDE9 = new Set(['word9', 'ask9', 'learn9', 'gothic9', 'reason9', 'word10', 'ask10', 'learn10', 'gothic10', 'reason10', 'gothic11', 'deco11', 'gen12', 'learn11']);
 // 最終案 10：同じ操作の章は、前に覚えた本物の Claude の返事をそのまま使う（新しく呼ばない）。gothic11 は gothic10（今のアプリで本物の Claude が組んだ「ゴシックな感じ」）の返事
 const CLAUDE_ALIAS = { word10: 'word9', ask10: 'ask9', learn10: 'learn9', gothic11: 'gothic10',
   // 「アールデコな感じ」：試した回ごとに別に覚える（DECO_TRY=1〜4）。使う回は DECO_USE（撮り直しは、その回の返事で）
@@ -3325,6 +3325,9 @@ const genChapter = (chName) => async (a) => {
     const secs = Math.round((Date.now() - t0) / 1000);
     await fine(a, 400);
     await blackVp9(a);
+    // 出来上がりの全体の画面では、作業の記録を頭から見せる（最後のまとめの文は、右の欄の下へ。作者の確認 2026-11-06）
+    await p.evaluate(() => { const w = document.querySelector('.worklog'); const c = document.querySelector('.make-panel'); if (w && c) c.scrollTop += w.getBoundingClientRect().top - c.getBoundingClientRect().top - 8; });
+    await a.settle(200);
     a.mark('done'); await a.box('chip', '.verdict-chip', 6);
     const res = await p.evaluate(() => {
       const s = window.__studio.session; const b = s.built; const r = b.ring;
@@ -3447,6 +3450,89 @@ Object.assign(CH, {
     await a.hold(N(150), { hide: true });
   },
 });
+// 結の並び（最終案 11）：アールデコ（本物の Claude の回の設計を、黒の舞台で別の向きから）と、入口のページの地金のみの指輪
+const SHAPES11 = [
+  ['deco', null],
+  ['wing', 'band=wing'],
+  ['crossing', 'band=crossing'],
+];
+const DECO_DESIGN = process.env.DECO_DESIGN || '/private/tmp/claude-503/-Users-ishikawaohri-Desktop-tsugu-craft-repo/bffaf683-dc6f-52c8-8237-fb25fad16c4f/scratchpad/artdeco/artdeco-design.json';
+Object.assign(CH, {
+  shapes11: async (a) => {
+    const { p } = a;
+    for (const [name, q] of SHAPES11) {
+      await p.goto(`${BASE}/studio.html?nointro&rec${q ? `&${q}` : ''}`, { waitUntil: 'load' });
+      await a.until(() => !!(window.__studio && window.__viewer && window.__studio.session && window.__studio.session.built), null, { label: name, chunk: 50 });
+      await a.settle(2500);
+      await new Promise((r) => setTimeout(r, 2000));
+      if (!q) {
+        const d = JSON.parse(fs.readFileSync(DECO_DESIGN, 'utf8'));
+        await p.evaluate((d) => { const s = window.__studio.session; s.state = JSON.parse(JSON.stringify(d.state)); s.build('見本を見る'); }, d);
+        await fine(a, 600);
+        console.log('shapes11 アールデコ', await p.evaluate(() => JSON.stringify(window.__studio.session.built.problems.map((x) => x.check))), await specsText(p));
+      }
+      await a.settle(1500);
+      await p.addStyleTag({ content: STAGE_CSS9 });
+      await p.evaluate(() => {
+        const v = window.__viewer;
+        v.setDisplayMode('render'); v.setPresenting(true);
+        document.querySelector('.t-dims[aria-pressed="true"]')?.click(); document.querySelector('.t-grid[aria-pressed="true"]')?.click();
+        v.setAutoRotate(false); v.keepCamera = true;
+        dispatchEvent(new Event('resize'));
+      });
+      await new Promise((r) => setTimeout(r, 1500));
+      await a.settle(800);
+      // アールデコは、動画の中の向き（斜め上から）と違う、低い横からの向きで
+      await look9(a, q ? { x: 0.66, y: -0.62, z: 0.42 } : { x: -0.85, y: -0.55, z: 0.18 }, q ? 1.0 : 0.92);
+      a.mark(name);
+      await a.hold(N(80), { turn: TURN9, hide: true });
+    }
+  },
+});
+// 結（最終案 11。作者の判断）：指輪は 1 つだけ。アールデコ（本物の Claude の 4 回目の設計）を黒の舞台で、いちばん質の高い描き方で、ゆっくり回す。カメラは動かさない
+Object.assign(CH, {
+  decoring11: async (a) => {
+    const { p } = a;
+    await stage9(a);
+    const d = JSON.parse(fs.readFileSync(DECO_DESIGN, 'utf8'));
+    await p.evaluate((d) => { const s = window.__studio.session; s.state = JSON.parse(JSON.stringify(d.state)); s.build('見本を見る'); }, d);
+    await fine(a, 800);
+    console.log('decoring11', await p.evaluate(() => JSON.stringify(window.__studio.session.built.problems.map((x) => x.check))), await specsText(p));
+    await p.evaluate(() => { const v = window.__viewer; v.setDisplayMode('render'); v.setPresenting(true); if (typeof v.canHighQuality === 'function' ? v.canHighQuality() : v.canHighQuality !== false) v.setHighQuality(true); v.setAutoRotate(false); v.keepCamera = true; });
+    await new Promise((r) => setTimeout(r, 2500));
+    await a.settle(1200);
+    await look9(a, WHOLE9, 1.0);
+    await new Promise((r) => setTimeout(r, 1500));
+    await a.settle(600);
+    a.mark('whole');
+    await a.hold(N(150), { turn: TURN9 * 0.8, hide: true });
+  },
+});
+// 学ぶ（最終案 11）：作者の決めた、少し専門的で具体的な問い。答えは帳面の「三角の石を 3 本爪で留めるとき」の決まりから出るはず（職人・日付が映るか確かめる）
+const LEARN11 = '長辺 8.8 mm くらいの三角の石を留めたい。爪の太さは、どれくらい？';
+Object.assign(CH, {
+  learn11: async (a) => {
+    const { p } = a;
+    await app10(a, '#learn');
+    a.mark('full'); await a.box('composer', '.composer', 6);
+    await a.hold(N(24));
+    await a.press('.composer textarea', { n: 14, after: 2 });
+    a.mark('type');
+    for (const ch of (process.env.CAP_TEST ? LEARN11.slice(0, 3) : LEARN11)) { await p.keyboard.insertText(ch); await a.hold(1); }
+    a.mark('typed');
+    await a.hold(N(8));
+    await a.box('send', '.composer .send', 6);
+    await a.press('.composer .send', { n: 10, after: 2 });
+    a.mark('wait');
+    await a.until(() => !!document.querySelector('.thread .a-short'), null, { label: '学ぶの答え', timeout: 240000 });
+    await a.settle(400);
+    await p.evaluate(() => { document.querySelector('.thread')?.lastElementChild?.scrollIntoView({ block: 'center' }); });
+    await a.settle(200);
+    a.mark('answer'); await a.box('answer', '.thread .a-short', 8); await a.box('thread', '.thread', 6);
+    console.log('learn11 の答え', await p.evaluate(() => document.querySelector('.thread')?.innerText.replace(/\s+/g, ' ').slice(0, 400)));
+    await a.hold(N(40), { hide: true });
+  },
+});
 // 動かない画面（時計は本物のまま。Claude は呼ばない）
 const STILLS9 = {
   // 毛彫り：本当の帳面のまま（?rec&flow）。作者の言葉「線の幅と深さ」。学ぶ人が聞く → 帳面から答える（合言葉なし）
@@ -3471,7 +3557,7 @@ const STILLS9 = {
     await s.wait(1200);
     await p.addStyleTag({ content: 'header.bar{display:none!important} body{background:#101012!important}' });
     await s.hideFixed();
-    await p.fill('.composer textarea', '毛彫りの線の幅と深さは？');
+    await p.fill('.composer textarea', '彫りの幅と深さは？');  // 最終案 11（作者）：映像は洋彫りなので「毛彫り」と言わない
     await s.shot('ask');
     await p.evaluate(() => document.querySelector('.composer .send').click());
     await s.wait(700);
