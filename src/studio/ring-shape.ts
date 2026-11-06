@@ -2,7 +2,6 @@
 // 見本の札と断面を描く画面は、地金のみの指輪と同じ部品（band-panel.ts・section-edit.ts）。腕を変えるのは人のボタンと Claude の道具と同じ setShank で、
 // 石座とのつながりの確かめも今までどおり（session.ts の build）。テンションの腕は丸線の決まりのまま。
 import { SECTION_LABEL, bandCurve, matchPreset, sectionInfo, type PresetKind } from "../cad/section";
-import { SHANK_SECTION_LABEL } from "../geometry/shank";
 import type { SetShankInput } from "../claude/tools";
 import { bindSectionGrid, sectionGridHtml } from "./band-panel";
 import { sectionEditorHtml } from "./section-edit";
@@ -22,21 +21,20 @@ export function ringSectionInput(k: PresetKind, widthMm: number, thicknessMm: nu
   return { section_curve: { points: c.points.map((p) => ({ x: p.x, y: p.y })), knots: c.knots ? [...c.knots] : undefined } };
 }
 
-/** 今の腕の断面は、どの見本か。手で描いた線は free。腕の決まった断面のうち見本にないもの（半甲丸）は null */
-export function ringSectionKind(s: Pick<RingState, "shankSection" | "sectionCurve">, widthMm: number, thicknessMm: number): PresetKind | "free" | null {
+/** 今の腕の断面は、どの見本か。手で描いた線は free（見本の線と同じなら、その見本） */
+export function ringSectionKind(s: Pick<RingState, "shankSection" | "sectionCurve">, widthMm: number, thicknessMm: number): PresetKind | "free" {
   const sec = s.shankSection ?? "kouman";
   if (sec === "free") return (s.sectionCurve && matchPreset(s.sectionCurve, widthMm, thicknessMm)) || "free";
   // 腕の「平打ち」の線は、見本の「平甲丸」と同じ線（角が丸い）
   if (sec === "hirauchi") return "hirakouman";
-  if (sec === "hangouman") return null;
+  // 半甲丸は見本にないので、いちばん近い平甲丸と呼ぶ（2026-11-06。形の数字は変えない）
+  if (sec === "hangouman") return "hirakouman";
   return sec;
 }
 
 /** 今の腕の断面の名前（画面に出す） */
 export function ringSectionWord(s: Pick<RingState, "shankSection" | "sectionCurve">, widthMm: number, thicknessMm: number): string {
-  const sec = s.shankSection ?? "kouman";
-  if (sec !== "free") return SHANK_SECTION_LABEL[sec];
-  return SECTION_LABEL[ringSectionKind(s, widthMm, thicknessMm) ?? "free"];
+  return SECTION_LABEL[ringSectionKind(s, widthMm, thicknessMm)];
 }
 
 export interface RingShapeHost {
@@ -62,13 +60,13 @@ export function renderRingShape(box: HTMLElement, host: RingShapeHost): void {
   }
   const { widthMm, thicknessMm } = host.size();
   const k = ringSectionKind(s, widthMm, thicknessMm);
-  const note = k === "free" ? "手で描いた形です。" : k ? sectionInfo(k).plain : "";
+  const note = k === "free" ? "手で描いた形です。" : sectionInfo(k).plain;
   const round = s.shankSection === "maru";
   const width: SliderSpec = { cls: "rs-w", label: round ? "線の太さ" : "幅", min: SHANK_RANGE.width[0], max: SHANK_RANGE.width[1], step: SHANK_RANGE.width[2], value: widthMm, unit: "mm" };
   const thick: SliderSpec = { cls: "rs-t", label: "厚み", min: SHANK_RANGE.thickness[0], max: SHANK_RANGE.thickness[1], step: SHANK_RANGE.thickness[2], value: thicknessMm, unit: "mm" };
   box.innerHTML = `
-    ${sectionGridHtml(k ?? "")}
-    <p class="bs-note"><b>${k && k !== "free" ? SECTION_LABEL[k] : ringSectionWord(s, widthMm, thicknessMm)}</b>${note}<small>石座のそばの形です。寸法は目安・最後は職人が決める</small></p>
+    ${sectionGridHtml(k)}
+    <p class="bs-note"><b>${SECTION_LABEL[k]}</b>${note}<small>石座のそばの形です。寸法は目安・最後は職人が決める</small></p>
     <div class="sliders">${sliderHtml(width)}${round ? "" : sliderHtml(thick)}</div>
     <details class="ring-draw"${drawOpen ? " open" : ""}><summary>断面を手で描く</summary>${sectionEditorHtml()}</details>`;
 

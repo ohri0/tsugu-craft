@@ -137,7 +137,8 @@ export interface CheckOptions {
 
 const mm = (v: number) => `${v.toFixed(2)} mm`;
 const pct = (v: number) => `${(v * 100).toFixed(0)}%`;
-const times = (v: number) => `${v.toFixed(2)}×`;
+/** 留まりの倍。画面に「0.13×」とだけ出ると何の数か分からなかったので、ふつうの言葉で（2026-11-06） */
+const times = (v: number) => `${v.toFixed(2)} 倍`;
 
 /**
  * 石の留まり（目安の比較）。標準の 4 本爪・標準の太さ・標準の高さ ＝ 1.0×。
@@ -983,8 +984,8 @@ export function checkSetting(s: SettingResult, culetGapMm: number = s.heights.cu
       id: "hold",
       check: "hold",
       where: `石の留まり（石の場所：${positionName(position)}）`,
-      current: times(hold),
-      required: `${times(need)} 以上`,
+      current: `標準の 4 本爪の ${times(hold)}`,
+      required: `${times(need)}以上`,
       currentValue: hold,
       requiredValue: need,
       reason: `爪の太さ・本数・長さから見た留まりが足りない（${HOLD_NOTE}）`,
