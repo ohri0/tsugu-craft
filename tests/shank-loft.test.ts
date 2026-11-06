@@ -7,7 +7,7 @@ import { buildShank, sectionOutline, type ShankParams, type ShankStation } from 
 import { commonRows, pchip } from "../src/geometry/shank-loft";
 import { makeReliefField, reliefPattern } from "../src/geometry/shank-relief";
 import { sectionCurveProblem } from "../src/geometry/section-input";
-import { checkRing, checkShank, grooveNote, outlineValleys } from "../src/rules/checks";
+import { checkRing, checkShank, grooveNote, outlineValleys, shankWidthNote } from "../src/rules/checks";
 import { GUIDES, innerDiameterMm } from "../src/rules/guides";
 import { parseToolCall, TOOLS } from "../src/claude/tools";
 import { seedLedger } from "../src/rules/ledger";
@@ -196,10 +196,17 @@ describe("腕の場所ごとの形（形）", () => {
 
 describe("腕の場所ごとの形（確かめ）", () => {
   it("いちばん細い・薄い場所で比べる", () => {
-    const sh = buildShank({ gou: 11, widthMm: 3, thicknessMm: 2, stations: [{ atDeg: 180, widthMm: 1.2, thicknessMm: 1 }] });
+    // 腕の幅の赤は職人の決まりで 0.6 mm 以下（前は資料の 1.7 mm。作者が 1.6 mm でも作れると言った 2026-11-06）
+    const sh = buildShank({ gou: 11, widthMm: 3, thicknessMm: 2, stations: [{ atDeg: 180, widthMm: 0.55, thicknessMm: 1 }] });
     const probs = checkShank(sh);
     expect(probs.find((p) => p.check === "band-thin")?.currentValue).toBeCloseTo(1, 2);
-    expect(probs.find((p) => p.check === "band-narrow")?.currentValue).toBeCloseTo(1.2, 2);
+    expect(probs.find((p) => p.check === "band-narrow")?.currentValue).toBeCloseTo(0.55, 2);
+    expect(probs.find((p) => p.check === "band-narrow")?.where).toContain("いちばん細い場所");
+    // 0.9 mm なら赤ではなく、いちばん細い場所の黄色の注意
+    const yellow = buildShank({ gou: 11, widthMm: 3, thicknessMm: 2, stations: [{ atDeg: 180, widthMm: 0.9, thicknessMm: 1.3 }] });
+    expect(checkShank(yellow).map((p) => p.check)).not.toContain("band-narrow");
+    expect(shankWidthNote(yellow)).toMatchObject({ level: "yellow", where: "腕の幅（いちばん細い場所）" });
+    expect(shankWidthNote(yellow)!.widthMm).toBeCloseTo(0.9, 2);
     expect(probs.find((p) => p.check === "band-thin")?.where).toContain("いちばん薄い場所");
   });
 
@@ -213,13 +220,14 @@ describe("腕の場所ごとの形（確かめ）", () => {
   });
 
   it("直し方は、足りない場所だけ上げ、石座のそばは変えない", () => {
-    const s = { ...DEFAULT_STATE, shankThicknessMm: 2, shankWidthMm: 3, shankStations: [{ atDeg: 90, widthMm: 2.5, thicknessMm: 1.6 }, { atDeg: 180, widthMm: 1.2, thicknessMm: 1 }] };
+    const s = { ...DEFAULT_STATE, shankThicknessMm: 2, shankWidthMm: 3, shankStations: [{ atDeg: 90, widthMm: 2.5, thicknessMm: 1.6 }, { atDeg: 180, widthMm: 0.55, thicknessMm: 1 }] };
     const t = bandFixInput("thickerBand", s);
     expect(t.thickness_mm).toBeUndefined();
     expect(t.stations?.map((q) => q.thickness_mm)).toEqual([1.6, GUIDES.band.minThicknessMm]);
     const w = bandFixInput("widerBand", s);
     expect(w.width_mm).toBeUndefined();
-    expect(w.stations?.map((q) => q.width_mm)).toEqual([2.5, GUIDES.band.minWidthMm]);
+    // 赤の幅は、職人が「許容」と言った 0.7 mm まで広げる（それ以上は太くしない。黄色の注意は止めない）
+    expect(w.stations?.map((q) => q.width_mm)).toEqual([2.5, GUIDES.band.widthOrangeMm]);
     // 場所ごとの形がなければ、前と同じ
     expect(bandFixInput("thickerBand", { ...DEFAULT_STATE })).toEqual({ thickness_mm: GUIDES.band.minThicknessMm });
   });
@@ -311,11 +319,16 @@ describe("設計の場（session）", () => {
     expect(r.weight_g).not.toBeCloseTo(before, 1);
     const c = s.check();
     expect(c.problems.filter((p) => p.check.startsWith("腕の")).map((p) => p.check)).toEqual([]);
-    // 細くしすぎると、確かめが止める
-    s.setShank({ stations: [{ at_deg: 180, width_mm: 1.2, thickness_mm: 1, section: "kouman" }], reason: "細く" });
+    // 細くしすぎると、確かめが止める（腕の幅の赤は職人の決まりで 0.6 mm 以下。2026-11-06）
+    s.setShank({ stations: [{ at_deg: 180, width_mm: 0.55, thickness_mm: 1, section: "kouman" }], reason: "細く" });
     const names = s.check().problems.map((p) => p.check);
     expect(names).toContain("腕の厚み");
     expect(names).toContain("腕の幅");
+    // 0.9 mm は止めず、注意（cautions）にだけ出る
+    s.setShank({ stations: [{ at_deg: 180, width_mm: 0.9, thickness_mm: 1.3, section: "kouman" }], reason: "細め" });
+    const c2 = s.check();
+    expect(c2.problems.map((p) => p.check)).not.toContain("腕の幅");
+    expect(c2.cautions.map((x) => [x.check, x.level])).toEqual([["腕の幅", "yellow"]]);
     // 空の並びで、どこも同じ形に戻る
     s.setShank({ stations: [], reason: "戻す" });
     expect(s.state.shankStations).toBeUndefined();

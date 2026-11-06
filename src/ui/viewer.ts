@@ -27,11 +27,31 @@ const SHADED = {
   warn: new THREE.MeshStandardMaterial({ color: 0xe0504a, roughness: 0.6, metalness: 0, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }),
   stone: new THREE.MeshStandardMaterial({ color: 0xa9cff2, roughness: 0.35, metalness: 0, transparent: true, opacity: 0.6, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }),
 };
-/** レンダリングの材質 → シェードの材質（地金は灰色、目安を外れた所は赤、石は淡い青） */
+/** 止めない注意の色（腕の幅の黄色・オレンジ。職人 石川の決まり 2026-11-06）。赤のように点滅させない */
+export type CautionTint = "yellow" | "orange";
+const CAUTION: Record<CautionTint, number> = { yellow: 0xd8b13a, orange: 0xe0803a };
+const CAUTION_LOOK: Record<CautionTint, THREE.MeshPhysicalMaterial> = {
+  yellow: new THREE.MeshPhysicalMaterial({ color: CAUTION.yellow, metalness: 0.35, roughness: 0.3, clearcoat: 0.6, side: THREE.DoubleSide }),
+  orange: new THREE.MeshPhysicalMaterial({ color: CAUTION.orange, metalness: 0.35, roughness: 0.3, clearcoat: 0.6, side: THREE.DoubleSide }),
+};
+const SHADED_CAUTION: Record<CautionTint, THREE.MeshStandardMaterial> = {
+  yellow: new THREE.MeshStandardMaterial({ color: 0xd9bb55, roughness: 0.6, metalness: 0, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }),
+  orange: new THREE.MeshStandardMaterial({ color: 0xe08a4a, roughness: 0.6, metalness: 0, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }),
+};
+/** レンダリングの材質 → シェードの材質（地金は灰色、目安を外れた所は赤、注意は黄色・オレンジ、石は淡い青） */
 function shadedOf(m: THREE.Material): THREE.Material {
   if (isStone(m)) return SHADED.stone;
   if (m instanceof THREE.MeshPhysicalMaterial && m.color.getHex() === WARN) return SHADED.warn;
+  if (m instanceof THREE.MeshPhysicalMaterial && m.color.getHex() === CAUTION.yellow) return SHADED_CAUTION.yellow;
+  if (m instanceof THREE.MeshPhysicalMaterial && m.color.getHex() === CAUTION.orange) return SHADED_CAUTION.orange;
   return SHADED.metal;
+}
+
+/** 注意の色の材質（映り込みは赤い印と同じ明るい環境） */
+function cautionMat(t: CautionTint): THREE.MeshPhysicalMaterial {
+  const m = CAUTION_LOOK[t].clone();
+  m.envMap = CAUTION_LOOK[t].envMap;
+  return m;
 }
 
 /** 作れない所の赤い材質の元（映り込みは、シェードと同じ明るい環境で） */
@@ -128,7 +148,7 @@ export class Viewer {
       const work = pmrem.fromScene(studioScene(), 0.015).texture;
       // 石が読む環境（ぼかしの段がある絵。遠くの反射ほどぼかして読む）
       this.gemShared.uEnv.value = pmrem.fromScene(studioLightScene(GEM_STUDIO), 0, 0.1, 100, { size: Math.min(512, this.quality.envSize) }).texture;
-      for (const m of [SHADED.metal, SHADED.warn, SHADED.stone, WARN_LOOK]) {
+      for (const m of [SHADED.metal, SHADED.warn, SHADED.stone, WARN_LOOK, CAUTION_LOOK.yellow, CAUTION_LOOK.orange, SHADED_CAUTION.yellow, SHADED_CAUTION.orange]) {
         m.envMap = work;
         m.needsUpdate = true;
       }
@@ -631,10 +651,11 @@ export class Viewer {
    * 地金だけの形（地金のみの指輪など）。三角形の並び、mm。いちばん下を床（z ＝ 0）に置く。
    * warn：形ぜんぶを赤く光らせる（作れない所があるとき）。spots：赤い線を回す所（幅の位置 x、指の軸からの距離 rho、軸の高さ z。とがった先など）
    */
-  setMetalMesh(positions: Float32Array, metal: MetalId, kind = "metal", o: { warn?: boolean; spots?: { x: number; rho: number; z: number }[]; shade?: MetalShade } = {}) {
+  setMetalMesh(positions: Float32Array, metal: MetalId, kind = "metal", o: { warn?: boolean; spots?: { x: number; rho: number; z: number }[]; shade?: MetalShade; tint?: CautionTint } = {}) {
     this.clear();
     const warn = new THREE.MeshPhysicalMaterial({ color: WARN, metalness: 0.35, roughness: 0.3, clearcoat: 0.6, side: THREE.DoubleSide });
-    const mat = o.warn ? warn : new THREE.MeshPhysicalMaterial({ color: metalColor(o.shade ?? metal), metalness: 1, roughness: LOOK.roughness, envMapIntensity: 1.0, side: THREE.DoubleSide });
+    // tint：止めない注意（腕の幅の黄色・オレンジ）。形ぜんぶを、その色で塗る（赤のときは赤が先）
+    const mat = o.warn ? warn : o.tint ? cautionMat(o.tint) : new THREE.MeshPhysicalMaterial({ color: metalColor(o.shade ?? metal), metalness: 1, roughness: LOOK.roughness, envMapIntensity: 1.0, side: THREE.DoubleSide });
     if (o.warn || o.spots?.length) this.warnMat = warn;
     const armMesh = new THREE.Mesh(metalGeometry(positions), mat);
     armMesh.userData.arm = true;
@@ -666,7 +687,8 @@ export class Viewer {
   }
 
   /** 石・石座・腕のそろった指輪。指の軸は x、腕の一番下を床（z ＝ 0）に置く */
-  setRing(ring: RingDesign, look: StoneLook, problems: Problem[]) {
+  /** shankTint：腕の幅の止めない注意（黄色・オレンジ）。腕をその色で塗る（腕が赤いときは赤が先） */
+  setRing(ring: RingDesign, look: StoneLook, problems: Problem[], shankTint?: CautionTint) {
     this.clear();
     const lift = ring.shank.outerRadiusMm;
     const h = ring.stone.heights;
@@ -713,7 +735,7 @@ export class Viewer {
     }
     if (cursor < total) settingGeo.addGroup(cursor * 3, (total - cursor) * 3, 0);
     const setting = new THREE.Mesh(settingGeo, [metal, warn]);
-    const shank = new THREE.Mesh(ring.shank.normals ? smoothGeometry(ring.ringPositions.shank, ring.shank.normals) : metalGeometry(ring.ringPositions.shank), badShank ? warn : metal);
+    const shank = new THREE.Mesh(ring.shank.normals ? smoothGeometry(ring.ringPositions.shank, ring.shank.normals) : metalGeometry(ring.ringPositions.shank), badShank ? warn : shankTint ? cautionMat(shankTint) : metal);
     shank.userData.arm = true;
     setting.position.z = lift;
     shank.position.z = lift;

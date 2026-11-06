@@ -23,7 +23,7 @@ export const PARAMS = {
   "hold.requiredSide": { label: "必要な留まり（石が横）", unit: "×", checks: ["hold"] },
   "hold.requiredPalm": { label: "必要な留まり（手のひら側寄り）", unit: "×", checks: ["hold"] },
   "band.minThicknessMm": { label: "腕の厚み（最低）", unit: "mm", checks: ["band-thin"] },
-  "band.minWidthMm": { label: "腕の幅（最低）", unit: "mm", checks: ["band-narrow"] },
+  "band.minWidthMm": { label: "腕の幅（これ以下は赤）", unit: "mm", checks: ["band-narrow"] },
   "hold.cornerSet": { label: "角が 3 つの石を、角に 1 本ずつの爪 3 本で留めたとき 4 本と同じ留まりとみなす（1 ＝ みなす）", unit: "", checks: ["hold"] },
 } as const satisfies Record<string, { label: string; unit: string; checks: readonly CheckId[] }>;
 
@@ -158,12 +158,13 @@ const START = "2026-11-02";
 
 /**
  * 公開の資料から入れた、指輪の決まり（ledger/ring-public.json。調べは docs/RESEARCH-rules2.md）。
- * 値に結びつく決まり（腕の厚み・幅）は、値を guides.ts から読む（JSON の言葉の数字と同じ値）。
+ * 値に結びつく決まり（腕の厚み）は、値を guides.ts から読む（JSON の言葉の数字と同じ値）。腕の幅の資料の値は、言葉だけの決まり（職人の決まりが先）
  */
 export function publicRingRules(): Rule[] {
   const g = GUIDES;
   return (ringPublic as Rule[]).map((r) => {
-    const value = r.param === "band.minThicknessMm" ? g.band.minThicknessMm : r.param === "band.minWidthMm" ? g.band.minWidthMm : undefined;
+    // 腕の幅の資料の値（1.7 mm）は、資料の目安として残すだけ。確かめは職人の決まり（guides.ts の band.minWidthMm）で、資料の値で上書きしない
+    const value = r.param === "band.minThicknessMm" ? g.band.minThicknessMm : undefined;
     return structuredClone({ ...r, ...(value !== undefined ? { value, checks: [...PARAMS[r.param!].checks] } : {}) });
   });
 }

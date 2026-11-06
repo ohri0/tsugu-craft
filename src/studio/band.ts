@@ -3,7 +3,7 @@
 import { SECTION_LABEL, SECTION_LIST, bandCurve, innerLimit, isSectionKind, matchLoops, matchPreset, sectionInfo, thinOutline, valleyOf, type PresetKind, type SectionKind, type SectionSpec } from "../cad/section";
 import { bandSolid, meshVolume } from "../cad/solid";
 import { GUIDES, GUIDE_NOTE, type Guides } from "../rules/guides";
-import { SPIKE_TEXT, narrowGroove, sectionSpots, type GrooveNote } from "../rules/checks";
+import { SPIKE_TEXT, WIDTH_RED_TEXT, narrowGroove, sectionSpots, widthFixMm, widthLevel, widthNoteOf, type GrooveNote, type WidthNote } from "../rules/checks";
 import type { ThinSpot } from "../geometry/section-thin";
 import type { SectionCurve } from "../geometry/shank";
 import type { ClaudeTool } from "../claude/wire";
@@ -242,6 +242,13 @@ export function bandGrooveNote(b: Band, guides: Guides = GUIDES): GrooveNote | n
   );
 }
 
+/** 腕の幅の注意（黄色・オレンジ。作れない所ではない）。上と下のうち細い方で。赤や注意のいらない幅は null */
+export function bandWidthNote(b: Band, guides: Guides = GUIDES): WidthNote | null {
+  const both = b.top.width !== b.bottom.width;
+  const e: BandEndName = b.bottom.width < b.top.width ? "bottom" : "top";
+  return widthNoteOf(endOf(b, e).width, both ? (e === "top" ? "上の幅" : "下の幅") : "幅", guides);
+}
+
 /** 作れるかの判定（目安）。guides は今の帳面の目安（職人の決まりをふくむ） */
 export function checkBand(b: Band, guides: Guides = GUIDES): BandProblem[] {
   const g = guides.band;
@@ -267,14 +274,14 @@ export function checkBand(b: Band, guides: Guides = GUIDES): BandProblem[] {
     });
   }
   const narrow = Math.min(b.top.width, b.bottom.width);
-  if (narrow < g.minWidthMm) {
+  if (widthLevel(narrow, guides) === "red") {
     out.push({
       check: "band-narrow",
       title: "幅が細い",
       current: `${narrow.toFixed(2)} mm`,
-      required: `${g.minWidthMm} mm 以上`,
-      why: "細い腕は曲がって丸くなくなる。",
-      fix: { label: "幅を広げる", apply: (x) => raise(x, "width", g.minWidthMm) },
+      required: `${g.minWidthMm} mm より太く（職人の決まり）`,
+      why: `${WIDTH_RED_TEXT}。`,
+      fix: { label: "幅を広げる", apply: (x) => raise(x, "width", widthFixMm(guides)) },
     });
   }
   const both = b.split || !sameSize(b);
@@ -478,6 +485,6 @@ export function bandPrompt(): string {
 - 号は人が欄で選びます。頼みの文に書いた号を gou にそのまま書きます。希望に別の号が書かれていても変えず、cannot_do に書きます。
 - 華奢・細め・存在感・太め・手のひら側を細く、のような言い方は、幅と厚み、上と下の太さの差で表します。着け心地を言われたら、内甲丸（inner_mm）を考えます。
 - この道具で変えられるのは、断面の形（上と下で変えられる）と、上と下の幅・厚み、内甲丸の丸み、地金だけです。模様・彫り・石・ねじり などは表せないので、cannot_do に正直に書きます。表せなかったのに「ご希望どおり」とは書きません。
-- 厚みや幅が細すぎて作りにくい値は選びません（いちばん厚い所 ${GUIDES.band.minThicknessMm} mm 以上、幅 ${GUIDES.band.minWidthMm} mm 以上が目安）。
+- 厚みや幅が細すぎて作りにくい値は選びません（いちばん厚い所 ${GUIDES.band.minThicknessMm} mm 以上が目安）。幅は職人の決まりで、${GUIDES.band.widthYellowMm} mm 以下は黄色の注意、${GUIDES.band.widthOrangeMm} mm より細いとオレンジの注意（どちらも作れる）、${GUIDES.band.minWidthMm} mm 以下は赤です。細い希望でなければ、${GUIDES.band.widthYellowMm} mm より太くします。
 - reason はやさしい日本語で 1〜2 文。Markdown の記号は使いません。`;
 }

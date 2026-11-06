@@ -311,6 +311,11 @@ export interface CheckResult {
   problems: CheckProblem[];
   /** 確かめて問題がなかった項目 */
   passed: string[];
+  /**
+   * 止めない注意（作れない所ではない）。腕の幅の黄色（細め）・オレンジ（かなり細い）、手で彫る細い溝。
+   * problems とちがい、直さなくても作れる。お客さまの希望が細さなら、そのままでよい
+   */
+  cautions: { check: string; level: "yellow" | "orange"; where: string; current: string; text: string }[];
   note: string;
   /**
    * テンションのとき：地金ごとの大まかな計算（どれだけ小さめに作り、どれだけ広げて入れるか。合否にしない・最後は職人が決める）。
@@ -376,12 +381,15 @@ export interface ToolHost<S = unknown> {
 // ---- 入力の受け付け範囲 ----
 // 職人の目安ではなく「明らかにおかしい値を道具に通さない」ための範囲。目安との比べは check がする。
 
+/** 腕の幅の 3 段の言葉（Claude に渡す。値は guides.ts、職人 石川の決まり 2026-11-06） */
+export const BAND_WIDTH_WORDS = `腕の幅は ${GUIDES.band.widthYellowMm} mm 以下で黄色の注意、${GUIDES.band.widthOrangeMm} mm より細いとオレンジの注意（どちらも止めない。cautions に出る）、${GUIDES.band.minWidthMm} mm 以下は赤（problems に出る。作れなくはないが職人の決まりで赤）。帳面で工房ごとに変わることがある`;
+
 export const INPUT_BOUNDS = {
   prong_count: [3, 8],
   prong_mm: [0.3, 3],
   prong_position: [0, 9999],
   value: [0, 100],
-  width_mm: [1, 10],
+  width_mm: [GUIDES.band.inputMinWidthMm, 10],
   thickness_mm: [0.8, 5],
   gou: [1, 30],
   count: [GUIDES.multi.rowCount[0], GUIDES.multi.rowCount[2]],
@@ -534,7 +542,7 @@ export const TOOLS: ClaudeTool[] = [
           description:
             `腕の場所ごとの形（${range("stations", " か所")}、角度の小さい順。空の並びは、どこも同じ形に戻す）。左右は同じ。いちばん上の形は width_mm・thickness_mm・断面で決まり、ここにはそれより下の場所を書く。間はなめらかにつながる。` +
             "肩を細く・太くする、下を薄く軽くする、上は稜線で下は指に沿う丸みにする、腕を S の字に流す、などに使う。石座のそばは、腕の端が石座に当たるので、いちばん上の形のまま保たれる（石の大きさで約 20〜40° まで）。" +
-            `どの場所も確かめの目安（幅 ${GUIDES.band.minWidthMm} mm・厚み ${GUIDES.band.minThicknessMm} mm 以上）を check で見る。`,
+            `どの場所も、厚み ${GUIDES.band.minThicknessMm} mm 以上（目安）と、腕の幅の職人の決まりを check で見る（${BAND_WIDTH_WORDS}）。`,
           items: {
             type: "object",
             properties: {
@@ -606,6 +614,7 @@ export const TOOLS: ClaudeTool[] = [
     name: "check",
     description:
       "今の指輪を職人の目安で確かめる。問題の一覧（どこ・今の値・必要な値・理由・直し方の選択肢と見た目への影響）と、問題のなかった項目を返す。" +
+      `cautions は止めない注意で、作れない所ではない（${BAND_WIDTH_WORDS}）。注意だけなら直さなくてよく、希望が細さなら、そのままにする。` +
       "選択肢は答えではない。どれを選ぶかは、お客さまの希望から決めて、理由を残す。" +
       `値はすべて目安で、最後は職人が決める（${GUIDE_NOTE}）。`,
     strict: true,

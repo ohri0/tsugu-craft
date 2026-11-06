@@ -290,7 +290,8 @@ describe("断面を描く画面の計算（mm）", () => {
 
 describe("指輪の腕の確かめ（断面によらず）", () => {
   it("目安より薄い・細い腕は、確かめで引っかかる（腕を赤くする場所つき）", () => {
-    const ring = buildRing({ stone: roundStone(), setting: { style: "prong" }, shank: { gou: 11, section: "free", sectionPoints: sectionControlPoints("hirauchi"), widthMm: 1.5, thicknessMm: 1.0 } });
+    // 腕の幅の赤は職人の決まりで 0.6 mm 以下（前は資料の 1.7 mm。作者が 1.6 mm でも作れると言った 2026-11-06）
+    const ring = buildRing({ stone: roundStone(), setting: { style: "prong" }, shank: { gou: 11, section: "free", sectionPoints: sectionControlPoints("hirauchi"), widthMm: 0.55, thicknessMm: 1.0 } });
     const probs = checkRing(ring);
     const thin = probs.find((p) => p.check === "band-thin");
     const narrow = probs.find((p) => p.check === "band-narrow");
