@@ -180,8 +180,8 @@ function stationWords(list: unknown): string {
   if (!list.length) return "どこも同じ形に戻す";
   return list
     .map((raw) => {
-      const st = raw as { at_deg: number; width_mm: number; thickness_mm: number; section?: string; section_curve?: unknown; sway_mm?: number };
-      const extra = [st.section_curve ? "手で描いた形" : st.section ? (SECTION[st.section] ?? "") : "", st.sway_mm ? `${num(Math.abs(st.sway_mm))} mm 流す` : ""].filter(Boolean);
+      const st = raw as { at_deg: number; width_mm: number; thickness_mm: number; section?: string; section_curve?: unknown; sway_mm?: number; step?: boolean };
+      const extra = [st.step ? "段で" : "", st.section_curve ? "手で描いた形" : st.section ? (SECTION[st.section] ?? "") : "", st.sway_mm ? `${num(Math.abs(st.sway_mm))} mm 流す` : ""].filter(Boolean);
       return `${placeOf(st.at_deg)} 幅 ${num(st.width_mm)} × 厚み ${num(st.thickness_mm)} mm${extra.length ? `（${extra.join("・")}）` : ""}`;
     })
     .join("、");

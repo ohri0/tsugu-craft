@@ -447,6 +447,40 @@ export function makeReliefField(p: ReliefParams, o: { a0: number; a1: number; v:
   };
 }
 
+/**
+ * 段で替わる所（腕の段の立ち上がり）の手前と後で、彫りを止める幅と、止める所の壁の幅（mm。形を作るための決まり）。
+ * 模様が段をまたいで崩れず、段ごとの平らな面に収まる。壁は立てる（なだらかに消すと、窓の端が ふくらんで見えた）
+ */
+export const RISER_GAP_MM = 0.25;
+export const RISER_WALL = 0.16;
+
+/**
+ * 段で替わる所（いちばん上からの角度の範囲。shank-loft.ts の risers）のまわりでは彫らない。
+ * 立ち上がりから gapRad までは 0、そこから gapRad × RISER_WALL の短い壁で元の深さへ（模様の縁が、段の縁と平行な線で切れる）
+ */
+export function withRiserGaps(field: ReliefField, risers: readonly (readonly [number, number])[], gapRad: number): ReliefField {
+  if (!risers.length) return field;
+  const mask = (phi: number) => {
+    const p0 = phi < 0 ? phi + TWO_PI : phi > TWO_PI ? phi - TWO_PI : phi;
+    const a = p0 > Math.PI ? TWO_PI - p0 : p0;
+    let m = 1;
+    for (const [r0, r1] of risers) {
+      const dist = a < r0 ? r0 - a : a > r1 ? a - r1 : 0;
+      m = Math.min(m, smooth((dist - gapRad) / (gapRad * RISER_WALL)));
+    }
+    return m;
+  };
+  return {
+    a0: field.a0,
+    a1: field.a1,
+    rowMayCarve: field.rowMayCarve,
+    depth(r, phi) {
+      const d = field.depth(r, phi);
+      return d <= 0 ? 0 : d * mask(phi);
+    },
+  };
+}
+
 /** いくつかの彫りを重ねる（深い方を取る） */
 export function combineFields(fields: readonly ReliefField[]): ReliefField {
   if (fields.length === 1) return fields[0];

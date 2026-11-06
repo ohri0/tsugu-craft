@@ -9,7 +9,7 @@ import { BALL_CUT, ballCut, type BallCut, type SeatCut } from "./notch";
 import { railSeatZ, type Rail } from "./joint";
 import { adaptiveSample, sampleCurve, uniformKnots, validKnots } from "./bspline";
 import { makeLoft, type Loft, type LoftFrame, type LoftPlace } from "./shank-loft";
-import { RELIEF_LABEL, RELIEF_MESH, adaptivePatch, combineFields, makeReliefField, rowTrace, rowsV, type ReliefParams } from "./shank-relief";
+import { RELIEF_LABEL, RELIEF_MESH, RISER_GAP_MM, adaptivePatch, combineFields, makeReliefField, rowTrace, rowsV, withRiserGaps, type ReliefParams } from "./shank-relief";
 
 /** 腕の断面：甲丸・平打ち・半甲丸・角、丸線（内側も丸い）、と手で描いた形 */
 export type ShankSection = "kouman" | "hirauchi" | "hangouman" | "kaku" | "maru" | "free";
@@ -72,6 +72,8 @@ export interface ShankStation {
   curve?: SectionCurve;
   /** 腕を指の向きへ寄せる量（mm）。右の肩が指先の側へ寄ると、左の肩は付け根の側へ寄る（S の字の流れ）。いちばん下では 0 */
   swayMm?: number;
+  /** ひとつ上の場所からここまでを、なめらかにつながず段で変える（段々の肩。shank-loft.ts） */
+  step?: boolean;
 }
 
 export interface ShankHead {
@@ -162,6 +164,9 @@ interface SeatWork {
 /** 指のまわりの分け方と、内側の平らな所の分け方（形を作るための決まり） */
 const AROUND = 128;
 const FLAT = 6;
+/** 段で替わる所の網目：立ち上がりを分ける数と、前後に足す余白（角度） */
+const RISER_SPLIT = 6;
+const RISER_PAD_RAD = (0.6 * Math.PI) / 180;
 /**
  * 断面の形の決まり（形を作るための決まり。職人の目安の数ではない。**仮**：作者が見て、実物の線材に合わせて直す。
  * .claude/skills/jeweler-guides/SKILL.md の「腕とサイズ」にも書いた）。
@@ -204,7 +209,8 @@ const RELIEF_MARGIN_DEG = 2;
 function reliefOf(p: ShankParams, loft: Loft, flat: number, r: number, t: number, holdRad: number) {
   const rel = p.relief!;
   const v = rowsV(loft.rows[0], p.widthMm ?? GUIDES.shank.widthMm, t);
-  const field = combineFields(
+  // 腕の段の立ち上がりのまわりでは彫らない（模様が段ごとの平らな面に収まる）
+  const field = withRiserGaps(combineFields(
     [rel, ...(p.reliefMore ?? [])].map((q) => {
       const a0 = Math.max((q.fromDeg * Math.PI) / 180, holdRad + (RELIEF_MARGIN_DEG * Math.PI) / 180);
       const a1 = Math.max(a0 + 0.05, Math.min(Math.PI, (q.toDeg * Math.PI) / 180));
@@ -219,7 +225,7 @@ function reliefOf(p: ShankParams, loft: Loft, flat: number, r: number, t: number
         },
       });
     }),
-  );
+  ), loft.risers(), RISER_GAP_MM / (r + t));
   const { a0, a1 } = field;
   const keep = GUIDES.band.relief.keepMm;
   /** 彫ったあとの点（x、ρ）。面の向きに沈める（急な面でも同じ深さに見え、腕の輪郭が欠けない）。薄い所では浅くして、指の側までの地金を残す */
@@ -409,7 +415,7 @@ function loftOf(p: ShankParams, section: ShankSection, w: number, t: number, out
   const places: LoftPlace[] = p.stations.map((st) => {
     if (st.curve?.points.length) prev = sectionOutline("free", undefined, st.curve);
     else if (st.section) prev = sectionOutline(st.section);
-    return { at: (Math.min(180, Math.max(0, st.atDeg)) * Math.PI) / 180, widthMm: st.widthMm, thicknessMm: st.thicknessMm, outline: prev, swayMm: st.swayMm ?? 0 };
+    return { at: (Math.min(180, Math.max(0, st.atDeg)) * Math.PI) / 180, widthMm: st.widthMm, thicknessMm: st.thicknessMm, outline: prev, swayMm: st.swayMm ?? 0, step: !!st.step };
   });
   return makeLoft({ widthMm: w, thicknessMm: t, outline: outer }, places);
 }
@@ -599,6 +605,8 @@ export function buildShank(p: ShankParams, cut?: SeatCut, opts: { notchStepMm?: 
   const reliefAll = loft && p.relief ? reliefOf(p, loft, flat, r, t, hold) : null;
   const relief = p.relief?.draft ? null : reliefAll;
   const baseStep = RELIEF_MESH.baseMm / (r + t);
+  // 段で替わる所は、立ち上がりの前後を細かく（段の角が立つように）
+  if (loft) for (const [a0, a1] of loft.risers()) phis = refinePhis(phis, a0 - RISER_PAD_RAD, a1 + RISER_PAD_RAD, (a1 - a0) / RISER_SPLIT);
   if (relief) phis = refinePhis(phis, relief.a0 - baseStep, relief.a1 + baseStep, baseStep);
   const frames = loft ? phis.map((phi) => loft.frame(phi)) : null;
   // 断面の点ごとに、指のまわりを 1 周する輪
@@ -835,6 +843,25 @@ function openBand(
       [near(toU(from)), near(toU(to))],
       [near(toU(Math.PI * 2 - to)), near(toU(Math.PI * 2 - from))],
     ];
+  }
+  // 段で替わる所は、立ち上がりの前後を細かく（彫る所の中も。彫る所の列の番号は、足したあとで数え直す）
+  if (loft && loft.risers().length) {
+    const toU = (phi: number) => (phi - s0) / (e0 - s0);
+    const extra: number[] = [];
+    for (const [a0, a1] of loft.risers()) {
+      const from = a0 - RISER_PAD_RAD;
+      const to = a1 + RISER_PAD_RAD;
+      const n = Math.ceil(((to - from) / (a1 - a0)) * RISER_SPLIT);
+      for (let k = 0; k <= n; k++) {
+        const a = from + ((to - from) * k) / n;
+        for (const u of [toU(a), toU(Math.PI * 2 - a)]) if (u > 0 && u < 1) extra.push(u);
+      }
+    }
+    if (extra.length) {
+      const keep = arms.map(([c0, c1]) => [us[c0], us[c1]] as const);
+      us = [...new Set([...us, ...extra].map((v) => Math.round(v * 1e7) / 1e7))].sort((x, y) => x - y);
+      arms = keep.map(([a, b]) => [us.indexOf(Math.round(a * 1e7) / 1e7), us.indexOf(Math.round(b * 1e7) / 1e7)] as [number, number]);
+    }
   }
   const loops: V3[][] = [];
   for (const u of us) {

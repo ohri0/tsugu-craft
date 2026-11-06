@@ -70,6 +70,7 @@ const stationShape = z.object({
   section: z.enum(["kouman", "hirauchi", "hangouman", "kaku"]).optional().describe("この場所の断面（省くと、ひとつ上の場所と同じ）"),
   section_curve: sectionCurvePoints.optional().describe("この場所の断面の線（section より先に使う）"),
   sway_mm: z.number().min(INPUT_BOUNDS.sway_mm[0]).max(INPUT_BOUNDS.sway_mm[1]).optional().describe("腕を指の向きへ寄せる量（mm）。片方の肩が指先へ寄ると、もう片方は付け根へ寄る。いちばん下では 0"),
+  step: z.boolean().optional().describe("true なら、ひとつ上の場所からここまでを段で変える（段々の肩）。省くと、なめらかにつなぐ"),
 });
 
 const designShape = z
@@ -277,6 +278,7 @@ function stationsFrom(list: NonNullable<NonNullable<CheckRingInput["design"]>["s
       ...(st.section ? { section: st.section } : {}),
       ...(st.section_curve ? { section: "free" as const, curve: { points: st.section_curve } } : {}),
       ...(st.sway_mm ? { swayMm: st.sway_mm } : {}),
+      ...(st.step ? { step: true } : {}),
     };
   });
 }

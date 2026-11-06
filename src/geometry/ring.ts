@@ -42,6 +42,13 @@ export interface RingParams {
   tension?: TensionOptions;
   /** 伝統の仕上げ（槌目・ミル打ち・象嵌。なければ鏡面の仕上げ）。ミル打ちだけが形を変える */
   finish?: RingFinish;
+  /**
+   * 前に作った指輪の腕を使う（作り直さない。爪の太さ・先の形だけを変えている間のため。session.ts）。
+   * 腕を作る材料（腕の数・石座の下の棒・ザグり・肩）が前と同じなら、どの質でも前の腕（ミルの粒の前）を使い、粒は打ち直す（形は作り直した時と同じ）。
+   * 材料が少しちがっても、すぐの形（solidQuality が preview）なら、前の腕を粒ごとそのまま使う（彫りが消えない。離したときの細かい形で正しく作り直す）。
+   * 向き・付け方・留め方・石の数がちがえば使わない
+   */
+  reuseShankOf?: RingDesign;
 }
 
 /** つなぐ線を作る、輪の外の面どうしの間の上限（mm。形を作るための決まり：これより離れた石座は、短い線ではつながらない） */
@@ -126,11 +133,35 @@ export interface RingDesign {
   joins: HeadJoin[];
   /** ミル打ちの粒（腕の三角形の後ろに入っている。打たなければなし） */
   milgrain?: Omit<MilgrainResult, "positions" | "normals" | "centers">;
+  /** 腕を前の指輪から そのまま使ったか（reuseShankOf の、材料が少しちがう すぐの形。彫りとミルの粒は前の形のまま入っている） */
+  shankReused?: boolean;
+  /** 腕を作った材料の印（同じなら、同じ腕ができる）と、ミルの粒を足す前の腕 */
+  shankInputKey?: string;
+  shankBase?: ShankResult;
 }
 
 export function buildRing(p: RingParams): RingDesign {
   const ring = buildRingShape(p);
+  // 前の腕を粒ごと使ったときは、粒も前の腕に入っている
+  if (ring.shankReused) return p.reuseShankOf?.milgrain ? { ...ring, milgrain: p.reuseShankOf.milgrain, shankBase: p.reuseShankOf.shankBase } : ring;
   return p.finish?.milgrain ? withMilgrain(ring) : ring;
+}
+
+/** 腕を作る材料の印（腕の数・石座の下の棒・ザグりの石の位置・肩・指輪の中の石の置き方） */
+function shankInputKeyOf(shank: ShankParams, extra: unknown): string {
+  return JSON.stringify([shank, extra]);
+}
+
+/**
+ * 前の指輪の腕を、この形に使えるか。材料が同じなら exact（ミルの粒の前の腕。粒は打ち直す）、
+ * すぐの形で材料が少しちがうだけなら、前の腕を粒ごと（shankReused）。向き・付け方・留め方・石の数がちがえば使わない
+ */
+function reusableShank(p: RingParams, orientation: Orientation, key: string): { shank: ShankResult; exact: boolean } | null {
+  const r = p.reuseShankOf;
+  if (!r || r.orientation !== orientation || r.setting.style !== p.setting.style || (r.setting.join ?? "between") !== (p.setting.join ?? "between") || r.stones.length !== 1) return null;
+  if (r.shankInputKey === key && !r.shankReused) return { shank: r.shankBase ?? r.shank, exact: true };
+  if (p.setting.solidQuality === "preview") return { shank: r.shank, exact: false };
+  return null;
 }
 
 /**
@@ -148,6 +179,7 @@ function withMilgrain(ring: RingDesign): RingDesign {
   return {
     ...ring,
     shank,
+    shankBase: ring.shank,
     ringPositions: { ...ring.ringPositions, shank: positions },
     metalWeightG: ring.metalWeightG + weightG(beads.volumeMm3, ring.metal),
     milgrain: info,
@@ -179,7 +211,11 @@ function buildRingShape(p: RingParams): RingDesign {
   const seatCut = stoneSeatCut(p.stone, stone.heights, transform, GUIDES.bezel.clearanceMm);
   // 石座の下の輪が腕に当たる所は、腕の上を輪の形に合わせて削って座にし（joint.ts）、両側の接点にロウを流す
   const rail = railInRing(setting, transform);
-  const shank = buildShank(setting.normals ? p.shank : { ...p.shank, head: p.shank.head ?? headFootprint(ringSetting, plain) }, seatCut, { rail });
+  const shankInput = setting.normals ? p.shank : { ...p.shank, head: p.shank.head ?? headFootprint(ringSetting, plain) };
+  const inputKey = shankInputKeyOf(shankInput, ["on", transform, rail, [seatCut.culetX, seatCut.culetY, seatCut.culetZ, seatCut.clearanceMm, seatCut.box]]);
+  const reuse = reusableShank(p, orientation, inputKey);
+  const reused = reuse && !reuse.exact;
+  const shank = reuse?.shank ?? buildShank(shankInput, seatCut, { rail });
   const wantSolder = p.solder ?? (p.setting.solid === true && p.setting.solidQuality !== "preview");
   const solder = rail && wantSolder ? buildSolder(rail, shank, seatCut) : null;
   const settingAll = solder?.positions.length ? concat([ringSetting, solder.positions]) : ringSetting;
@@ -225,6 +261,7 @@ function buildRingShape(p: RingParams): RingDesign {
       },
     ],
     joins: [],
+    ...(reused ? { shankReused: true, shankInputKey: p.reuseShankOf!.shankInputKey } : { shankInputKey: inputKey }),
   };
 }
 
@@ -237,7 +274,12 @@ function betweenRing(p: RingParams, orientation: Orientation, setting: SettingRe
   const ringStone = applyTransform(stone.positions, transform);
   const ringSetting = applyTransform(setting.positions, transform);
   const seatCut = stoneSeatCut(p.stone, stone.heights, transform, GUIDES.bezel.clearanceMm);
-  const shank = buildShank({ ...p.shank, head: undefined }, undefined, { gap: { outline: collar.outer, low: { outline: collar.outerLow, topZ: collar.topZ, bottomZ: collar.bottomZ } } });
+  const shankInput = { ...p.shank, head: undefined };
+  const gap = { outline: collar.outer, low: { outline: collar.outerLow, topZ: collar.topZ, bottomZ: collar.bottomZ } };
+  const inputKey = shankInputKeyOf(shankInput, ["between", gap]);
+  const reuse = reusableShank(p, orientation, inputKey);
+  const reused = reuse && !reuse.exact;
+  const shank = reuse?.shank ?? buildShank(shankInput, undefined, { gap });
   const wantSolder = p.solder ?? (p.setting.solid === true && p.setting.solidQuality !== "preview");
   const solder = wantSolder ? buildEndSolder(collar, shank) : null;
   const settingAll = solder?.positions.length ? concat([ringSetting, solder.positions]) : ringSetting;
@@ -281,6 +323,7 @@ function betweenRing(p: RingParams, orientation: Orientation, setting: SettingRe
       },
     ],
     joins: [],
+    ...(reused ? { shankReused: true, shankInputKey: p.reuseShankOf!.shankInputKey } : { shankInputKey: inputKey }),
   };
 }
 

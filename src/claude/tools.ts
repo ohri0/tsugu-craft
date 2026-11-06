@@ -276,6 +276,8 @@ export interface ShankStationInput {
   section_curve?: SectionCurveInput;
   /** 腕を指の向きへ寄せる量（mm）。片方の肩が指先の側へ寄ると、もう片方は付け根の側へ寄る（S の字の流れ） */
   sway_mm?: number;
+  /** ひとつ上の場所からここまでを、なめらかにつながず段で変える（段々の肩） */
+  step?: boolean;
 }
 
 /** 腕の彫り。pattern が none なら彫りをなくす */
@@ -555,9 +557,9 @@ export const RELIEF_PATTERNS = ["arch", "diamond", "wave", "beads", "lines", "le
  * 模様の説明。線の性格ごとにまとめる（どの言葉にどれ、とは決めない。Claude が言葉の性格から選ぶ）
  */
 export const RELIEF_PATTERN_WORDS =
-  "直線・水平と垂直・平らな面の模様：steps＝段の窓（長方形の窓の中が、平らな面のまま段々に深くなる）、panel＝長方形の区切り（細長い長方形の窓の列。輪郭の線と浅い平らな底）、flutes＝平行の溝（腕に沿って続く細い溝を、幅の向きに等しい間で並べる）、lines＝腕を横切る筋。" +
+  "直線・水平と垂直・平らな面の模様：steps＝段の窓（長方形の窓の中が、平らな面のまま段々に深くなる。小さな四角い石を並べた列のようにも見える）、panel＝長方形の区切り（細長い長方形の窓の列。輪郭の線と浅い平らな底）、flutes＝平行の溝（腕に沿って続く細い溝を、幅の向きに等しい間で並べる）、lines＝腕を横切る筋。" +
   "幾何学の繰り返し・角の立つ模様：chevron＝山形（V の線が腕に沿って重なる。先は石座の側を向き、列の真ん中で左右対称）、zigzag＝ジグザグ（腕に沿う、角の立った折れ線）、diamond＝菱の格子。" +
-  "中心から広がる模様：fan＝扇（かなめから骨が石座の側へ広がり、外の弧で閉じる）。" +
+  "中心から広がる模様：fan＝扇（かなめから骨が石座の側へ広がり、外の弧で閉じる。日の出のような放射。平らな面に、片側 1〜2 つを大きく）。" +
   "縦に高く伸びて先が尖る模様：arch＝先の鋭く尖った縦長の窓（幅があれば、中に 2 つの小窓と丸窓）、blade＝尖った葉（肩に少しだけ）。" +
   "曲線・やわらかい模様：wave＝腕に沿う波の線、leaf＝葉とつる、beads＝丸い粒のくぼみの列。" +
   "縁を飾る：mil＝縁の粒（帯の上面を削って粒を連ねる。縁取りの上に）";
@@ -698,6 +700,12 @@ export const TOOLS: ClaudeTool[] = [
               section: { type: "string", enum: ["kouman", "hirauchi", "hangouman", "kaku"], description: "この場所の断面（決まった形）。省くと、ひとつ上の場所と同じ" },
               section_curve: { ...SECTION_CURVE_SCHEMA, description: "この場所の断面の線。書き方はいちばん上の section_curve と同じ。section より先に使う" },
               sway_mm: { type: "number", description: `腕を指の向きへ寄せる量（mm、${range("sway_mm", " mm")}）。片方の肩が指先の側へ寄ると、もう片方は付け根の側へ寄り、腕が S の字に流れる。いちばん下（180°）では 0` },
+              step: {
+                type: "boolean",
+                description:
+                  "true なら、ひとつ上の場所からこの場所までを、なめらかにつながず段で変える（ひとつ上の幅・厚み・断面のまま進み、この場所の手前で短い立ち上がりで替わる。階段の段）。" +
+                  "肩に 2〜3 か所、10〜15° おきに置き、幅を 0.6〜1 mm・厚みを 0.3〜0.5 mm ずつ減らすと、石座から段々に下がる肩になる（上からも横からも段が見える）。省くと、なめらかにつなぐ",
+              },
             },
             required: ["at_deg", "width_mm", "thickness_mm"],
             additionalProperties: false,
@@ -1061,7 +1069,7 @@ function checkStations(v: unknown): string | null {
   const [, most] = INPUT_BOUNDS.stations;
   if (v.length > most) return `腕の場所は ${most} か所までです（今は ${v.length} か所）`;
   let prev = 0;
-  const allowed = new Set(["at_deg", "width_mm", "thickness_mm", "section", "section_curve", "sway_mm"]);
+  const allowed = new Set(["at_deg", "width_mm", "thickness_mm", "section", "section_curve", "sway_mm", "step"]);
   for (const st of v as Record<string, unknown>[]) {
     if (typeof st !== "object" || st === null || Array.isArray(st)) return "腕の場所は {at_deg, width_mm, thickness_mm} の形で書いてください";
     for (const k of Object.keys(st)) if (!allowed.has(k)) return `腕の場所に ${k} という項目はありません`;
@@ -1078,6 +1086,7 @@ function checkStations(v: unknown): string | null {
       if (e) return e;
       if (at >= 180 && st.sway_mm !== 0) return "いちばん下（180°）では、腕を指の向きへ寄せられません（sway_mm は 0）";
     }
+    if (st.step !== undefined && typeof st.step !== "boolean") return "腕の場所の step は true か false で書いてください";
     if (st.section !== undefined && !["kouman", "hirauchi", "hangouman", "kaku"].includes(st.section as string)) return `場所ごとの断面は kouman / hirauchi / hangouman / kaku のどれかです（今は ${String(st.section)}）`;
     if (st.section_curve !== undefined) {
       const e = checkSectionCurve(st.section_curve);

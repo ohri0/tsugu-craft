@@ -186,9 +186,17 @@ export function solidsForJob(job: ShapeJob): ShapeSolids {
 }
 
 /** 別の糸から届いた重い所を使って、同じ設計の一体の形を組む（重い所は作らない。形は、この糸で全部作ったときと同じ） */
-export function shapeFromSolids(job: ShapeJob, got: ShapeSolids): Built {
+export function shapeFromSolids(job: ShapeJob, got: ShapeSolids, band?: BandMemo | null): Built {
   const s = jobSession(structuredClone(job));
+  // 画面の糸の、最後の細かい形の腕（腕の作りが同じなら、腕を作り直さない）
+  if (band) s.rememberBand(band);
   return replayHeavy(got.list, got.sigs, () => s.shapeOnly(job.quality));
+}
+
+/** 最後に作った細かい形と、その腕の作りの印（RingSession.bandKey） */
+export interface BandMemo {
+  key: string;
+  ring: Built["ring"];
 }
 
 /** 爪の形の直しの「直していない」値（全部の爪にそろえるとき、この値なら残さない） */
@@ -359,6 +367,7 @@ export function stationFrom(st: ShankStationInput): ShankStation {
     ...(st.section ? { section: st.section } : {}),
     ...(st.section_curve ? { section: "free" as const, curve: { points: st.section_curve.points.map((p) => ({ x: p.x, y: p.y })), knots: st.section_curve.knots ? [...st.section_curve.knots] : undefined } } : {}),
     ...(st.sway_mm ? { swayMm: st.sway_mm } : {}),
+    ...(st.step ? { step: true } : {}),
   };
 }
 
@@ -370,6 +379,7 @@ export function stationTo(st: ShankStation): ShankStationInput {
     thickness_mm: st.thicknessMm,
     ...(st.curve ? { section_curve: { points: st.curve.points.map((p) => ({ x: p.x, y: p.y })), knots: st.curve.knots } } : st.section && st.section !== "free" ? { section: st.section } : {}),
     ...(st.swayMm ? { sway_mm: st.swayMm } : {}),
+    ...(st.step ? { step: true } : {}),
   };
 }
 
@@ -570,6 +580,22 @@ export class RingSession implements ToolHost<RingState> {
   private shownQuality: SolidQuality | null = null;
   /** 今の形が、一体にしない「すぐの形」か（画面は、石座を前の一体の形のまま、腕だけ替えて見せてよい。すぐに一体の形が届く） */
   quick = false;
+  /**
+   * 最後に作った細かい形と、その腕の作り（bandKey）。腕の作りが同じなら（爪の太さ・先の形だけを変えている間）、腕は作り直さずこれを使う（ring.ts の reuseShankOf）。
+   * 前は、すぐの形では腕の彫りを省いていたので、爪のつまみを動かしている間、彫りが消えて見えた（2026-11-07 作者の声）。腕を作り直さないぶん速い
+   */
+  private lastFinal: BandMemo | null = null;
+
+  /** 最後の細かい形の腕を覚える（別の糸から届いた形を組むとき、画面の糸の腕を使い回すため） */
+  rememberBand(band: BandMemo): void {
+    this.lastFinal = band;
+  }
+
+  /** 腕の作りを決める設計の数（爪の太さ・先の形・1 本ずつの爪の直しは、腕を変えないので入れない） */
+  private bandKey(): string {
+    const { prongMm: _a, prongTip: _b, prongLook: _c, prongEdits: _d, ...rest } = this.state;
+    return JSON.stringify([rest, this.stone.longMm, this.stone.widthMm, this.stone.depthMm, this.stone.outlineMm.length, this.stone.outlineMm[0]]);
+  }
 
   private sizeMm() {
     return stoneSizeMm(this.stone.longMm, this.stone.widthMm);
@@ -658,7 +684,7 @@ export class RingSession implements ToolHost<RingState> {
       let b: Built | null = null;
       if (got) {
         try {
-          b = shapeFromSolids(j, got);
+          b = shapeFromSolids(j, got, this.lastFinal);
         } catch {
           b = null;
         }
@@ -673,7 +699,10 @@ export class RingSession implements ToolHost<RingState> {
       }
       if (j.quality === "preview" && this.shownQuality === "final") return;
       this.shownQuality = j.quality;
-      if (j.quality === "final") this.awaitingFinal = false;
+      if (j.quality === "final") {
+        this.awaitingFinal = false;
+        this.lastFinal = { key: this.bandKey(), ring: b.ring };
+      }
       this.quick = false;
       this.built = b;
       this.onChange(b, this.finalWhy, true);
@@ -770,7 +799,9 @@ export class RingSession implements ToolHost<RingState> {
       orientation: s.orientation,
       finish: s.finish,
     };
-    let ring = buildRing(ringParams);
+    // 腕の作りが最後の細かい形と同じなら、その腕を使う（材料が同じなら作り直したのと同じ形。すぐの形では、少しちがっても粒と彫りごと使う）
+    const reuse = this.lastFinal && this.lastFinal.key === this.bandKey() ? this.lastFinal.ring : undefined;
+    let ring = buildRing(reuse ? { ...ringParams, reuseShankOf: reuse } : ringParams);
     // 腕の間に挟めない石：爪が腕を避けられない・角を爪で守れない・下の輪が石に収まらない
     const blocked = (r: typeof ring) =>
       r.setting.join === "between" && (r.setting.prongsOnArm > 0 || r.setting.collarBlocked || cornerDistances(r.setting).some((d) => d > guides.prong.cornerReachMm + 1e-9));
@@ -795,6 +826,7 @@ export class RingSession implements ToolHost<RingState> {
       this.editsDropped = true;
     }
     const problems = checkRing(ring, { position: s.position, guides, guidesFor: (i) => (i === 0 ? guides : slotGuides[i - 1]) }).map((p) => ({ ...p, rule: ruleForCheck(ledger, p.check) }));
+    if (quality === "final") this.lastFinal = { key: this.bandKey(), ring };
     return { ring, problems };
   }
 
