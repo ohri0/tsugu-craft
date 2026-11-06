@@ -89,7 +89,7 @@ export interface TensionInfo {
 }
 
 export interface TensionOptions {
-  /** 角のくぼみに入れる深さ（mm）。なければ GUIDES.tension.cornerPitMm */
+  /** 角のくぼみに入れる深さ（mm）。なければ GUIDES.tension.cornerPitMm（三角を長い辺の両はしの角で挟むときは longCornerPitMm） */
   cornerPitMm?: number;
   /** 辺の溝に入れる深さ（mm）。なければ GUIDES.tension.edgeGrooveMm */
   edgeGrooveMm?: number;
@@ -361,11 +361,12 @@ export function buildTensionBand(p: ShankParams, stone: StoneParams, o: TensionO
   const r = dIn / 2;
   const rc = r + t / 2;
   const clear = o.clearanceMm ?? g.clearanceMm;
-  const pitDepth = o.cornerPitMm ?? g.cornerPitMm;
-  const grooveDepth = o.edgeGrooveMm ?? g.edgeGrooveMm;
-
   // 石の向き：上から見て回し、くぼみの幅の真ん中（なければ石の真ん中）を腕の幅の真ん中へ
   const pose = stonePose(stone, o.grip);
+  // くぼみの深さ：三角を長い辺の両はしの角で挟むときは、作者が本物の指輪で使った値（職人 2026-11-07）。ほかは角と辺の値
+  const longTri = pose.mode === "corner-corner" && pose.cornerCount === 3;
+  const pitDepth = o.cornerPitMm ?? (longTri ? g.longCornerPitMm : g.cornerPitMm);
+  const grooveDepth = o.edgeGrooveMm ?? g.edgeGrooveMm;
   const pitTop = pose.mode !== "edge-edge";
   const pitBot = pose.mode === "corner-corner";
   const hullR = pose.hull.map((q) => rotate(q, pose.rotationZ));

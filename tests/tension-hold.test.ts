@@ -6,7 +6,8 @@ import { buildRing } from "../src/geometry/ring";
 import type { StoneParams } from "../src/geometry/stone";
 import { elasticOpeningMm } from "../src/rules/checks";
 import { GUIDES, type Guides } from "../src/rules/guides";
-import { addRule, effectiveGuides, seedLedger, type Ledger } from "../src/rules/ledger";
+import repo from "../ledger/jewelry.json";
+import { activeRules, addRule, effectiveGuides, seedLedger, type Ledger } from "../src/rules/ledger";
 import { tensionSpring } from "../src/rules/tension-calc";
 import { dropWorkNmm, frictionFactor, holdForClaude, holdWork, ringStiffnessNPerMm, tensionHold, tensionHoldSet, type HoldInput } from "../src/rules/tension-hold";
 import { howToMake } from "../src/studio/howto";
@@ -137,6 +138,19 @@ describe("作者の本物の指輪（SV925・φ4・14 号・三角）", () => {
     expect(shallow.options.map((o) => o.id)).toEqual(expect.arrayContaining(["metal:k18y", "metal:pt900", "wire:4.5"]));
   });
 
+  it("作者が作った指輪（長い辺の両はしの角・0.5 mm ずつ）は既定の深さで、留まる見込み。帳面に職人の言葉がある", () => {
+    const r = authorRing("corner");
+    expect(r.setting.tension!.ends.map((e) => e.depthMm)).toEqual([GUIDES.tension.longCornerPitMm, GUIDES.tension.longCornerPitMm]);
+    const set = holdOf(r);
+    expect(set.now.verdict).toBe("hold");
+    expect(set.atAppSqueeze!.margin).toBeGreaterThan(1);
+    const rule = activeRules(repo as unknown as Ledger).find((x) => x.id === "rule-tension-long-ishikawa")!;
+    expect(rule.source).toEqual({ kind: "craftsman", name: "石川" });
+    expect(rule.date).toBe("2026-11-07");
+    expect(rule.quote).toContain("どっちも 0.5 ぐらい");
+    expect(rule.calc).toBe("tension");
+  });
+
   it("長い辺の両はしの角（作者の本物の向き）：0.8 ＋ 0.8 はまっすぐ開くだけでは入らない、0.5 は留まる見込み、0.3 はぎりぎり、0.2 は足りない", () => {
     expect(holdOf(authorRing("corner", 0.8)).now.verdict).toBe("short");
     expect(holdOf(authorRing("corner", 0.8)).now.limitSqueezeMm).toBeLessThan(0);
@@ -164,11 +178,15 @@ describe("作者の本物の指輪（SV925・φ4・14 号・三角）", () => {
     const s = new RingSession(tri(), () => seedLedger() as Ledger, () => undefined, () => "");
     s.state = { ...DEFAULT_STATE, gou: 14, metal: "sv925" };
     s.setSetting({ style: "tension", tension_grip: "corner", reason: "作者の向き" });
-    expect(s.built!.ring.setting.tension!.ends.map((e) => e.depthMm)).toEqual([0.8, 0.8]);
+    // 長い辺の両はしの角の既定は、職人の値 0.5 mm ずつ（作者が本物の指輪で使った深さ）
+    expect(s.built!.ring.setting.tension!.ends.map((e) => e.depthMm)).toEqual([0.5, 0.5]);
     s.setTensionDepths(0.3, undefined);
     expect(s.built!.ring.setting.tension!.ends.map((e) => e.depthMm)).toEqual([0.3, 0.3]);
     expect(s.check().tension_calc!.hold!.verdict).toBe("ぎりぎり・職人が確かめる");
     s.setTensionDepths(undefined, undefined);
-    expect(s.built!.ring.setting.tension!.ends.map((e) => e.depthMm)).toEqual([0.8, 0.8]);
+    expect(s.built!.ring.setting.tension!.ends.map((e) => e.depthMm)).toEqual([0.5, 0.5]);
+    // 角と辺に戻すと、0.8・0.5 のまま
+    s.setSetting({ tension_grip: "short", reason: "戻す" });
+    expect(s.built!.ring.setting.tension!.ends.map((e) => e.depthMm)).toEqual([0.8, 0.5]);
   });
 });

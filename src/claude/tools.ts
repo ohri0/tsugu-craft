@@ -451,7 +451,7 @@ export const TOOLS: ClaudeTool[] = [
           type: "string",
           enum: ["prong", "bezel", "tension"],
           description:
-            `留め方。prong＝爪留め、bezel＝覆輪（石の縁をぐるりと壁で包む。いちばん取れにくいが、見た目が大きく変わる）、tension＝テンション（開いた腕の両はしで石を挟む。三角の石は、片方の端のくぼみに角の先を ${GUIDES.tension.cornerPitMm} mm、もう片方の端の溝に辺を ${GUIDES.tension.edgeGrooveMm} mm 入れる（tension_grip の corner なら、いちばん長い辺の両はしの角を、両方くぼみに ${GUIDES.tension.cornerPitMm} mm。作者の本物の指輪の向き）。職人の値。腕は φ${GUIDES.tension.wireMm} mm の丸線に替わる。地金は加工硬化した硬い状態が条件。爪・高さ・向きの項目は使わない。挟む向きは tension_grip。check の tension_calc に、地金ごとの大まかな計算がある）`,
+            `留め方。prong＝爪留め、bezel＝覆輪（石の縁をぐるりと壁で包む。いちばん取れにくいが、見た目が大きく変わる）、tension＝テンション（開いた腕の両はしで石を挟む。三角の石は、片方の端のくぼみに角の先を ${GUIDES.tension.cornerPitMm} mm、もう片方の端の溝に辺を ${GUIDES.tension.edgeGrooveMm} mm 入れる（tension_grip の corner なら、いちばん長い辺の両はしの角を、両方くぼみに ${GUIDES.tension.longCornerPitMm} mm。作者が本物の指輪で使った向きと深さ）。職人の値。腕は φ${GUIDES.tension.wireMm} mm の丸線に替わる。地金は加工硬化した硬い状態が条件。爪・高さ・向きの項目は使わない。挟む向きは tension_grip。check の tension_calc に、地金ごとの大まかな計算がある）`,
         },
         prong_positions: {
           type: "array",

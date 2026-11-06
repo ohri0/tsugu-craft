@@ -49,9 +49,9 @@ describe("はじめから入れた決まりの出どころ", () => {
     expect(new Set(pub.map((r) => r.id)).size).toBe(pub.length);
   });
 
-  it("職人の決まりは 11 こ（爪の最低の太さ・角に 1 本ずつ・腕の間に挟む・覆輪の壁・ロウ付けのあとの冷まし方・爪は腕を避ける・爪の下は石座に沿う・小さな石は別の留め方・テンションの深さ・テンションの地金・細い溝は手で彫る）、名前は石川", () => {
+  it("職人の決まりは 12 こ（爪の最低の太さ・角に 1 本ずつ・腕の間に挟む・覆輪の壁・ロウ付けのあとの冷まし方・爪は腕を避ける・爪の下は石座に沿う・小さな石は別の留め方・テンションの深さ・三角を長い辺の角で挟むときの深さ・テンションの地金・細い溝は手で彫る）、名前は石川", () => {
     const mine = activeRules(ring).filter((r) => r.source.kind === "craftsman");
-    expect(mine).toHaveLength(11);
+    expect(mine).toHaveLength(12);
     for (const r of mine) expect(sourceLabel(r.source)).toBe("職人：石川");
   });
 });
