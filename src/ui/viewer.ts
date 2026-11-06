@@ -17,8 +17,9 @@ import { Glow } from "./glow";
 import type { MetalTrace } from "./metal-trace";
 import { GEM_STUDIO, LOOK, METAL_COLOR, METAL_STUDIO, METAL_SURFACE, studioLightScene, type MetalShade } from "./studio-light";
 import { applyFinishLook, type FinishLook } from "./hammer";
-import { GUIDES } from "../rules/guides";
 import { sectionArc, tsuchimeSpec, tsuchimeStyleOf, type RingFinish } from "../geometry/finish";
+import { nunomeMetal, nunomeOf } from "../geometry/nunome";
+import { nunomeTexture } from "./nunome-tex";
 import { guardBufferUploads } from "./gl-upload";
 import { gridSpacing, labelStep, VIEW_DIR, ViewCameras, type FlatViewInfo, type ViewName } from "./view-camera";
 
@@ -90,11 +91,14 @@ function metalMaterial(id: MetalShade): THREE.MeshPhysicalMaterial {
 /** はめこむ地金の色（布目象嵌）：金の地金には純銀、ほかには純金（金・銀は煮色で色が変わらない） */
 const INLAY_GOLD: [number, number, number] = [0.98, 0.69, 0.27];
 const INLAY_SILVER: [number, number, number] = [0.95, 0.94, 0.92];
+/** 作れない模様は、はめこんだ所を赤で見せる（作れない所の赤と同じ色合い） */
+const INLAY_BAD: [number, number, number] = [0.75, 0.04, 0.025];
 /** 腕の面の仕上げ（槌目・布目象嵌）の見え方。なければ null */
-export function finishLookOf(f: RingFinish | undefined, shade: MetalShade, outerRadiusMm: number): FinishLook | null {
+export function finishLookOf(f: RingFinish | undefined, shade: MetalShade, outerRadiusMm: number, centerZ = 0, inlayBad = false): FinishLook | null {
   if (!f || (!f.tsuchime && !f.inlay)) return null;
   const goldBase = shade.startsWith("k18");
   const t = f.tsuchime ? tsuchimeSpec(f.tsuchime) : null;
+  const nd = nunomeOf(f);
   return {
     style: f.tsuchime ? tsuchimeStyleOf(f.tsuchime) : undefined,
     markMm: t?.markMm ?? 0,
@@ -102,7 +106,8 @@ export function finishLookOf(f: RingFinish | undefined, shade: MetalShade, outer
     depthMm: t?.depthMm ?? 0,
     area: f.tsuchime?.area === "all" ? 1 : 0,
     outerRadiusMm,
-    inlay: f.inlay ? { halfMm: GUIDES.finish.nunome.bandMm / 2, lineMm: GUIDES.finish.nunome.lineMm, color: goldBase ? INLAY_SILVER : INLAY_GOLD } : undefined,
+    inlay: nd ? { halfMm: nd.widthMm / 2, color: inlayBad ? INLAY_BAD : nunomeMetal(nd, goldBase) === "silver" ? INLAY_SILVER : INLAY_GOLD, tex: nunomeTexture(nd, 2 * Math.PI * outerRadiusMm) } : undefined,
+    centerZ,
   };
 }
 const WARN = 0xe0342b;
@@ -691,13 +696,46 @@ export class Viewer {
    * 地金だけの形（地金のみの指輪など）。三角形の並び、mm。いちばん下を床（z ＝ 0）に置く。
    * warn：形ぜんぶを赤く光らせる（作れない所があるとき）。spots：赤い線を回す所（幅の位置 x、指の軸からの距離 rho、軸の高さ z。とがった先など）
    */
-  setMetalMesh(positions: Float32Array, metal: MetalId, kind = "metal", o: { warn?: boolean; spots?: { x: number; rho: number; z: number }[]; shade?: MetalShade; tint?: CautionTint } = {}) {
+  setMetalMesh(
+    positions: Float32Array,
+    metal: MetalId,
+    kind = "metal",
+    o: {
+      warn?: boolean;
+      spots?: { x: number; rho: number; z: number }[];
+      shade?: MetalShade;
+      tint?: CautionTint;
+      /** 伝統の仕上げ（槌目・布目象嵌は材質で。ミルの粒は positions の後ろ beadTris の三角形で、仕上げをかけない）。centerZ：輪の中心の高さ */
+      finish?: { finish: RingFinish; centerZ: number; innerRadiusMm: number; outerRadiusMm: number; beadTris: number; inlayBad?: boolean };
+    } = {},
+  ) {
     this.clear();
     const warn = new THREE.MeshPhysicalMaterial({ color: WARN, metalness: 0.35, roughness: 0.3, clearcoat: 0.6, side: THREE.DoubleSide });
     // tint：止めない注意（腕の幅の黄色・オレンジ）。形ぜんぶを、その色で塗る（赤のときは赤が先）
-    const mat = o.warn ? warn : o.tint ? cautionMat(o.tint) : metalMaterial(o.shade ?? metal);
+    const plain = o.warn ? warn : o.tint ? cautionMat(o.tint) : metalMaterial(o.shade ?? metal);
+    const fin = o.finish;
+    const fl = fin && !o.warn && !o.tint ? finishLookOf(fin.finish, o.shade ?? metal, fin.outerRadiusMm, fin.centerZ, fin.inlayBad) : null;
+    const mat = fl ? (applyFinishLook(plain.clone(), fl) as THREE.MeshPhysicalMaterial) : plain;
     if (o.warn || o.spots?.length) this.warnMat = warn;
-    const armMesh = new THREE.Mesh(metalGeometry(positions), mat);
+    const geo = metalGeometry(positions);
+    const totalTris = positions.length / 9;
+    const beadTris = fin?.beadTris ?? 0;
+    if (fl && fin) {
+      // 槌目・象嵌の模様の座標：断面に沿って測った長さ（輪の三角形だけ。輪の中心を原点にして）。粒は 0
+      const pos = geo.getAttribute("position").array as Float32Array;
+      const ringPart = pos.slice(0, (totalTris - beadTris) * 9);
+      for (let i = 2; i < ringPart.length; i += 3) ringPart[i] -= fin.centerZ;
+      const arc = new Float32Array(pos.length / 3);
+      arc.set(sectionArc(ringPart, fin.innerRadiusMm));
+      geo.setAttribute("aFinS", new THREE.BufferAttribute(arc, 1));
+    }
+    let mats: THREE.Material | THREE.Material[] = mat;
+    if (beadTris && fl && beadTris < totalTris) {
+      geo.addGroup(0, (totalTris - beadTris) * 3, 0);
+      geo.addGroup((totalTris - beadTris) * 3, beadTris * 3, 1);
+      mats = [mat, plain];
+    }
+    const armMesh = new THREE.Mesh(geo, mats);
     armMesh.userData.arm = true;
     this.content.add(armMesh);
     for (const s of o.spots ?? []) {
@@ -707,7 +745,7 @@ export class Viewer {
       mark.position.set(s.x, 0, s.z);
       this.content.add(mark);
     }
-    this.metalMat = mat;
+    this.metalMat = plain;
     this.traceParts = [armMesh.geometry];
     this.traceTint.copy(mat.color);
     this.syncTrace();
@@ -737,7 +775,7 @@ export class Viewer {
     this.addStone(ring.ringPositions.stone, ring.stones?.length ? ring.stones.map((st) => st.ranges.stone) : undefined, look, lift, h.tableZ - h.culetZ);
     const metal = metalMaterial(look.shade ?? ring.metal);
     // 槌目・象嵌は腕だけ（石座と爪には打たない）
-    const fl = finishLookOf(ring.params.finish, look.shade ?? ring.metal, ring.shank.outerRadiusMm);
+    const fl = finishLookOf(ring.params.finish, look.shade ?? ring.metal, ring.shank.outerRadiusMm, 0, problems.some((p) => p.check.startsWith("nunome-")));
     const armMetal = fl ? applyFinishLook(metal.clone(), fl) : metal;
     const warn = WARN_LOOK.clone();
     warn.envMap = WARN_LOOK.envMap;

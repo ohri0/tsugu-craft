@@ -234,14 +234,22 @@ function partOf(key: string, v: unknown, stone?: StoneWords): string | null {
     case "metal":
       return `地金 ${METAL[s] ?? s}`;
     case "finish": {
-      const f = v as { tsuchime?: string; tsuchime_style?: string; tsuchime_area?: string; milgrain?: string; inlay?: string };
+      const f = v as { tsuchime?: string; tsuchime_style?: string; tsuchime_area?: string; milgrain?: string; inlay?: string; inlay_pattern?: string; inlay_scale_mm?: number; inlay_line_mm?: number; inlay_width_mm?: number; inlay_metal?: string };
+      const pat: Record<string, string> = { hishi: "菱つなぎ", shippo: "七宝", asanoha: "麻の葉", seigaiha: "青海波", kikko: "亀甲", ichimatsu: "市松", karakusa: "唐草", suji: "筋", naname: "斜め筋", jiyu: "自分の模様" };
+      const inlayBits = [
+        f.inlay_pattern ? pat[f.inlay_pattern] ?? "模様" : "",
+        f.inlay_scale_mm !== undefined ? `大きさ ${num(f.inlay_scale_mm)} mm` : "",
+        f.inlay_line_mm !== undefined ? `線 ${num(f.inlay_line_mm)} mm` : "",
+        f.inlay_width_mm !== undefined ? `帯 ${num(f.inlay_width_mm)} mm` : "",
+        f.inlay_metal === "gold" ? "純金" : f.inlay_metal === "silver" ? "純銀" : "",
+      ].filter(Boolean);
       const size: Record<string, string> = { small: "小", medium: "中", large: "大" };
       const style: Record<string, string> = { maru: "丸槌目", kaku: "角槌目", tate: "縦槌目", arashi: "荒らし槌目" };
       const parts = [
         f.tsuchime ? (f.tsuchime === "none" ? "槌目 なし" : `槌目 ${size[f.tsuchime] ?? f.tsuchime}${f.tsuchime_area === "all" ? "（外側と横）" : ""}`) : f.tsuchime_area ? `槌目の場所 ${f.tsuchime_area === "all" ? "外側と横" : "腕の外側"}` : "",
         f.tsuchime_style && f.tsuchime !== "none" ? style[f.tsuchime_style] ?? f.tsuchime_style : "",
         f.milgrain ? (f.milgrain === "none" ? "ミル打ち なし" : "ミル打ち 腕の縁") : "",
-        f.inlay ? (f.inlay === "none" ? "象嵌 なし" : "布目象嵌") : "",
+        f.inlay === "none" ? "象嵌 なし" : f.inlay || inlayBits.length ? `布目象嵌${inlayBits.length ? `（${inlayBits.join("・")}）` : ""}` : "",
       ].filter(Boolean);
       return parts.length ? parts.join("・") : null;
     }

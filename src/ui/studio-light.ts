@@ -123,7 +123,7 @@ export type MetalShade = "k18y" | "k18yg" | "k18wg" | "k18pg" | "pt900" | "sv925
 /**
  * 煮色（にいろ）の色金の面。煮色は、みがいた地金の上にできるうすい色の膜なので、鏡面より光がやわらかく、つやは控えめ。
  * 膜の上の光（clearcoat）は色を持たない白い映り込みで、膜の下の地金の色（METAL_COLOR）は暗く沈む。
- * 色は辞典の言葉から（ledger/techniques.json の mokume-irogane：赤銅は紫がかった黒、四分一は銀灰、銅は赤茶）。数は見た目のための仮の値
+ * 色は辞典の言葉から（ledger/techniques.json の mokume-irogane：赤銅は紫がかった黒、四分一は銀灰、銅は赤茶）。赤銅は職人の声で、ほとんど黒にした（2026-11-07）。数は見た目のための仮の値
  */
 export interface MetalSurface {
   roughness: number;
@@ -132,7 +132,7 @@ export interface MetalSurface {
   envMapIntensity: number;
 }
 export const METAL_SURFACE: Partial<Record<MetalShade, MetalSurface>> = {
-  shakudo: { roughness: 0.3, clearcoat: 0.75, clearcoatRoughness: 0.18, envMapIntensity: 1.0 },
+  shakudo: { roughness: 0.28, clearcoat: 0.85, clearcoatRoughness: 0.14, envMapIntensity: 0.9 },
   shibuichi: { roughness: 0.45, clearcoat: 0.15, clearcoatRoughness: 0.45, envMapIntensity: 0.9 },
   copper: { roughness: 0.38, clearcoat: 0.4, clearcoatRoughness: 0.28, envMapIntensity: 0.95 },
 };
@@ -148,8 +148,9 @@ export const METAL_COLOR: Record<MetalShade, [number, number, number]> = {
   pt900: [0.8, 0.8, 0.8],
   // SV925：いちばん白く明るい
   sv925: [0.92, 0.91, 0.88],
-  // 赤銅の煮色：紫がかった黒（烏の羽のような、青紫の沈んだ色）
-  shakudo: [0.032, 0.028, 0.04],
+  // 赤銅の煮色：ほとんど黒。かすかな青紫の艶だけ（烏の濡れ羽色）。
+  // 2026-11-07 作者（職人）の声「紫すぎる。煮色のあとの赤銅は、ほとんど黒で、うっすら紫・青の艶があるだけ」で、前の [0.032, 0.028, 0.04] から暗く、赤みを抜いた
+  shakudo: [0.0112, 0.0113, 0.0142],
   // 四分一の煮色：銀灰（つやを抑えた、やわらかい灰色）
   shibuichi: [0.3, 0.295, 0.28],
   // 銅の煮色：赤茶

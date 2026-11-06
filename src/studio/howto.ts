@@ -10,7 +10,8 @@ import { tensionInsert } from "../rules/checks";
 import { GUIDES, type Guides } from "../rules/guides";
 import { SPRING_SHORT_TEXT, tensionSpring, type SpringMetalId } from "../rules/tension-calc";
 import { howtoFor, type HowtoStep } from "../rules/howto-steps";
-import { TSUCHIME_STYLE_LABEL, TSUCHIME_STYLE_NOTE, tsuchimeSpec, tsuchimeStyleOf } from "../geometry/finish";
+import { TSUCHIME_STYLE_LABEL, TSUCHIME_STYLE_NOTE, tsuchimeSpec, tsuchimeStyleOf, type RingFinish } from "../geometry/finish";
+import { NUNOME_AROUND, NUNOME_FORM, NUNOME_LABEL, NUNOME_METAL_LABEL, NUNOME_NOTE, defaultNunome, nunomeLayout, nunomeMetal, nunomeOf } from "../geometry/nunome";
 import { holdSummary, tensionHoldSet } from "../rules/tension-hold";
 import type { AlloyId, Detail } from "./process";
 import { castSteps, dropVDetails, finishStep, forgeSteps, settingStep } from "./steps";
@@ -59,9 +60,18 @@ const srcOf = (...steps: HowtoStep[]): Pick<Step, "sources" | "checkedBy"> => {
  * 手順・道具・失敗しやすい所・出どころは、技の作り方の目安帳（ledger/technique-howto.json の nunome）のまま。指輪の数字（帯・線）は GUIDES.finish.nunome（仮）。
  * 伝統の布目象嵌は鉄の地で、最後に錆を出して止め、焼き付けて地を黒くする。鉄でない地金の指輪では、その工程は「代わりにどうするか」を書く（色金なら煮色、ほかは職人に聞く）
  */
-function nunomeSteps(o: HowToInput): Step[] {
-  const gold = !o.metalLabel.startsWith("K18");
-  const metal = gold ? "純金" : "純銀";
+function nunomeSteps(o: TradCtx): Step[] {
+  const d = nunomeOf(o.finish) ?? defaultNunome();
+  const metal = NUNOME_METAL_LABEL[nunomeMetal(d, o.goldBase)];
+  const lay = nunomeLayout(d, o.circumferenceMm);
+  const fill = NUNOME_FORM[d.pattern] === "fill";
+  const foil = d.foilMm ?? GUIDES.inlay.foilMm;
+  const around = NUNOME_AROUND.find((a) => a.v === (d.around ?? 1))?.label ?? "一周";
+  const lengthMm = lay.u1 - lay.u0;
+  const area = `${mm(d.widthMm, 1)} × ${mm(lengthMm, 1)}（帯の幅 × ${around}の長さ）`;
+  const where = o.kind === "band" ? "指輪の外の面の真ん中" : "腕の外の真ん中";
+  const transform = [d.rotateDeg ? `${d.rotateDeg}° 回す` : "", d.stretch && d.stretch !== 1 ? `腕に沿って ${d.stretch} 倍に伸ばす` : "", d.mirror ? "上下に裏返す" : "", d.offsetMm ? `${mm(d.offsetMm, 1)} ずらす` : ""].filter(Boolean).join("・");
+  const patternWords = `${NUNOME_LABEL[d.pattern]}（くり返しの大きさ ${mm(d.scaleMm, 2)}${transform ? `・${transform}` : ""}）${d.border !== false ? "と両縁の線" : ""}`;
   const prep = ledgerStep("nunome", "地鉄をみがき、下絵を描く");
   const cut = ledgerStep("nunome", "布目を切る");
   const set = ledgerStep("nunome", "金銀を打ちこむ（入嵌）");
@@ -72,9 +82,10 @@ function nunomeSteps(o: HowToInput): Step[] {
     {
       id: "nunome_prep",
       title: "象嵌の下ごしらえ（みがく・図案を写す）",
-      text: "はめこむ所（腕の外の真ん中の帯）を、少しの水をのせたサンドペーパーでみがき、汚れを全部とる。和紙に描いた図案（この指輪では、両縁の線と菱つなぎ）を、筆ではめこむ所へ写す。",
+      text: `はめこむ所（${where}の帯）を、少しの水をのせたサンドペーパーでみがき、汚れを全部とる。和紙に描いた図案（この指輪では ${patternWords}）を、筆ではめこむ所へ写す。`,
       specs: [
-        { label: "帯", value: `幅 約 ${mm(GUIDES.finish.nunome.bandMm)}・腕の外の真ん中（仮）` },
+        { label: "模様", value: `${patternWords}。${NUNOME_NOTE[d.pattern]}` },
+        { label: "模様の範囲", value: `${area}・${where}（仮）` },
         { label: "道具", value: "サンドペーパー・水・和紙の図案・筆（肥後象嵌の工程）" },
       ],
       watch: prep.fail,
@@ -83,8 +94,10 @@ function nunomeSteps(o: HowToInput): Step[] {
     {
       id: "nunome_cut",
       title: "布目を切る",
-      text: cut.text,
+      text: `${cut.text}この指輪では、模様の範囲 ${mm(d.widthMm, 1)} × ${mm(lengthMm, 1)}${fill ? `、平金の形の所` : `、線の太さ ${mm(d.lineMm, 2)} の線の所`}に切る。`,
       specs: [
+        { label: "模様の範囲", value: area },
+        { label: fill ? "平金の形" : "線の太さ", value: fill ? `${NUNOME_LABEL[d.pattern]}の四角（一辺 約 ${mm(d.pattern === "jiyu" ? d.scaleMm / 4 : d.scaleMm, 2)}）${d.border !== false ? `・縁の線 ${mm(d.lineMm, 2)}` : ""}` : mm(d.lineMm, 2) },
         { label: "布目", value: "京象嵌の例：1 mm 四方に 7〜8 本、縦横に" },
         { label: "道具", value: cut.tools ?? "布目切り鏨・金づち" },
       ],
@@ -96,7 +109,12 @@ function nunomeSteps(o: HowToInput): Step[] {
       title: `${metal}を打ちこむ（入嵌）`,
       text: set.text,
       specs: [
-        { label: "線", value: `${metal} ø 約 ${mm(GUIDES.finish.nunome.lineMm, 2)}（資料：0.15〜1.0 mm の線。太さは仮）` },
+        ...(fill
+          ? [{ label: "平金", value: `${metal}の平金 厚み 約 ${mm(foil, 2)}（厚みは資料に無い。仮）・面積 約 ${lay.foilAreaMm2.toFixed(1)} mm²` }]
+          : []),
+        ...(!fill || d.border !== false
+          ? [{ label: "線", value: `${metal} ø 約 ${mm(d.lineMm, 2)}（資料：${GUIDES.inlay.wireMinMm}〜${GUIDES.inlay.wireMaxMm} mm の線）・長さ 約 ${Math.ceil(lay.wireLengthMm)} mm（模様から計算）` }]
+          : []),
         { label: "道具", value: set.tools ?? "鹿の角の槌" },
       ],
       watch: set.fail,
@@ -125,6 +143,21 @@ function nunomeSteps(o: HowToInput): Step[] {
   ];
 }
 
+/** 伝統の仕上げの工程に要る、指輪の値（石の指輪と、地金のみの指輪で同じ） */
+export interface TradCtx {
+  finish?: RingFinish;
+  irogane?: Irogane;
+  metalLabel: string;
+  /** 槌目を打つ所のいちばん薄い厚み（mm） */
+  thicknessMm: number;
+  milgrain?: { count: number; beadMm: number } | null;
+  /** 象嵌を入れる面の一周（mm） */
+  circumferenceMm: number;
+  /** 金の地金か（はめこむのは純銀） */
+  goldBase: boolean;
+  kind: "ring" | "band";
+}
+
 const mm = (v: number, d = 1) => `${v.toFixed(d)} mm`;
 
 export interface HowToInput {
@@ -148,7 +181,7 @@ export interface HowToInput {
 export type Irogane = "shakudo" | "shibuichi" | "copper";
 /** 色金の名前と、煮色の色（辞典：ledger/techniques.json の mokume-irogane） */
 export const IROGANE_WORDS: Record<Irogane, { name: string; color: string }> = {
-  shakudo: { name: "赤銅", color: "紫がかった黒" },
+  shakudo: { name: "赤銅", color: "ほとんど黒（うっすら青紫の艶）" },
   shibuichi: { name: "四分一", color: "銀灰" },
   copper: { name: "銅", color: "赤茶" },
 };
@@ -204,7 +237,22 @@ export function howToMake(o: HowToInput, method0: Method): Step[] {
  * 石は煮色のあとに留める（煮る液と熱に石を入れない）。槌目の面は、ヤスリや紙ヤスリで跡を消さない
  */
 function withTraditional(steps: Step[], o: HowToInput): Step[] {
-  const f = o.ring.params.finish;
+  const sh = o.ring.shank;
+  return withTraditionalCtx(steps, {
+    finish: o.ring.params.finish,
+    irogane: o.irogane,
+    metalLabel: o.metalLabel,
+    thicknessMm: sh.minThicknessMm ?? sh.thicknessMm,
+    milgrain: o.ring.milgrain ? { count: o.ring.milgrain.count, beadMm: o.ring.milgrain.beadMm } : null,
+    circumferenceMm: 2 * Math.PI * sh.outerRadiusMm,
+    goldBase: o.metalLabel.startsWith("K18"),
+    kind: "ring",
+  });
+}
+
+/** 伝統の仕上げの工程を足す（石の指輪と、地金のみの指輪で同じ）。地金のみの指輪には石座がないので、象嵌とミルは仕上げの前 */
+export function withTraditionalCtx(steps: Step[], o: TradCtx): Step[] {
+  const f = o.finish;
   const ir = o.irogane;
   if (!f && !ir) return steps;
   const out = [...steps];
@@ -245,7 +293,7 @@ function withTraditional(steps: Step[], o: HowToInput): Step[] {
       specs: [
         { label: "種類", value: TSUCHIME_STYLE_NOTE[style] },
         { label: "跡の大きさ", value: `${style === "tate" ? `幅 約 ${mm(t.markMm)} × 長さ 約 ${mm(t.lengthMm)}` : `約 ${mm(t.markMm)}`}（${size}。大きさは仮の目安）` },
-        { label: "跡の深さ", value: `約 ${mm(t.depthMm, 2)}（仮）・打ったあとの腕の厚み 約 ${mm((o.ring.shank.minThicknessMm ?? o.ring.shank.thicknessMm) - t.depthMm, 2)}` },
+        { label: "跡の深さ", value: `約 ${mm(t.depthMm, 2)}（仮）・打ったあとの${o.kind === "band" ? "厚み" : "腕の厚み"} 約 ${mm(o.thicknessMm - t.depthMm, 2)}` },
       ],
       watch: "打つたびに形がゆがむので、ゆがみを取りながら、跡の大きさと深さをそろえる。材や厚みが変わったら、先に見本を打って確かめる。硬くなったら焼きなます。",
       ...srcOf(pick, even),
@@ -257,7 +305,7 @@ function withTraditional(steps: Step[], o: HowToInput): Step[] {
   // ミル打ち・象嵌・煮色は、みがき（仕上げ）と石留めのまわり
   const extra: Step[] = [];
   if (f?.milgrain) {
-    const mg = o.ring.milgrain;
+    const mg = o.milgrain;
     const d = mg?.beadMm ?? GUIDES.finish.milgrain.beadMm;
     extra.push({
       id: "milgrain",
@@ -315,7 +363,9 @@ function withTraditional(steps: Step[], o: HowToInput): Step[] {
     const inlay = extra.filter((x) => x.id?.startsWith("nunome"));
     const mil = extra.filter((x) => x.id === "milgrain");
     const si = out.findIndex((x) => x.id === "prong" || x.id === "bezel" || x.id === "tension_set");
-    if (inlay.length) out.splice(si >= 0 ? si : out.length, 0, ...inlay);
+    // 石座のない指輪（地金のみ）は、仕上げ（みがく）の前
+    const fiIn = at("finish");
+    if (inlay.length) out.splice(si >= 0 ? si : fiIn >= 0 ? fiIn : out.length, 0, ...inlay);
     const fi = at("finish");
     out.splice(fi >= 0 ? fi : out.length, 0, ...mil);
     if (niiro.length) out.push(...niiro);

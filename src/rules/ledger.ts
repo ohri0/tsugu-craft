@@ -27,6 +27,14 @@ export const PARAMS = {
   "tension.holdDropMm": { label: "テンションの外れにくさ：落としても外れない高さ（仮の目安 1000 mm）", unit: "mm", checks: [] },
   "tension.holdFriction": { label: "テンションの外れにくさ：石と地金の摩擦の係数（仮の目安 0.1）", unit: "", checks: [] },
   "hold.cornerSet": { label: "角が 3 つの石を、角に 1 本ずつの爪 3 本で留めたとき 4 本と同じ留まりとみなす（1 ＝ みなす）", unit: "", checks: ["hold"] },
+  "inlay.wireMinMm": { label: "布目象嵌：打ちこむ線の太さ（最低）", unit: "mm", checks: ["nunome-line"] },
+  "inlay.wireMaxMm": { label: "布目象嵌：打ちこむ線の太さ（最大）", unit: "mm", checks: ["nunome-line"] },
+  "inlay.minGapMm": { label: "布目象嵌：線と線の間の地（最低。仮の目安 0.25 mm）", unit: "mm", checks: ["nunome-gap"] },
+  "inlay.minPieceMm": { label: "布目象嵌：離れた金銀のかけらの大きさ（最低。仮の目安 0.5 mm）", unit: "mm", checks: ["nunome-piece"] },
+  "inlay.edgeMarginMm": { label: "布目象嵌：帯の端から面の角までの残し（最低。仮の目安 0.3 mm）", unit: "mm", checks: ["nunome-fit"] },
+  "inlay.faceCornerDeg": { label: "布目象嵌：帯がまたげない面の折れ目の角度（仮の目安 30°）", unit: "°", checks: ["nunome-fit"] },
+  "inlay.foilMinMm": { label: "布目象嵌：平金の厚み（最低。仮の目安 0.05 mm）", unit: "mm", checks: ["nunome-foil"] },
+  "inlay.foilMaxMm": { label: "布目象嵌：平金の厚み（最大。仮の目安 0.3 mm）", unit: "mm", checks: ["nunome-foil"] },
 } as const satisfies Record<string, { label: string; unit: string; checks: readonly CheckId[] }>;
 
 export type ParamId = keyof typeof PARAMS;

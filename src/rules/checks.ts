@@ -7,6 +7,7 @@ import { findThinSpots, type ThinSpot } from "../geometry/section-thin";
 import { stoneSpaces } from "../geometry/multi";
 import { tipMeasures, type SettingResult } from "../geometry/setting";
 import type { TensionEnd, TensionInfo } from "../geometry/tension";
+import { checkNunome, faceSpan, nunomeOf, type NunomeCheck, type NunomeDesign, type NunomeIssue } from "../geometry/nunome";
 import { GUIDE_NOTE, GUIDES, type Guides, type StonePosition } from "./guides";
 import { prongMinOverride } from "./ledger";
 
@@ -53,6 +54,12 @@ export const FIXES = {
   smallerTsuchime: { label: "槌目を小さくする", effectOnLook: "跡が浅く細かくなり、光がこまかく散る" },
   noTsuchime: { label: "槌目をやめる", effectOnLook: "腕がなめらかな鏡面にもどる" },
   noMilgrain: { label: "ミル打ちをやめる", effectOnLook: "腕の縁がすっきり見える" },
+  inlayLine: { label: "象嵌の線の太さを直す", effectOnLook: "模様の線が少し太く（細く）見える" },
+  inlayLarger: { label: "象嵌の模様を大きくする", effectOnLook: "模様がゆったりして、地が広く見える" },
+  inlayNarrower: { label: "象嵌の帯を細くする", effectOnLook: "帯が細く、控えめになる" },
+  inlayFoil: { label: "平金の厚みを直す", effectOnLook: "見た目はほとんど変わらない" },
+  inlayBorder: { label: "象嵌の縁の線をつける", effectOnLook: "帯の両縁に細い線が入る" },
+  noInlay: { label: "象嵌をやめる", effectOnLook: "腕が地金だけにもどる" },
 } as const satisfies Record<string, Omit<FixOption, "id">>;
 
 function fix(...ids: FixId[]): FixOption[] {
@@ -88,7 +95,9 @@ export type CheckId =
   | "tension-sunk"
   | "tension-overhang"
   | "tsuchime-thin"
-  | "milgrain-fit";
+  | "milgrain-fit"
+  /** 布目象嵌の模様が作れるか（線の太さ・地のすき間・小さなかけら・帯が面に収まるか・平金の厚み） */
+  | NunomeCheck;
 
 /** 問題の場所（画面で赤くする所） */
 export type CheckTarget =
@@ -107,7 +116,9 @@ export type CheckTarget =
   /** 腕の間に挟む石座の、下の輪（板を丸めた輪）ぜんぶ */
   | { kind: "collar" }
   /** 腕の端が下の輪に当たる所（point は指輪の座標 mm） */
-  | { kind: "band-end"; point: [number, number, number] };
+  | { kind: "band-end"; point: [number, number, number] }
+  /** 布目象嵌の模様（腕は赤くせず、はめこんだ模様を赤く見せる） */
+  | { kind: "inlay" };
 
 export interface Problem {
   /** 確かめの種類と場所（例：prong-thin:2） */
@@ -124,6 +135,8 @@ export interface Problem {
   reason: string;
   options: FixOption[];
   target: CheckTarget;
+  /** 布目象嵌の問題の直し方（直した模様の値。画面と Claude の直し方が使う） */
+  nunomePatch?: Partial<NunomeDesign>;
   /**
    * 石を並べた指輪で、どの石の問題か（RingDesign.stones の番号。なければ 0 ＝ 真ん中の石）。
    * target の爪・角・縁の位置は、この石の座標
@@ -652,7 +665,38 @@ export function checkFinish(ring: Pick<RingDesign, "shank" | "params" | "milgrai
       });
     }
   }
+  const nd = nunomeOf(f);
+  if (nd) {
+    const face = sh.outlineMm?.length ? faceSpan(sh.outlineMm.map(([x, y]) => ({ x, y })), false, g) : null;
+    for (const is of checkNunome(nd, { circumferenceMm: 2 * Math.PI * sh.outerRadiusMm, face }, g)) out.push(nunomeProblem(is));
+  }
   return out;
+}
+
+/** 布目象嵌の確かめの直し方の名前 */
+export function nunomeFixId(is: Pick<NunomeIssue, "check" | "patch">): FixId {
+  if (is.check === "nunome-line") return "inlayLine";
+  if (is.check === "nunome-foil") return "inlayFoil";
+  if (is.check === "nunome-fit") return "inlayNarrower";
+  if (is.check === "nunome-piece" && is.patch.border) return "inlayBorder";
+  return "inlayLarger";
+}
+
+/** 布目象嵌の確かめ → 指輪の問題の形（腕を赤く） */
+export function nunomeProblem(is: NunomeIssue): Problem {
+  return {
+    id: is.check,
+    check: is.check,
+    where: `布目象嵌：${is.title}`,
+    current: is.current,
+    required: is.required,
+    currentValue: is.currentValue,
+    requiredValue: is.requiredValue,
+    reason: is.why,
+    options: fix(nunomeFixId(is), "noInlay"),
+    target: { kind: "inlay" },
+    nunomePatch: is.patch,
+  };
 }
 
 /**

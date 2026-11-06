@@ -1,6 +1,6 @@
 // 地金のみの指輪（甲丸・平打ち ほか）：形・作れるかの判定・作り方。画面に依存しない。
 // 断面は src/cad/section.ts（見本・手で描いた線・内甲丸）、形は src/cad/solid.ts の、断面を回して作る指輪（上と下で断面を変えられる）。
-import { SECTION_LABEL, SECTION_LIST, bandCurve, innerLimit, isSectionKind, matchLoops, matchPreset, sectionInfo, thinOutline, valleyOf, type PresetKind, type SectionKind, type SectionSpec } from "../cad/section";
+import { SECTION_LABEL, SECTION_LIST, bandCurve, innerLimit, isSectionKind, matchLoops, matchPreset, sectionInfo, sectionLoop, thinOutline, valleyOf, type PresetKind, type SectionKind, type SectionSpec } from "../cad/section";
 import { bandSolid, meshVolume } from "../cad/solid";
 import { GUIDES, GUIDE_NOTE, type Guides } from "../rules/guides";
 import { SPIKE_TEXT, WIDTH_RED_TEXT, narrowGroove, sectionSpots, widthFixMm, widthLevel, widthNoteOf, type GrooveNote, type WidthNote } from "../rules/checks";
@@ -10,6 +10,9 @@ import type { ClaudeTool } from "../claude/wire";
 import type { Step } from "./howto";
 import type { AlloyId } from "./process";
 import { castSteps, finishStep, forgeSteps } from "./steps";
+import { finishWords, milgrainBeads, tsuchimeStyleOf, type RingFinish } from "../geometry/finish";
+import { checkNunome, faceSpan, nunomeOf, type NunomeCheck, type NunomeDesign } from "../geometry/nunome";
+import { withTraditionalCtx, type Irogane } from "./howto";
 
 export { SECTION_LABEL, SECTION_LIST, type SectionKind };
 
@@ -43,6 +46,8 @@ export interface Band {
   bottomCurve?: SectionCurve;
   /** 幅や厚みを人が決めたか（決める前は、見本を選ぶと、その見本のはじめの寸法になる） */
   dimsSet?: boolean;
+  /** 伝統の仕上げ（槌目・ミル打ち・布目象嵌。なければ鏡面）。石の指輪の腕と同じ形（2026-11-07） */
+  finish?: RingFinish;
 }
 
 /** 指のまわりの分け方（形を作るための決まり） */
@@ -97,10 +102,35 @@ export function sections(b: Band): { top: SectionSpec; bottom: SectionSpec } {
   return { top, bottom: alike ? top : specOf(b, "bottom") };
 }
 
-/** 形（三角形の並び、mm）と、重さの目安（g） */
-export function bandMesh(b: Band): { positions: Float32Array; weightG: number } {
-  const positions = bandSolidOf(b);
-  return { positions, weightG: (Math.abs(meshVolume(positions)) / 1000) * b.density };
+/** 指輪の輪の中心の高さ（mm。いちばん下を床 z ＝ 0 に置いたとき）。指の軸は x */
+export function bandCenterZ(b: Band): number {
+  const { top, bottom } = sections(b);
+  const [, lb] = matchLoops(top, bottom);
+  return bandInnerDiameter(b.gou) / 2 + Math.max(...lb.map((p) => p.h));
+}
+
+/** 外の面の一周（いちばん上の外の半径で。象嵌の模様を並べる長さ） */
+export const bandCircumference = (b: Band): number => 2 * Math.PI * (bandInnerDiameter(b.gou) / 2 + b.top.thickness);
+
+/**
+ * 形（三角形の並び、mm）と、重さの目安（g）。ミル打ちがあれば、粒と細い縁を輪の三角形の後ろに足す（1 つずつ閉じた形。STL に入る）。
+ * milgrain：粒の数・大きさと、粒の三角形の数（画面で、輪の三角形と分けるため）
+ */
+export function bandMesh(b: Band): { positions: Float32Array; weightG: number; milgrain?: { count: number; beadMm: number; triangles: number }; centerZ: number } {
+  const ring = bandSolidOf(b);
+  const cz = bandCenterZ(b);
+  const volume = Math.abs(meshVolume(ring));
+  if (!b.finish?.milgrain) return { positions: ring, weightG: (volume / 1000) * b.density, centerZ: cz };
+  // 粒の処理は、輪の中心を原点にした座標（指輪の座標）で
+  const shifted = ring.slice();
+  for (let i = 2; i < shifted.length; i += 3) shifted[i] -= cz;
+  const mg = milgrainBeads(shifted, null);
+  const beads = mg.positions.slice();
+  for (let i = 2; i < beads.length; i += 3) beads[i] += cz;
+  const positions = new Float32Array(ring.length + beads.length);
+  positions.set(ring);
+  positions.set(beads, ring.length);
+  return { positions, weightG: ((volume + mg.volumeMm3) / 1000) * b.density, milgrain: { count: mg.count, beadMm: mg.beadMm, triangles: mg.triangles }, centerZ: cz };
 }
 
 function bandSolidOf(b: Band, gap?: { fromDeg: number; toDeg: number }): Float32Array {
@@ -208,6 +238,7 @@ export function bandSpecRows(b: Band, weightG: number): { label: string; value: 
     ...(allRound(b) ? [{ label: "線の太さ", value: `ø ${b.top.width} mm` }] : sameSize(b) ? [{ label: "幅 × 厚み", value: size(b.top) }] : [{ label: "上（見える側）", value: size(b.top) }, { label: "下（手のひら側）", value: size(b.bottom) }]),
     ...innerRows(b),
     { label: "地金", value: `${b.metalLabel} ・ 約 ${weightG.toFixed(1)} g` },
+    ...(b.finish ? [{ label: "仕上げ", value: finishWords(b.finish, b.metalLabel.startsWith("K18")).join("・") }] : []),
   ];
 }
 
@@ -223,7 +254,7 @@ function innerRows(b: Band): { label: string; value: string }[] {
 
 export interface BandProblem {
   /** 確かめの種類（帳面の決まりと、手で変える欄に結びつける） */
-  check: "band-thin" | "band-narrow" | "band-spike" | "band-valley";
+  check: "band-thin" | "band-narrow" | "band-spike" | "band-valley" | "tsuchime-thin" | "milgrain-fit" | NunomeCheck;
   title: string;
   current: string;
   required: string;
@@ -322,6 +353,85 @@ export function checkBand(b: Band, guides: Guides = GUIDES): BandProblem[] {
       fix: { label: "断面を描き直す", apply: (x) => x, editor: true },
     });
   }
+  out.push(...checkBandFinish(b, guides));
+  return out;
+}
+
+/** 仕上げを変えた指輪 */
+const withFinish = (b: Band, f: RingFinish): Band => ({ ...b, finish: f.tsuchime || f.milgrain || f.inlay ? f : undefined });
+
+/**
+ * 伝統の仕上げが、この指輪に入るか（石の指輪の腕と同じ決まり。checks.ts の checkFinish と、布目象嵌の checkNunome）。
+ * 槌目：いちばん薄い所から跡の深さを引いて、厚みの目安を下回らないか（仮）。ミル：粒 2 列と間の地の幅があるか（仮）。
+ * 布目象嵌：上の断面（見える側）で、帯が面に収まるか・線・地のすき間・かけら・平金
+ */
+export function checkBandFinish(b: Band, guides: Guides = GUIDES): BandProblem[] {
+  const f = b.finish;
+  if (!f) return [];
+  const g = guides;
+  const out: BandProblem[] = [];
+  const thin = Math.min(b.top.thickness, b.bottom.thickness);
+  if (f.tsuchime && thin >= g.band.minThicknessMm - 1e-9) {
+    const depth = (tsuchimeStyleOf(f.tsuchime) === "arashi" ? g.finish.tsuchimeStyle.arashi : g.finish.tsuchime[f.tsuchime.size]).depthMm;
+    if (thin - depth < g.band.minThicknessMm - 1e-9) {
+      const ts = f.tsuchime;
+      out.push({
+        check: "tsuchime-thin",
+        title: "槌目を打つには薄い",
+        current: `打ったあと ${(thin - depth).toFixed(2)} mm（跡の深さ ${depth.toFixed(2)} mm）`,
+        required: `${g.band.minThicknessMm} mm 以上（仮の決まり）`,
+        why: `槌目は叩いて跡をつけるので、跡の深さだけ薄くなる（厚みの目安を借りた仮の決まり。跡の深さも仮。${GUIDE_NOTE}）`,
+        fix: {
+          label: ts.size !== "small" && tsuchimeStyleOf(ts) !== "arashi" ? "槌目を小さくする" : "槌目をやめる",
+          apply: (x) => {
+            const cur = x.finish?.tsuchime;
+            if (!cur) return x;
+            const next = { ...x.finish! };
+            if (cur.size === "large") next.tsuchime = { ...cur, size: "medium" };
+            else if (cur.size === "medium" && tsuchimeStyleOf(cur) !== "arashi") next.tsuchime = { ...cur, size: "small" };
+            else delete next.tsuchime;
+            return withFinish(x, next);
+          },
+        },
+      });
+    }
+  }
+  if (f.milgrain) {
+    const w = Math.min(b.top.width, b.bottom.width);
+    const bead = g.finish.milgrain.beadMm;
+    const need = bead * g.finish.milgrain.rowsPerBeadWidth;
+    if (w < need - 1e-9) {
+      out.push({
+        check: "milgrain-fit",
+        title: "ミルの粒が縁に収まらない",
+        current: `幅 ${w.toFixed(2)} mm（粒 ø${bead.toFixed(2)} mm）`,
+        required: `${need.toFixed(2)} mm 以上（粒 2 列と、その間の地。仮の決まり）`,
+        why: `ミルの粒は縁の幅に合わせる（手打ちの鏨は ${g.finish.milgrain.toolMinMm}〜${g.finish.milgrain.toolMaxMm} mm）。細い指輪の両縁に打つと、粒どうしがぶつかり、縁がえぐれる（${GUIDE_NOTE}）`,
+        fix: {
+          label: "ミル打ちをやめる",
+          apply: (x) => {
+            const next = { ...(x.finish ?? {}) };
+            delete next.milgrain;
+            return withFinish(x, next);
+          },
+        },
+      });
+    }
+  }
+  const nd = nunomeOf(f);
+  if (nd) {
+    const face = faceSpan(sectionLoop(specOf(b, "top")).map((p) => ({ x: p.x, y: p.h })), true, g);
+    for (const is of checkNunome(nd, { circumferenceMm: bandCircumference(b), face }, g)) {
+      out.push({
+        check: is.check,
+        title: `布目象嵌：${is.title}`,
+        current: is.current,
+        required: is.required,
+        why: is.why,
+        fix: { label: is.fixLabel, apply: (x) => (x.finish?.inlay ? withFinish(x, { ...x.finish, nunome: { ...(nunomeOf(x.finish) as NunomeDesign), ...is.patch } }) : x) },
+      });
+    }
+  }
   return out;
 }
 
@@ -349,7 +459,24 @@ function carveWords(b: Band): string[] {
 }
 
 /** 作り方（手作り・鋳造）。数字は形から計算した目安 */
-export function bandHowTo(b: Band, method: "hand" | "cast", weightG: number, alloy?: AlloyId | null): Step[] {
+export function bandHowTo(b: Band, method0: "hand" | "cast", weightG: number, alloy?: AlloyId | null, o: { irogane?: Irogane; goldBase?: boolean; milgrainCount?: number } = {}): Step[] {
+  // 色金は板と線から作る（鋳造の工程は出さない。石の指輪と同じ）
+  const method = o.irogane ? "hand" : method0;
+  const steps = bandBaseSteps(b, method, weightG, alloy);
+  if (!b.finish && !o.irogane) return steps;
+  return withTraditionalCtx(steps, {
+    finish: b.finish,
+    irogane: o.irogane,
+    metalLabel: b.metalLabel,
+    thicknessMm: Math.min(b.top.thickness, b.bottom.thickness),
+    milgrain: b.finish?.milgrain ? { count: o.milgrainCount ?? 0, beadMm: GUIDES.finish.milgrain.beadMm } : null,
+    circumferenceMm: bandCircumference(b),
+    goldBase: o.goldBase ?? b.metalLabel.startsWith("K18"),
+    kind: "band",
+  });
+}
+
+function bandBaseSteps(b: Band, method: "hand" | "cast", weightG: number, alloy?: AlloyId | null): Step[] {
   const id = bandInnerDiameter(b.gou);
   const t = Math.max(b.top.thickness, b.bottom.thickness);
   const w = Math.max(b.top.width, b.bottom.width);

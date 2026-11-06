@@ -19,7 +19,7 @@ import { cannotFrom, hasJapanese, offlineWhy, plainWords, ruleTitles, toolLogLin
 import { STONE_FREE_NOTE, STONE_KEEP_NOTE, correctPrompt, designPrompt, gouNote } from "../claude/prompt";
 import { craftPointsFromProposal, designNowText, isPointProposal, previewPoints, type DesignNow, type PointsPreview } from "../claude/rule-points";
 import { craftProngPoints, craftProngRule, mergeCraftPoints, mmText, prongMinAt, prongPointsRule, prongTable } from "../rules/prong-points";
-import { TOOLS, isIrogane, type ChooseStoneInput, type ChooseStoneResult, type FinishInput, type ProposeRuleInput, type ProposeRuleResult, type ToolHost, type Metal } from "../claude/tools";
+import { TOOLS, isIrogane, nunomeInput, type ChooseStoneInput, type ChooseStoneResult, type FinishInput, type ProposeRuleInput, type ProposeRuleResult, type ToolHost, type Metal } from "../claude/tools";
 import { MILGRAIN_OFFERED, TSUCHIME_AREA_LABEL, TSUCHIME_LABEL, TSUCHIME_STYLE_LABEL, TSUCHIME_STYLE_NOTE, finishWords, tsuchimeSpec, tsuchimeStyleOf, type TsuchimeStyle } from "../geometry/finish";
 import type { ClaudeContentBlockParam } from "../claude/wire";
 import { patternSvg } from "../pattern/sheet";
@@ -51,7 +51,9 @@ import { loadWorks, newWorkId, removeSampleWorks, removeWork, saveWork, updateWo
 import { cardFlow, glossOf, markTerms, stepCard } from "./cards";
 import { NOTE, type AlloyId } from "./process";
 import type { Step } from "./howto";
-import { MAKE_BAND, SECTION_LABEL, bandGrooveNote, bandWidthNote, SECTION_LIST, applyDraft, bandCutMesh, bandHowTo, bandInnerDiameter, bandMesh, bandPrompt, bandSpecRows, checkBand, defaultBand, normalizeBand, parseBand, pickSection, sectionWord, sizeWord, specOf, thinSpotsOf, type Band, type BandDraft, type BandProblem } from "./band";
+import { bindNunomePanel, nunomePanelHtml, type NunomeHost } from "./nunome-panel";
+import { faceSpan } from "../geometry/nunome";
+import { MAKE_BAND, SECTION_LABEL, bandGrooveNote, bandWidthNote, SECTION_LIST, applyDraft, bandCenterZ, bandCutMesh, bandHowTo, bandInnerDiameter, bandMesh, bandPrompt, bandSpecRows, checkBand, defaultBand, normalizeBand, parseBand, pickSection, sectionWord, sizeWord, specOf, thinSpotsOf, type Band, type BandDraft, type BandProblem } from "./band";
 import { BAND_GOU_RANGE, bandTarget, renderBandPanel, type BandPanelHost } from "./band-panel";
 import { sectionLoop, sectionPath, type PresetKind, type SectionSpec } from "../cad/section";
 import { effectiveGuides } from "../rules/ledger";
@@ -1769,6 +1771,11 @@ const SHORT: Record<string, string> = {
   "tension-overhang": "石が腕の幅から出すぎる",
   "tsuchime-thin": "槌目を打つには腕が薄い",
   "milgrain-fit": "ミルの粒が腕の縁に収まらない",
+  "nunome-line": "象嵌の線の太さが打ちこめる幅の外",
+  "nunome-gap": "象嵌の線と線の間がせまい",
+  "nunome-piece": "象嵌に離れた小さなかけら",
+  "nunome-fit": "象嵌の帯が腕の面に収まらない",
+  "nunome-foil": "象嵌の平金の厚みが目安の外",
 };
 function grouped(b: Built) {
   const groups = new Map<string, { p: (typeof b.problems)[number]; n: number }>();
@@ -2611,7 +2618,24 @@ function renderCheck() {
   // 腕の線：肩と下の幅・厚み・断面
   bindShankLine(box, session!, renderCheck);
   bindRingSectionEditor(box);
+  if (s.finish?.inlay) bindNunomePanel(box, stoneNunomeHost());
   box.querySelector(".to-build")!.addEventListener("click", () => setMode("hand"));
+}
+/** 象嵌の模様の欄の地の色（模様の絵の地。見た目のための色） */
+const GROUND_CSS: Record<Metal, string> = { k18yg: "#d6ae62", k18wg: "#d9d6cf", k18pg: "#dfa48e", pt900: "#cfcfcf", sv925: "#e2e0da", shakudo: "#16161b", shibuichi: "#86847f", copper: "#5e2c1c" };
+/** 石の指輪の「象嵌の模様」の欄の相手（腕の外の面と、今の設計） */
+function stoneNunomeHost(): NunomeHost {
+  return {
+    finish: () => session?.state.finish,
+    ctx: () => {
+      const sh = session!.built!.ring.shank;
+      return { circumferenceMm: 2 * Math.PI * sh.outerRadiusMm, face: sh.outlineMm?.length ? faceSpan(sh.outlineMm.map(([x, y]) => ({ x, y })), false, session!.guides()) : null };
+    },
+    goldBase: () => session!.state.metal.startsWith("k18"),
+    groundColor: () => GROUND_CSS[session!.state.metal],
+    guides: () => session!.guides(),
+    set: (patch) => session!.setShank({ finish: nunomeInput(patch), reason: "手で" }),
+  };
 }
 // ---- 伝統の仕上げ（煮色の色金・槌目・ミル打ち・布目象嵌）。2026-11-06 作者が作ると決めた ----
 /** 色金を「なし」に戻したときの地金（色金を選ぶ前の地金） */
@@ -2619,7 +2643,7 @@ let plainMetal: Metal = "k18yg";
 const TRAD_KEYS = { 色金: "metal", 槌目: "tsuchime_style", 槌目の大きさ: "tsuchime", 槌目の場所: "tsuchime_area", ミル打ち: "milgrain", 象嵌: "inlay" } as const;
 /** それぞれの技の、ふつうの言葉の一行（数は目安・仮。最後は職人が決める） */
 const TRAD_NOTE: Record<keyof typeof TRAD_KEYS, string> = {
-  色金: "銅に金や銀を混ぜた地金を、液で煮て色を出す（煮色）。赤銅は紫がかった黒、四分一は銀灰、銅は赤茶になる",
+  色金: "銅に金や銀を混ぜた地金を、液で煮て色を出す（煮色）。赤銅はほとんど黒（うっすら青紫の艶）、四分一は銀灰、銅は赤茶になる",
   槌目: "金づちで叩いた跡を、模様として面に残す。鎚の面の形で跡の形が変わる",
   槌目の大きさ: "小さい跡は細かく光り、大きい跡は力強く見える",
   槌目の場所: "指に当たる内側には打たない",
@@ -2639,6 +2663,7 @@ function tradHtml(pick: <T extends string | number>(name: string, cur: T, list: 
     ${f?.tsuchime ? `${pick("槌目の場所", f.tsuchime.area, [["outer", TSUCHIME_AREA_LABEL.outer], ["all", TSUCHIME_AREA_LABEL.all]])}${note("槌目の場所")}` : ""}
     ${MILGRAIN_OFFERED ? `${pick("ミル打ち", f?.milgrain ?? "none", [["none", "なし"], ["edges", "腕の縁"]])}${note("ミル打ち")}` : ""}
     ${pick("象嵌", f?.inlay ?? "none", [["none", "なし"], ["nunome", "布目象嵌"]])}${note("象嵌")}
+    ${f?.inlay && session?.built ? nunomePanelHtml(stoneNunomeHost()) : ""}
     <p class="trad-foot">槌目の跡 ${f?.tsuchime ? tsuchimeMarkWords(f.tsuchime) : `${GUIDES.finish.tsuchimeStyle.arashi.markMm}〜${GUIDES.finish.tsuchime.large.markMm} mm`}${MILGRAIN_OFFERED ? `・ミルの粒 ø${beadMm.toFixed(2)} mm` : ""} は仮の目安。最後は職人が決める。</p>
   </section>`;
 }
@@ -3013,6 +3038,20 @@ function applyFix(id: string, sess: RingSession = session!, prob?: Problem) {
     case "noMilgrain":
       session!.setShank({ finish: { milgrain: "none" }, reason: "直し方から" });
       break;
+    case "noInlay":
+      session!.setShank({ finish: { inlay: "none" }, reason: "直し方から" });
+      break;
+    case "inlayLine":
+    case "inlayLarger":
+    case "inlayNarrower":
+    case "inlayFoil":
+    case "inlayBorder": {
+      // 確かめが出した直した模様（なければ、今の問題から探す）
+      const patch = prob?.nunomePatch ?? session!.built!.problems.find((p) => p.nunomePatch && p.options.some((o) => o.id === id))?.nunomePatch;
+      if (patch) session!.setShank({ finish: nunomeInput(patch), reason: "直し方から" });
+      else session!.build("直し方から");
+      break;
+    }
     case "thickerBand":
       session!.setShank({ ...bandFixInput("thickerBand", s), reason: "直し方から" });
       break;
@@ -3222,7 +3261,7 @@ function printSheet() {
           specs: [...bandSpecRows(band, bandWeight), ...widthSpecRow(bandWidthNote(band, bandGuides())), ...grooveSpecRow(bandGrooveNote(band, bandGuides()))],
           problems: probs.map((p) => `${p.title}（${p.current} → ${p.required}）`),
           methodLabel: method === "hand" ? "鍛造" : "鋳造",
-          steps: bandHowTo(band, method, bandWeight, alloyOf(bandMetal)),
+          steps: bandSteps(method),
           patternSvg: "",
         }),
       );
@@ -3757,6 +3796,11 @@ const CHECK_CONTROL: Record<string, string> = {
   "tension-overhang": '.pick:has(button[data-k="挟む向き"])',
   "tsuchime-thin": '.pick:has(button[data-k="槌目"])',
   "milgrain-fit": '.pick:has(button[data-k="ミル打ち"])',
+  "nunome-line": '.nm-panel .slider[data-s="nm-line"]',
+  "nunome-gap": '.nm-panel .slider[data-s="nm-scale"]',
+  "nunome-piece": '.nm-panel .slider[data-s="nm-scale"]',
+  "nunome-fit": '.nm-panel .slider[data-s="nm-width"]',
+  "nunome-foil": '.nm-panel .slider[data-s="nm-foil"]',
 };
 function markBadControls() {
   document.querySelectorAll(".ctl-bad, .ctl-warn, .ctl-warn2").forEach((e) => e.classList.remove("ctl-bad", "ctl-warn", "ctl-warn2"));
@@ -3902,6 +3946,14 @@ let bandMetal: Metal = "k18yg";
 let band: Band = defaultBand(GUIDES.metals.k18y.densityGPerCm3, METAL_LABEL.k18yg);
 let bandWeight = 0;
 let bandPositions: Float32Array | null = null;
+/** ミル打ちの粒（粒の数と三角形の数） */
+let bandMilgrain: { count: number; beadMm: number; triangles: number } | null = null;
+/** 仕上げの確かめ（象嵌の模様・槌目・ミル）。腕ぜんぶを赤くせず、仕上げの欄で赤く見せる */
+const isFinishCheck = (c: string) => c.startsWith("nunome-") || c === "tsuchime-thin" || c === "milgrain-fit";
+/** 地金のみの指輪の作り方（色金なら手作り。仕上げの工程つき） */
+function bandSteps(m: Method) {
+  return bandHowTo(band, m, bandWeight, alloyOf(bandMetal), { irogane: isIrogane(bandMetal) ? bandMetal : undefined, goldBase: bandMetal.startsWith("k18"), milgrainCount: bandMilgrain?.count });
+}
 /** 切って断面を見ているか（3D の見た目だけ。STL・重さ・図面は、いつも輪のまま） */
 let bandCut = false;
 
@@ -3938,7 +3990,11 @@ function placeBand(probs: BandProblem[], cut = bandCut) {
   const r = bandInnerDiameter(band.gou) / 2;
   const z = r + band.bottom.thickness;
   const spots = probs.some((p) => p.check === "band-spike") ? thinSpotsOf(band, bandGuides()).map((s) => ({ x: s.at.x, rho: r + s.at.y, z })) : [];
-  viewer.setMetalMesh(cut ? bandCutMesh(band, bandTarget(band)) : bandPositions!, metalIdOf(bandMetal), "band", { shade: bandMetal, warn: probs.some((p) => p.check !== "band-spike"), spots, tint: bandWidthNote(band, bandGuides())?.level });
+  // 伝統の仕上げ（槌目・象嵌は材質。ミルの粒は輪の三角形の後ろ）。作れない所があっても、仕上げは見せる（赤は確かめるの欄と印で）
+  const finish = band.finish
+    ? { finish: band.finish, centerZ: bandCenterZ(band), innerRadiusMm: r, outerRadiusMm: r + band.top.thickness, beadTris: cut ? 0 : (bandMilgrain?.triangles ?? 0), inlayBad: probs.some((p) => p.check.startsWith("nunome-")) }
+    : undefined;
+  viewer.setMetalMesh(cut ? bandCutMesh(band, bandTarget(band)) : bandPositions!, metalIdOf(bandMetal), "band", { shade: bandMetal, warn: probs.some((p) => p.check !== "band-spike" && !isFinishCheck(p.check)), spots, tint: bandWidthNote(band, bandGuides())?.level, finish });
 }
 /** 図面・印刷の絵・記録の絵は、切っていても輪で描く */
 function withWholeBand<T>(f: () => T): T {
@@ -3958,6 +4014,7 @@ function showBand(live = false) {
   renderMakeOpts();
   const m = bandMesh(band);
   bandPositions = m.positions;
+  bandMilgrain = m.milgrain ?? null;
   bandWeight = m.weightG;
   const probs = bandProblems();
   placeBand(probs);
@@ -4101,7 +4158,7 @@ function renderBandCheck() {
 
 function renderBandBuild() {
   const box = $(".build-panel");
-  const steps = bandHowTo(band, method, bandWeight, alloyOf(bandMetal));
+  const steps = bandSteps(method);
   const probs = bandProblems();
   box.innerHTML = `
     <div class="seg method"><button type="button" data-m="hand" aria-pressed="${method === "hand"}">鍛造</button><button type="button" data-m="cast" aria-pressed="${method === "cast"}">鋳造</button></div>
@@ -4406,7 +4463,7 @@ function bandData(): WorkData {
     bandDesign: { band: structuredClone(band), metal: bandMetal },
     specs: bandSpecRows(band, bandWeight),
     problems: bandProblems().map((p) => `${p.title}（${p.current} → ${p.required}）`),
-    steps: bandHowTo(band, method, bandWeight, alloyOf(bandMetal)),
+    steps: bandSteps(method),
     drawing: () => (bandPositions ? bandDrawing(bandProblems().map((p) => p.title), BOOK_PX) : ""),
   };
 }
