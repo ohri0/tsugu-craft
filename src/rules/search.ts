@@ -56,7 +56,15 @@ export function prongSizeAnswer(question: string, rules: readonly Rule[]): { sho
   const said = rule.bySizeLine ? (rule.bySize ?? []).flatMap((s) => (s.upToMm === null ? [] : [s])) : [];
   const inLine = said.length ? size >= Math.min(...said.map((s) => s.upToMm!)) && size <= Math.max(...said.map((s) => s.upToMm!)) : true;
   const from = rule.source.kind === "craftsman" ? "帳面の職人の決まり" : `${sourceLabel(rule.source)}の目安`;
-  const line = said.length ? `職人が言った点は ${said.map((s) => `${s.upToMm} mm の石で ${s.value} mm`).join("、")}。${inLine ? "その間は、点をまっすぐつないだ値です。" : "この大きさは点の外なので、線を伸ばした値です。"}` : "";
+  const atCraft = rule.sizePoints?.some((p) => p.by === "craftsman" && Math.abs(p.stoneMm - size) < 0.05);
+  const how = rule.sizePoints?.length
+    ? atCraft
+      ? "この大きさは、職人が言った点です。"
+      : `この大きさは職人の点ではなく、推測の値です（${rule.inferNote ?? "職人の点から割合で推し量った"}。職人はまだ確かめていない）。`
+    : inLine
+      ? "その間は、点をまっすぐつないだ値です。"
+      : "この大きさは点の外なので、線を伸ばした値です。";
+  const line = said.length ? `職人が言った点は ${said.map((s) => `${s.upToMm} mm の石で ${s.value} mm`).join("、")}。${how}` : "";
   return {
     short: `石の大きさ ${size} mm くらいなら、爪の太さは最低 ${mm.toFixed(2)} mm です（${from}から）。目安・最後は職人が決める。`,
     why: [line, rule.reason].filter(Boolean).join(" "),

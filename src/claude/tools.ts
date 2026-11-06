@@ -70,6 +70,20 @@ export interface ProposeRuleInput {
   by_size?: { up_to_mm: number; value: number }[];
   /** 機械で確かめない決まりのとき、作り方のどの工程の決まりか */
   steps?: MakingStepId[];
+  /** 職人が話した石の大きさ（mm。「このサイズ」なら今の設計の石の大きさ）。value はこの大きさの値 */
+  stone_mm?: number;
+  /**
+   * 石の大きさごとの点。craftsman：職人が言った点。inferred：Claude が職人の点から割合で推し量った点（職人はまだ確かめていない）。
+   * why：職人の点なら職人の言葉の短い引用、推測ならどう出したか
+   */
+  points?: ProposePoint[];
+}
+
+export interface ProposePoint {
+  stone_mm: number;
+  value: number;
+  by: "craftsman" | "inferred";
+  why: string;
 }
 
 export interface ProposeRuleResult {
@@ -405,6 +419,8 @@ export const INPUT_BOUNDS = {
   relief_deg: [15, 180],
   relief_columns: [1, 3],
   stone_long_mm: [3, 14],
+  /** 決まりの点の石の大きさ（mm。石の大きさの段と同じ範囲） */
+  stone_size_mm: [0.5, 30],
   culet_gap_mm: [GUIDES.height.minFingerGapMm, 6],
 } as const;
 
@@ -690,6 +706,29 @@ export const TOOLS: ClaudeTool[] = [
             additionalProperties: false,
           },
         },
+        stone_mm: {
+          type: "number",
+          description:
+            "職人が話した石の大きさ（mm。石の大きさ ＝（長辺 ＋ 幅）÷ 2）。「このサイズ」「この石」と言ったら、今の設計の石の大きさ。value はこの大きさの値。石の大きさの話でなければ付けない",
+        },
+        points: {
+          type: "array",
+          description:
+            "爪の太さ（prong.minDiameterMm）のように、石の大きさで値が変わる決まりのときだけ付ける。石の大きさごとの点。" +
+            "by＝craftsman は職人が言った点（職人が言った数字だけ。「この爪で十分」なら今の爪の太さ）。by＝inferred は、職人の点から割合で推し量った、ほかの大きさの値（職人はまだ確かめていない）。" +
+            "why は、職人の点なら職人の言葉の短い引用、推測ならどう出したか（例：公開の目安の線を職人の 8 mm・0.7 mm に合わせて割合でずらした）",
+          items: {
+            type: "object",
+            properties: {
+              stone_mm: { type: "number", description: "石の大きさ（mm）" },
+              value: { type: "number", description: "その大きさの値（mm）" },
+              by: { type: "string", enum: ["craftsman", "inferred"] },
+              why: { type: "string" },
+            },
+            required: ["stone_mm", "value", "by", "why"],
+            additionalProperties: false,
+          },
+        },
         steps: {
           type: "array",
           description:
@@ -786,7 +825,7 @@ export type ParseResult = { ok: true; call: ParsedToolCall } | { ok: false; erro
 interface PropSchema {
   type: "string" | "number" | "integer" | "array" | "boolean" | "object";
   enum?: readonly string[];
-  items?: { type: "integer" } | { type: "object" };
+  items?: { type: "integer" } | { type: "object" } | { type: "string"; enum?: readonly string[] };
 }
 
 const BOUND_OF: Record<string, keyof typeof INPUT_BOUNDS> = {
@@ -804,6 +843,7 @@ const BOUND_OF: Record<string, keyof typeof INPUT_BOUNDS> = {
   sway_mm: "sway_mm",
   culet_gap_mm: "culet_gap_mm",
   long_mm: "stone_long_mm",
+  stone_mm: "stone_size_mm",
 };
 
 function checkNumber(key: string, v: unknown, integer: boolean): string | null {
@@ -833,7 +873,17 @@ function checkProp(key: string, s: PropSchema, v: unknown): string | null {
       if (!Array.isArray(v)) return `${key} は番号の並びで書いてください`;
       // 場所ごとの形は checkStations が見る
       if (key === "stations" || key === "relief_more") return null;
+      if (key === "points") return checkPoints(v);
       if (s.items?.type === "object") return checkSizeSteps(key, v);
+      // 文字の並び（propose_rule の steps など）。前は数として確かめて、工程を付けた決まりの案をいつも断っていた（2026-11-06 本物の Claude で見つけた）
+      if (s.items?.type === "string") {
+        const allowed = (s.items as { enum?: readonly string[] }).enum;
+        for (const item of v) {
+          if (typeof item !== "string") return `${key} は文字の並びで書いてください`;
+          if (allowed && !allowed.includes(item)) return `${key} は ${allowed.join(" / ")} のどれかです（今は ${item}）`;
+        }
+        return null;
+      }
       for (const item of v) {
         const e = checkNumber(key, item, true);
         if (e) return e;
@@ -922,6 +972,27 @@ function checkSizeSteps(key: string, v: unknown[]): string | null {
   return null;
 }
 
+/** 石の大きさごとの点：大きさは 0.5〜30 mm、値は 0〜100、by は craftsman か inferred、同じ大きさの職人の点は 1 つ */
+function checkPoints(v: unknown[]): string | null {
+  if (v.length === 0 || v.length > 16) return "points は 1〜16 点で書いてください";
+  const [lo, hi] = INPUT_BOUNDS.stone_size_mm;
+  const seen: number[] = [];
+  for (const item of v) {
+    const r = item as { stone_mm?: unknown; value?: unknown; by?: unknown; why?: unknown } | null;
+    if (typeof r !== "object" || r === null || Array.isArray(r)) return "points は {stone_mm, value, by, why} の並びで書いてください";
+    for (const k of Object.keys(r)) if (!["stone_mm", "value", "by", "why"].includes(k)) return `points に ${k} という項目はありません`;
+    if (typeof r.stone_mm !== "number" || !Number.isFinite(r.stone_mm) || r.stone_mm < lo || r.stone_mm > hi) return `points の stone_mm は ${lo}〜${hi} mm で書いてください`;
+    if (typeof r.value !== "number" || !Number.isFinite(r.value) || r.value <= 0 || r.value > 100) return "points の value は 0 より大きく 100 以下で書いてください";
+    if (r.by !== "craftsman" && r.by !== "inferred") return "points の by は craftsman か inferred です";
+    if (r.why !== undefined && typeof r.why !== "string") return "points の why は文字で書いてください";
+    if (r.by === "craftsman") {
+      if (seen.some((s) => Math.abs(s - (r.stone_mm as number)) < 1e-9)) return `同じ石の大きさ（${r.stone_mm} mm）に職人の点が 2 つあります`;
+      seen.push(r.stone_mm);
+    }
+  }
+  return null;
+}
+
 /** 道具の名前と入力を、定義の形と受け付け範囲で確かめる */
 export function parseToolCall(name: string, input: unknown): ParseResult {
   const tool = TOOLS.find((t) => t.name === name);
@@ -942,8 +1013,17 @@ export function parseToolCall(name: string, input: unknown): ParseResult {
     const e = checkProp(key, s, value);
     if (e) return { ok: false, error: e };
   }
+  // 石の大きさの点だけ付けて value を忘れたとき：職人の点（stone_mm の点、なければ最後の職人の点）の値を value にする（決まりの中身は変えない）
+  if (name === "propose_rule" && record.param !== undefined && record.value === undefined && Array.isArray(record.points)) {
+    const craft = (record.points as unknown[]).filter((x): x is ProposePoint => typeof x === "object" && x !== null && (x as ProposePoint).by === "craftsman" && typeof (x as ProposePoint).value === "number");
+    const at = craft.find((x) => typeof record.stone_mm === "number" && Math.abs(x.stone_mm - record.stone_mm) < 1e-9) ?? craft[craft.length - 1];
+    if (at) return parseToolCall(name, { ...record, value: at.value });
+  }
   if (name === "propose_rule" && (record.param === undefined) !== (record.value === undefined)) {
     return { ok: false, error: "param と value は、両方付けるか、両方付けないかにしてください" };
+  }
+  if (name === "propose_rule" && (record.points !== undefined || record.stone_mm !== undefined) && record.param === undefined) {
+    return { ok: false, error: "stone_mm と points は、値（param と value）のある決まりにだけ付けてください" };
   }
   if (name === "ask_teacher") {
     for (const key of ["question", "why_unanswered"] as const) {

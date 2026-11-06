@@ -59,6 +59,13 @@ export interface Rule<P extends string = ParamId> {
   bySizeLine?: boolean;
   /** bySizeLine の線を伸ばしても、これより小さくしない（下限）。例：爪はメレでも 0.6 mm より細くしない */
   bySizeFloor?: number;
+  /**
+   * 石の大きさごとの点（爪の太さ）。職人が言った点（by: craftsman）と、そこから割合で出した推測の点（by: inferred）。
+   * あれば bySize より先に使う。確かめは、職人の点を先に、次に推測の点を使う（src/rules/prong-points.ts）
+   */
+  sizePoints?: SizePoint[];
+  /** 推測の点をどう出したか（ふつうの言葉。画面と Claude に見せる） */
+  inferNote?: string;
   /** どの確かめの根拠か */
   checks?: CheckId[];
   /** 作り方のどの工程の決まりか（機械で確かめない決まり。src/rules/making.ts の工程の id） */
@@ -78,6 +85,42 @@ export interface Rule<P extends string = ParamId> {
   gap?: string;
 }
 
+/** 石の大きさ 1 つでの値。by：職人が言った点か、推測の点か */
+export interface SizePoint {
+  /** 石の大きさ（mm）＝（長辺 ＋ 幅）÷ 2 */
+  stoneMm: number;
+  value: number;
+  by: "craftsman" | "inferred";
+  /** 職人の点なら、その言葉 */
+  quote?: string;
+  /** 職人の点なら、言った日 */
+  date?: string;
+}
+
+/** この大きさの差までは、同じ石の大きさの点とみなす（職人の点が推測の点を置き換える）mm */
+export const SAME_SIZE_MM = 0.5;
+
+/**
+ * 点から、その石の大きさの値。職人の点を先に（その大きさに職人の点があれば、その値）、なければ職人の点と推測の点をまっすぐつなぐ。
+ * 職人の点の近く（SAME_SIZE_MM）の推測の点は使わない。最初の点より小さい石は最初の値、最後の点より大きい石は最後の 2 点の傾きのまま
+ */
+export function valueAtPoints(points: readonly SizePoint[], stoneSizeMm: number): number | undefined {
+  const craft = points.filter((p) => p.by === "craftsman");
+  const exact = craft.find((p) => Math.abs(p.stoneMm - stoneSizeMm) < 0.05);
+  if (exact) return exact.value;
+  const pts = [...craft, ...points.filter((p) => p.by !== "craftsman" && !craft.some((c) => Math.abs(c.stoneMm - p.stoneMm) < SAME_SIZE_MM))].sort((a, b) => a.stoneMm - b.stoneMm);
+  if (pts.length === 0) return undefined;
+  if (pts.length === 1 || stoneSizeMm <= pts[0].stoneMm) return pts[0].value;
+  let i = pts.findIndex((_p, k) => k < pts.length - 1 && stoneSizeMm <= pts[k + 1].stoneMm);
+  if (i < 0) i = pts.length - 2;
+  const a = pts[i];
+  const b = pts[i + 1];
+  // 最後の点より大きい石で、線が下がる向きなら、最後の値のまま（大きい石ほど細い爪にはしない）
+  if (stoneSizeMm > b.stoneMm && b.value < a.value) return b.value;
+  const v = a.value + ((b.value - a.value) * (stoneSizeMm - a.stoneMm)) / (b.stoneMm - a.stoneMm);
+  return Math.round(v * 1000) / 1000;
+}
+
 export interface SizeStep {
   /** この大きさ（mm）まで。最後の段は null（それより大きい石すべて） */
   upToMm: number | null;
@@ -85,7 +128,8 @@ export interface SizeStep {
 }
 
 /** 石の大きさに合う値（段がなければ value） */
-export function valueFor(rule: Pick<Rule, "value" | "bySize" | "bySizeLine" | "bySizeFloor">, stoneSizeMm?: number): number | undefined {
+export function valueFor(rule: Pick<Rule, "value" | "bySize" | "bySizeLine" | "bySizeFloor" | "sizePoints">, stoneSizeMm?: number): number | undefined {
+  if (rule.sizePoints?.length && stoneSizeMm !== undefined) return valueAtPoints(rule.sizePoints, stoneSizeMm);
   const steps = rule.bySize;
   if (!steps || steps.length === 0 || stoneSizeMm === undefined) return rule.value ?? steps?.[steps.length - 1]?.value;
   if (rule.bySizeLine) {
@@ -374,7 +418,7 @@ export function sourceLabel(s: RuleSource): string {
 /** Claude に渡す、目安帳の文章 */
 export function ledgerText(ledger: Ledger): string {
   return activeRules(ledger)
-    .map((r) => `- [${r.id}] ${r.title}：${r.text}${r.bySize && r.param ? `（石の大きさで：${r.bySizeLine ? `${r.bySize.map((s) => `${s.upToMm} mm で ${s.value} ${PARAMS[r.param!].unit}`).join("、")}。間はまっすぐつなぎ、外は同じ傾きで伸ばす${r.bySizeFloor !== undefined ? `。${r.bySizeFloor} ${PARAMS[r.param!].unit} より小さくしない` : ""}` : sizeStepsText(r.bySize, PARAMS[r.param].unit)}）` : ""}（理由：${r.reason}${r.example ? `／例：${r.example}` : ""}${r.quote ? `／職人の言葉：「${r.quote}」` : ""}／出どころ：${sourceLabel(r.source)}、${r.date}）`)
+    .map((r) => `- [${r.id}] ${r.title}：${r.text}${r.sizePoints?.length ? `（石の大きさごとの点：${r.sizePoints.map((p) => `${p.stoneMm} mm で ${p.value} mm（${p.by === "craftsman" ? "職人" : "推測"}）`).join("、")}。点の間はまっすぐつなぐ${r.inferNote ? `。推測の出し方：${r.inferNote}` : ""}）` : r.bySize && r.param ? `（石の大きさで：${r.bySizeLine ? `${r.bySize.map((s) => `${s.upToMm} mm で ${s.value} ${PARAMS[r.param!].unit}`).join("、")}。間はまっすぐつなぎ、外は同じ傾きで伸ばす${r.bySizeFloor !== undefined ? `。${r.bySizeFloor} ${PARAMS[r.param!].unit} より小さくしない` : ""}` : sizeStepsText(r.bySize, PARAMS[r.param].unit)}）` : ""}（理由：${r.reason}${r.example ? `／例：${r.example}` : ""}${r.quote ? `／職人の言葉：「${r.quote}」` : ""}／出どころ：${sourceLabel(r.source)}、${r.date}）`)
     .join("\n");
 }
 
