@@ -119,7 +119,19 @@ export type Orientation = "along" | "across";
 export type Join = "on" | "between";
 /** テンションの挟む向き：short＝狭い幅を挟む、long＝長い向きを挟む、corner＝向かい合う角をくぼみに */
 export type TensionGripChoice = "short" | "long" | "corner";
-export type Metal = "pt900" | "k18yg" | "k18wg" | "k18pg" | "sv925";
+export type Metal = "pt900" | "k18yg" | "k18wg" | "k18pg" | "sv925" | "shakudo" | "shibuichi" | "copper";
+/** 煮色（にいろ）で色を出す色金（伝統の仕上げ） */
+export const IROGANE = ["shakudo", "shibuichi", "copper"] as const satisfies readonly Metal[];
+export const isIrogane = (m: Metal): m is (typeof IROGANE)[number] => (IROGANE as readonly string[]).includes(m);
+
+/** 伝統の仕上げの入力（set_shank の finish）。書いた項目だけが変わる。none でなくす */
+export interface FinishInput {
+  tsuchime?: "none" | "small" | "medium" | "large";
+  tsuchime_area?: "outer" | "all";
+  milgrain?: "none" | "edges";
+  inlay?: "none" | "nunome";
+}
+export const FINISH_KEYS = { tsuchime: ["none", "small", "medium", "large"], tsuchime_area: ["outer", "all"], milgrain: ["none", "edges"], inlay: ["none", "nunome"] } as const;
 export type View = "top" | "side" | "front" | "angle";
 
 export type ProngTipChoice = "round" | "oni";
@@ -221,6 +233,8 @@ export interface SetShankInput {
   relief_more?: ShankReliefInput[];
   gou?: number;
   metal?: Metal;
+  /** 伝統の仕上げ（槌目・ミル打ち・布目象嵌） */
+  finish?: FinishInput;
   reason: string;
 }
 
@@ -293,6 +307,21 @@ export interface ShankState {
   /** ぐるりと見て、いちばん細い幅といちばん薄い厚み（確かめの目安と比べる数） */
   min_width_mm?: number;
   min_thickness_mm?: number;
+  /** 伝統の仕上げ（なければ鏡面） */
+  finish?: FinishState;
+}
+
+/** 伝統の仕上げの今の状態（Claude への返事） */
+export interface FinishState {
+  tsuchime?: "small" | "medium" | "large";
+  tsuchime_area?: "outer" | "all";
+  tsuchime_mark_mm?: number;
+  milgrain?: "edges";
+  milgrain_beads?: number;
+  milgrain_bead_mm?: number;
+  inlay?: "nunome";
+  /** ふつうの言葉で */
+  words: string;
 }
 
 export interface SetShankResult {
@@ -634,8 +663,26 @@ export const TOOLS: ClaudeTool[] = [
         gou: { type: "integer", description: `指輪のサイズ（日本の号数、${range("gou", " 号")}）。号数から内径が決まる` },
         metal: {
           type: "string",
-          enum: ["pt900", "k18yg", "k18wg", "k18pg", "sv925"],
-          description: "地金。pt900＝プラチナ、k18yg＝18 金イエロー、k18wg＝18 金ホワイト、k18pg＝18 金ピンク、sv925＝シルバー",
+          enum: ["pt900", "k18yg", "k18wg", "k18pg", "sv925", ...IROGANE],
+          description:
+            "地金。pt900＝プラチナ、k18yg＝18 金イエロー、k18wg＝18 金ホワイト、k18pg＝18 金ピンク、sv925＝シルバー。" +
+            "色金（いろがね。煮色＝にいろ で色を出す伝統の地金）：shakudo＝赤銅（煮色で紫がかった黒）、shibuichi＝四分一（煮色で銀灰）、copper＝銅（煮色で赤茶）。「四分一の煮色に」なら shibuichi",
+        },
+        finish: {
+          type: "object",
+          description:
+            "伝統の仕上げ（彫金・鍛金の技）。書いた項目だけが変わり、none でなくす。" +
+            `tsuchime＝槌目（金づちの跡を模様として残す。small・medium・large は跡の大きさ ${GUIDES.finish.tsuchime.small.markMm}・${GUIDES.finish.tsuchime.medium.markMm}・${GUIDES.finish.tsuchime.large.markMm} mm、仮の値）、tsuchime_area＝打つ所（outer＝腕の外側、all＝外側と横）、` +
+            `milgrain＝ミル打ち（edges＝腕の外の面の両縁に、ø${GUIDES.finish.milgrain.beadMm} mm の粒を一列ずつ。形と STL に入る）、` +
+            "inlay＝象嵌（nunome＝布目象嵌：腕の真ん中に、色のちがう地金の帯の模様）。" +
+            "槌目は跡の深さだけ腕が薄くなり、ミルの粒は腕の幅に収まる必要がある（check が見る）",
+          properties: {
+            tsuchime: { type: "string", enum: [...FINISH_KEYS.tsuchime], description: "槌目の跡の大きさ。none でやめる" },
+            tsuchime_area: { type: "string", enum: [...FINISH_KEYS.tsuchime_area], description: "槌目を打つ所。省くと outer" },
+            milgrain: { type: "string", enum: [...FINISH_KEYS.milgrain], description: "ミル打ち。none でやめる" },
+            inlay: { type: "string", enum: [...FINISH_KEYS.inlay], description: "象嵌。none でやめる" },
+          },
+          additionalProperties: false,
         },
         reason: { type: "string", description: "なぜこう変えるか。短く書く（作業の記録に残る）" },
       },
@@ -956,6 +1003,20 @@ function checkRelief(v: unknown): string | null {
   return null;
 }
 
+/** 伝統の仕上げ：知らない項目と、選べない値を断る */
+function checkFinish(v: unknown): string | null {
+  const f = v as Record<string, unknown> | null;
+  if (typeof f !== "object" || f === null || Array.isArray(f)) return "仕上げは {tsuchime, tsuchime_area, milgrain, inlay} の形で書いてください";
+  const keys = Object.keys(f);
+  if (!keys.length) return "仕上げに変える項目がありません";
+  for (const k of keys) {
+    const allowed = (FINISH_KEYS as Record<string, readonly string[]>)[k];
+    if (!allowed) return `仕上げに ${k} という項目はありません`;
+    if (!allowed.includes(f[k] as string)) return `仕上げの ${k} は ${allowed.join(" / ")} のどれかです（今は ${String(f[k])}）`;
+  }
+  return null;
+}
+
 /** 石の大きさの段：大きさは 0.5〜30 mm で小さい順、値は 0〜100 */
 function checkSizeSteps(key: string, v: unknown[]): string | null {
   if (v.length === 0 || v.length > 12) return `${key} は 1〜12 段で書いてください`;
@@ -1046,6 +1107,10 @@ export function parseToolCall(name: string, input: unknown): ParseResult {
     }
     if (record.relief !== undefined) {
       const e = checkRelief(record.relief);
+      if (e) return { ok: false, error: e };
+    }
+    if (record.finish !== undefined) {
+      const e = checkFinish(record.finish);
       if (e) return { ok: false, error: e };
     }
     if (record.relief_more !== undefined) {

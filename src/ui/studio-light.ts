@@ -118,7 +118,24 @@ export const METAL_STUDIO: StudioSpec = LOOK.metal;
 export const GEM_STUDIO: StudioSpec = LOOK.gem;
 
 /** 地金の色（鏡面の光。リニアの赤・緑・青）。見た目のための仮の値で、職人の目安ではない。形と重さの地金とは別 */
-export type MetalShade = "k18y" | "k18yg" | "k18wg" | "k18pg" | "pt900" | "sv925";
+export type MetalShade = "k18y" | "k18yg" | "k18wg" | "k18pg" | "pt900" | "sv925" | "shakudo" | "shibuichi" | "copper";
+
+/**
+ * 煮色（にいろ）の色金の面。煮色は、みがいた地金の上にできるうすい色の膜なので、鏡面より光がやわらかく、つやは控えめ。
+ * 膜の上の光（clearcoat）は色を持たない白い映り込みで、膜の下の地金の色（METAL_COLOR）は暗く沈む。
+ * 色は辞典の言葉から（ledger/techniques.json の mokume-irogane：赤銅は紫がかった黒、四分一は銀灰、銅は赤茶）。数は見た目のための仮の値
+ */
+export interface MetalSurface {
+  roughness: number;
+  clearcoat: number;
+  clearcoatRoughness: number;
+  envMapIntensity: number;
+}
+export const METAL_SURFACE: Partial<Record<MetalShade, MetalSurface>> = {
+  shakudo: { roughness: 0.3, clearcoat: 0.75, clearcoatRoughness: 0.18, envMapIntensity: 1.0 },
+  shibuichi: { roughness: 0.45, clearcoat: 0.15, clearcoatRoughness: 0.45, envMapIntensity: 0.9 },
+  copper: { roughness: 0.38, clearcoat: 0.4, clearcoatRoughness: 0.28, envMapIntensity: 0.95 },
+};
 export const METAL_COLOR: Record<MetalShade, [number, number, number]> = {
   // K18 イエロー：やわらかな金色（シャンパン色では鈍いと作者。2026-11-05）
   k18y: [0.97, 0.75, 0.42],
@@ -131,6 +148,12 @@ export const METAL_COLOR: Record<MetalShade, [number, number, number]> = {
   pt900: [0.8, 0.8, 0.8],
   // SV925：いちばん白く明るい
   sv925: [0.92, 0.91, 0.88],
+  // 赤銅の煮色：紫がかった黒（烏の羽のような、青紫の沈んだ色）
+  shakudo: [0.032, 0.028, 0.04],
+  // 四分一の煮色：銀灰（つやを抑えた、やわらかい灰色）
+  shibuichi: [0.3, 0.295, 0.28],
+  // 銅の煮色：赤茶
+  copper: [0.2, 0.068, 0.036],
 };
 
 const RAD = Math.PI / 180;

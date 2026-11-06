@@ -14,8 +14,11 @@ import { springForClaude, springIdOf, tensionCautions, tensionSpring } from "../
 import { GUIDES, requiredHold, stoneSizeMm, type Guides, type HeightOption, type MetalId, type StonePosition } from "../rules/guides";
 import { effectiveGuides, prongMinOverride, ruleForCheck, type Ledger, type Rule } from "../rules/ledger";
 import { INPUT_BOUNDS } from "../claude/tools";
+import { finishWords, hasFinish, type RingFinish } from "../geometry/finish";
 import type {
   CheckResult,
+  FinishInput,
+  FinishState,
   FixOption,
   LookInput,
   LookResult,
@@ -111,6 +114,8 @@ export interface RingState {
   /** 腕の間に挟む石座の下の輪の高さ・板の厚み（mm。なければ目安。直し方で変える） */
   collarHeightMm?: number;
   collarWallMm?: number;
+  /** 伝統の仕上げ（槌目・ミル打ち・布目象嵌。なければ鏡面）。煮色は地金（metal の色金）で決まる */
+  finish?: RingFinish;
 }
 
 /** 並べる石 1 つの、形と大きさ（石の座標） */
@@ -213,6 +218,7 @@ export function carryDesign(prev: RingState, base: RingState, same: { shape?: bo
     shankRelief: prev.shankRelief && { ...prev.shankRelief },
     shankReliefMore: prev.shankReliefMore && structuredClone(prev.shankReliefMore),
     beforeTension: prev.beforeTension && structuredClone(prev.beforeTension),
+    finish: prev.finish && structuredClone(prev.finish),
   };
   if (prev.orientationSet) {
     out.orientation = prev.orientation;
@@ -285,10 +291,41 @@ export function fitStoneDepth(raw: number, current: number): { mm: number; fixed
 export function metalIdOf(m: Metal): MetalId {
   if (m === "pt900") return "pt900";
   if (m === "sv925") return "sv925";
+  // 色金は、それぞれの密度で重さを出す（guides.ts の metals）
+  if (m === "shakudo" || m === "shibuichi" || m === "copper") return m;
   return "k18y";
 }
 
-export const METAL_LABEL: Record<Metal, string> = { pt900: "Pt900", k18yg: "K18 イエロー", k18wg: "K18 ホワイト", k18pg: "K18 ピンク", sv925: "SV925" };
+export const METAL_LABEL: Record<Metal, string> = { pt900: "Pt900", k18yg: "K18 イエロー", k18wg: "K18 ホワイト", k18pg: "K18 ピンク", sv925: "SV925", shakudo: "赤銅（煮色）", shibuichi: "四分一（煮色）", copper: "銅（煮色）" };
+
+/** 直し方「槌目を小さくする」の行き先：1 段小さく（いちばん小さければ、やめる） */
+export function smallerTsuchime(f: RingFinish | undefined): NonNullable<FinishInput["tsuchime"]> {
+  const size = f?.tsuchime?.size;
+  return size === "large" ? "medium" : size === "medium" ? "small" : "none";
+}
+
+/** 道具の仕上げの入力 → 設計の仕上げ（書いた項目だけ変える。none でなくす。何もなければ undefined） */
+export function finishFrom(input: FinishInput, prev: RingFinish | undefined): RingFinish | undefined {
+  const out: RingFinish = { ...(prev ?? {}) };
+  if (input.tsuchime === "none") delete out.tsuchime;
+  else if (input.tsuchime) out.tsuchime = { size: input.tsuchime, area: input.tsuchime_area ?? out.tsuchime?.area ?? "outer" };
+  else if (input.tsuchime_area && out.tsuchime) out.tsuchime = { ...out.tsuchime, area: input.tsuchime_area };
+  if (input.milgrain === "none") delete out.milgrain;
+  else if (input.milgrain) out.milgrain = input.milgrain;
+  if (input.inlay === "none") delete out.inlay;
+  else if (input.inlay) out.inlay = input.inlay;
+  return hasFinish(out) ? out : undefined;
+}
+
+/** 仕上げの返事（Claude へ）：選んだ仕上げと、ミルの粒の数・大きさ */
+export function finishOut(f: RingFinish, ring: RingDesign): FinishState {
+  return {
+    ...(f.tsuchime ? { tsuchime: f.tsuchime.size, tsuchime_area: f.tsuchime.area, tsuchime_mark_mm: GUIDES.finish.tsuchime[f.tsuchime.size].markMm } : {}),
+    ...(f.milgrain ? { milgrain: f.milgrain, milgrain_beads: ring.milgrain?.count ?? 0, milgrain_bead_mm: ring.milgrain?.beadMm ?? GUIDES.finish.milgrain.beadMm } : {}),
+    ...(f.inlay ? { inlay: f.inlay } : {}),
+    words: finishWords(f).join("・"),
+  };
+}
 
 /** 道具の入力の、腕の場所の形 → 設計に残す形 */
 export function stationFrom(st: ShankStationInput): ShankStation {
@@ -391,6 +428,8 @@ const CHECK_NAME: Record<string, string> = {
   "tension-culet": "石の先が腕の内側より指の側へ出ないか",
   "tension-sunk": "石が腕の中に沈まないか",
   "tension-overhang": "石が腕の幅の外へ出すぎないか",
+  "tsuchime-thin": "槌目を打つ腕の厚み",
+  "milgrain-fit": "ミル打ちの粒が腕の縁に収まるか",
 };
 
 /** テンションで意味のある確かめ（爪の確かめや留まりの比べはない） */
@@ -430,6 +469,12 @@ function hintFor(id: FixId, s: RingState, std: number, tension?: TensionInfo | n
       const r = reliefFixInput(s, GUIDES.band.relief.minUnderMm - 0.1);
       return r ? { tool: "set_shank", input: { relief: r } } : undefined;
     }
+    case "smallerTsuchime":
+      return { tool: "set_shank", input: { finish: { tsuchime: smallerTsuchime(s.finish) } } };
+    case "noTsuchime":
+      return { tool: "set_shank", input: { finish: { tsuchime: "none" } } };
+    case "noMilgrain":
+      return { tool: "set_shank", input: { finish: { milgrain: "none" } } };
     case "thickerBand":
       return { tool: "set_shank", input: bandFixInput("thickerBand", s) };
     case "widerBand":
@@ -684,6 +729,7 @@ export class RingSession implements ToolHost<RingState> {
         reliefMore: s.style === "tension" ? undefined : s.shankReliefMore,
       },
       orientation: s.orientation,
+      finish: s.finish,
     };
     let ring = buildRing(ringParams);
     // 腕の間に挟めない石：爪が腕を避けられない・角を爪で守れない・下の輪が石に収まらない
@@ -916,6 +962,7 @@ export class RingSession implements ToolHost<RingState> {
     if (input.thickness_mm !== undefined) s.shankThicknessMm = input.thickness_mm;
     if (input.gou !== undefined) s.gou = input.gou;
     if (input.metal) s.metal = input.metal;
+    if (input.finish) s.finish = finishFrom(input.finish, s.finish);
     if (input.stations && free) s.shankStations = input.stations.length ? input.stations.map(stationFrom) : undefined;
     if (input.relief && free) s.shankRelief = reliefFrom(input.relief, s.shankRelief);
     if (input.relief_more && free) s.shankReliefMore = input.relief_more.length ? input.relief_more.flatMap((q) => reliefFrom(q, undefined) ?? []) : undefined;
@@ -941,6 +988,8 @@ export class RingSession implements ToolHost<RingState> {
     const r2 = (v: number) => Math.round(v * 100) / 100;
     const notes = [
       s.metal === "k18wg" || s.metal === "k18pg" ? "重さは K18 イエローで出している（色は選んだ地金）" : "",
+      s.metal === "shakudo" || s.metal === "shibuichi" ? "赤銅・四分一の密度は仮（店の頁の約の値）。重さは目安" : "",
+      s.style === "tension" && (s.metal === "shakudo" || s.metal === "shibuichi" || s.metal === "copper") ? "色金はやわらかく、テンションのばねの値も表にない。テンションには向かない見込み（職人に聞く）" : "",
       !free && (input.section_curve || input.stations || input.relief) ? "テンションの腕は丸線のままなので、断面の線・場所ごとの形・彫りは使っていない" : "",
       free && (s.shankStations?.length || s.shankRelief) && s.shankSection === "maru" ? "丸線の腕には場所ごとの形と彫りを使えない。使うなら断面を変える" : "",
       free && (s.shankStations?.length || s.shankRelief) && b.ring.stones.length > 1 ? "石を並べた指輪の腕はどこも同じ形で、彫りもしていない" : "",
@@ -960,6 +1009,7 @@ export class RingSession implements ToolHost<RingState> {
               min_thickness_mm: r2(sh.minThicknessMm ?? sh.thicknessMm),
             }
           : {}),
+        ...(hasFinish(s.finish) ? { finish: finishOut(s.finish, b.ring) } : {}),
         ...(sh.relief ? { relief: { pattern: sh.relief.kind, count: sh.relief.count, depth_mm: sh.relief.depthMm, from_deg: Math.round(sh.relief.fromDegUsed), to_deg: Math.round(sh.relief.toDegUsed), under_mm: r2(sh.relief.peakUnderMm) } } : {}),
       },
       weight_g: Math.round(b.ring.metalWeightG * 10) / 10,

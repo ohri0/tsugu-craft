@@ -392,6 +392,46 @@ export const GUIDES = {
     k18y: { name: "K18 イエローゴールド", densityGPerCm3: 15.5 },
     pt900: { name: "Pt900", densityGPerCm3: 20.0 },
     sv925: { name: "SV925", densityGPerCm3: 10.4 },
+    /**
+     * 色金（いろがね）。煮色（にいろ）で色を出す地金（伝統の仕上げ。2026-11-06 作者が作ると決めた）。
+     * 配合は辞典（ledger/techniques.json の mokume-irogane：赤銅は銅に金 3〜4%・銀 1% ほど、四分一は銅 3 に銀 1 ほど）。
+     * - 銅 8.96：国の研究所の物質の表（https://www.nims.go.jp/emc/ecoinfo2/pages/Cu/Cu_md.html 、20 ℃）。
+     * - 赤銅 約 8.9・四分一 約 9.1：**仮**。地金の店の頁（銅 96・金 4 の赤銅板、銅 75・銀 25 の四分一板）の「約」の値で、1 件だけ。
+     *   配合で変わる（金・銀が多いほど重い）。学会誌などの値が見つかれば替える。https://ore-metals.com/products/shakudo-sheet-1 ・ https://ore-metals.com/products/shibuichi-sheet-1
+     */
+    shakudo: { name: "赤銅", densityGPerCm3: 8.9 },
+    shibuichi: { name: "四分一", densityGPerCm3: 9.1 },
+    copper: { name: "銅", densityGPerCm3: 8.96 },
+  },
+  /**
+   * 伝統の仕上げ（槌目・ミル打ち・布目象嵌）の形と確かめの値。src/geometry/milgrain.ts・src/ui/hammer.ts・checks.ts が読む。
+   * 出典は ledger/techniques.json（tsuchime・milgrain・nunome）。mm の数がない所は **仮**（作者が見て直す）。
+   */
+  finish: {
+    /**
+     * 槌目（つちめ）。資料は「小さい槌は細かく、大きい槌は荒く」（tsuchime-hammer-size）だけで、跡の大きさ・深さの mm はない（open の tsuchime:mark-order）。
+     * - markMm：一つの跡の差しわたし（**仮**）。depthMm：跡の深さ（**仮**。見た目と確かめのため）。
+     * - 確かめ：跡を打つと、その深さだけ腕が薄くなる。いちばん薄い所から跡の深さを引いて、腕の厚みの目安（band.minThicknessMm）を下回らないか（**仮**の決まり。資料に槌目の厚みの決まりはない）
+     */
+    tsuchime: {
+      small: { markMm: 0.5, depthMm: 0.04 },
+      medium: { markMm: 0.9, depthMm: 0.07 },
+      large: { markMm: 1.4, depthMm: 0.1 },
+    },
+    /**
+     * ミル打ち。粒の大きさは鏨のくぼみの大きさで、手打ちの鏨は 0.25〜0.75 mm（milgrain-tool）。
+     * 粒は「離さず、重ねず」（milgrain-no-overlap）なので、粒の間かく ＝ 粒の大きさ。
+     * 覆輪の縁では、粒の大きさ ＝ 縁の幅（milgrain-edge-width）。
+     * - beadMm：腕の縁に打つ粒の大きさ（**仮**。鏨の幅の真ん中をとった）。
+     * - rowsPerBeadWidth：腕の縁に 2 列打つとき、腕の幅は粒いくつ分あればよいか（2 列 ＋ 間に粒 1 つ分の地。**仮**）。
+     * - domeRatio：粒の面から出る高さ（粒の半径に対する割合）。ミルの粒は縁の地金を押しこんで作る、低い丸い山なので、球をのせた形にしない（形を作るための値。**仮**）
+     */
+    milgrain: { toolMinMm: 0.25, toolMaxMm: 0.75, beadMm: 0.5, rowsPerBeadWidth: 3, domeRatio: 0.65 },
+    /**
+     * 布目象嵌（帯の模様）。京象嵌は 1 mm に 7〜8 本の溝（nunome-grid）、はめこむ線は直径 0.15〜1.0 mm（nunome-wire）。
+     * - bandMm：腕の外の真ん中に入れる帯の幅（**仮**）。lineMm：帯の模様の線の太さ（線の資料の幅の中。**仮**）
+     */
+    nunome: { bandMm: 1.2, lineMm: 0.15 },
   },
   /**
    * 仮の線：道具の扱いの判定（手を比べる、src/craft/hand-judge.ts。2026-11-07 作者の頼み）。出典はない。最後は職人が決める。

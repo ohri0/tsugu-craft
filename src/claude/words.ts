@@ -18,6 +18,12 @@ const NAMES: Record<string, string> = {
   k18wg: "18 金ホワイト",
   k18pg: "18 金ピンク",
   sv925: "シルバー",
+  shakudo: "赤銅",
+  shibuichi: "四分一",
+  copper: "銅",
+  tsuchime: "槌目",
+  milgrain: "ミル打ち",
+  nunome: "布目象嵌",
   kouman: "甲丸",
   hirauchi: "平打ち",
   hangouman: "半甲丸",
@@ -151,7 +157,7 @@ const HEIGHT: Record<string, string> = { low: "低め", standard: "標準", high
 const ORIENT: Record<string, string> = { along: "縦向き", across: "横向き" };
 const JOIN: Record<string, string> = { on: "腕の上にのせる", between: "腕の間に挟む" };
 const PRONG_TIP: Record<string, string> = { round: "丸い爪", oni: "尖り爪" };
-const METAL: Record<string, string> = { pt900: "プラチナ", k18yg: "18 金イエロー", k18wg: "18 金ホワイト", k18pg: "18 金ピンク", sv925: "シルバー" };
+const METAL: Record<string, string> = { pt900: "プラチナ", k18yg: "18 金イエロー", k18wg: "18 金ホワイト", k18pg: "18 金ピンク", sv925: "シルバー", shakudo: "赤銅（煮色）", shibuichi: "四分一（煮色）", copper: "銅（煮色）" };
 // 画面の腕の形の名前と同じ（geometry/shank.ts の SHANK_SECTION_LABEL）
 const SECTION: Record<string, string> = { kouman: "甲丸", hirauchi: "平甲丸", hangouman: "平甲丸", kaku: "角", maru: "丸線", free: "手で描いた形" };
 const VIEW: Record<string, string> = { top: "上から", side: "横から", front: "正面から", angle: "斜めから" };
@@ -227,6 +233,16 @@ function partOf(key: string, v: unknown, stone?: StoneWords): string | null {
       return `${s} 号`;
     case "metal":
       return `地金 ${METAL[s] ?? s}`;
+    case "finish": {
+      const f = v as { tsuchime?: string; tsuchime_area?: string; milgrain?: string; inlay?: string };
+      const size: Record<string, string> = { small: "小", medium: "中", large: "大" };
+      const parts = [
+        f.tsuchime ? (f.tsuchime === "none" ? "槌目 なし" : `槌目 ${size[f.tsuchime] ?? f.tsuchime}${f.tsuchime_area === "all" ? "（外側と横）" : ""}`) : f.tsuchime_area ? `槌目の場所 ${f.tsuchime_area === "all" ? "外側と横" : "腕の外側"}` : "",
+        f.milgrain ? (f.milgrain === "none" ? "ミル打ち なし" : "ミル打ち 腕の縁") : "",
+        f.inlay ? (f.inlay === "none" ? "象嵌 なし" : "布目象嵌") : "",
+      ].filter(Boolean);
+      return parts.length ? parts.join("・") : null;
+    }
     case "layout":
       return `並べ方 ${LAYOUT[s] ?? s}`;
     case "count":
