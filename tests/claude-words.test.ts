@@ -1,6 +1,6 @@
 // 人に見せる文：作業の記録に、英字の名前・内部の番号・決まりの印が出ないこと（2026-11-05 作者のスマホの絵から）
 import { describe, expect, it } from "vitest";
-import { cannotFrom, hasJapanese, plainWords, prongPlaceWords, ruleTitles, toolLogLine, withoutCannot, type StoneWords } from "../src/claude/words";
+import { cannotFrom, hasJapanese, offlineWhy, plainWords, prongPlaceWords, ruleTitles, toolLogLine, withoutCannot, type StoneWords } from "../src/claude/words";
 import { designPrompt, SYSTEM_PROMPT } from "../src/claude/prompt";
 import { SYSTEM_MAX_CHARS } from "../src/claude/wire";
 import { parseToolCall } from "../src/claude/tools";
@@ -155,5 +155,17 @@ describe("Claude への指示", () => {
     expect(!r.ok && r.error).toContain("変える項目");
     expect(parseToolCall("set_setting", { reason: "高くした" }).ok).toBe(false);
     expect(parseToolCall("set_shank", { gou: 11, reason: "号" }).ok).toBe(true);
+  });
+});
+
+// 2026-11-06 通しの確かめ：つながらないとき「Claude につながりませんでした（Claude につながりませんでした。…）」と 2 回出ていた
+describe("Claude につながらないわけ", () => {
+  it("同じ言葉を 2 回出さない。サーバーの番号だけ残す", () => {
+    expect(offlineWhy("Claude につながりませんでした。決まりごとから作った案を出します。（サーバーの返事 404）")).toBe("（サーバーの返事 404）");
+    expect(offlineWhy("Claude につながりませんでした。決まりごとから作った案を出します。")).toBe("");
+    expect(offlineWhy(undefined)).toBe("");
+  });
+  it("ほかのわけは、かっこに入れて出す", () => {
+    expect(offlineWhy("合言葉が違います。")).toBe("（合言葉が違います）");
   });
 });

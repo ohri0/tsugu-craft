@@ -3,6 +3,7 @@
 // Claude につながらないときは、目安帳から近い決まりを探して出す（デモが止まらないように）。
 import { parseAskAnswer, type AskAnswer } from "../claude/answer";
 import { runClaude } from "../claude/loop";
+import { offlineWhy } from "../claude/words";
 import { askPrompt, askPromptText } from "../claude/prompt";
 import { TOOLS, type ToolHost } from "../claude/tools";
 import type { ClaudeMessageParam } from "../claude/wire";
@@ -252,7 +253,7 @@ export function mountAsk(root: HTMLElement): { refresh(): void; route(tech?: str
     busy = false;
     if (r.offline || (r.error && !r.finalText)) {
       if (r.error?.code === "wrong_password") resetPassword();
-      localAnswer(question, el, `Claude につながらないので、帳面から探しました。${r.error?.message ? `（${r.error.message}）` : ""}`);
+      localAnswer(question, el, `Claude につながらないので、帳面から探しました。${offlineWhy(r.error?.message)}`);
       return;
     }
     messages = r.messages;

@@ -15,7 +15,7 @@ import { measureOutline, type StoneOutline } from "../geometry/measure";
 import { outlineIndexAtT, type JoinStyle, type ProngTip, type SettingResult } from "../geometry/setting";
 import { nameShape } from "../geometry/shape";
 import { runClaude, type LogEntry } from "../claude/loop";
-import { cannotFrom, hasJapanese, plainWords, ruleTitles, toolLogLine, withoutCannot, type RuleTitles, type StoneWords } from "../claude/words";
+import { cannotFrom, hasJapanese, offlineWhy, plainWords, ruleTitles, toolLogLine, withoutCannot, type RuleTitles, type StoneWords } from "../claude/words";
 import { STONE_FREE_NOTE, STONE_KEEP_NOTE, designPrompt, gouNote, keepPrompt } from "../claude/prompt";
 import { TOOLS, type ChooseStoneInput, type ChooseStoneResult, type ProposeRuleInput, type ProposeRuleResult, type ToolHost, type Metal } from "../claude/tools";
 import type { ClaudeContentBlockParam } from "../claude/wire";
@@ -247,8 +247,13 @@ let holdDims = false;
 /** 石座の箱（3D、mm）。数字の札をこの上に重ねない */
 let headBox: { min: [number, number, number]; max: [number, number, number] } | null = null;
 /** 札を重ねない所：画面のボタンと、石座が映っている所 */
+/**
+ * 寸法の線の絵。「寸法を引く」の絵も class に dims を持ち、3D の後ろ（この絵より前）に置かれるので、
+ * $(".dims") ではそちらを取って寸法が出なかった（2026-11-06 通しの確かめ）。最初の 1 つをここで覚えておく
+ */
+const dimsSvgEl = document.querySelector<SVGSVGElement>(".vp > svg.dims:not(.measures)")!;
 function dimsAvoid(): { avoid: Rect[]; bounds: Rect } {
-  const svg = $(".dims").getBoundingClientRect();
+  const svg = dimsSvgEl.getBoundingClientRect();
   const avoid: Rect[] = [];
   for (const sel of [".vp-tl", ".verdict-chip", ".gen-swap", ".tools", ".gizmo", ".ms-panel", ".prong-pop"]) {
     const el = document.querySelector<HTMLElement>(sel);
@@ -277,7 +282,7 @@ function drawDims(d: Dim[] = dims) {
   const flat = viewer.flatView;
   if (flat) d = flatDims(d, flat);
   dimsPlaced = [];
-  $(".dims").innerHTML = showDims && !holdDims ? dimsSvg(d, (x, y, z) => viewer.project(x, y, z), 1, { ...dimsAvoid(), placed: dimsPlaced }) : "";
+  dimsSvgEl.innerHTML = showDims && !holdDims ? dimsSvg(d, (x, y, z) => viewer.project(x, y, z), 1, { ...dimsAvoid(), placed: dimsPlaced }) : "";
 }
 /** 自分で引く寸法（撮影では作らない） */
 let measure: MeasureUi | null = null;
@@ -1202,9 +1207,22 @@ $(".t-grid").addEventListener("click", (e) => {
   more.dataset.tip = "寸法を選ぶ";
   more.textContent = "▾";
   $(".t-dims").after(more);
+  more.setAttribute("aria-expanded", "false");
+  const shut = () => {
+    menu.hidden = true;
+    more.setAttribute("aria-expanded", "false");
+  };
   more.addEventListener("click", () => {
     menu.hidden = !menu.hidden;
+    more.setAttribute("aria-expanded", String(!menu.hidden));
     render();
+  });
+  // 寸法を選ぶ窓は、外を押すか Esc で閉じる（前は開いたままで、指輪の上に残っていた。2026-11-06 通しの確かめ）
+  document.addEventListener("pointerdown", (e) => {
+    if (!menu.hidden && !menu.contains(e.target as Node) && !more.contains(e.target as Node)) shut();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !menu.hidden) shut();
   });
 }
 $(".t-dims").addEventListener("click", (e) => {
@@ -1380,6 +1398,10 @@ $(".command").addEventListener("submit", (e) => {
   e.preventDefault();
   void make();
 });
+/** Claude につながらなかったときの一言（同じ言葉を 2 回出さない） */
+function offlineWords(message: string | undefined, next: string): string {
+  return `Claude につながりませんでした${offlineWhy(message)}。${next}`;
+}
 async function make() {
   if (kind === "band") return makeBand();
   if (!session || !stone || making) return;
@@ -1433,7 +1455,7 @@ async function make() {
   historyEnd(mark, true);
   if (r.offline || (r.error && !r.log.length)) {
     if (r.error?.code === "wrong_password") resetPassword();
-    setStatus(`Claude につながりませんでした${r.error?.message ? `（${r.error.message}）` : ""}。決まりごとから作った案を出しています。`);
+    setStatus(offlineWords(r.error?.message, "決まりごとから作った案を出しています。"));
     return;
   }
   // 表せなかった希望を、目立つ所に出す（できたふりをさせない）
@@ -3018,7 +3040,7 @@ async function addRuleFromWords(said: string) {
   const r = await runClaude({ host, messages: [{ role: "user", content: `${name}さんが話したこと：${said}` }], system: keepPrompt(store.ledger(), name), tools: TOOLS.filter((t) => t.name === "propose_rule"), password: pass, maxTurns: 3, speed: "fast" });
   if (r.offline || (r.error && !r.log.length)) {
     if (r.error?.code === "wrong_password") resetPassword();
-    $(".ar-proposal").innerHTML = `<p class="tech-what">Claude につながりませんでした。${esc(r.error?.message ?? "")}</p>`;
+    $(".ar-proposal").innerHTML = `<p class="tech-what">${esc(offlineWords(r.error?.message, "通信を確かめて、もう一度試してください。"))}</p>`;
     showProposalSlot();
   }
 }
@@ -3497,7 +3519,7 @@ async function fixWithClaude() {
   historyEnd(mark, false);
   if (r.offline || (r.error && !r.log.length)) {
     if (r.error?.code === "wrong_password") resetPassword();
-    fixLog.push({ text: `Claude につながりませんでした。${r.error?.message ?? ""}`, cls: "ng" });
+    fixLog.push({ text: offlineWords(r.error?.message, "上の直し方のボタンか「手で変える」で直せます。"), cls: "ng" });
   }
   renderCheck();
   flashVerdict();

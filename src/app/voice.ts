@@ -34,6 +34,7 @@ export function bindVoice(btn: HTMLButtonElement, field: HTMLTextAreaElement | H
   }
   let rec: Recognizer | null = null;
   const label = btn.innerHTML;
+  const aria = btn.getAttribute("aria-label");
   btn.addEventListener("click", () => {
     if (rec) {
       rec.stop();
@@ -47,7 +48,9 @@ export function bindVoice(btn: HTMLButtonElement, field: HTMLTextAreaElement | H
     rec.continuous = true;
     btn.classList.add("listening");
     btn.setAttribute("aria-pressed", "true");
-    btn.innerHTML = `<span class="dot"></span>聞いています`;
+    // 絵だけの小さなボタン（学ぶの欄のマイク）は、字を入れると縦にはみ出したので、絵のまま赤くして、読み上げの名前だけ変える（2026-11-06 通しの確かめ）
+    if (btn.classList.contains("icon")) btn.setAttribute("aria-label", "聞いています（押すと止める）");
+    else btn.innerHTML = `<span class="dot"></span>聞いています`;
     rec.onresult = (e) => {
       // 毎回、はじめの結果から組み立て直す。Safari は resultIndex が 0 のまま、前に決まった言葉も毎回返すので、
       // 足していくと同じ言葉が二重・三重に入った（2026-11-05 作者：技の頁の「話す」がうまくいかない）
@@ -69,6 +72,7 @@ export function bindVoice(btn: HTMLButtonElement, field: HTMLTextAreaElement | H
       btn.classList.remove("listening");
       btn.setAttribute("aria-pressed", "false");
       btn.innerHTML = label;
+      if (aria) btn.setAttribute("aria-label", aria);
       opts.onDone?.(field.value.trim());
     };
     try {

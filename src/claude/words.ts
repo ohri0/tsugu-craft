@@ -295,3 +295,14 @@ export function cannotFrom(finalText: string, titles?: RuleTitles): string {
   if (!text || /^(なし|ありません|特になし|特にありません|ない)(?:[。．、（(].*)?$/.test(text)) return "";
   return plainWords(text, titles);
 }
+
+/**
+ * Claude につながらなかったわけを、かっこつきの短い言葉に。返事の言葉が「Claude につながりませんでした。…」で始まるときは、
+ * 前の文と同じ言葉が 2 回出ていたので、サーバーの番号だけを残す（2026-11-06 通しの確かめ）。わけがなければ空
+ */
+export function offlineWhy(message: string | undefined): string {
+  const m = (message ?? "").trim();
+  if (!m) return "";
+  if (m.startsWith("Claude につながりませんでした")) return m.match(/（サーバーの返事 \d+）/)?.[0] ?? "";
+  return `（${m.replace(/。$/, "")}）`;
+}
