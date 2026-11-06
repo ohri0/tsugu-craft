@@ -1,0 +1,208 @@
+{
+ "note": "入口のページの「言葉で、腕の形まで変わる」の見本。本物の Claude に希望の欄「アールデコな感じ」だけを渡して組んだ形（2026-11-06、4 回試したうちの 4 回目。どの回も最後は「作れます」）。studio のはじめの石（作者の三角の石）のまま、session.state に state を入れて build すると同じ形。撮るときに Claude は呼ばない",
+ "wish": "アールデコな感じ",
+ "claude": {
+  "calls": 4,
+  "tools": 5,
+  "toolsDetail": {
+   "set_setting": 2,
+   "set_shank": 1,
+   "check": 1,
+   "look": 1
+  },
+  "seconds": 39,
+  "result": "作れます"
+ },
+ "name": "アールデコ（本物の Claude）",
+ "caption": "本物の Claude に「アールデコな感じ」と頼み、継ぐの形の道具で組んで、職人の決まりで確かめた形です（Claude を 4 回・道具を 5 回・39 秒）",
+ "stone": "作者の石（トリリアント・ノンカリブレ 8.88 × 7.52 × 4.24 mm。studio のはじめの石）",
+ "stoneLongMm": 8.88,
+ "stoneDepthMm": 4.24,
+ "state": {
+  "style": "prong",
+  "height": "standard",
+  "orientation": "across",
+  "metal": "pt900",
+  "gou": 11,
+  "position": "top",
+  "join": "on",
+  "prongCount": 3,
+  "prongMm": 1.4,
+  "joinSet": true,
+  "prongTip": "oni",
+  "shankWidthMm": 5,
+  "shankThicknessMm": 3,
+  "shankStations": [
+   {
+    "atDeg": 55,
+    "widthMm": 7.5,
+    "thicknessMm": 3.8
+   },
+   {
+    "atDeg": 120,
+    "widthMm": 4.5,
+    "thicknessMm": 2
+   },
+   {
+    "atDeg": 180,
+    "widthMm": 4,
+    "thicknessMm": 1.8,
+    "section": "hirauchi"
+   }
+  ],
+  "shankRelief": {
+   "kind": "lines",
+   "count": 12,
+   "depthMm": 0.3,
+   "fromDeg": 30,
+   "toDeg": 100,
+   "across": [
+    0.45,
+    0.7
+   ]
+  },
+  "shankReliefMore": [
+   {
+    "kind": "mil",
+    "count": 30,
+    "depthMm": 0.25,
+    "fromDeg": 30,
+    "toDeg": 110,
+    "across": [
+     0.72,
+     0.9
+    ]
+   }
+  ],
+  "shankSection": "free",
+  "sectionCurve": {
+   "points": [
+    {
+     "x": 1,
+     "y": 0
+    },
+    {
+     "x": 1,
+     "y": 0.45
+    },
+    {
+     "x": 1,
+     "y": 0.45
+    },
+    {
+     "x": 1,
+     "y": 0.45
+    },
+    {
+     "x": 0.82,
+     "y": 0.62
+    },
+    {
+     "x": 0.82,
+     "y": 0.62
+    },
+    {
+     "x": 0.82,
+     "y": 0.62
+    },
+    {
+     "x": 0.72,
+     "y": 0.5
+    },
+    {
+     "x": 0.72,
+     "y": 0.5
+    },
+    {
+     "x": 0.72,
+     "y": 0.5
+    },
+    {
+     "x": 0.42,
+     "y": 0.5
+    },
+    {
+     "x": 0.42,
+     "y": 0.5
+    },
+    {
+     "x": 0.42,
+     "y": 0.5
+    },
+    {
+     "x": 0.34,
+     "y": 0.68
+    },
+    {
+     "x": 0,
+     "y": 1
+    },
+    {
+     "x": 0,
+     "y": 1
+    },
+    {
+     "x": 0,
+     "y": 1
+    },
+    {
+     "x": -0.34,
+     "y": 0.68
+    },
+    {
+     "x": -0.42,
+     "y": 0.5
+    },
+    {
+     "x": -0.42,
+     "y": 0.5
+    },
+    {
+     "x": -0.42,
+     "y": 0.5
+    },
+    {
+     "x": -0.72,
+     "y": 0.5
+    },
+    {
+     "x": -0.72,
+     "y": 0.5
+    },
+    {
+     "x": -0.72,
+     "y": 0.5
+    },
+    {
+     "x": -0.82,
+     "y": 0.62
+    },
+    {
+     "x": -0.82,
+     "y": 0.62
+    },
+    {
+     "x": -0.82,
+     "y": 0.62
+    },
+    {
+     "x": -1,
+     "y": 0.45
+    },
+    {
+     "x": -1,
+     "y": 0.45
+    },
+    {
+     "x": -1,
+     "y": 0.45
+    },
+    {
+     "x": -1,
+     "y": 0
+    }
+   ]
+  },
+  "culetGapMm": 1.2
+ }
+}

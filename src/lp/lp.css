@@ -145,9 +145,6 @@ figcaption { font-size: 15px; line-height: 1.7; margin-top: 12px; color: var(--w
 .word-rings figcaption { text-align: center; margin-top: 0; }
 .word-t { display: flex; flex-direction: row-reverse; justify-content: center; gap: clamp(28px, 5vw, 72px); align-items: flex-start; padding: clamp(40px, 7vh, 72px) var(--gut) 0; }
 .word-q { font-size: clamp(30px, 3.5vw, 52px); line-height: 1.3; }
-.word-more { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 26em); justify-content: center; align-items: center; gap: clamp(20px, 4vw, 56px); max-width: 1000px; margin: clamp(56px, 9vh, 96px) auto 0; padding: 0 var(--gut); }
-.word-more > div { display: grid; gap: 14px; }
-.word-more h3 { font-size: clamp(22px, 2.2vw, 30px); }
 .word-b { display: grid; gap: 22px; align-content: start; max-width: 30em; }
 
 /* ---- 聞く ---- */
@@ -350,9 +347,7 @@ figcaption { font-size: 15px; line-height: 1.7; margin-top: 12px; color: var(--w
   .door-draw { left: var(--gut); right: var(--gut); top: 470px; width: auto; transform: none; }
   .door-tsuba { right: -42%; width: 128vw; }
   .word-rings { grid-template-columns: 1fr; }
-  .word-more { grid-template-columns: minmax(0, 1fr); justify-items: center; text-align: left; }
-  .word-more figure { max-width: 260px; }
-  .word-t { padding: 32px var(--gut) 0; }
+      .word-t { padding: 32px var(--gut) 0; }
   .word-q { font-size: 28px; }
   .ask-in { flex-direction: column; align-items: flex-end; }
   .ask-b { max-width: none; }
