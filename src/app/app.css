@@ -373,21 +373,12 @@ a.primary.btnlike { color: #fff; }
 .tiny { min-height: 22px; padding: 0 8px; font-size: 11px; }
 .pen-note .thinking { justify-content: center; }
 
-/* ---- 模様の模型 ---- */
-.sim { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; }
-.sim-head h3 { margin: 0; }
-.sim-stages { display: flex; padding: 2px; gap: 2px; margin: 12px 0 10px; background: var(--field); border: 1px solid var(--line); border-radius: 7px; }
-.sim-stages button { flex: 1; min-height: 26px; padding: 0 6px; border-radius: 5px; border: 0; background: transparent; color: var(--fg-2); font-size: 12px; font-weight: 500; }
-.sim-stages button:hover { color: var(--fg); }
-.sim-stages button[aria-selected="true"] { background: var(--panel-2); color: var(--fg); box-shadow: 0 0 0 1px var(--line-2), 0 1px 2px rgba(0, 0, 0, 0.35); }
-.sim-view { display: grid; gap: 6px; justify-items: center; }
-.sim-top { width: min(100%, 360px); aspect-ratio: 1; border-radius: var(--r); box-shadow: 0 0 0 1px var(--line-2), 0 8px 24px rgba(0, 0, 0, 0.4); }
-.sim-cut { width: min(100%, 360px); height: auto; border-radius: 4px; }
-.sim-note { font-size: 12px; color: var(--fg-2); text-align: center; margin: 8px 0; }
-.sim-ctrl { display: grid; gap: 4px; }
-.sim-ctrl label { display: grid; grid-template-columns: 90px 1fr 52px; align-items: center; gap: 8px; font-size: 11px; color: var(--fg-2); }
-.sim-ctrl output { font: 11px var(--mono); font-variant-numeric: tabular-nums; text-align: right; color: var(--fg); background: var(--field); border: 1px solid var(--line); border-radius: 4px; padding: 2px 6px; }
-.sim-check { text-align: center; font-weight: 500; color: var(--fg); }
+/* ---- 模様の試しへの入口（中身は src/app/moyou.css） ---- */
+.mo-link { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 16px 0; padding: 12px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); color: var(--fg); text-decoration: none; }
+.mo-link:hover { background: var(--panel-2); }
+.mo-link-t { display: grid; gap: 2px; }
+.mo-link-t b { font-weight: 600; }
+.mo-link-t small { font-size: 12px; color: var(--fg-2); line-height: 1.6; }
 .ev-video video { width: 100%; max-height: 360px; border-radius: var(--r); background: #111113; margin-top: 4px; }
 .show-vid { min-height: 30px; padding: 0 12px; font-size: 12px; }
 
@@ -643,8 +634,6 @@ html.fit .ticks,
 html.fit .pair figcaption small,
 html.fit .legend,
 html.fit .tiny,
-html.fit .sim-ctrl label,
-html.fit .sim-ctrl output,
 html.fit .tech-body b .entry,
 html.fit .iv-count,
 html.fit .iv-why,

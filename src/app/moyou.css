@@ -1,0 +1,113 @@
+/* 模様の試し（src/app/moyou-view.ts）。暗い地に、金属の色だけが浮かぶように。色は意味のある所だけ（黄＝はがれ・ちがい、赤＝たどり着けず）。 */
+html.mo-page main { max-width: 1240px; }
+html.mo-rec .bar { display: none; }
+html.mo-rec main { padding-top: 18px; }
+html.mo-rec .moyou .mo-head { margin-bottom: 12px; }
+html.mo-rec .moyou .mo-ctrl, html.mo-rec .moyou .mo-values, html.mo-rec .moyou .back { display: none; }
+
+.moyou { --mo-bg: #121111; --mo-line: rgba(255, 240, 220, 0.08); --mo-gold: #c8ab7c; --mo-warn: #e2a43c; --mo-miss: #e2705c; }
+.moyou .mo-head { margin: 0 0 18px; }
+.moyou .mo-eyebrow { margin: 0 0 6px; font-size: 11.5px; letter-spacing: 0.08em; color: var(--mo-gold); }
+.moyou .mo-head h2 { margin: 0 0 6px; font-size: 22px; font-weight: 600; line-height: 1.35; letter-spacing: 0.01em; }
+.moyou .mo-lead { margin: 0; color: var(--fg-2); font-size: 13.5px; line-height: 1.75; max-width: 46em; }
+.moyou .mo-lead b { color: var(--fg); font-weight: 600; }
+.moyou .mo-runs { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 2px; margin-top: 12px; background: var(--field); border: 1px solid var(--line); border-radius: 7px; }
+.moyou .mo-runs button { min-height: 26px; padding: 0 10px; border: 0; border-radius: 5px; background: transparent; color: var(--fg-2); font-size: 12px; }
+.moyou .mo-runs button[aria-checked="true"] { background: var(--panel-2); color: var(--fg); box-shadow: 0 0 0 1px var(--line-2); }
+
+/* 段の並び：PC は 5 列 × 4 行（見出し・本当・Claude・比べる） */
+.moyou .mo-grid { display: grid; grid-template-columns: 104px repeat(5, minmax(0, 1fr)); column-gap: 12px; row-gap: 8px; align-items: start; }
+.moyou .mo-rl { grid-column: 1; display: flex; flex-direction: column; justify-content: center; align-self: stretch; padding-right: 4px; }
+.moyou .mo-rl b { font-size: 13px; font-weight: 600; line-height: 1.4; }
+.moyou .mo-rl small { font-size: 11px; color: var(--fg-3); line-height: 1.45; }
+.moyou .rl-t { grid-row: 2; }
+.moyou .rl-c { grid-row: 3; }
+.moyou .rl-c b { color: #f0d9b0; }
+.moyou .rl-m { grid-row: 4; justify-content: flex-start; padding-top: 4px; }
+.moyou .s1 { grid-column: 2; }
+.moyou .s2 { grid-column: 3; }
+.moyou .s3 { grid-column: 4; }
+.moyou .s4 { grid-column: 5; }
+.moyou .s5 { grid-column: 6; }
+.moyou .mo-sh { grid-row: 1; display: flex; align-items: baseline; gap: 6px; padding: 0 2px 2px; border-bottom: 1px solid var(--mo-line); }
+.moyou .mo-sh b { font-size: 14px; font-weight: 600; }
+.moyou .mo-n { color: var(--mo-gold); font-size: 15px; }
+.moyou .mo-cell { margin: 0; }
+.moyou .ct { grid-row: 2; }
+.moyou .cc { grid-row: 3; }
+.moyou .mo-marks { grid-row: 4; }
+.moyou .mo-cell canvas { display: block; width: 100%; aspect-ratio: 2.4 / 1; background: var(--mo-bg); border-radius: 5px; box-shadow: inset 0 0 0 1px var(--mo-line); }
+.moyou .mo-cell figcaption { margin-top: 4px; font-size: 11.5px; line-height: 1.5; color: var(--fg-2); min-height: 3em; }
+.moyou .mo-cell .who { display: none; }
+.moyou .cc.differs figcaption { color: #f0d9b0; }
+.moyou .cc.differs canvas { box-shadow: inset 0 0 0 1px rgba(226, 164, 60, 0.45); }
+
+.moyou .mo-marks { list-style: none; margin: 0; padding: 4px 0 0; display: grid; gap: 2px; }
+.moyou .mo-marks li { display: grid; grid-template-columns: 14px 1fr; column-gap: 4px; font-size: 11.5px; line-height: 1.45; color: var(--fg-2); }
+.moyou .mo-marks i { font-style: normal; color: var(--fg-3); text-align: center; }
+.moyou .mo-marks em { font-style: normal; font-size: 10.5px; font-weight: 600; white-space: nowrap; }
+.moyou .mo-marks .part i, .moyou .mo-marks .part em { color: var(--mo-warn); }
+.moyou .mo-marks .miss i, .moyou .mo-marks .miss em { color: var(--mo-miss); }
+.moyou .mo-marks .miss span { color: var(--fg); }
+
+/* 出来上がり：本当・Claude・本物 */
+.moyou .mo-final { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin: 18px 0 0; padding-top: 18px; border-top: 1px solid var(--mo-line); }
+.moyou .mo-big { margin: 0; }
+.moyou .mo-photo { width: 100%; max-width: 300px; margin: 0 auto; aspect-ratio: 1; overflow: hidden; border-radius: 6px; background: #000; }
+.moyou .mo-photo img { display: block; width: 100%; height: 100%; object-fit: cover; transform: scale(1.5); transform-origin: 50% 52%; }
+.moyou .mo-big canvas { display: block; width: 100%; max-width: 300px; margin: 0 auto; aspect-ratio: 1; height: auto; background: #0c0b0b; border-radius: 6px; }
+.moyou .mo-big figcaption { max-width: 300px; margin: 10px auto 0; display: grid; gap: 3px; font-size: 12px; line-height: 1.6; color: var(--fg-2); }
+.moyou .mo-big figcaption b { font-size: 14px; font-weight: 600; color: var(--fg); }
+.moyou .bc figcaption b { color: #f0d9b0; }
+
+.moyou .mo-why { margin: 14px 0 0; padding: 0 0 0 1.2em; display: grid; gap: 2px; font-size: 12px; line-height: 1.65; color: var(--fg-2); }
+html.mo-rec .moyou .mo-why { display: none; }
+html.mo-rec .moyou .mo-big canvas, html.mo-rec .moyou .mo-photo { max-width: 270px; }
+html.mo-rec .moyou .mo-honest { margin-top: 12px; }
+.moyou .mo-honest { margin: 18px 0 0; font-size: 12px; line-height: 1.7; color: var(--fg-3); }
+.moyou .mo-ctrl { display: flex; align-items: center; gap: 8px; margin: 14px 0 0; }
+.moyou .mo-count { min-width: 9em; font-size: 12.5px; color: var(--fg-2); text-align: center; }
+.moyou .mo-prev { min-width: 34px; }
+.moyou .mo-values { margin: 18px 0 0; font-size: 12px; color: var(--fg-2); }
+.moyou .mo-values summary { cursor: pointer; color: var(--fg-2); }
+.moyou .mo-values table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+.moyou .mo-values th, .moyou .mo-values td { text-align: left; vertical-align: top; padding: 6px 8px 6px 0; border-top: 1px solid var(--line); font-weight: 400; line-height: 1.55; }
+.moyou .mo-values th { width: 28%; color: var(--fg); }
+.moyou .mo-values td:nth-child(2) { width: 22%; white-space: nowrap; }
+.moyou .mo-values a { color: var(--accent-2); word-break: break-all; }
+.moyou .kari { display: inline-block; padding: 0 5px; border-radius: 4px; font-size: 10.5px; color: var(--mo-warn); border: 1px solid rgba(226, 164, 60, 0.5); line-height: 1.5; }
+
+/* 1 段ずつ現れる */
+.moyou .mo-sh, .moyou .mo-cell, .moyou .mo-marks { opacity: 0; transform: translateY(6px); transition: opacity 0.7s ease, transform 0.7s ease; }
+.moyou .mo-cell.cc { transition-delay: 0.35s; }
+.moyou .mo-marks { transition-delay: 0.6s; }
+.moyou.on1 .s1, .moyou.on2 .s2, .moyou.on3 .s3, .moyou.on4 .s4, .moyou.on5 .s5 { opacity: 1; transform: none; }
+.moyou .mo-final .mo-big { opacity: 0; transform: translateY(8px); transition: opacity 0.9s ease, transform 0.9s ease; }
+.moyou .mo-final .bc { transition-delay: 0.45s; }
+.moyou .mo-final .br { transition-delay: 0.9s; }
+.moyou.on-final .mo-big { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) {
+  .moyou .mo-sh, .moyou .mo-cell, .moyou .mo-marks, .moyou .mo-final .mo-big { transition: none; }
+}
+
+/* スマホの縦：段ごとに、本当と Claude を横に並べる */
+@media (max-width: 760px) {
+  html.mo-page main { padding-left: 14px; padding-right: 14px; }
+  .moyou .mo-head h2 { font-size: 19px; }
+  .moyou .mo-grid { grid-template-columns: 1fr 1fr; column-gap: 10px; row-gap: 6px; }
+  .moyou .mo-rl { display: none; }
+  .moyou .mo-sh, .moyou .ct, .moyou .cc, .moyou .mo-marks { grid-row: auto; }
+  .moyou .mo-sh, .moyou .mo-marks { grid-column: 1 / -1; }
+  .moyou .ct { grid-column: 1; }
+  .moyou .cc { grid-column: 2; }
+  .moyou .mo-sh { margin-top: 14px; }
+  .moyou .mo-cell .who { display: block; font-size: 11px; font-weight: 600; color: var(--fg); }
+  .moyou .cc .who { color: #f0d9b0; }
+  .moyou .mo-cell figcaption { min-height: 0; }
+  .moyou .mo-marks { padding-bottom: 4px; }
+  .moyou .mo-final { grid-template-columns: 1fr 1fr; gap: 14px 10px; }
+  .moyou .mo-final .br { grid-column: 1 / -1; }
+  .moyou .mo-final .br .mo-photo { max-width: 240px; }
+  .moyou .mo-values th { width: auto; }
+  .moyou .mo-values td:nth-child(2) { white-space: normal; }
+}

@@ -1,0 +1,101 @@
+{
+ "note": "2026-11-04 に Claude が、品物だけの手がかり 9（C1〜C9）から組み立て、別の呼び出しで答え（research/mokume/answer.md の A1〜A11）と比べた回の答え合わせ。動画と入口のページの「11 のうち 9」はこの回。撮影の作業場所（video/work/story/rebuild3/grade.json。リポジトリには入れていない）から、中身を変えずに写した。",
+ "technique": "mokume",
+ "condition": "observe",
+ "date": "2026-11-04",
+ "score": "9/11 本当の工程 11 のうち 9 にたどり着いた（手がかりから 6・もともとの知識から 3）",
+ "steps": [
+  {
+   "title": "金属をえらぶ",
+   "verdict": "part",
+   "label": "一部",
+   "answer": "A1",
+   "note": "A1 色のちがう金属をえらぶ所は合っている。ただ、同じ大きさに切りそろえる作業がない。",
+   "basis": "clues"
+  },
+  {
+   "title": "合金をつくる",
+   "verdict": "part",
+   "label": "一部",
+   "answer": "A1",
+   "note": "A1 赤銅や四分一を用意することにつながる。ただ、合金をつくることは本当の工程に独立した作業としては書かれていない。",
+   "basis": "clues"
+  },
+  {
+   "title": "うすい板にする",
+   "verdict": "part",
+   "label": "一部",
+   "answer": "A1",
+   "note": "A1 板を用意する向きは合っている。ただ、同じ大きさにそろえることにふれていない。",
+   "basis": "clues"
+  },
+  {
+   "title": "板の面をきれいにする",
+   "verdict": "ok",
+   "label": "一致",
+   "answer": "A2",
+   "note": "A2 重ねる面をみがいて、さびやよごれを落とす作業と同じ。",
+   "basis": "prior"
+  },
+  {
+   "title": "色ちがいを交互に重ねる",
+   "verdict": "ok",
+   "label": "一致",
+   "answer": "A3",
+   "note": "A3 色ちがいの板を交互に重ねる作業と同じ。",
+   "basis": "clues"
+  },
+  {
+   "title": "層どうしをつなぐ",
+   "verdict": "part",
+   "label": "一部",
+   "answer": "A5",
+   "note": "A5 つなぐ工程はある。ただ、ろうを使わないことを決めておらず、火床で熱するという肝心な所もはっきりしない。",
+   "basis": "clues"
+  },
+  {
+   "title": "たたいてのばす",
+   "verdict": "ok",
+   "label": "一致",
+   "answer": "A7",
+   "note": "A7 熱してはたたいてのばす。焼きなましをはさむのと同じ考え。",
+   "basis": "prior"
+  },
+  {
+   "title": "彫って層を見せる",
+   "verdict": "ok",
+   "label": "一致",
+   "answer": "A8",
+   "note": "A8 表を彫って下の層を出す作業と同じ。",
+   "basis": "clues"
+  },
+  {
+   "title": "裏から打ち出して平らにする",
+   "verdict": "part",
+   "label": "一部",
+   "answer": "A8・A9",
+   "note": "A8・A9 彫ったあと平らにして模様を広げる所は合っている。ただ、裏から打ち出す道だけを考えていて、くり返しにもふれていない。",
+   "basis": "prior"
+  },
+  {
+   "title": "鍔や金具の形にしあげる",
+   "verdict": "ok",
+   "label": "一致",
+   "answer": "A10",
+   "note": "A10 鍔や金具、器の形にする作業と同じ。",
+   "basis": "clues"
+  },
+  {
+   "title": "みがいて液で煮て色をつける",
+   "verdict": "ok",
+   "label": "一致",
+   "answer": "A11",
+   "note": "A11 みがいてから液で煮て、層の色の差を出す作業と同じ。",
+   "basis": "clues"
+  }
+ ],
+ "missed": [
+  "A4 重ねた板を締めつけて固定する",
+  "A6 火から出してすぐ叩き、つながりを仕上げる"
+ ]
+}

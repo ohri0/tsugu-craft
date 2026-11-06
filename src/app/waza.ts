@@ -3,6 +3,7 @@
 // #waza/ring・bezel・milgrain・tsuchime・kebori・nunome・mokume … どれも同じ形の頁（src/app/tech-view.ts）
 // #waza/restore … 途切れた技を入れる（答えのない技。src/app/restore.ts）
 // #waza/rebuild … 答えの分かっている技で試す（木目金で、Claude がどこまで当てられるか見る。src/app/rebuild.ts）
+// #waza/rebuild/moyou … 模様の試し（本当の手順と Claude の手順で作ったら、どんな模様になるか。src/app/moyou-view.ts）
 // 魚々子は 2026-11-04 に外した（作者：中身が一般的すぎる）。#waza/nanako は #waza へ送る（src/app/routes.ts）
 import { TECHNIQUES } from "../rebuild/material";
 import { PUBLISHED_RUNS } from "../rebuild/published";
@@ -10,6 +11,7 @@ import { filming } from "./confirm";
 import { flash } from "./interview";
 import { mountRebuild } from "./rebuild";
 import { mountRestore } from "./restore";
+import { mountMoyou } from "./moyou-view";
 import { listProjects } from "./restore-store";
 import { mountTech, pageCounts, pageInfo, ringTarget, techTarget } from "./tech-view";
 import { WAZA_ORDER } from "../rules/flow";
@@ -108,6 +110,9 @@ export function mountWaza(root: HTMLElement): { refresh(): void; route(sub: stri
       // 「学ぶ」のタブを押したとき、いま見ている技のまま開く
       if (flowUI()) store.setLastTech(name);
       page = mountTech(root, name, { gapId, step: params.get("step") ?? undefined, onBack: () => (location.hash = "#waza") });
+    } else if (name === "rebuild/moyou") {
+      page = null;
+      mountMoyou(root, { onBack: () => (location.hash = "#waza/rebuild"), auto: params.has("auto") });
     } else if (name === "rebuild") {
       page = null;
       mountRebuild(root, { onBack: () => (location.hash = "#waza") });
@@ -122,7 +127,7 @@ export function mountWaza(root: HTMLElement): { refresh(): void; route(sub: stri
     refresh() {
       const [name] = sub.split("?");
       if (name === "ring" || isTechId(name)) page?.refresh();
-      else if (name === "rebuild" || name === "restore" || name.startsWith("restore/")) return;
+      else if (name === "rebuild" || name === "rebuild/moyou" || name === "restore" || name.startsWith("restore/")) return;
       else if (!root.hidden) list();
     },
   };
