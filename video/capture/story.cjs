@@ -4442,14 +4442,15 @@ Object.assign(CH, {
     const { p } = a;
     await studioNow9(a, { query: '?nooffload' }); await builtNow9(a);
     await p.addStyleTag({ content: OPS_CSS11 });
-    await p.evaluate(() => {
+    await p.evaluate(({ pit, g0 }) => {
       const s = window.__studio.session;
       s.setSetting({ style: 'tension', reason: '撮る' });
-      // 最終案 17（作者の本物の指輪）：短い辺を溝に・反対の角をくぼみに（挟む向き side）。くぼみ 0.5・溝 0.2 mm（ぎりぎり）から始める
+      // 最終案 17（作者の本物の指輪）：短い辺を溝に・反対の角をくぼみに（挟む向き side）
+      // 最終案 17b（作者の声：作った指輪は、角のくぼみ 0.4・辺の溝 0.4 くらい）：くぼみ 0.4・溝 0.2 mm（ぎりぎり）から始める
       s.setSetting({ tension_grip: 'side', reason: '撮る' });
       s.setShank({ metal: 'sv925', gou: 14, reason: '撮る' });
-      s.setTensionDepths(0.5, 0.2);
-    });
+      s.setTensionDepths(pit, g0);
+    }, { pit: Number(process.env.TENSION_PIT || 0.4), g0: Number(process.env.TENSION_GROOVE0 || 0.2) });
     await fine(a, 600);
     await refine(a);
     await fine(a, 300);
@@ -4474,9 +4475,11 @@ Object.assign(CH, {
     a.mark('full'); await a.box('hold', '.tn-hold', 6); await a.box('verdict', '.tn-hold .tn-verdict', 6); await a.box('facts', '.tn-hold .tn-facts', 6); await a.box('plus', plus, 6);
     await a.drift(N(10), plus, { k: 0.45 });
     // 押すと欄が描き直され、上の札（注意の行）の高さが変わって、この札が下へずれる。押したすぐあとに同じ所へ戻す（ずれは映らない）
-    // 溝の深さの ＋ を 6 回（0.2 → 0.5 mm。2 回目で「留まる見込み」、最後は作者の指輪と同じ 0.5 / 0.5）
-    for (const k of [1, 2, 3, 4, 5, 6]) {
-      const c = await a.move(plus, k === 1 ? 12 : 3);
+    // 最終案 17b：溝の深さの ＋ を 4 回（0.2 → 0.4 mm。ぎりぎりのまま数字が動き、4 回目の作者の指輪と同じ 0.4 / 0.4 で「留まる見込み」）。
+    //   作者の声（少し速い）：押す間を 2 倍ほどに。押したあと、印は ＋ のそばでゆっくり漂う（止めない）
+    const presses = Number(process.env.TENSION_PRESSES || 4);
+    for (let k = 1; k <= presses; k++) {
+      const c = await a.move(plus, k === 1 ? 12 : 4);
       await a.shot({ rip: 1 });
       await p.mouse.click(c.x, c.y);
       await refineTo(p, '.tn-hold', 70);
@@ -4484,9 +4487,9 @@ Object.assign(CH, {
       await fine(a, 200);
       await refineTo(p, '.tn-hold', 70);
       await blackVp11(a);
-      await a.hold(k === 2 ? 4 : 1);
       a.mark(`p${k}`);
       console.log('tension16 押した', k, await state());
+      if (k < presses) await a.drift(N(9), { x: c.x + 5, y: c.y + 7 });
     }
     await a.box('verdict2', '.tn-hold .tn-verdict', 6); await a.box('facts2', '.tn-hold .tn-facts', 6);
     const vb = await boxOf(p, '.tn-hold .tn-verdict');
