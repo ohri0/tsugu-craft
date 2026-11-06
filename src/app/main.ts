@@ -30,7 +30,7 @@ const VIEWS: { id: ViewId; label: string; icon: string }[] = [
 // 字・押す所・色の直し（app.css の html.fit）。撮影では付けない（動画の絵を前のままにする）
 document.documentElement.classList.toggle("fit", !filming() || FLOW);
 
-const DESIGN_TAB = `<a href="studio.html" class="to-design"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="14" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 4h6l-3 4Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span>設計</span></a>`;
+const DESIGN_TAB = `<a href="studio.html" class="to-design"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><circle cx="12" cy="14" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 4h6l-3 4Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span>設計<i class="to-out" aria-hidden="true"> ↗</i></span></a>`;
 const viewTab = (v: (typeof VIEWS)[number]) => `<a href="#${v.id}" data-view="${v.id}"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">${v.icon}</svg><span>${v.label}</span><i class="badge" hidden></i></a>`;
 // 流れの画面では、技を先頭に。設計（指輪の道具）は例の一つなので後ろに
 const NAV = FLOW ? `${["waza", "ledger", "learn"].map((id) => viewTab(VIEWS.find((v) => v.id === id)!)).join("")}${DESIGN_TAB}` : `${DESIGN_TAB}${VIEWS.map(viewTab).join("")}`;

@@ -770,3 +770,13 @@ html.fit .tp-toc a { font-size: 12px; }
 .fl-slot { scroll-margin-top: calc(var(--bar-h) + 8px); }
 .rule-cards .more-rules > details > summary { cursor: pointer; padding: 12px 14px; min-height: 44px; display: flex; align-items: center; border: 1px dashed var(--line-2); border-radius: 8px; color: var(--fg-2); font-size: 14px; }
 .rule-cards .more-rules > details[open] > summary { margin-bottom: 10px; }
+/* 設計は別の画面（studio.html）へ移るので、ほかのタブから少し離して、外へ出る印を付ける（2026-11-06 作者） */
+.nav .to-design { border: 1px solid var(--line-2); }
+.nav .to-design:last-child { margin-left: 12px; }
+.nav .to-design:first-child { margin-right: 12px; }
+.nav .to-out { font-style: normal; color: var(--fg-3); }
+@media (max-width: 720px) {
+  .nav .to-design { border: 0; border-left: 1px solid var(--line-2); border-radius: 0; }
+  .nav .to-design:first-child { border-left: 0; border-right: 1px solid var(--line-2); }
+  .nav .to-design:last-child, .nav .to-design:first-child { margin: 0; }
+}
