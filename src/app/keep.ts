@@ -19,7 +19,7 @@ import { mountMotion, savedRecords } from "../ui/motion-ui";
 import { mountInterview, type Interview } from "./interview";
 import { bookLabel, bookTitle, masterName } from "./master";
 import { openQuestions, WAZA_ORDER } from "../rules/flow";
-import { flowCounts, flowDots, techName } from "./flow-view";
+import { flowCounts, techName } from "./flow-view";
 import { flowUI } from "./mihon";
 import { getVideo, putVideo } from "./video-store";
 import { askPassword, resetPassword } from "./password";
@@ -52,15 +52,24 @@ function setLater(n: number) {
 }
 
 export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void } = {}): { refresh(): void; route(sub: string): void } {
+  // 2026-11-06（作者：分かりづらい）：流れの画面では、上から 届いた質問 → Claude の質問 → 決まりを足す → 職人の決まり の順に。
+  // 爪の形の既定と、ほかの技の帳面は下へ。撮影の前の絵（?nointro）は前の順のまま
+  const clear = flowUI();
   root.innerHTML = `
   <section class="view keep">
     <header class="view-head">
       <div class="keep-name"><h2 class="keep-title"></h2><button type="button" class="linklike rename">名前を変える</button><label class="ws-switch" hidden><span>帳面を切り替える</span><select aria-label="使う帳面"></select></label></div>
-      <p class="lead">${flowUI() ? "決まりは、技ごとに残ります。" : "工房の決まり。設計の確かめと、学ぶ人への答えに使います。"}</p>
+      <p class="lead">${clear ? "職人の決まりを残す所です。設計の確かめと、学ぶ人への答えに使います。" : "工房の決まり。設計の確かめと、学ぶ人への答えに使います。"}</p>
       <div class="keep-basics"><span>この工房のベーシック：爪の形</span><div class="seg-b" role="group" aria-label="爪の形（工房の既定）"><button type="button" data-tip="round">丸い爪</button><button type="button" data-tip="oni">尖り爪</button></div><small class="keep-basics-n"></small></div>
     </header>
-    ${flowUI() ? `<ul class="book-techs"></ul><h3 class="pub-sec-h book-ring-h">指輪の石留めの決まり <small>設計の確かめにも使います</small></h3>` : ""}
     <div class="block ask-card iv-card" hidden></div>
+    ${
+      clear
+        ? `<div class="add-rule-row"><button type="button" class="ghost add-rule" data-open="free"><span aria-hidden="true">＋</span> 決まりを足す</button><small>話すか書くと、決まりの案になります。「これでいい」で帳面に入ります。</small></div>
+    <div class="block panel free-panel" hidden><div class="panel-head"><h3>決まりを足す</h3><button type="button" class="ghost close">閉じる</button></div><div class="free-body"></div></div>
+    <h3 class="pub-sec-h book-ring-h">職人の決まり <small class="mine-n"></small></h3>`
+        : ""
+    }
     <ul class="rule-cards"></ul>
     ${
       // 撮影のときは、前のまま開いた形で（台本が中の札まで動かす）
@@ -73,20 +82,24 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
       <h3>届いている質問 <small class="inbox-count"></small></h3>
       <ul class="inbox"></ul>
     </div>
+    ${clear ? `<h3 class="pub-sec-h">ほかの技の帳面 <small>押すと、その技の頁で決まりを見て、答えられます</small></h3><ul class="book-techs"></ul>` : ""}
     <div class="block">
       <h3>ほかにできること</h3>
       <div class="acts">
         <button type="button" class="act print"><b>帳面を印刷</b><small>紙にして工房に置く</small></button>
         <button type="button" class="act" data-open="motion"><b>手本を撮る</b><small>作業を撮るだけ。学ぶ人が手の動きを比べられます</small></button>
-        <button type="button" class="act" data-open="free"><b>思いついたことを話して残す</b><small>話すか書くと、決まりの案になります</small></button>
+        ${clear ? "" : `<button type="button" class="act" data-open="free"><b>思いついたことを話して残す</b><small>話すか書くと、決まりの案になります</small></button>`}
       </div>
+      ${clear ? `<details class="tp-more keep-setting"><summary>工房の既定（爪の形）</summary><div class="keep-basics-slot"></div></details>` : ""}
     </div>
     <div class="block panel motion-panel" hidden><div class="panel-head"><h3>手本を撮る</h3><button type="button" class="ghost close">閉じる</button></div><div class="motion-root"></div></div>
-    <div class="block panel free-panel" hidden><div class="panel-head"><h3>話して残す</h3><button type="button" class="ghost close">閉じる</button></div><div class="free-body"></div></div>
+    ${clear ? "" : `<div class="block panel free-panel" hidden><div class="panel-head"><h3>話して残す</h3><button type="button" class="ghost close">閉じる</button></div><div class="free-body"></div></div>`}
   </section>`;
   const $ = <T extends HTMLElement = HTMLElement>(s: string) => root.querySelector<T>(s)!;
   // 届いている質問は、赤い印で来て探す物なので、札より上に置く（資料の決まりの下で 6,000 px 以上 遠かった）。撮影のときは前の順のまま
   if (!filming()) $(".iv-card").before($(".inbox-block"));
+  // 爪の形の既定は、決まりの一覧と関係が薄いので下の「工房の既定」へ
+  if (clear) $(".keep-basics-slot").append($(".keep-basics"));
   /** 聞き取りを開いているときの部品（開いていなければ null） */
   let interview: Interview | null = null;
   /** 質問の札：いま描いた一覧と、留めている質問（決まりを消して新しく出た質問。「あとで」で外す） */
@@ -113,11 +126,13 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
     else renderAskCard();
     const flow = flowUI();
     if (flow) {
+      const n = activeRules(store.ledger()).filter((r) => r.source.kind === "craftsman").length;
+      $(".mine-n").textContent = `指輪の石留め ・ ${n}`;
       // 技ごとの帳面：開くとその技の頁へ。届いた質問もそこで答える（答えがちがう技の帳面に入らないように）
       $(".book-techs").innerHTML = WAZA_ORDER.filter((id) => id !== "ring")
         .map((id) => {
           const c = flowCounts(id);
-          return `<li><a href="#waza/${id}${c.questions ? "?step=answer" : ""}"><b>${esc(techName(id))}</b><span class="bk-n">${c.craftsman ? `言葉 ${c.craftsman}` : ""}${c.models ? ` ・ 手本 ${c.models}` : ""}${c.questions ? ` <i class="alert">質問 ${c.questions}</i>` : ""}</span>${flowDots(id)}</a></li>`;
+          return `<li><a href="#waza/${id}${c.questions ? "?step=answer" : ""}"><b>${esc(techName(id))}</b><span class="bk-n">${c.craftsman ? `決まり ${c.craftsman}` : "決まり 0"}${c.models ? ` ・ 手本 ${c.models}` : ""}${c.questions ? ` <i class="alert">質問 ${c.questions}</i>` : ""}</span><span class="bk-go" aria-hidden="true">›</span></a></li>`;
         })
         .join("");
     }
