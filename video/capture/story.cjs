@@ -3894,11 +3894,12 @@ Object.assign(CH, {
 });
 // 最終案 14：伝統の仕上げ（2026-11-06 に入った機能。確かめるの「手で変える」の中の「伝統の仕上げ」）。デザインする人への章の 4 秒ほど：
 //   作者の確認（2026-11-06）：布目象嵌はよく見える。槌目はよいが少し粗いので、短く・寄りすぎない。ミル打ちは見せない（粒がのっているように見える）。
-//   1 つ目：寄った絵（指輪と右の欄）で、印が 四分一 → 槌目（中）を押す（銀灰の煮色に、金づちの跡）。
+//   1 つ目：寄った絵（指輪と右の欄）で、印が 四分一 → 丸槌目（大きさは中のまま）を押す（銀灰の煮色に、金づちの跡）。
+//   最終案 14b（槌目を 4 種類に作り直した版。作者の確認：くっきり見える）：丸槌目にして、組むときに少し寄って見せる。
 //   2 つ目（いったん元の指輪に戻してから。組むときは切り替え）：赤銅 → 布目象嵌（紫がかった黒に、金の菱つなぎの帯）→ 腕の肌に寄って、ゆっくり回す。
 //   押す所は FINISH_A・FINISH_B（JSON の配列）で替えられる。形は ?nooffload（こまごとに一体の形）
 const TRAD = (k, v) => `.studio-refine .trad button[data-k="${k}"][data-v="${v}"]`;
-const FINISH_A = JSON.parse(process.env.FINISH_A || 'null') || [TRAD('色金', 'shibuichi'), TRAD('槌目', 'medium')];
+const FINISH_A = JSON.parse(process.env.FINISH_A || 'null') || [TRAD('色金', 'shibuichi'), TRAD('槌目', process.env.FINISH_TSUCHIME || 'maru')];
 const FINISH_B = JSON.parse(process.env.FINISH_B || 'null') || [TRAD('色金', 'shakudo'), TRAD('象嵌', 'nunome')];
 const FINISH_CLOSE = { x: 0.55, y: -0.75, z: 0.35 };
 Object.assign(CH, {
@@ -3912,6 +3913,9 @@ Object.assign(CH, {
     await blackVp11(a);
     await frame11(a, { x: 0.62, y: -0.95, z: 0.62 }, 0.7, Number(process.env.FINISH_DX || 10));
     await p.evaluate(() => { const t = document.querySelector('.studio-refine .trad'); const r = document.querySelector('.studio-refine'); if (t && r) r.scrollTop += t.getBoundingClientRect().top - r.getBoundingClientRect().top - 70; });
+    await a.settle(300);
+    // 開いてすぐの押しは、効かないことがある（別の係の話）。本当の時計で 5 秒待ってから押す
+    await new Promise((r) => setTimeout(r, 5000));
     await a.settle(300);
     const state = () => p.evaluate(() => [window.__studio.session.state.metal, JSON.stringify(window.__studio.session.state.finish || {}), document.querySelector('.verdict-chip')?.innerText].join(' '));
     const presses = async (list, tag) => {

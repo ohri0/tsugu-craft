@@ -2343,11 +2343,12 @@ def setting12(s, t, f):
 
 
 # ---- 伝統の仕上げ（最終案 14。2026-11-06 に入った機能）：見出し 1 つ、声なし。作者の確認：ミル打ちは見せない、槌目は短く寄りすぎない。
-#   1 つ目：寄った絵（指輪と右の欄）で、印が 四分一 → 槌目 を押す（銀灰に金づちの跡）→ 切り替えて
+#   1 つ目：寄った絵（指輪と右の欄）で、印が 四分一 → 丸槌目（中）を押す（銀灰に金づちの跡）→ 指輪に少し寄る（最終案 14b：槌目がくっきりした版）→ 切り替えて
 #   2 つ目：赤銅 → 布目象嵌（紫がかった黒に、金の菱つなぎの帯）→ 腕の肌に寄った絵でゆっくり回す
 FINISH_Z = (720, 330, 1120)   # 指輪と右の欄（伝統の仕上げの欄。右の端までそろえる）
 FINISH_VP = (490, 330, 900)   # 3D の所だけ（寄った絵）
-FINISH_CUT = 1.3              # 1 つ目から 2 つ目へ切り替える秒
+FINISH_NEAR = (520, 360, 860)  # 1 つ目の終わり：指輪に少し寄る（指輪がまるごと入る。上の切り抜きの 1.3 倍）
+FINISH_CUT = 1.7              # 1 つ目から 2 つ目へ切り替える秒
 
 
 @scene("finish14")
@@ -2355,16 +2356,17 @@ def finish14(s, t, f):
     M = meta("finish14")
     m, nfr = M["marks"], M["frames"]
     n = s["len"]
-    t_close = FINISH_CUT + 1.1  # 腕の肌に寄った絵へ重ねて替える秒（場面 3.9 秒なら、次の場面の重ねの前に 0.45 秒ほど見える）
+    t_close = FINISH_CUT + 1.05  # 腕の肌に寄った絵へ重ねて替える秒（場面 4.3 秒なら、次の場面の重ねの前に 0.5 秒ほど見える）
     if t < FINISH_CUT:
         pts = [(0, m["full"]), (0.4, m["s0"] - 1), (0.45, m["s0"] + 1), (0.85, m["s1"] - 1), (0.9, m["s1"] + 1),
                (FINISH_CUT, m["s1"] + 1 + int((FINISH_CUT - 0.9) * FPS))]
-        a = css_crop("finish14", ramp_frame(pts, t), *FINISH_Z)
+        i = ramp_frame(pts, t)
+        a = blend_views(lambda: css_crop("finish14", i, *FINISH_Z), lambda: css_crop("finish14", i, *FINISH_NEAR), t, 0.95, 0.3)
     else:
         u = t - FINISH_CUT
         uc = t_close - FINISH_CUT
         pts = [(0, m["p2"]), (0.4, m["f0"] - 1), (0.45, m["f0"] + 1), (0.85, m["f1"] - 1), (0.9, m["f1"] + 1),
-               (uc + 0.45, min(m["close"] - 1, m["f1"] + 1 + int((uc - 0.45) * FPS)))]
+               (uc + 0.45, min(m["close"] - 1, m["f1"] + 1 + int((uc - 0.9 + 0.45) * FPS)))]
         i = ramp_frame(pts, u)
         j = min(nfr - 1, m["close"] + int(max(0.0, t - t_close) * FPS))
         a = blend_views(lambda: css_crop("finish14", i, *FINISH_Z), lambda: css_crop("finish14", j, *FINISH_VP), t, t_close, 0.45)
