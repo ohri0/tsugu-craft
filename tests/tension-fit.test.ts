@@ -421,11 +421,14 @@ describe("地金ごとの計算（どれだけ小さめに作り、どれだけ�
     expect(set.text).toContain("角を先にくぼみへ");
   });
 
-  it("足りない地金の作り方には、数を出さず、足りないと書く", () => {
+  // 作者（2026-11-06）：「プラチナでもテンションはできる。足りないって何？」→ できないのではなく「この腕のままでは」と書く
+  it("開ききらない地金の作り方には、数を出さず、この腕のままでは開ききらないので組み直すと書く", () => {
     const r = buildRing({ stone: tri(), setting: { style: "tension", culetGapMm: 0.5 }, shank: { gou: 11, ...phi4, metal: "pt900" } });
     const steps = howToMake({ ring: r, outlineMm: tri().outlineMm, longMm: 8.88, widthMm: 7.52, depthMm: 4.24, metalLabel: "Pt900", alloy: null, springMetal: "pt900" }, "hand");
     const text = JSON.stringify(steps.find((x) => x.id === "tension_close")!.specs);
-    expect(text).toContain("足りない");
+    expect(text).toContain("この腕のままでは開ききらない");
+    expect(text).toContain("組み直す");
+    expect(text).not.toContain("足りない見込み");
     expect(text).toContain("職人が決める");
   });
 });

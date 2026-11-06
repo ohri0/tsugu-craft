@@ -52,7 +52,7 @@ const RV_LABEL = { ok: "一致", part: "一部", miss: "たどり着けず" } as
 /** テンションの比べ（三角の石 8.88 × 7.52 × 4.24 mm、設計の画面の札と同じ計算の値。決まった値ではない。作者：「この石の場合、という話」） */
 const TENSION_EXAMPLE: { metal: string; small?: string; open?: string; note?: string }[] = [
   { metal: "K18 イエロー", small: "0.36", open: "1.66" },
-  { metal: "Pt900", note: "足りない（戻りきらず、約 0.60 mm 曲がったまま）" },
+  { metal: "Pt900", note: "この腕のままでは開ききらない見込み（約 0.60 mm 曲がりが残る）→ 腕の太さ・形を変えて組み直す" },
   { metal: "SV925", small: "0.12", open: "1.42" },
 ];
 
@@ -156,8 +156,8 @@ const html = `
       <p class="v word-q rv">「ゴシックな感じ」</p>
       <div class="word-b">
         <h2 id="word-h" class="rv">言葉で、<wbr>腕の形まで<wbr>変わる。</h2>
-        <p class="rv">残した言葉から、Claude が、次の石の作りを推測します。石は手持ちの写真でも、よくある形からでも選べます。「ゴシックな感じ」と言葉で頼むと、断面の線、場所ごとの太さ、浅い彫りまで組み、職人の決まりで確かめて直します。</p>
-        <p class="note rv">この形は、本物の Claude の考え方（指示）に沿って、人が数字を整えたものです。撮るときに Claude は呼んでいません。</p>
+        <p class="rv">職人が残した言葉をもとに、Claude が、次の指輪を組みます。石は、手持ちの石の写真からでも、よくある形からでも選べます。「ゴシックな感じ」と言葉で頼むと、断面の線・場所ごとの太さ・浅い彫りまで Claude が組み、職人の決まりで確かめて直します。</p>
+        <p class="note rv">この形は、Claude Code（作る係の Claude）が、継ぐの形の道具で数字を決めて組んだ形です。</p>
       </div>
     </div>
   </section>
@@ -203,21 +203,25 @@ const html = `
           ${TENSION_EXAMPLE.map((r) => `<tr><th scope="row">${r.metal}</th>${r.small ? `<td class="num">約 ${r.small}</td><td class="num">約 ${r.open}</td>` : `<td colspan="2">${r.note}</td>`}</tr>`).join("")}
         </tbody>
       </table>
-      <p class="note rv">値は仮です。目安・最後は職人が決めます。くぼみや溝の深さも、石によって変わります。</p>
+      <p class="note rv">プラチナでも作れます。地金ごとに、腕の太さや形を変えます。値は仮です。目安・最後は職人が決めます。くぼみや溝の深さも、石によって変わります。</p>
     </div>
   </section>
 
   <section class="band" aria-labelledby="band-h">
     <div class="band-t">
-      <h2 id="band-h" class="rv">断面の形づくりも、<wbr>驚くほど<wbr>シンプルに。</h2>
+      <h2 id="band-h" class="rv">断面の形づくりも、<wbr>驚くほど<wbr>簡単に。</h2>
       <p class="rv">今まで手間のかかった断面の形も、見本を選ぶか、線を描くだけで作れます。上と下で変えることもできます。</p>
     </div>
-    <div class="band-p">
-      <figure class="rv">${shot("band-molding", 2000, 2000, "切り口を見せた、地金のみの指輪。上は太いモールディング、下は細い甲丸へ流れる", "(max-width: 760px) 92vw, 46vw")}<figcaption><b>モールディング</b>上は太いモールディング、下は細い甲丸へ流れる</figcaption></figure>
-      <figure class="rv">${shot("band-stairs", 2000, 2000, "切り口を見せた、地金のみの指輪。大きな段が重なる建築の腕。手のひらの側で段が減る", "(max-width: 760px) 92vw, 46vw")}<figcaption><b>段の重なり</b>大きな段が重なる建築の腕。手のひらの側で段が減る</figcaption></figure>
-      <figure class="rv">${shot("band-crossing", 2000, 2000, "切り口を見せた、地金のみの指輪。左右で違う断面。稜線が上は左、下は右へ、腕を渡る", "(max-width: 760px) 92vw, 46vw")}<figcaption><b>渡る稜線</b>左右で違う断面。稜線が上は左、下は右へ、腕を渡る</figcaption></figure>
-      <figure class="rv">${shot("band-twin", 2000, 2000, "切り口を見せた、地金のみの指輪。深い溝で 2 本に見え、手のひらの側で 1 本にまとまる", "(max-width: 760px) 92vw, 46vw")}<figcaption><b>二本の腕</b>深い溝で 2 本に見え、手のひらの側で 1 本にまとまる</figcaption></figure>
-      <figure class="rv">${shot("band-oneside", 2000, 2000, "切り口を見せた、地金のみの指輪。左右で別の顔。右は段を重ね、左はなだらかに下りる", "(max-width: 760px) 92vw, 46vw")}<figcaption><b>片側の段</b>左右で別の顔。右は段を重ね、左はなだらかに下りる</figcaption></figure>
+    <div class="band-p band-big">
+      <figure class="rv">${shot("band-blade", 2000, 2000, "切り口を見せた、地金のみの指輪。上はナイフの刃のように細く立ち、下は幅の広い平打ちへ流れる", "(max-width: 760px) 92vw, 46vw")}<figcaption><b>刃から平打ちへ</b>上はナイフの刃のように細く立ち、下は幅の広い平打ちへ流れる</figcaption></figure>
+      <figure class="rv">${shot("band-wing", 2000, 2000, "切り口を見せた、地金のみの指輪。上で片側だけ大きく張り出し、下は細い甲丸へ戻る", "(max-width: 760px) 92vw, 46vw")}<figcaption><b>片側の翼</b>上で片側だけ大きく張り出し、下は細い甲丸へ戻る</figcaption></figure>
+    </div>
+    <div class="band-p band-rest">
+      <figure class="rv">${shot("band-molding", 2000, 2000, "切り口を見せた、地金のみの指輪。上は太いモールディング、下は細い甲丸へ流れる", "(max-width: 760px) 92vw, 30vw")}<figcaption><b>モールディング</b>上は太いモールディング、下は細い甲丸へ流れる</figcaption></figure>
+      <figure class="rv">${shot("band-stairs", 2000, 2000, "切り口を見せた、地金のみの指輪。大きな段が重なる建築の腕。手のひらの側で段が減る", "(max-width: 760px) 92vw, 30vw")}<figcaption><b>段の重なり</b>大きな段が重なる建築の腕。手のひらの側で段が減る</figcaption></figure>
+      <figure class="rv">${shot("band-crossing", 2000, 2000, "切り口を見せた、地金のみの指輪。左右で違う断面。稜線が上は左、下は右へ、腕を渡る", "(max-width: 760px) 92vw, 30vw")}<figcaption><b>渡る稜線</b>左右で違う断面。稜線が上は左、下は右へ、腕を渡る</figcaption></figure>
+      <figure class="rv">${shot("band-oneside", 2000, 2000, "切り口を見せた、地金のみの指輪。左右で別の顔。右は段を重ね、左はなだらかに下りる", "(max-width: 760px) 92vw, 30vw")}<figcaption><b>片側の段</b>左右で別の顔。右は段を重ね、左はなだらかに下りる</figcaption></figure>
+      <figure class="rv">${shot("band-twin", 2000, 2000, "切り口を見せた、地金のみの指輪。深い溝で 2 本に見え、手のひらの側で 1 本にまとまる", "(max-width: 760px) 92vw, 30vw")}<figcaption><b>二本の腕</b>深い溝で 2 本に見え、手のひらの側で 1 本にまとまる</figcaption></figure>
     </div>
     <p class="note band-n rv">切り口を見せています。どれも、アプリの断面の編集で作った形です。</p>
   </section>

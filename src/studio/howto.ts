@@ -212,7 +212,7 @@ function tensionSteps(o: HowToInput, method: Method): Step[] {
           { label: "詰める量", value: `図面の開きより 約 ${row.shrinkMm.toFixed(2)} mm 小さめに（${row.name}・硬い状態の大まかな計算${kari}。上限 約 ${row.shrinkMaxMm!.toFixed(2)} mm。最後は職人が決める）` },
           { label: "作る時の開き", value: `約 ${row.makeGapMm!.toFixed(2)} mm（同じ計算${kari}）` },
         ]
-      : [{ label: "詰める量", value: `${row.name}は開く量が足りない見込み（限界 約 ${row.limitMm.toFixed(2)} mm、要る量 ${spring.needMm.toFixed(2)} mm。大まかな計算${kari}）。${SPRING_SHORT_TEXT}` }];
+      : [{ label: "詰める量", value: `${row.name}は、この腕のままでは開ききらない見込み（限界 約 ${row.limitMm.toFixed(2)} mm、要る量 ${spring.needMm.toFixed(2)} mm。大まかな計算${kari}）。地金ごとに腕の太さ・形を変えて組み直す。${SPRING_SHORT_TEXT}` }];
   const close: Step = {
     id: "tension_close",
     title: "開きを詰める",

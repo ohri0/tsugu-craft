@@ -9,9 +9,9 @@ import { bandMesh, checkBand, normalizeBand, type Band } from "../src/studio/ban
 const shapes = showcase.shapes as unknown as { id: string; name: string; caption: string; cut?: string; camera: object; band: Band }[];
 
 describe("地金のみの指輪の見せ場", () => {
-  it("3〜5 本あり、アプリの断面の編集で作った形と書いてある", () => {
+  it("3〜7 本あり、アプリの断面の編集で作った形と書いてある", () => {
     expect(shapes.length).toBeGreaterThanOrEqual(3);
-    expect(shapes.length).toBeLessThanOrEqual(5);
+    expect(shapes.length).toBeLessThanOrEqual(7);
     expect(showcase.source).toContain("アプリの断面の編集");
     expect(new Set(shapes.map((s) => s.id)).size).toBe(shapes.length);
   });

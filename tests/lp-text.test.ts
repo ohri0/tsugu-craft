@@ -19,11 +19,11 @@ describe("入口のページ", () => {
     expect(src).toContain("切り口を見せています");
   });
 
-  it("ゴシックの絵は人が数字を整えたと正直に書く", () => {
+  it("ゴシックの絵は、だれが数字を決めたかを事実どおりに書く", () => {
     expect(src).toContain("ring-gothic-attack");
     expect(src).not.toContain("ring-gothic-heavy");
-    expect(src).toContain("人が数字を整えたものです");
-    expect(src).toContain("Claude は呼んでいません");
+    expect(src).toContain("Claude Code（作る係の Claude）が、継ぐの形の道具で数字を決めて組んだ形");
+    expect(src).not.toContain("人が数字を整え");
   });
 
   it("欄を隠している三石・石を並べる節を書かない", () => {
