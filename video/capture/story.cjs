@@ -4440,17 +4440,19 @@ const TENSION_DIR = { x: 0.62, y: -0.95, z: 0.62 };
 Object.assign(CH, {
   tension16: async (a) => {
     const { p } = a;
+    // 欄の中で「浅く留めたいとき」を置く高さ（欄の上から px）。最終案 17c：事実の表が下の帯にかからないよう、少し上へ
+    const TOFF = Number(process.env.TENSION_OFF || 40);
     await studioNow9(a, { query: '?nooffload' }); await builtNow9(a);
     await p.addStyleTag({ content: OPS_CSS11 });
     await p.evaluate(({ pit, g0 }) => {
       const s = window.__studio.session;
       s.setSetting({ style: 'tension', reason: '撮る' });
       // 最終案 17（作者の本物の指輪）：短い辺を溝に・反対の角をくぼみに（挟む向き side）
-      // 最終案 17b（作者の声：作った指輪は、角のくぼみ 0.4・辺の溝 0.4 くらい）：くぼみ 0.4・溝 0.2 mm（ぎりぎり）から始める
+      // 最終案 17c（アプリの計算に、広げたあと戻りきらない分が入った）：くぼみ 0.25・溝 0.3 mm（足りない）から始める
       s.setSetting({ tension_grip: 'side', reason: '撮る' });
       s.setShank({ metal: 'sv925', gou: 14, reason: '撮る' });
       s.setTensionDepths(pit, g0);
-    }, { pit: Number(process.env.TENSION_PIT || 0.4), g0: Number(process.env.TENSION_GROOVE0 || 0.2) });
+    }, { pit: Number(process.env.TENSION_PIT || 0.25), g0: Number(process.env.TENSION_GROOVE0 || 0.3) });
     await fine(a, 600);
     await refine(a);
     await fine(a, 300);
@@ -4463,35 +4465,42 @@ Object.assign(CH, {
       for (const cam of [v.cams.persp, v.cams.ortho]) { cam.setViewOffset(w, h, -dx, dy, w, h); cam.updateProjectionMatrix(); }
       v.dirty = true; v.draw?.();
     }, { dx: Number(process.env.TENSION_DX || 190), ey: Number(process.env.TENSION_EY || 90) });
-    await refineTo(p, '.tn-hold', 70);
+    await refineTo(p, '.tn-hold', TOFF);
     await a.settle(300);
     await new Promise((r) => setTimeout(r, 4000));
     await a.settle(300);
-    const plus = '.tn-hold .slider[data-s="r-hold-groove"] .sl-step[data-d="1"]';
-    const state = () => p.evaluate(() => [JSON.stringify(window.__studio.session.state.tensionPitMm), document.querySelector('.tn-hold .tn-verdict')?.innerText.replace(/\s+/g, ' '), [...document.querySelectorAll('.tn-hold .tn-facts dd')].slice(0, 2).map((d) => d.innerText).join(' ')].join(' ／ '));
+    const plusOf = (k) => `.tn-hold .slider[data-s="r-hold-${k}"] .sl-step[data-d="1"]`;
+    // 最終案 17c：くぼみの ＋ を 3 回（0.25 → 0.40。0.30 で足りない → ぎりぎり）→ 溝の ＋ を 2 回（0.30 → 0.40）。作者の 0.4 / 0.4 はぎりぎり・職人が確かめる
+    const steps = (process.env.TENSION_STEPS || 'pit,pit,pit,groove,groove').split(',');
+    const plus = plusOf(steps[0]);
+    // 最終案 17c：事実の表は、石を留めるのに縮める量・安全に縮められる量（戻りきらない分を引いて）・限界・図面の開き・戻りきらずに残る量・作る時の開き・広げる量・広げられる限界
+    const state = () => p.evaluate(() => [document.querySelector('.tn-hold .tn-verdict')?.innerText.replace(/\s+/g, ' '), [...document.querySelectorAll('.tn-hold .tn-facts > div')].map((d) => `${d.querySelector('dt')?.innerText}=${d.querySelector('dd')?.innerText.replace(/\s+/g, '')}`).join(' ')].join(' ／ '));
     console.log('tension16 はじめ', await state());
     const pb = await boxOf(p, plus);
     if (pb) await a.jump({ x: pb.x + pb.width / 2 - 140, y: pb.y + pb.height / 2 + 120 });
     a.mark('full'); await a.box('hold', '.tn-hold', 6); await a.box('verdict', '.tn-hold .tn-verdict', 6); await a.box('facts', '.tn-hold .tn-facts', 6); await a.box('plus', plus, 6);
-    await a.drift(N(10), plus, { k: 0.45 });
+    // 最終案 17c：はじめの「足りない」を読める間（約 1 秒）、印は答えの札のそばから ＋ の手前へゆっくり漂う
+    if (pb) await a.drift(N(Number(process.env.TENSION_HEAD || 32)), { x: pb.x + pb.width / 2 - 26, y: pb.y + pb.height / 2 + 26 });
+    else await a.drift(N(10), plus, { k: 0.45 });
     // 押すと欄が描き直され、上の札（注意の行）の高さが変わって、この札が下へずれる。押したすぐあとに同じ所へ戻す（ずれは映らない）
-    // 最終案 17b：溝の深さの ＋ を 4 回（0.2 → 0.4 mm。ぎりぎりのまま数字が動き、4 回目の作者の指輪と同じ 0.4 / 0.4 で「留まる見込み」）。
-    //   作者の声（少し速い）：押す間を 2 倍ほどに。押したあと、印は ＋ のそばでゆっくり漂う（止めない）
-    const presses = Number(process.env.TENSION_PRESSES || 4);
-    for (let k = 1; k <= presses; k++) {
-      const c = await a.move(plus, k === 1 ? 12 : 4);
+    // 作者の声（17 は少し速い）：押す間を 2 倍ほどに。押したあと、印は ＋ のそばでゆっくり漂う（止めない）。押すとき、欄がずれないよう押したすぐあとに同じ所へ戻す
+    for (let k = 1; k <= steps.length; k++) {
+      const sel = plusOf(steps[k - 1]);
+      // 最初と、くぼみの ＋ から溝の ＋ へ移る所は、ゆっくり（1 こま 6 px ほど）
+      const c = await a.move(sel, k === 1 ? 8 : steps[k - 1] !== steps[k - 2] ? 11 : 4);
       await a.shot({ rip: 1 });
       await p.mouse.click(c.x, c.y);
-      await refineTo(p, '.tn-hold', 70);
+      await refineTo(p, '.tn-hold', TOFF);
       await a.shot({ rip: 0.65 }); await a.shot({ rip: 0.3 });
       await fine(a, 200);
-      await refineTo(p, '.tn-hold', 70);
+      await refineTo(p, '.tn-hold', TOFF);
       await blackVp11(a);
       a.mark(`p${k}`);
-      console.log('tension16 押した', k, await state());
-      if (k < presses) await a.drift(N(9), { x: c.x + 5, y: c.y + 7 });
+      console.log('tension16 押した', k, steps[k - 1], await state());
+      if (k < steps.length) await a.drift(N(Number(process.env.TENSION_GAP || 6)), { x: c.x + 5, y: c.y + 7 });
     }
     await a.box('verdict2', '.tn-hold .tn-verdict', 6); await a.box('facts2', '.tn-hold .tn-facts', 6);
+    for (let r = 1; r <= 8; r++) await a.box(`row${r}`, `.tn-hold .tn-facts > div:nth-child(${r})`, 2);
     const vb = await boxOf(p, '.tn-hold .tn-verdict');
     if (vb) await a.drift(N(24), { x: vb.x + vb.width * 0.32, y: vb.y + vb.height * 0.4 });
     a.mark('ok');
