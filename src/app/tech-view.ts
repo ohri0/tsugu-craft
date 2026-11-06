@@ -7,7 +7,7 @@ import { askedGroupId, flowState, FLOW_STEPS, openQuestions, questionGap, stepAf
 import { importRecord } from "../craft/record";
 import { markAnswered } from "../rules/teacher-queue";
 import { mountMotion, savedRecords, storeRecord } from "../ui/motion-ui";
-import { flowCounts, flowStrip, isMihonSource, ruleWord, stepHref } from "./flow-view";
+import { flowCounts, flowStrip, isMihonSource, ruleWord, stepHref, techName } from "./flow-view";
 import { clipUrl, flowUI, isMihon, MIHON_CLIPS, MIHON_NAME, mihonAnswer } from "./mihon";
 import { putVideo } from "./video-store";
 import type { ParamId } from "../rules/ledger";
@@ -131,40 +131,46 @@ export function mountTech(root: HTMLElement, id: HowtoId, opts: { gapId?: string
       <p class="small muted">数字は公開の資料から（出どころのリンクつき）。目安・最後は職人が決める。</p>`;
   const blocks = {
     howto: flow
-      ? `<section class="tp-block" id="tp-howto"><details class="tp-more tp-howto-more"><summary>作り方を見る <small>${howto.steps.length} 工程 ・ 公開の資料から</small></summary>${howtoBody}</details></section>`
+      ? `<section class="tp-block" id="tp-howto"><details class="tp-more tp-howto-more"><summary>作り方を見る <small>${howto.steps.length} 工程 ・ 公開の資料から</small></summary><p class="tp-howto-lead">${esc(info.lead)}</p>${howtoBody}</details></section>`
       : `<section class="tp-block" id="tp-howto"><h3>${num(1)}作り方 <small>${howto.steps.length} 工程</small></h3>${howtoBody}</section>`,
     rules: `<section class="tp-block" id="tp-rules">
       <h3>${num(2)}${flow ? "帳面に残った決まり" : "職人の決まり"} <small class="rule-n"></small></h3>
+      ${flow ? `<p class="small muted tp-rules-why">職人の答えが入り、学ぶ人への答えになります。</p>` : ""}
       <ul class="rule-cards tp-mine"></ul>
       <div class="tp-pub"></div>
       <div class="tp-removed"></div>
     </section>`,
     ask: `<section class="tp-block fl-panel" id="tp-ask">
       <h3>${flow ? `<span class="fl-h-n">1</span>` : num(3)}${flow ? "聞かれたことに答える" : "Claude から質問"} <small class="gap-n"></small></h3>
-      <p class="small muted">${flow ? "声か字で答えて、「これでいい」で帳面に残します。" : "資料に無い所・食いちがう所を、Claude が 1 つずつ聞きます。答えると、職人の決まりとして ② に入ります。"}</p>
+      <p class="small muted">${flow ? "答えは「帳面に残った決まり」に入ります。" : "資料に無い所・食いちがう所を、Claude が 1 つずつ聞きます。答えると、職人の決まりとして ② に入ります。"}</p>
       <div class="iv-card iv-root"></div>
       <details class="tp-gaps"><summary>まだ決まっていない所の一覧</summary><ul class="nk-gaps"></ul></details>
       ${flow ? `<div class="fl-next-slot" data-for="answer"></div>` : ""}
     </section>`,
   };
-  root.innerHTML = `
-  <section class="view waza tp">
-    <button type="button" class="back">← ${flow ? "技の一覧" : "技を選ぶ"}</button>
+  // 2026-11-06（作者：パッと見て何のページか分からない）：流れの画面では、技の名前は上の細い行に置き、
+  // いちばん大きな字で「このページは何をする所か」を 1 行で言う。技の説明は「作り方を見る」の中へ
+  const head = flow
+    ? `<div class="tp-crumb"><button type="button" class="back">← 技の一覧</button><span class="tp-crumb-tech"><span class="bt-mark" aria-hidden="true">${esc(info.mark)}</span><b>${esc(techName(id))}</b></span>${id === "ring" ? `<a class="tp-try tp-try-sm" href="studio.html">設計で試す ›</a>` : ""}</div>
+    <header class="tp-head tp-purpose"><h2>職人が残し、学ぶ人が受け取る</h2></header>`
+    : `<button type="button" class="back">← 技を選ぶ</button>
     <header class="tp-head">
       <span class="bt-mark" aria-hidden="true">${esc(info.mark)}</span>
       <div class="tp-hb">
         <h2>${esc(info.name)}</h2>
         <p class="lead">${esc(info.lead)}</p>
       </div>
-    </header>
+    </header>`;
+  root.innerHTML = `
+  <section class="view waza tp${flow ? " tp-flow" : ""}">
+    ${head}
     ${flow ? `<div class="fl-slot"></div><div class="fl-now"></div>` : ""}
-    ${id === "ring" ? `<a class="${flow ? "ghost btnlike" : "primary"} tp-try" href="studio.html">設計で試す <span aria-hidden="true">›</span></a>` : ""}
+    ${id === "ring" && !flow ? `<a class="primary tp-try" href="studio.html">設計で試す <span aria-hidden="true">›</span></a>` : ""}
     ${
       flow
         ? `${blocks.ask}
     <section class="tp-block fl-panel" id="tp-model" hidden>
       <h3><span class="fl-h-n">2</span>手本を残す <small class="model-n"></small></h3>
-      <p class="small muted">学ぶ人が、自分の手の動きと比べられるようになります。</p>
       <ul class="tp-models"></ul>
       <div class="model-root motion-root"></div>
       <div class="fl-next-slot" data-for="model"></div>

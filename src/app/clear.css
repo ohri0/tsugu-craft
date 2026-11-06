@@ -39,6 +39,60 @@ html.fit .fl-next { display: flex; width: 100%; min-height: 44px; margin-top: 14
 html.fit .fl-go { min-height: 52px; font-size: 16px; border-radius: 10px; }
 html.fit .fl-now { margin: 0 0 6px; }
 
+/* ---- 技の頁の上：何のページかを 1 行で。4 つの段は「職人がすること」「学ぶ人がすること」の 2 組 ---- */
+.tp-crumb { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; margin: 0 0 6px; }
+.tp-crumb .back { margin: 0 !important; padding: 0 4px; }
+.tp-crumb-tech { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+html.fit .tp-crumb-tech .bt-mark { width: 28px; height: 28px; border-radius: 7px; font-size: 14px; }
+html.fit .tp-flow .iv-head .eyebrow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+html.fit .tp-flow .iv-mode { margin-left: 0; }
+.tp-crumb-tech b { font-size: 15px; font-weight: 600; }
+html.fit .tp-try.tp-try-sm { width: auto; margin: 0 0 0 auto; padding: 0 4px; }
+.tp-try-sm { margin-left: auto; display: inline-flex; align-items: center; min-height: 36px; color: var(--accent-2); font-size: 13px; font-weight: 600; text-decoration: none; }
+html.fit .tp-purpose { padding: 2px 0 12px; }
+html.fit .tp-purpose h2 { margin: 0; font-size: 26px; font-weight: 700; letter-spacing: 0.02em; line-height: 1.35; }
+html.fit .tp-flow .flow { padding: 0; background: none; border: 0; gap: 8px; }
+.fl-groups { display: grid; grid-template-columns: 1fr auto 1fr; align-items: stretch; gap: 6px; }
+.fl-group { display: grid; align-content: start; gap: 4px; padding: 8px 6px 6px; border-radius: 10px; }
+.fl-group.master { background: rgba(233, 196, 106, 0.06); border: 1px solid rgba(233, 196, 106, 0.35); }
+.fl-group.learner { background: rgba(64, 156, 255, 0.06); border: 1px solid rgba(64, 156, 255, 0.35); }
+.fl-gh { margin: 0; font-size: 13px; font-weight: 700; text-align: center; letter-spacing: 0.04em; }
+.fl-group.master .fl-gh { color: var(--master); }
+.fl-group.learner .fl-gh { color: var(--accent-2); }
+html.fit .fl-group .fl-steps { grid-template-columns: 1fr 1fr; gap: 4px; }
+.fl-arrow { display: grid; place-items: center; color: var(--fg-2); }
+.fl-no { display: inline-grid; place-items: center; width: 16px; height: 16px; margin-right: 4px; border-radius: 50%; border: 1px solid currentColor; font: 600 10px/1 var(--mono); font-style: normal; vertical-align: 1px; opacity: 0.8; }
+html.fit .fl-label { white-space: nowrap; }
+.fl-loop { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 0; font-size: 13px; color: var(--fg-3); }
+.fl-loop svg { flex: none; color: var(--ng-2); opacity: 0.8; }
+html.fit .tp-flow .fl-step.at a { box-shadow: 0 0 0 1px currentColor inset; }
+html.fit .tp-flow .fl-step.master.at a { color: var(--master); }
+html.fit .tp-flow .fl-step.master.at .fl-label { color: #fff; }
+html.fit .tp-flow .fl-step.learner.at a { color: var(--accent-2); }
+html.fit .tp-flow .fl-step.learner.at .fl-label { color: #fff; }
+.tp-rules-why { margin: -4px 0 10px !important; }
+/* PC：いまの段（左）と、帳面に残った決まり（右）を並べる。答えが右の帳面に入るのが、1 画面で見える */
+@media (min-width: 1000px) {
+  html.fit main:has(#screen-waza:not([hidden]) .tp-flow) { max-width: 1120px; }
+  html.fit .tp-flow { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); column-gap: 20px; grid-auto-flow: row dense; align-items: start; }
+  html.fit .tp-flow > * { grid-column: 1 / -1; }
+  html.fit .tp-flow > #tp-ask, html.fit .tp-flow > #tp-model { grid-column: 1; }
+  html.fit .tp-flow > #tp-rules { grid-column: 2; margin-top: 16px; }
+  html.fit .tp-flow > #tp-rules > h3 { font-size: 18px; border-bottom: 0; padding-bottom: 0; margin-bottom: 4px; }
+  html.fit .tp-flow .rc-text { font-size: 14px; }
+}
+.tp-howto-lead { margin: 10px 0 12px; font-size: 14px; color: var(--fg-2); line-height: 1.7; }
+@media (max-width: 480px) {
+  html.fit .tp-purpose h2 { font-size: 22px; }
+  .fl-groups { gap: 3px; }
+  .fl-group { padding: 6px 2px 4px; }
+  .fl-arrow svg { width: 12px; }
+  html.fit .tp-flow .fl-step a { padding: 6px 0; }
+  html.fit .tp-flow .fl-icon { width: 36px; height: 36px; }
+  html.fit .tp-flow .fl-label { font-size: 13px; }
+  .fl-no { display: none; }
+}
+
 /* ---- 技の一覧 ---- */
 html.fit .waza-head { padding-bottom: 4px; }
 html.fit .waza-head .lead { font-size: 14px; }
