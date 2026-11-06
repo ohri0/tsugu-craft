@@ -8,6 +8,7 @@ import { GUIDE_NOTE, GUIDES } from "../rules/guides.js";
 import { PARAMS, type ParamId } from "../rules/ledger.js";
 import { SECTION_INPUT, sectionCurveProblem } from "../geometry/section-input.js";
 import type { ReliefKind } from "../geometry/shank-relief.js";
+import { MILGRAIN_OFFERED } from "../geometry/finish.js";
 import type { ClaudeTool } from "./wire.js";
 
 export const TOOL_NAMES = ["set_setting", "set_shank", "check", "look", "propose_rule", "ask_teacher", "set_stones", "choose_stone"] as const;
@@ -127,11 +128,15 @@ export const isIrogane = (m: Metal): m is (typeof IROGANE)[number] => (IROGANE a
 /** 伝統の仕上げの入力（set_shank の finish）。書いた項目だけが変わる。none でなくす */
 export interface FinishInput {
   tsuchime?: "none" | "small" | "medium" | "large";
+  /** 槌目の種類：maru＝丸槌目、kaku＝角槌目（平槌目）、tate＝縦槌目（筋目）、arashi＝荒らし槌目 */
+  tsuchime_style?: "maru" | "kaku" | "tate" | "arashi";
   tsuchime_area?: "outer" | "all";
   milgrain?: "none" | "edges";
   inlay?: "none" | "nunome";
 }
-export const FINISH_KEYS = { tsuchime: ["none", "small", "medium", "large"], tsuchime_area: ["outer", "all"], milgrain: ["none", "edges"], inlay: ["none", "nunome"] } as const;
+export const FINISH_KEYS = { tsuchime: ["none", "small", "medium", "large"], tsuchime_style: ["maru", "kaku", "tate", "arashi"], tsuchime_area: ["outer", "all"], milgrain: ["none", "edges"], inlay: ["none", "nunome"] } as const;
+/** Claude に出す仕上げの項目（ミル打ちは MILGRAIN_OFFERED のときだけ） */
+export const FINISH_OFFERED_KEYS = (Object.keys(FINISH_KEYS) as (keyof typeof FINISH_KEYS)[]).filter((k) => MILGRAIN_OFFERED || k !== "milgrain");
 export type View = "top" | "side" | "front" | "angle";
 
 export type ProngTipChoice = "round" | "oni";
@@ -314,6 +319,7 @@ export interface ShankState {
 /** 伝統の仕上げの今の状態（Claude への返事） */
 export interface FinishState {
   tsuchime?: "small" | "medium" | "large";
+  tsuchime_style?: "maru" | "kaku" | "tate" | "arashi";
   tsuchime_area?: "outer" | "all";
   tsuchime_mark_mm?: number;
   milgrain?: "edges";
@@ -672,14 +678,17 @@ export const TOOLS: ClaudeTool[] = [
           type: "object",
           description:
             "伝統の仕上げ（彫金・鍛金の技）。書いた項目だけが変わり、none でなくす。" +
-            `tsuchime＝槌目（金づちの跡を模様として残す。small・medium・large は跡の大きさ ${GUIDES.finish.tsuchime.small.markMm}・${GUIDES.finish.tsuchime.medium.markMm}・${GUIDES.finish.tsuchime.large.markMm} mm、仮の値）、tsuchime_area＝打つ所（outer＝腕の外側、all＝外側と横）、` +
-            `milgrain＝ミル打ち（edges＝腕の外の面の両縁に、ø${GUIDES.finish.milgrain.beadMm} mm の粒を一列ずつ。形と STL に入る）、` +
+            `tsuchime＝槌目（金づちの跡を模様として残す。small・medium・large は跡の大きさ ${GUIDES.finish.tsuchime.small.markMm}・${GUIDES.finish.tsuchime.medium.markMm}・${GUIDES.finish.tsuchime.large.markMm} mm、仮の値）、` +
+            `tsuchime_style＝槌目の種類（maru＝丸槌目：丸いくぼみ。kaku＝角槌目・平槌目：平らな小さな面。tate＝縦槌目・筋目：腕に沿って細長い跡。arashi＝荒らし槌目：細かく密で、つやを抑える。大きさは選ばず ${GUIDES.finish.tsuchimeStyle.arashi.markMm} mm。省くと丸槌目）、` +
+            "tsuchime_area＝打つ所（outer＝腕の外側、all＝外側と横）、" +
+            (MILGRAIN_OFFERED ? `milgrain＝ミル打ち（edges＝腕の外の面の両縁の細い縁に、ø${GUIDES.finish.milgrain.beadMm} mm の粒を一列ずつ、半分沈めて並べる。形と STL に入る）、` : "") +
             "inlay＝象嵌（nunome＝布目象嵌：腕の真ん中に、色のちがう地金の帯の模様）。" +
-            "槌目は跡の深さだけ腕が薄くなり、ミルの粒は腕の幅に収まる必要がある（check が見る）",
+            `槌目は跡の深さだけ腕が薄くなる${MILGRAIN_OFFERED ? "。ミルの粒は腕の幅に収まる必要がある" : ""}（check が見る）`,
           properties: {
             tsuchime: { type: "string", enum: [...FINISH_KEYS.tsuchime], description: "槌目の跡の大きさ。none でやめる" },
+            tsuchime_style: { type: "string", enum: [...FINISH_KEYS.tsuchime_style], description: "槌目の種類。省くと今の種類（はじめは maru）" },
             tsuchime_area: { type: "string", enum: [...FINISH_KEYS.tsuchime_area], description: "槌目を打つ所。省くと outer" },
-            milgrain: { type: "string", enum: [...FINISH_KEYS.milgrain], description: "ミル打ち。none でやめる" },
+            ...(MILGRAIN_OFFERED ? { milgrain: { type: "string", enum: [...FINISH_KEYS.milgrain], description: "ミル打ち。none でやめる" } } : {}),
             inlay: { type: "string", enum: [...FINISH_KEYS.inlay], description: "象嵌。none でやめる" },
           },
           additionalProperties: false,
@@ -1006,11 +1015,11 @@ function checkRelief(v: unknown): string | null {
 /** 伝統の仕上げ：知らない項目と、選べない値を断る */
 function checkFinish(v: unknown): string | null {
   const f = v as Record<string, unknown> | null;
-  if (typeof f !== "object" || f === null || Array.isArray(f)) return "仕上げは {tsuchime, tsuchime_area, milgrain, inlay} の形で書いてください";
+  if (typeof f !== "object" || f === null || Array.isArray(f)) return `仕上げは {${FINISH_OFFERED_KEYS.join(", ")}} の形で書いてください`;
   const keys = Object.keys(f);
   if (!keys.length) return "仕上げに変える項目がありません";
   for (const k of keys) {
-    const allowed = (FINISH_KEYS as Record<string, readonly string[]>)[k];
+    const allowed = (FINISH_OFFERED_KEYS as readonly string[]).includes(k) ? (FINISH_KEYS as Record<string, readonly string[]>)[k] : undefined;
     if (!allowed) return `仕上げに ${k} という項目はありません`;
     if (!allowed.includes(f[k] as string)) return `仕上げの ${k} は ${allowed.join(" / ")} のどれかです（今は ${String(f[k])}）`;
   }

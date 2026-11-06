@@ -20,7 +20,7 @@ import { STONE_FREE_NOTE, STONE_KEEP_NOTE, correctPrompt, designPrompt, gouNote 
 import { craftPointsFromProposal, designNowText, isPointProposal, previewPoints, type DesignNow, type PointsPreview } from "../claude/rule-points";
 import { craftProngPoints, craftProngRule, mergeCraftPoints, mmText, prongMinAt, prongPointsRule, prongTable } from "../rules/prong-points";
 import { TOOLS, isIrogane, type ChooseStoneInput, type ChooseStoneResult, type FinishInput, type ProposeRuleInput, type ProposeRuleResult, type ToolHost, type Metal } from "../claude/tools";
-import { TSUCHIME_AREA_LABEL, finishWords } from "../geometry/finish";
+import { MILGRAIN_OFFERED, TSUCHIME_AREA_LABEL, TSUCHIME_LABEL, TSUCHIME_STYLE_LABEL, TSUCHIME_STYLE_NOTE, finishWords, tsuchimeSpec, tsuchimeStyleOf, type TsuchimeStyle } from "../geometry/finish";
 import type { ClaudeContentBlockParam } from "../claude/wire";
 import { patternSvg } from "../pattern/sheet";
 import { rulePlans } from "../ui/design";
@@ -2503,13 +2503,14 @@ function renderCheck() {
 // ---- 伝統の仕上げ（煮色の色金・槌目・ミル打ち・布目象嵌）。2026-11-06 作者が作ると決めた ----
 /** 色金を「なし」に戻したときの地金（色金を選ぶ前の地金） */
 let plainMetal: Metal = "k18yg";
-const TRAD_KEYS = { 色金: "metal", 槌目: "tsuchime", 槌目の場所: "tsuchime_area", ミル打ち: "milgrain", 象嵌: "inlay" } as const;
+const TRAD_KEYS = { 色金: "metal", 槌目: "tsuchime_style", 槌目の大きさ: "tsuchime", 槌目の場所: "tsuchime_area", ミル打ち: "milgrain", 象嵌: "inlay" } as const;
 /** それぞれの技の、ふつうの言葉の一行（数は目安・仮。最後は職人が決める） */
 const TRAD_NOTE: Record<keyof typeof TRAD_KEYS, string> = {
   色金: "銅に金や銀を混ぜた地金を、液で煮て色を出す（煮色）。赤銅は紫がかった黒、四分一は銀灰、銅は赤茶になる",
-  槌目: "金づちで叩いた跡を、模様として面に残す。小さい跡は細かく光り、大きい跡は力強く見える",
+  槌目: "金づちで叩いた跡を、模様として面に残す。鎚の面の形で跡の形が変わる",
+  槌目の大きさ: "小さい跡は細かく光り、大きい跡は力強く見える",
   槌目の場所: "指に当たる内側には打たない",
-  ミル打ち: "縁に小さな丸い粒を、ミル鏨で一粒ずつ並べて打つ（粒は離さず、重ねず）",
+  ミル打ち: "腕の縁の細い山に、ミル鏨で小さな粒を一粒ずつ押しこんで並べる。粒は半分ほど縁に埋まり、となりと離さず、重ねず",
   象嵌: "細い溝を刻んだ面に、金や銀を打ちこむ（布目象嵌）。腕の真ん中に帯の模様が入る",
 };
 function tradHtml(pick: <T extends string | number>(name: string, cur: T, list: [T, string][]) => string, s: RingState): string {
@@ -2519,15 +2520,27 @@ function tradHtml(pick: <T extends string | number>(name: string, cur: T, list: 
   return `<section class="trad" aria-label="伝統の仕上げ">
     <h4>伝統の仕上げ<small>彫金・鍛金の技</small></h4>
     ${pick("色金", isIrogane(s.metal) ? s.metal : "none", [["none", "なし"], ["shakudo", "赤銅"], ["shibuichi", "四分一"], ["copper", "銅"]])}${note("色金")}
-    ${pick("槌目", f?.tsuchime?.size ?? "none", [["none", "なし"], ["small", "小"], ["medium", "中"], ["large", "大"]])}${note("槌目")}
+    ${pick("槌目", f?.tsuchime ? tsuchimeStyleOf(f.tsuchime) : "none", [["none", "なし"], ...TSUCHIME_STYLES.map((k) => [k, TSUCHIME_STYLE_LABEL[k].replace("槌目", "")] as [string, string])])}${note("槌目")}
+    <ul class="pick-notes trad-styles">${TSUCHIME_STYLES.map((k) => `<li${f?.tsuchime && tsuchimeStyleOf(f.tsuchime) === k ? ' class="on"' : ""}><b>${TSUCHIME_STYLE_LABEL[k]}</b>${esc(TSUCHIME_STYLE_NOTE[k])}</li>`).join("")}</ul>
+    ${f?.tsuchime && tsuchimeStyleOf(f.tsuchime) !== "arashi" ? `${pick("槌目の大きさ", f.tsuchime.size, (["small", "medium", "large"] as const).map((k) => [k, TSUCHIME_LABEL[k]] as [string, string]))}${note("槌目の大きさ")}` : ""}
     ${f?.tsuchime ? `${pick("槌目の場所", f.tsuchime.area, [["outer", TSUCHIME_AREA_LABEL.outer], ["all", TSUCHIME_AREA_LABEL.all]])}${note("槌目の場所")}` : ""}
-    ${pick("ミル打ち", f?.milgrain ?? "none", [["none", "なし"], ["edges", "腕の縁"]])}${note("ミル打ち")}
+    ${MILGRAIN_OFFERED ? `${pick("ミル打ち", f?.milgrain ?? "none", [["none", "なし"], ["edges", "腕の縁"]])}${note("ミル打ち")}` : ""}
     ${pick("象嵌", f?.inlay ?? "none", [["none", "なし"], ["nunome", "布目象嵌"]])}${note("象嵌")}
-    <p class="trad-foot">槌目の跡 ${f?.tsuchime ? `${GUIDES.finish.tsuchime[f.tsuchime.size].markMm} mm` : `${GUIDES.finish.tsuchime.small.markMm}〜${GUIDES.finish.tsuchime.large.markMm} mm`}・ミルの粒 ø${beadMm.toFixed(2)} mm は仮の目安。最後は職人が決める。</p>
+    <p class="trad-foot">槌目の跡 ${f?.tsuchime ? tsuchimeMarkWords(f.tsuchime) : `${GUIDES.finish.tsuchimeStyle.arashi.markMm}〜${GUIDES.finish.tsuchime.large.markMm} mm`}${MILGRAIN_OFFERED ? `・ミルの粒 ø${beadMm.toFixed(2)} mm` : ""} は仮の目安。最後は職人が決める。</p>
   </section>`;
+}
+const TSUCHIME_STYLES: TsuchimeStyle[] = ["maru", "kaku", "tate", "arashi"];
+/** 槌目の跡の大きさの言葉（縦槌目は 幅 × 長さ） */
+function tsuchimeMarkWords(t: NonNullable<RingState["finish"]>["tsuchime"] & object): string {
+  const sp = tsuchimeSpec(t);
+  return tsuchimeStyleOf(t) === "tate" ? `幅 ${sp.markMm} × 長さ ${sp.lengthMm.toFixed(1)} mm` : `${sp.markMm} mm`;
 }
 function tradPick(k: keyof typeof TRAD_KEYS, v: string) {
   const s = session!;
+  if (k === "槌目") {
+    s.setShank({ finish: v === "none" ? { tsuchime: "none" } : { tsuchime_style: v as TsuchimeStyle }, reason: "手で" });
+    return;
+  }
   if (k === "色金") {
     if (!isIrogane(s.state.metal)) plainMetal = s.state.metal;
     s.setShank({ metal: v === "none" ? plainMetal : (v as Metal), reason: "手で" });
@@ -2968,9 +2981,16 @@ function stepsHtml(steps: Step[]): string {
         ${c.watch ? `<p class="watch">${mark(c.watch)}</p>` : ""}
         ${makingRulesHtml(st.id)}${pastTipsHtml(st.title)}
         ${f.rest.length ? `<p class="flow-tools">ほかに使う道具：${mark(f.rest.join("、"))}</p>` : ""}
+        ${stepSourcesHtml(st)}
       </li>`;
     })
     .join("")}</ol>`;
+}
+/** 札の出どころ（技の作り方の目安帳から作った工程だけ）：職人が確かめたことと、資料の名前（開ける所はつなぐ） */
+function stepSourcesHtml(st: Step): string {
+  if (!st.sources?.length && !st.checkedBy) return "";
+  const list = (st.sources ?? []).map((x) => (x.url ? `<a href="${esc(x.url)}" target="_blank" rel="noopener">${esc(x.label)}</a>` : esc(x.label))).join("　");
+  return `<p class="card-src">${st.checkedBy ? `<span class="card-checked">職人が確かめた：${esc(st.checkedBy)}</span>` : ""}${list ? `<span>出どころ：${list}</span>` : ""}</p>`;
 }
 /** いちばん近い、中を動かせる親（なければページ） */
 function scrollerOf(el: HTMLElement): HTMLElement | null {

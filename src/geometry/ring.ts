@@ -125,7 +125,7 @@ export interface RingDesign {
   /** となりの石座をつなぐ所（三石。つながなければ空）。形は、番号 b の石の石座の三角形の後ろに入る */
   joins: HeadJoin[];
   /** ミル打ちの粒（腕の三角形の後ろに入っている。打たなければなし） */
-  milgrain?: Omit<MilgrainResult, "positions" | "normals">;
+  milgrain?: Omit<MilgrainResult, "positions" | "normals" | "centers">;
 }
 
 export function buildRing(p: RingParams): RingDesign {
@@ -134,17 +134,17 @@ export function buildRing(p: RingParams): RingDesign {
 }
 
 /**
- * ミル打ちの粒を、腕の三角形の後ろに足す（粒は 1 つずつ閉じた球。STL・図面・重さに入る）。
+ * ミル打ちの粒と細い縁を、腕の三角形の後ろに足す（粒は 1 つずつ閉じた球、縁は閉じた管。STL・図面・重さに入る）。
  * 腕の確かめの数（厚み・幅・断面）は、粒の前の腕のまま
  */
 function withMilgrain(ring: RingDesign): RingDesign {
   const beads = milgrainBeads(ring.shank.positions, ring.ringPositions.setting.length ? ring.ringPositions.setting : null);
-  if (!beads.count) return { ...ring, milgrain: { count: 0, beadMm: beads.beadMm, pitchMm: beads.pitchMm, volumeMm3: 0 } };
+  if (!beads.count) return { ...ring, milgrain: { count: 0, beadMm: beads.beadMm, pitchMm: beads.pitchMm, triangles: 0, volumeMm3: 0 } };
   const positions = concat([ring.shank.positions, beads.positions]);
   // 腕に向きの付いた点がなければ、粒の向きも付けない（画面が面から向きを作る）
   const normals = ring.shank.normals ? concat([ring.shank.normals, beads.normals]) : undefined;
   const shank: ShankResult = { ...ring.shank, positions, normals, volumeMm3: ring.shank.volumeMm3 + beads.volumeMm3, weightG: ring.shank.weightG + weightG(beads.volumeMm3, ring.shank.metal) };
-  const { positions: _p, normals: _n, ...info } = beads;
+  const { positions: _p, normals: _n, centers: _c, ...info } = beads;
   return {
     ...ring,
     shank,

@@ -608,7 +608,8 @@ export function checkFinish(ring: Pick<RingDesign, "shank" | "params" | "milgrai
   const sh = ring.shank;
   const t = sh.minThicknessMm ?? sh.thicknessMm;
   if (f.tsuchime && t >= g.band.minThicknessMm - 1e-9) {
-    const depth = g.finish.tsuchime[f.tsuchime.size].depthMm;
+    // 荒らし槌目は大きさを選ばない（細かく浅い。仮）
+    const depth = (f.tsuchime.style === "arashi" ? g.finish.tsuchimeStyle.arashi : g.finish.tsuchime[f.tsuchime.size]).depthMm;
     const after = t - depth;
     if (after < g.band.minThicknessMm - 1e-9) {
       out.push({

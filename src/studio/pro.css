@@ -337,6 +337,11 @@ details summary::-webkit-details-marker { display: none; }
 .flow p.flow-g { margin-top: 8px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12px; font-weight: 600; color: var(--fg); }
 .flow .term-def { margin: 0 0 4px; }
 .mk-card .flow-tools { margin-top: 10px; margin-bottom: 0; font-size: 12.5px; line-height: 1.75; color: var(--fg-2); }
+/* 出どころ（技の作り方の目安帳から作った工程）：小さく、札の下に */
+.mk-card .card-src { margin-top: 10px; margin-bottom: 0; padding-top: 8px; border-top: 1px dashed var(--line); display: grid; gap: 3px; font-size: 11px; line-height: 1.6; color: var(--fg-3); }
+.mk-card .card-src a { color: var(--fg-3); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 2px; }
+.mk-card .card-src a:hover { color: var(--fg-2); }
+.mk-card .card-checked { color: var(--fg-2); font-weight: 600; }
 @media (max-width: 820px) {
   .cards { padding: 0 10px; }
   .mk-card { padding: 16px 14px 12px; }

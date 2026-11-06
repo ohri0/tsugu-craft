@@ -18,7 +18,7 @@ import type { MetalTrace } from "./metal-trace";
 import { GEM_STUDIO, LOOK, METAL_COLOR, METAL_STUDIO, METAL_SURFACE, studioLightScene, type MetalShade } from "./studio-light";
 import { applyFinishLook, type FinishLook } from "./hammer";
 import { GUIDES } from "../rules/guides";
-import type { RingFinish } from "../geometry/finish";
+import { sectionArc, tsuchimeSpec, tsuchimeStyleOf, type RingFinish } from "../geometry/finish";
 import { guardBufferUploads } from "./gl-upload";
 import { gridSpacing, labelStep, VIEW_DIR, ViewCameras, type FlatViewInfo, type ViewName } from "./view-camera";
 
@@ -94,8 +94,12 @@ const INLAY_SILVER: [number, number, number] = [0.95, 0.94, 0.92];
 export function finishLookOf(f: RingFinish | undefined, shade: MetalShade, outerRadiusMm: number): FinishLook | null {
   if (!f || (!f.tsuchime && !f.inlay)) return null;
   const goldBase = shade.startsWith("k18");
+  const t = f.tsuchime ? tsuchimeSpec(f.tsuchime) : null;
   return {
-    markMm: f.tsuchime ? GUIDES.finish.tsuchime[f.tsuchime.size].markMm : 0,
+    style: f.tsuchime ? tsuchimeStyleOf(f.tsuchime) : undefined,
+    markMm: t?.markMm ?? 0,
+    lengthMm: t?.lengthMm ?? 0,
+    depthMm: t?.depthMm ?? 0,
     area: f.tsuchime?.area === "all" ? 1 : 0,
     outerRadiusMm,
     inlay: f.inlay ? { halfMm: GUIDES.finish.nunome.bandMm / 2, lineMm: GUIDES.finish.nunome.lineMm, color: goldBase ? INLAY_SILVER : INLAY_GOLD } : undefined,
@@ -771,8 +775,15 @@ export class Viewer {
     const shankGeo = ring.shank.normals ? smoothGeometry(ring.ringPositions.shank, ring.shank.normals) : metalGeometry(ring.ringPositions.shank);
     const shankMat = badShank ? warn : shankTint ? cautionMat(shankTint) : armMetal;
     // ミルの粒（腕の三角形の後ろ）には、槌目と象嵌をかけない（粒は鏨で打った、なめらかな山）
-    const beadTris = ring.milgrain?.count ? ring.milgrain.count * 320 : 0;
+    const beadTris = ring.milgrain?.count ? ring.milgrain.triangles : 0;
     const totalTris = ring.ringPositions.shank.length / 9;
+    // 槌目・象嵌の模様の座標：断面に沿って測った長さ（腕の三角形だけ。粒と細い縁は 0）
+    if (fl) {
+      const pos = shankGeo.getAttribute("position").array as Float32Array;
+      const arc = new Float32Array(pos.length / 3);
+      arc.set(sectionArc(pos.subarray(0, (totalTris - beadTris) * 9), ring.shank.innerRadiusMm));
+      shankGeo.setAttribute("aFinS", new THREE.BufferAttribute(arc, 1));
+    }
     let shankMats: THREE.Material | THREE.Material[] = shankMat;
     if (beadTris && shankMat === armMetal && armMetal !== metal && beadTris < totalTris) {
       shankGeo.addGroup(0, (totalTris - beadTris) * 3, 0);
@@ -827,6 +838,11 @@ export class Viewer {
     this.contentVersion++;
     const old = L.shank.geometry;
     L.shank.geometry = shank.normals ? smoothGeometry(shank.positions, shank.normals) : metalGeometry(shank.positions);
+    // 槌目・象嵌の模様の座標（断面に沿った長さ）も作り直す
+    if (old.getAttribute("aFinS")) {
+      const pos = L.shank.geometry.getAttribute("position").array as Float32Array;
+      L.shank.geometry.setAttribute("aFinS", new THREE.BufferAttribute(sectionArc(pos, shank.innerRadiusMm), 1));
+    }
     // 粒を分けた材質の組のときは、動かしている間の腕（粒なし）を 1 つ目の材質で
     if (Array.isArray(L.shank.material) || Array.isArray(L.shank.userData.render)) L.shank.geometry.addGroup(0, shank.positions.length / 3, 0);
     old.dispose();

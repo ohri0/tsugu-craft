@@ -234,10 +234,12 @@ function partOf(key: string, v: unknown, stone?: StoneWords): string | null {
     case "metal":
       return `地金 ${METAL[s] ?? s}`;
     case "finish": {
-      const f = v as { tsuchime?: string; tsuchime_area?: string; milgrain?: string; inlay?: string };
+      const f = v as { tsuchime?: string; tsuchime_style?: string; tsuchime_area?: string; milgrain?: string; inlay?: string };
       const size: Record<string, string> = { small: "小", medium: "中", large: "大" };
+      const style: Record<string, string> = { maru: "丸槌目", kaku: "角槌目", tate: "縦槌目", arashi: "荒らし槌目" };
       const parts = [
         f.tsuchime ? (f.tsuchime === "none" ? "槌目 なし" : `槌目 ${size[f.tsuchime] ?? f.tsuchime}${f.tsuchime_area === "all" ? "（外側と横）" : ""}`) : f.tsuchime_area ? `槌目の場所 ${f.tsuchime_area === "all" ? "外側と横" : "腕の外側"}` : "",
+        f.tsuchime_style && f.tsuchime !== "none" ? style[f.tsuchime_style] ?? f.tsuchime_style : "",
         f.milgrain ? (f.milgrain === "none" ? "ミル打ち なし" : "ミル打ち 腕の縁") : "",
         f.inlay ? (f.inlay === "none" ? "象嵌 なし" : "布目象嵌") : "",
       ].filter(Boolean);
