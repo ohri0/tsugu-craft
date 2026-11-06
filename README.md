@@ -280,7 +280,7 @@ Claude を使う所は、サーバーの関数（`api/claude.ts`）が Claude AP
 | --- | --- | --- |
 | `raw/anneal.mov`（炎で焼きなます手元）・`raw/file_hands.mov`（ヤスリの手元） | 作者が撮った映像 | このリポジトリの作品の一部 |
 | `kari_kebori.mov`（金属を彫る手元の映像。手本の場面に使う） | 「Gravieren von Zinngeschirr」Gabriel Simons / LVR-Institut für Landeskunde und Regionalgeschichte、Wikimedia Commons。切り抜いて色を変えた（題・作者・出典・ライセンス・変更を、動画の最後の出典の画面に書く）。西洋の錫の器を彫る手元なので、映像の上で「毛彫り」「和彫り」とは言わない・書かない | CC BY 3.0 |
-| `pexels/6262756.mp4`・`pexels/6263175.mp4`・`pexels/6263749.mp4`（暗い工房の手元・作業台の映像。章の頭に 3 秒ほど、切り抜いて色を変えた） | Tima Miroshnichenko、Pexels（動画の番号 6262756・6263175・6263749。題はこの環境から Pexels の頁を開けず、まだ確かめていない）。動画の最後の出典の画面にも書く | Pexels License |
+| `pexels/6262756.mp4`・`pexels/6263175.mp4`・`pexels/6263749.mp4`・`pexels/6263491.mp4`（暗い工房の手元・作業台の映像。章の頭に 3 秒ほど、結に指輪を磨く手元を 3.5 秒。切り抜いて色を変えた） | Tima Miroshnichenko、Pexels（動画の番号 6262756・6263175・6263749・6263491。題はこの環境から Pexels の頁を開けず、まだ確かめていない）。動画の最後の出典の画面にも書く | Pexels License |
 | 上の画像のうち `naiku-1953.jpg`・`mokume-tsuba-1.jpg` ほか | 上の表のとおり | 上の表のとおり |
 
 動画の中の数字の出どころ：伝統的工芸品の作り手の数は経済産業省の資料、式年遷宮に関われる回数は国土交通白書（`docs/RESEARCH-impact.md`・`docs/RESEARCH-scale.md`）。

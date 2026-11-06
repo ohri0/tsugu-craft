@@ -2460,7 +2460,7 @@ SOURCES = [
     ("1953 年の内宮の写真", ["本田照夫 撮影、Wikimedia Commons（パブリックドメイン）"]),
     ("伝統的工芸品の作り手の数", ["経済産業省の資料"]),
     ("式年遷宮に関われる回数", ["国土交通白書"]),
-    ("章の頭の工房の映像", ["Tima Miroshnichenko、Pexels（Pexels License）"]),
+    ("工房の映像（章の頭・結）", ["Tima Miroshnichenko、Pexels（Pexels License）"]),
 ]
 
 
