@@ -182,7 +182,9 @@ export async function trackVideo(video, opts) {
   await p.waitForSelector('.big-tech[href="#waza/kebori"] .bt-stats');
   const stats = (await p.locator('.big-tech[href="#waza/kebori"] .bt-stats').innerText()).replace(/\s+/g, ' ');
   // 作者の決まり 1 ＋ この確かめで足した 2
-  assert.match(stats, /職人の決まり 3 手本 1 届いた質問 0/);
+  // 「届いた質問 0」は 2026-11-07 に外した（赤い札「質問 N 件 ・ 答える」と同じことだったので）
+  assert.match(stats, /職人の決まり 3 手本 1/);
+  assert.doesNotMatch(stats, /届いた質問/);
   await shot('12-grown');
   await p.evaluate(() => (location.hash = '#ledger'));
   await p.waitForSelector('.book-techs a[href^="#waza/kebori"]');

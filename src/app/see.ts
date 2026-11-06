@@ -43,12 +43,12 @@ interface SampleManifest {
 const clock = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
 
 async function loadSamples(): Promise<{ master: Example; learner?: Example } | null> {
-  // 見本：学ぶ人の動画だけを使う（手本は職人の段で「残す」と出る）。職人の本物の手元の、別の場面を学ぶ人に見立てた物
+  // 見本：学ぶ人の動画だけを使う（手本は職人の段で「残す」と出る）。職人が撮った「よくない例」を、学ぶ人の動画として使う
   if (isMihon()) {
     try {
       const c = MIHON_CLIPS.learner;
       const record = importRecord(await (await fetch(c.record)).text());
-      const learner: Example = { id: "mihon-learner", record: { ...record, title: "学ぶ人の動画（見立てた例）" }, videoUrl: clipUrl(c), sample: true };
+      const learner: Example = { id: "mihon-learner", record: { ...record, title: "学ぶ人の動画（よくない例）" }, videoUrl: clipUrl(c), sample: true };
       return { master: learner, learner };
     } catch {
       return null;
@@ -204,7 +204,7 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
       $(".try-sample").classList.replace("ghost", "primary");
       $(".try-sample").textContent = "見本の動画で比べる";
       $(".cta b").textContent = "学ぶ人の手を、手本と比べる";
-      $(".cta small").textContent = "本当は、自分の手を撮ります。見本では、同じ職人の別の場面を、学ぶ人の手に見立てて使います。";
+      $(".cta small").textContent = "本当は、自分の手を撮ります。見本では、職人が撮った「よくない例」を、学ぶ人の手として使います。";
     }
     const toMaster = tech ? `#waza/${tech}?step=model` : "#ledger/motion";
     // 技の手本がまだないときは、いい例の動画と比べられる（行き止まりにしない）
@@ -396,7 +396,7 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
           <div><span>あなた</span><i style="--w:${((100 * c.learnerWobble) / max).toFixed(1)}%" class="red"></i></div>
         </div>
         <p class="small" title="手のひらの中心が、前後 1 秒の真ん中の位置からどれだけ離れたかの平均（手のひらの長さを 1 として）">ふらつき（手のひらの中心の揺れ）：手本 ${c.masterWobble.toFixed(2)}・あなた ${c.learnerWobble.toFixed(2)}</p>
-        ${isMihon() ? `<p class="small muted">職人の本物の手元（ヤスリがけ）の 2 つの場面を、手本と学ぶ人に見立てて比べた結果です。</p>` : current.id === PAIR_GOOD ? `<p class="small muted">いい例（職人の本物の手元・ヤスリがけ）と比べた結果です。</p>` : ""}
+        ${isMihon() ? `<p class="small muted">職人が撮った本物の手元（ヤスリがけ）の「いい例」と「よくない例」を比べた結果です。</p>` : current.id === PAIR_GOOD ? `<p class="small muted">いい例（職人の本物の手元・ヤスリがけ）と比べた結果です。</p>` : ""}
         ${rule ? `<blockquote>「${esc(rule.quote || rule.text)}」<small>${esc(quoteWho(rule))} ・ ${esc(rule.title)}</small></blockquote>` : ""}
       </div>
       <div class="heat">

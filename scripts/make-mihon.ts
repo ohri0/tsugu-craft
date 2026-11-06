@@ -1,5 +1,5 @@
 // 見本の動画と手の記録を作る（public/mihon/）。元は作者（彫金の職人）が撮った、本物の手元の動画（ヤスリがけ）。
-// 手本と学ぶ人は、同じ動画の別の秒を切り出す（学ぶ人の手は「見立てた例」。本物の生徒の手ではない）。
+// 1 本の動画からは、手本と学ぶ人を別の秒で切り出す（学ぶ人の手は「見立てた例」）。--pair なら、職人が撮り分けた いい例・よくない例 の 2 本から作る。
 // 手の点は、アプリと同じモデルで、ブラウザの中で動画から読む（暗い手元向けの読み方は scripts/mihon-read.ts）。
 // 読んだ点の時刻と位置は、見せる動画とそのまま合う。
 //
@@ -21,16 +21,16 @@ import { comparePose, poseSummary } from "../src/craft/pose";
 import type { ReadOptions } from "./mihon-read";
 
 const OUT = "public/mihon";
-/** 横長のまま、軽くする */
-const W = 960;
-const H = 540;
+/** 軽くする：長い辺を 960 px に（横長なら 960×540、縦長なら 540×960。向きは元の動画のまま。2026-11-07 の撮り分けた動画は縦長） */
+const SCALE = "scale='if(gt(iw,ih),960,-2)':'if(gt(iw,ih),-2,960)'";
 const DATE = "2026-11-06";
 
 /** 手の点の読み方 */
 const READ: ReadOptions = {
   fps: 24,
   minConfidence: 0.1,
-  filters: ["brightness(1.8) contrast(1.2)", "brightness(2.4) contrast(1.1)"],
+  // 暗い手元向け。明るめの動画（2026-11-07 の撮り分け）は MIHON_FILTERS="none|brightness(1.4) contrast(1.15)" のように | で替える
+  filters: process.env.MIHON_FILTERS ? process.env.MIHON_FILTERS.split("|") : ["brightness(1.8) contrast(1.2)", "brightness(2.4) contrast(1.1)"],
   rotations: [0, 90, 180, 270],
   sameHandDist: 0.12,
 };
@@ -44,7 +44,7 @@ const CLIPS = [
 const ffmpeg = (args: string[]) => execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-threads", "4", ...args]);
 
 /** 見せる動画の色：暗い所を少し締める（肌より明るい所は変えない） */
-const SHOW_VF = `scale=${W}:${H},curves=all='0/0 0.06/0.03 0.5/0.5 1/1',format=yuv420p`;
+const SHOW_VF = `${SCALE},curves=all='0/0 0.06/0.03 0.5/0.5 1/1',format=yuv420p`;
 
 /** 切り出して、音を消し、960×540 の webm と mp4 にする */
 function cut(src: string, ss: number, t: number, outBase: string) {
@@ -58,7 +58,7 @@ async function readWhole(src: string): Promise<MotionInput> {
   const dir = mkdtempSync(join(resolve(OUT), ".read-"));
   try {
     // 読むための写し：大きさは見せる動画と同じ。色は変えない（明るくするのは読むときの canvas の中）
-    ffmpeg(["-i", src, "-an", "-vf", `scale=${W}:${H},format=yuv420p`, "-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "20", "-row-mt", "1", join(dir, "whole.webm")]);
+    ffmpeg(["-i", src, "-an", "-vf", `${SCALE},format=yuv420p`, "-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "20", "-row-mt", "1", join(dir, "whole.webm")]);
     const server = await createServer({ root: process.cwd(), server: { port: 5199, strictPort: true }, logLevel: "error" });
     await server.listen();
     const browser = await chromium.launch();
@@ -129,13 +129,17 @@ const durationOf = (f: string) => Number(execFileSync("ffprobe", ["-v", "error",
 // いい例とよくない例を、別々の動画から作る（作者が撮り分けた動画を入れるとき）
 if (args[0] === "--pair") {
   const pair = [
-    { name: "master", src: resolve(args[1]), ss: Number(process.env.MIHON_MASTER_SS ?? 0), t: process.env.MIHON_MASTER_T, title: "手本（いい例・職人の本物の手元）", craftsman: "見本の人" },
+    { name: "master", src: resolve(args[1]), ss: Number(process.env.MIHON_MASTER_SS ?? 0), t: process.env.MIHON_MASTER_T, title: "手本（いい例・ヤスリがけ・職人の本物の手元）", craftsman: "見本の人" },
     { name: "learner", src: resolve(args[2]), ss: Number(process.env.MIHON_LEARNER_SS ?? 0), t: process.env.MIHON_LEARNER_T, title: "よくない例", craftsman: "" },
   ];
   const records = [];
   for (const c of pair) {
     const t = c.t ? Number(c.t) : durationOf(c.src) - c.ss;
-    const input = slice(steady(await readWhole(c.src)), c.ss, t);
+    // 読むのは数分かかるので、読んだ全体を残す（MIHON_REUSE=1 で使い回して、秒や比べ方だけを変えられる）
+    const cacheOf = join(tmpdir(), `mihon-read-${c.name}.json`);
+    const whole = process.env.MIHON_REUSE ? (JSON.parse(readFileSync(cacheOf, "utf8")) as MotionInput) : await readWhole(c.src);
+    writeFileSync(cacheOf, JSON.stringify(whole));
+    const input = slice(steady(whole), c.ss, t);
     report(`${c.name}（${c.src} の ${c.ss}〜${(c.ss + t).toFixed(1)} 秒）`, input);
     if (!process.env.MIHON_DRY) cut(c.src, c.ss, t, join(OUT, c.name));
     const record = createRecord(input, { id: `mihon-${c.name}`, title: c.title, craftsman: c.craftsman, videoName: `${c.name}.webm`, date: process.env.MIHON_DATE ?? DATE });
