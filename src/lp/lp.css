@@ -1,180 +1,186 @@
-/* 継ぐの入口のページ。video/LOOK9.md の見た目をウェブに：地に意味を持たせる（品物は黒、職人の言葉は紙、技は写真）。
-   字は明朝（見出し・言葉）とゴシック（説明と札）。字に金を使わない。赤は「作れない」、朱は職人の直しだけ。線は細く、枠で囲まない。 */
+/* 継ぐの入口のページ（2026-11-07 作り直し）。見た目は video/LOOK9.md：黒と紙、明朝、細い線、字に金を使わない。赤は「作れない」、朱は職人の直しだけ。
+   作者の声「読みにくい」→ 本文は横書きの大きな字（17〜19 px・行の高さ 1.95）、1 行は 36 字くらいまで。縦書きは使わない。
+   絵の移り変わりは重ねるだけ（1.2 秒）。動かさない・寄らない。字は濃くなるだけ。 */
 @import "../studio/why.css";
 
 :root {
   --black: var(--t-black);
-  --char: #100e0d;
+  --char: #0f0d0c;
+  --panel: #151311;
   --white: var(--t-white);
-  --white-2: rgba(244, 241, 234, 0.82);
-  --hair: rgba(244, 241, 234, 0.26);
+  --white-2: rgba(244, 241, 234, 0.8);
+  --hair: rgba(244, 241, 234, 0.2);
   --paper: var(--t-paper);
   --ink: var(--t-ink);
-  --ink-2: rgba(22, 19, 17, 0.8);
-  --hair-ink: rgba(22, 19, 17, 0.28);
+  --ink-2: rgba(22, 19, 17, 0.78);
+  --hair-ink: rgba(22, 19, 17, 0.22);
   --shu: var(--t-shu);
   --red: var(--t-red);
   --mincho: var(--t-mincho);
   --sans: var(--t-sans);
-  --gut: clamp(20px, 5vw, 64px);
-  --gap-sec: clamp(96px, 16vh, 180px);
+  --gut: clamp(16px, 5vw, 72px);
+  --max: 1200px;
+  --sec: clamp(88px, 14vh, 168px);
   color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; scroll-padding-top: 60px; }
-html, body { margin: 0; background: var(--black); color: var(--white); font: 400 clamp(16.5px, 1.25vw, 18px)/1.95 var(--sans); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; -webkit-text-size-adjust: 100%; font-synthesis: none; }
+html { scroll-behavior: smooth; scroll-padding-top: 64px; }
+html, body { margin: 0; background: var(--black); color: var(--white); font: 400 clamp(16.5px, 1.2vw, 18.5px)/1.95 var(--sans); -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; -webkit-text-size-adjust: 100%; font-synthesis: none; }
 body { overflow-x: hidden; }
 a { color: inherit; text-underline-offset: 0.22em; text-decoration-thickness: 1px; }
-img { display: block; max-width: 100%; height: auto; }
+img, video { display: block; max-width: 100%; height: auto; }
 figure { margin: 0; }
-h1, h2, h3, p, ul, ol, dl, dd, blockquote { margin: 0; padding: 0; }
+h1, h2, h3, h4, p, ul, ol, dl, dd, blockquote { margin: 0; padding: 0; }
 ul, ol { list-style: none; }
 .num { font-variant-numeric: tabular-nums; }
 :focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
 .skip { position: absolute; left: -999px; top: 8px; z-index: 50; background: var(--white); color: #000; padding: 8px 14px; }
 .skip:focus { left: 8px; }
+br.sm { display: none; }
 
-/* 縦書き。字の頭を上の余白にそろえ、右から読む */
-.v { writing-mode: vertical-rl; font-family: var(--mincho); font-weight: 400; letter-spacing: 0.14em; font-feature-settings: "vpal"; line-height: 1.75; white-space: nowrap; }
-h2:not(.v), h3 { font-family: var(--mincho); font-weight: 400; letter-spacing: 0.04em; text-wrap: balance; font-size: clamp(27px, 3.1vw, 44px); line-height: 1.5; word-break: keep-all; overflow-wrap: anywhere; }
+h2, h3 { font-family: var(--mincho); font-weight: 400; letter-spacing: 0.04em; text-wrap: balance; line-break: strict; overflow-wrap: anywhere; }
+h2 { font-size: clamp(32px, 4vw, 56px); line-height: 1.4; }
+h3 { font-size: clamp(25px, 2.4vw, 36px); line-height: 1.55; }
 p { text-wrap: pretty; }
-figcaption { font-size: 15px; line-height: 1.7; margin-top: 12px; color: var(--white-2); }
-.note, .src { font-size: 15px; line-height: 1.8; color: var(--white-2); }
-.src { margin-top: 14px; }
-.more, .links a { display: inline-flex; align-items: center; min-height: 44px; }
+figcaption { font-size: 15.5px; line-height: 1.75; margin-top: 12px; color: var(--white-2); }
+.note, .src { font-size: 15.5px; line-height: 1.85; color: var(--white-2); }
 .links { display: flex; flex-wrap: wrap; gap: 4px 28px; }
+.links a { display: inline-flex; align-items: center; min-height: 44px; }
+.kicker { font: 400 16px/1.6 var(--sans); letter-spacing: 0.24em; color: var(--white-2); }
+.lead { font: 400 clamp(20px, 1.8vw, 26px)/1.75 var(--mincho); letter-spacing: 0.04em; }
+.wrap { width: 100%; max-width: var(--max); margin-inline: auto; padding-inline: var(--gut); }
 
 /* ---- 上の帯 ---- */
-.hd { position: fixed; inset: 0 0 auto; z-index: 20; display: flex; align-items: center; justify-content: space-between; height: 56px; padding: 0 var(--gut); transition: background 0.4s; }
-.hd.solid { background: rgba(7, 6, 6, 0.86); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
-.brand { display: inline-flex; align-items: center; min-height: 44px; font: 400 21px/1 var(--mincho); letter-spacing: 0.2em; text-decoration: none; }
-.nav { display: flex; align-items: center; gap: clamp(14px, 2.2vw, 30px); font-size: 15px; }
+.hd { position: fixed; inset: 0 0 auto; z-index: 20; display: flex; align-items: center; justify-content: space-between; height: 60px; padding: 0 var(--gut); transition: background 0.4s; }
+.hd.solid { background: rgba(7, 6, 6, 0.86); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); border-bottom: 1px solid rgba(244, 241, 234, 0.08); }
+.brand { display: inline-flex; align-items: center; min-height: 44px; font: 400 22px/1 var(--mincho); letter-spacing: 0.2em; text-decoration: none; }
+.nav { display: flex; align-items: center; gap: clamp(14px, 2vw, 30px); font-size: 15.5px; }
 .nav a { display: inline-flex; align-items: center; min-height: 44px; text-decoration: none; }
 .nav a:hover { text-decoration: underline; }
-.nav .go { padding: 0 16px; background: var(--white); color: var(--black); }
+.nav .go { padding: 0 18px; background: var(--white); color: var(--black); }
 .nav .go:hover { text-decoration: none; background: #fff; }
 
 /* ---- ボタン ---- */
 .cta { display: flex; flex-wrap: wrap; gap: 12px; }
-.btn { display: inline-flex; align-items: center; justify-content: center; min-height: 50px; padding: 0 30px; border: 1px solid var(--white); text-decoration: none; font-size: 16.5px; letter-spacing: 0.08em; transition: background 0.2s, color 0.2s; }
+.btn { display: inline-flex; align-items: center; justify-content: center; min-height: 52px; padding: 0 32px; border: 1px solid var(--white); text-decoration: none; font-size: 17px; letter-spacing: 0.08em; transition: background 0.2s, color 0.2s; }
 .btn:hover { background: rgba(244, 241, 234, 0.12); }
 .btn.primary { background: var(--white); color: var(--black); }
 .btn.primary:hover { background: #fff; }
 
-/* ---- はじめ：黒に指輪。右に縦の字 ---- */
-.hero { position: relative; min-height: 100svh; overflow: hidden; background: #000; }
-.hero-ring { position: absolute; inset: 0; }
-.hero-ring img { width: 100%; height: 100%; object-fit: cover; object-position: 38% 55%; }
-.hero-t { position: absolute; top: clamp(84px, 13vh, 130px); right: clamp(28px, 7vw, 120px); display: flex; flex-direction: row-reverse; gap: clamp(20px, 3vw, 44px); align-items: flex-start; }
-.hero-h { font-size: clamp(76px, 10vw, 148px); line-height: 1; letter-spacing: 0.1em; }
-.hero-s { font-size: clamp(21px, 2.4vw, 34px); padding-top: 0.2em; line-height: 2; }
-.hero::after { content: ""; position: absolute; inset: auto 0 0; height: 38%; background: linear-gradient(0deg, rgba(7, 6, 6, 0.94) 18%, transparent); pointer-events: none; }
-.hero-b { position: absolute; z-index: 1; left: var(--gut); bottom: clamp(28px, 6vh, 60px); max-width: 520px; display: grid; gap: 18px; }
+/* ---- はじめ：題と、一回りする指輪 ---- */
+.hero { position: relative; min-height: 100svh; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items: center; gap: clamp(16px, 4vw, 64px); max-width: 1440px; margin: 0 auto; padding: 96px var(--gut) 64px; }
+.hero-t { display: grid; gap: 22px; align-content: center; }
+.hero-h { font: 400 clamp(84px, 10vw, 156px)/1 var(--mincho); letter-spacing: 0.16em; }
+.hero-s { font: 400 clamp(30px, 3.4vw, 50px)/1.5 var(--mincho); letter-spacing: 0.08em; }
+.hero-by { font-size: clamp(16.5px, 1.3vw, 19px); color: var(--white-2); }
+.hero-t .cta { margin-top: 10px; }
+.hero-ring { position: relative; justify-self: center; width: min(100%, 78svh, 820px); aspect-ratio: 1 / 1; }
+.hero-ring video { width: 100%; height: 100%; object-fit: cover; }
+/* 四隅を黒へ溶かす（動画の端の線を見せない） */
+.hero-ring::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(closest-side, transparent 84%, var(--black) 100%); }
 
-/* ---- 序 ---- */
-.prologue { padding: var(--gap-sec) var(--gut); background: var(--black); }
-.pro-v { display: flex; flex-direction: row-reverse; justify-content: center; align-items: flex-start; gap: clamp(28px, 6vw, 84px); }
-.pro-1, .pro-2 { font-size: clamp(21px, 2.3vw, 30px); line-height: 2.1; }
-.pro-3 { font-size: clamp(84px, min(13vw, 18vh), 190px); line-height: 1; letter-spacing: 0.12em; background: linear-gradient(180deg, var(--white) 30%, rgba(244, 241, 234, 0.08) 96%); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.pro-b { max-width: 34em; margin: clamp(64px, 10vh, 112px) auto 0; font-size: clamp(18px, 1.6vw, 21px); }
+/* ---- なぜ作ったか ---- */
+.reason { max-width: 980px; margin: 0 auto; padding: var(--sec) var(--gut); display: grid; gap: 28px; }
+.reason-q p { font: 400 clamp(26px, 3.1vw, 44px)/1.65 var(--mincho); letter-spacing: 0.04em; }
+.reason-q p::before { content: "「"; margin-left: -0.6em; }
+.reason-q p::after { content: "」"; }
+.reason-by { color: var(--white-2); font-size: 16px; }
+.reason-lines { display: grid; gap: 6px; margin-top: clamp(24px, 6vh, 56px); padding-top: 28px; border-top: 1px solid var(--hair); font: 400 clamp(19px, 1.7vw, 24px)/1.8 var(--mincho); letter-spacing: 0.04em; }
+.reason-lines .strong { color: var(--white); margin-top: 8px; }
+.reason-lines p:not(.strong) { color: var(--white-2); }
+.route { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 16px; border-top: 1px solid var(--hair); }
+.route li + li { border-left: 1px solid var(--hair); }
+.route a { display: grid; gap: 2px; padding: 16px 14px; min-height: 44px; text-decoration: none; font: 400 clamp(17px, 1.5vw, 21px)/1.5 var(--mincho); }
+.route a small { font: 400 14.5px/1.4 var(--sans); letter-spacing: 0.2em; color: var(--white-2); }
+.route a:hover { background: rgba(244, 241, 234, 0.05); }
 
-/* ---- 残す：罫の紙に職人の言葉 ---- */
-.keep { background: var(--paper); color: var(--ink); }
-/* 罫は、縦書きの字の列の幅（字の大きさ × 行の送り）と同じ間隔で引き、言葉の列の右の端にそろえる。字の列が罫の間に入る */
-.keep { --qfs: clamp(32px, 4.2vw, 62px); --rule: calc(var(--qfs) * 1.75); }
-.paper-ruled { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(28px, 5vw, 80px); padding: clamp(72px, 12vh, 128px) var(--gut); background-image: linear-gradient(to right, rgba(190, 50, 30, 0.22) 0 1px, transparent 1px); background-size: var(--rule) 100%; background-repeat: repeat-x; background-position: right var(--gut) top; direction: rtl; min-height: min(88vh, 860px); }
-.paper-ruled > * { direction: ltr; }
-.keep-q { display: flex; flex-direction: row-reverse; justify-content: flex-start; gap: 0; align-items: flex-start; }
-.say-k { writing-mode: vertical-rl; font-size: 15px; line-height: var(--rule); letter-spacing: 0.2em; font-feature-settings: "vpal"; }
-.say-q { margin: 0; font-size: var(--qfs); line-height: 1.75; letter-spacing: 0.1em; }
-.keep-t { display: flex; flex-direction: row-reverse; gap: clamp(20px, 3vw, 44px); align-items: flex-start; justify-content: flex-end; }
-/* 大きな見出しは罫の間隔と合わないので、紙の色で罫を隠す（言葉の列と同じく、線が字を切らないように。2026-11-06 作者） */
-.keep-h { font-size: clamp(52px, 6.6vw, 96px); line-height: 1; background: var(--paper); padding: 0.12em 0.1em; }
-.keep-steps { max-width: 22em; padding-top: 8px; background: var(--paper); }
-.keep-steps li { padding: 14px 0; border-top: 1px solid var(--hair-ink); }
-.keep-steps li:first-child { border-top: 0; }
-.keep-steps b { display: block; font: 400 19px/1.7 var(--mincho); color: var(--shu); }
-.keep-card { display: grid; grid-template-columns: minmax(0, 448px) minmax(0, 30em); justify-content: center; gap: clamp(28px, 5vw, 72px); align-items: center; padding: clamp(40px, 7vh, 80px) var(--gut) clamp(72px, 12vh, 128px); }
-.keep-card img { box-shadow: 0 18px 50px rgba(22, 19, 17, 0.24); }
-.keep-card figcaption { color: var(--ink-2); }
+/* ---- 残す（紙の地：職人の言葉） ---- */
+.paper { background: var(--paper); color: var(--ink); }
+.paper .note, .paper .src, .paper .kicker, .paper figcaption { color: var(--ink-2); }
+.keep { padding: var(--sec) 0; }
+.keep-head { display: grid; gap: 14px; max-width: 760px; }
+.keep-head h2 { font-size: clamp(44px, 6vw, 84px); line-height: 1.2; letter-spacing: 0.12em; }
+.keep-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: clamp(32px, 6vw, 96px); margin-top: clamp(40px, 7vh, 72px); align-items: start; }
+.say { position: relative; padding-left: 22px; border-left: 2px solid var(--shu); }
+.say p { font: 400 clamp(26px, 2.6vw, 36px)/1.65 var(--mincho); letter-spacing: 0.06em; }
+.say cite { display: block; margin-top: 10px; font: normal 15px/1.6 var(--sans); color: var(--ink-2); }
+.steps { margin-top: 40px; display: grid; gap: 0; counter-reset: s; }
+.steps li { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 8px; padding: 18px 0; border-top: 1px solid var(--hair-ink); }
+.steps b { font: 400 22px/1.5 var(--mincho); color: var(--shu); }
+.steps p { font-size: clamp(16.5px, 1.2vw, 18px); line-height: 1.85; }
+.steps strong { display: block; font: 400 clamp(19px, 1.6vw, 22px)/1.6 var(--mincho); letter-spacing: 0.03em; margin-bottom: 2px; }
+.keep-shots { display: grid; gap: 16px; position: sticky; top: 88px; }
+.book { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: clamp(28px, 5vw, 80px); align-items: center; margin-top: clamp(72px, 12vh, 140px); padding-top: clamp(40px, 6vh, 64px); border-top: 1px solid var(--hair-ink); }
+.book-t { display: grid; gap: 16px; }
 
-/* ---- 工房ごと ---- */
-.book { padding: var(--gap-sec) var(--gut); background: var(--black); display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: clamp(24px, 4vw, 64px); align-items: start; }
-.book-h { grid-column: 2; grid-row: 1; font-size: clamp(25px, 2.6vw, 38px); line-height: 2; }
-.book-two { grid-column: 1; grid-row: 1; display: grid; grid-template-columns: 1fr 1fr; }
-.book-two figure + figure { border-left: 1px solid var(--hair); }
-.book-two figcaption { display: flex; justify-content: center; gap: 14px; align-items: baseline; margin-top: 4px; font-size: clamp(16px, 1.3vw, 18px); color: var(--white); }
-.book-two b { font: 400 1.1em/1.6 var(--mincho); }
-.book-n { grid-column: 1; max-width: 40em; margin: 8px auto 0; }
+/* ---- 移り変わる絵 ---- */
+.xf { display: grid; gap: 12px; }
+.xf-stage { position: relative; aspect-ratio: var(--ratio); overflow: hidden; }
+.xf-i { position: absolute; inset: 0; opacity: 0; transition: opacity 1.2s ease; }
+.xf-i.on { opacity: 1; }
+.xf-i img { width: 100%; height: 100%; object-fit: contain; }
+.xf-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
+.xf-cap { flex: 1; font-size: 15.5px; line-height: 1.6; }
+.xf-dots { display: flex; flex: none; }
+.xf-dots button { width: 32px; height: 44px; padding: 0; border: 0; background: none; cursor: pointer; display: grid; place-items: center; color: inherit; }
+.xf-dots i { display: block; width: 18px; height: 2px; background: currentColor; opacity: 0.28; transition: opacity 0.4s; }
+.xf-dots button[aria-current="true"] i { opacity: 1; }
+.xf-dots button:hover i { opacity: 0.7; }
+.xf-card .xf-stage { background: #22201d; border-radius: 4px; }
+.xf-card .xf-i { inset: 18px; }
+.xf-dark .xf-stage { background: #000; }
+.xf-screen .xf-stage { border: 1px solid var(--hair); border-radius: 6px; background: #1c1c1e; }
+.xf-tall .xf-stage { aspect-ratio: 5 / 6; }
+.xf-wide .xf-i img { object-fit: contain; }
 
-/* ---- 章の扉 ---- */
-.door { position: relative; height: clamp(520px, 86vh, 860px); overflow: hidden; padding-top: clamp(72px, 12vh, 112px); }
-.door-t { position: absolute; top: clamp(72px, 12vh, 112px); display: flex; flex-direction: row-reverse; gap: 12px; align-items: flex-start; z-index: 1; }
-.door-k { writing-mode: vertical-rl; font-size: 15px; letter-spacing: 0.3em; font-feature-settings: "vpal"; padding-top: 6px; }
-.door-h { font-size: clamp(38px, 4.8vw, 72px); line-height: 1.2; letter-spacing: 0.16em; }
-.d1 { background: var(--paper); color: var(--ink); }
-.d1 .door-t { right: 14%; }
-.d2 { background: var(--char); }
-.d2 .door-t { right: 46%; }
-.d3 { background: #000; }
-.d3 .door-t { right: 76%; }
-.thread { position: absolute; left: 0; right: 0; bottom: 56px; height: 24px; opacity: 1; }
-.thread i { position: absolute; left: 0; right: 0; top: 0; height: 1px; background: currentColor; opacity: 0.45; transform-origin: right; transform: scaleX(0); transition: transform 1.5s ease; }
-.thread.in i { transform: none; }
-.thread span { position: absolute; top: 10px; font: 400 15px/1 var(--mincho); opacity: 0.42; transform: translateX(50%); }
-.thread span:nth-of-type(1) { right: 76%; }
-.thread span:nth-of-type(2) { right: 46%; }
-.thread span:nth-of-type(3) { right: 14%; }
-.thread span.on { opacity: 1; }
-.door-draw { position: absolute; left: 6%; top: 50%; transform: translateY(-58%); width: 56%; mix-blend-mode: multiply; }
-.door-draw img { width: 100%; }
-.door-tsuba { position: absolute; right: -4%; top: 50%; transform: translateY(-50%); width: min(70vw, 130vh); }
-.door-tsuba img { width: 100%; }
+/* ---- 章の頭 ---- */
+.chap { max-width: var(--max); margin: 0 auto; padding: var(--sec) var(--gut) clamp(32px, 6vh, 64px); display: grid; gap: 18px; }
+.chap-k { display: flex; align-items: center; gap: 18px; font: 400 16px/1 var(--sans); letter-spacing: 0.3em; color: var(--white-2); }
+.chap-k::after { content: ""; flex: 1; height: 1px; background: var(--hair); }
+.chap-h { font-size: clamp(40px, 5.4vw, 76px); line-height: 1.25; letter-spacing: 0.1em; }
+.chap-lead { max-width: 34em; font: 400 clamp(19px, 1.7vw, 24px)/1.85 var(--mincho); letter-spacing: 0.03em; color: var(--white-2); }
 
-/* ---- 紙の節 ---- */
-.sheet { background: var(--paper); color: var(--ink); }
-.sheet figcaption, .sheet .note, .sheet .src { color: var(--ink-2); }
-.flow-in { max-width: 860px; margin: 0 auto; padding: clamp(24px, 4vh, 48px) var(--gut) clamp(72px, 12vh, 128px); display: grid; gap: clamp(24px, 4vh, 44px); }
-.lede { font: 400 clamp(25px, 3vw, 40px)/1.6 var(--mincho); letter-spacing: 0.04em; text-wrap: balance; word-break: keep-all; overflow-wrap: anywhere; }
+/* ---- 機能の段（字と絵の 2 列。交互に入れ替える） ---- */
+.feat { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: clamp(28px, 5vw, 88px); align-items: center; padding-block: clamp(56px, 10vh, 112px); }
+.feat + .feat { border-top: 1px solid var(--hair); }
+.feat-t { display: grid; gap: 18px; align-content: start; }
+.feat.flip { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); }
+.feat.flip .feat-t { order: 2; }
+.feat-m { min-width: 0; }
+.say-s { font: 400 clamp(24px, 2.4vw, 34px)/1.5 var(--mincho); letter-spacing: 0.06em; color: var(--white); }
+.say-b { padding-left: 20px; border-left: 2px solid var(--shu); }
+.say-b p { font: 400 clamp(20px, 1.8vw, 25px)/1.7 var(--mincho); letter-spacing: 0.04em; }
+.say-b cite { display: block; margin-top: 8px; font: normal 15px/1.6 var(--sans); color: var(--white-2); }
+.flows { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(24px, 5vw, 80px); padding-bottom: clamp(32px, 6vh, 64px); }
+.flow { padding: 24px clamp(16px, 2vw, 28px) 12px; border: 1px solid var(--hair); }
+.flow figcaption { margin: 0 0 6px; font: 400 18px/1.6 var(--mincho); letter-spacing: 0.1em; color: var(--white); }
+.sheet-fig img { background: var(--paper); }
+.phone-fig { justify-self: center; max-width: 440px; }
+.phone-fig img { border-radius: 14px; border: 1px solid var(--hair); }
+.hands-fig { justify-self: center; max-width: 680px; }
+.hands-fig video { width: 100%; border-radius: 6px; background: #1c1c1e; }
+.make-live { background: var(--paper); color: var(--ink); padding: clamp(18px, 2.4vw, 32px); border-radius: 4px; }
 
-/* ---- 言葉で ---- */
-.word { background: #000; padding-bottom: clamp(64px, 10vh, 112px); }
-.word-rings { display: grid; grid-template-columns: 1.27fr 1fr; align-items: end; max-width: 1440px; margin: 0 auto; }
-.word-rings img { width: 100%; }
-.word-rings figcaption { text-align: center; margin-top: 0; }
-.word-t { display: flex; flex-direction: row-reverse; justify-content: center; gap: clamp(28px, 5vw, 72px); align-items: flex-start; padding: clamp(40px, 7vh, 72px) var(--gut) 0; }
-.word-q { font-size: clamp(30px, 3.5vw, 52px); line-height: 1.3; }
-.word-b { display: grid; gap: 22px; align-content: start; max-width: 30em; }
+/* テンションの表 */
+.ten-t { width: 100%; max-width: 480px; border-collapse: collapse; font-size: clamp(16px, 1.25vw, 18px); }
+.ten-t caption { text-align: left; padding-bottom: 10px; font: 400 18px/1.6 var(--mincho); letter-spacing: 0.04em; }
+.ten-t th, .ten-t td { padding: 11px 8px 11px 0; border-top: 1px solid var(--hair); text-align: left; font-weight: 400; vertical-align: baseline; }
+.ten-t thead th { border-top: 0; padding-top: 0; font-size: 15px; color: var(--white-2); }
+.ten-t .num, .ten-t tbody th { white-space: nowrap; }
 
-/* ---- 聞く ---- */
-.ask-in { display: flex; flex-direction: row-reverse; justify-content: center; align-items: flex-start; gap: clamp(32px, 6vw, 84px); padding: clamp(84px, 14vh, 144px) var(--gut); }
-.ask-h { font-size: clamp(27px, 3.1vw, 44px); line-height: 2; }
-.ask-b { max-width: 448px; display: grid; gap: 28px; }
-.ask-b img { box-shadow: 0 18px 50px rgba(22, 19, 17, 0.24); }
-
-/* ---- 赤く光る ---- */
-.red { position: relative; background: #000; padding-bottom: var(--gap-sec); }
-.red-ring img { width: 100%; }
-.red-h { position: absolute; top: clamp(72px, 12vh, 120px); right: clamp(28px, 7vw, 120px); font-size: clamp(27px, 3.3vw, 48px); line-height: 2; }
-.red-b { max-width: 980px; margin: 0 auto; padding: 0 var(--gut); display: grid; gap: 36px; }
-.red-b > p { max-width: 34em; font-size: clamp(18px, 1.5vw, 20px); }
-
-/* ---- 作り方の札 ---- */
-.make-head { max-width: 44em; margin: 0 auto; padding: clamp(84px, 14vh, 144px) var(--gut) 40px; display: grid; gap: 20px; }
-.make-live { max-width: 860px; margin: 0 auto; padding: 0 var(--gut); }
-.make-sheet { max-width: 860px; margin: clamp(48px, 8vh, 72px) auto 0; padding: 0 var(--gut) clamp(84px, 14vh, 144px); mix-blend-mode: multiply; }
-.mk-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 24px; padding-bottom: 16px; border-bottom: 1px solid var(--ink); }
+/* ---- 作り方の札（紙の上。設計の画面の「手順」と同じ中身） ---- */
+.mk-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 24px; padding-bottom: 14px; border-bottom: 1px solid var(--ink); }
 .mk-top small { font-size: 15px; color: var(--ink-2); }
 .mk-seg { display: flex; gap: 24px; }
 .mk-seg button { min-height: 44px; padding: 0 2px; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--ink-2); font: 400 21px/1 var(--mincho); letter-spacing: 0.1em; cursor: pointer; }
 .mk-seg button[aria-pressed="true"] { color: var(--ink); border-color: var(--shu); }
-.mk-cards { max-height: 720px; overflow-y: auto; padding-right: 10px; }
-.mk-c { padding: 20px 0 14px; border-bottom: 1px solid var(--hair-ink); }
+.mk-cards { max-height: 560px; overflow-y: auto; padding-right: 10px; overscroll-behavior: contain; }
+.mk-c { padding: 18px 0 12px; border-bottom: 1px solid var(--hair-ink); }
 .mk-h { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 6px; }
 .mk-n { font: 400 16px/1.9 var(--mincho); }
-.mk-h h3 { font: 400 20px/1.6 var(--mincho); letter-spacing: 0.04em; }
-.mk-h p { margin-top: 2px; font-size: 16px; line-height: 1.8; }
+.mk-h h4 { font: 400 20px/1.6 var(--mincho); letter-spacing: 0.04em; }
+.mk-h p { position: relative; margin-top: 2px; font-size: 16px; line-height: 1.8; }
 .mk-rows { margin: 10px 0 0 40px; font-size: 15.5px; line-height: 1.6; }
 .mk-rows div { display: grid; grid-template-columns: 7.5em minmax(0, 1fr); gap: 10px; padding: 7px 0; border-top: 1px solid var(--hair-ink); }
 .mk-rows dd { font-variant-numeric: tabular-nums; }
@@ -184,7 +190,6 @@ figcaption { font-size: 15px; line-height: 1.7; margin-top: 12px; color: var(--w
 .mk-flow li { padding: 3px 0; }
 .mk-flow li.g { padding-top: 12px; font: 400 17px/1.7 var(--mincho); }
 .mk-tools { margin: 10px 0 0 40px; font-size: 15.5px; line-height: 1.9; }
-.mk-h p { position: relative; }
 .term { position: relative; display: inline; padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; cursor: pointer; text-decoration: underline dotted currentColor; text-decoration-thickness: 1.5px; text-underline-offset: 0.26em; }
 .term::after { content: ""; position: absolute; inset: -9px -2px; }
 .term:hover, .term[aria-expanded="true"] { color: var(--shu); }
@@ -194,180 +199,104 @@ figcaption { font-size: 15px; line-height: 1.7; margin-top: 12px; color: var(--w
 .term-def .td-h b { font: 400 18px/1.6 var(--mincho); }
 .term-def small { font-size: 14.5px; }
 .term-def ol { margin: 6px 0 0; padding-left: 1.4em; list-style: decimal; }
-.mk-h .term-def { margin-left: 0; }
 .mk-loading { padding: 28px 0; font-size: 16px; }
 
-/* ---- テンション ---- */
-.tension { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); background: #000; align-items: start; }
-.ten-ring { position: sticky; top: 56px; }
-.ten-ring img { width: 100%; }
-.ten-b { padding: clamp(64px, 12vh, 128px) var(--gut); display: grid; gap: 24px; max-width: 620px; }
-.ten-t { width: 100%; max-width: 480px; margin-top: 8px; border-collapse: collapse; font-size: clamp(16px, 1.3vw, 18px); }
-.ten-t caption { text-align: left; padding-bottom: 10px; font: 400 18px/1.6 var(--mincho); letter-spacing: 0.04em; }
-.ten-t th, .ten-t td { padding: 12px 8px 12px 0; border-top: 1px solid var(--hair); text-align: left; font-weight: 400; vertical-align: baseline; }
-.ten-t thead th { border-top: 0; padding-top: 0; font-size: 15px; color: var(--white-2); }
-.ten-t .num, .ten-t tbody th { white-space: nowrap; }
-
-/* ---- 石なし ---- */
-.band { background: #000; padding: var(--gap-sec) var(--gut); }
-.band-t { max-width: 40em; margin: 0 auto 48px; display: grid; gap: 18px; }
-.band-p { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: clamp(24px, 3vw, 44px); max-width: 1180px; margin: 0 auto; }
-.band-p img { width: 100%; }
-/* 数が奇数のとき、最後の 1 本は同じ大きさのまま真ん中に */
-.band-p figure:last-child:nth-child(odd) { grid-column: 1 / -1; justify-self: center; width: calc((100% - clamp(24px, 3vw, 44px)) / 2); }
-.band-p figcaption { margin-top: 0; text-align: center; font-size: 15.5px; color: var(--white-2); }
-.band-p figcaption b { display: block; font: 400 21px/1.6 var(--mincho); color: var(--white); letter-spacing: 0.06em; }
-.band-big { max-width: 1320px; }
-.band-rest { grid-template-columns: repeat(6, minmax(0, 1fr)); max-width: 1180px; margin-top: clamp(28px, 4vw, 56px); }
-.band-rest > figure, .band-rest > figure:last-child:nth-child(odd) { grid-column: span 2; width: auto; justify-self: stretch; }
-.band-rest > figure:nth-child(4) { grid-column: 2 / span 2; }
-.band-rest figcaption b { font-size: 18px; }
-.band-n { max-width: 1180px; margin: 28px auto 0; text-align: center; }
-
-/* ---- 学ぶ ---- */
-.wait { padding: clamp(40px, 6vh, 64px) var(--gut) var(--gap-sec); background: var(--char); max-width: none; display: grid; gap: 24px; justify-items: center; text-align: left; }
-.wait > * { max-width: 640px; width: 100%; }
-.wait-big { display: flex; justify-content: space-between; height: 72px; max-width: 760px; }
-.wait-big i { width: 1px; background: var(--white); opacity: 0.5; }
-.wait h2 { font-size: clamp(27px, 3vw, 40px); }
-.wait .big { font-size: clamp(64px, 9vw, 128px); line-height: 1.2; margin-right: 0.08em; }
-.learn-sec { display: grid; grid-template-columns: minmax(0, 440px) minmax(0, 560px); justify-content: center; gap: clamp(36px, 6vw, 96px); padding: 0 var(--gut) var(--gap-sec); background: var(--char); align-items: start; }
-.learn-b { display: flex; flex-direction: row-reverse; gap: clamp(20px, 3vw, 44px); align-items: flex-start; }
-.learn-b > div { display: grid; gap: 22px; }
-.learn-v { font-size: clamp(27px, 3.1vw, 44px); line-height: 2; flex: none; }
-
 /* ---- 次の時代へ ---- */
-.stat { padding: var(--gap-sec) var(--gut); background: #000; text-align: center; }
-.stat-n { font: 400 clamp(96px, 18vw, 260px)/1.15 var(--mincho); letter-spacing: 0.02em; }
-.stat-e, .stat h2 { font: 400 clamp(25px, 3vw, 40px)/1.6 var(--mincho); }
-.stat-line { position: relative; height: 1px; max-width: 760px; margin: clamp(32px, 6vh, 56px) auto; background: var(--hair); }
-.stat-line i { position: absolute; left: 0; top: -0.5px; height: 2px; width: 42%; background: var(--white); }
-.naiku { position: relative; background: #000; }
-.naiku-ph img { width: 100%; height: min(100vh, 66vw); min-height: 460px; object-fit: cover; }
-.naiku-ph::after { content: ""; position: absolute; inset: 0 0 auto auto; width: min(60%, 620px); height: min(100vh, 66vw); min-height: 460px; background: linear-gradient(270deg, rgba(0, 0, 0, 0.82) 15%, transparent); pointer-events: none; }
-.naiku-h { position: absolute; top: clamp(56px, 9vh, 96px); right: clamp(28px, 6vw, 96px); font-size: clamp(25px, 3vw, 42px); line-height: 2; text-shadow: 0 0 18px rgba(0, 0, 0, 0.6); }
-.naiku-b { max-width: 40em; margin: 0 auto; padding: 40px var(--gut) var(--gap-sec); }
-.naiku-b > p:first-child { font-size: clamp(18px, 1.5vw, 20px); }
-.craft { background: #000; padding-bottom: var(--gap-sec); }
-.craft-wide img { width: 100%; aspect-ratio: 1800 / 500; object-fit: cover; object-position: 50% 46%; }
-.craft-t { max-width: 44em; margin: clamp(56px, 9vh, 96px) auto 44px; padding: 0 var(--gut); display: grid; gap: 20px; }
-.craft-strip { max-width: 1320px; margin: 0 auto; padding: 0 var(--gut); }
-.craft-strip img { width: 100%; }
-.craft-three { display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr) minmax(0, 1fr); gap: clamp(10px, 1.6vw, 20px); max-width: 1320px; margin: clamp(10px, 1.6vw, 20px) auto 0; padding: 0 var(--gut); align-items: start; }
-.craft-three img { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; }
-.craft-three figure:first-child img { aspect-ratio: 2.26 / 1; object-fit: cover; height: auto; }
-.naiku-zu { margin-top: 36px; }
-.craft .src { max-width: 1320px; margin: 12px auto 0; padding: 0 var(--gut); }
+.stat { display: grid; justify-items: center; text-align: center; gap: 6px; padding-block: clamp(40px, 8vh, 96px) clamp(64px, 12vh, 128px); }
+.stat h3 { font-size: clamp(22px, 2.2vw, 32px); }
+.stat-n { font: 400 clamp(96px, 15vw, 210px)/1.1 var(--mincho); letter-spacing: 0.02em; }
+.stat-n .num { font-size: 1.1em; }
+.stat-e { font: 400 clamp(24px, 2.4vw, 34px)/1.5 var(--mincho); }
+.stat-t { margin-top: 18px; max-width: 30em; }
+.naiku { display: grid; grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); gap: clamp(28px, 5vw, 80px); align-items: start; padding-block: clamp(48px, 9vh, 96px); border-top: 1px solid var(--hair); }
+.naiku-t { display: grid; gap: 18px; }
+.naiku-zu { margin-top: 12px; }
+.craft { display: grid; gap: clamp(28px, 5vh, 48px); padding-block: clamp(48px, 9vh, 96px); border-top: 1px solid var(--hair); }
+.craft-t { display: grid; gap: 16px; max-width: 760px; }
 
-/* 途切れた技 */
-.restore { position: relative; background: #000; padding-bottom: clamp(72px, 12vh, 128px); overflow: hidden; }
-.restore-ts { position: absolute; top: -8%; left: -14%; width: min(64vw, 900px); opacity: 0.52; pointer-events: none; }
-.restore-t { position: relative; display: flex; flex-direction: row-reverse; justify-content: flex-start; gap: clamp(24px, 4vw, 64px); align-items: flex-start; padding: clamp(72px, 12vh, 128px) var(--gut) 56px; min-height: 76vh; }
-.restore-v { font-size: clamp(32px, 4.4vw, 64px); line-height: 1.8; }
-.restore-t > div { max-width: 26em; display: grid; gap: 20px; text-shadow: 0 0 22px #000, 0 0 8px #000; }
-.score { position: relative; max-width: 760px; margin: 0 auto clamp(72px, 12vh, 128px); padding: 0 var(--gut); display: grid; gap: 22px; }
-.score-n { font: 400 clamp(56px, 9vw, 112px)/1.2 var(--mincho); }
+/* ---- 途絶えた技の復元（さび色の地） ---- */
+.restore { margin-top: var(--sec); padding: var(--sec) 0; background: linear-gradient(180deg, #0f0b09 0%, #140d0a 50%, #0b0807 100%); }
+.restore-head { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 7fr); gap: clamp(24px, 5vw, 80px); align-items: center; }
+.restore-head > div { display: grid; gap: 18px; }
+.restore-ts { justify-self: center; width: min(100%, 420px); }
+.score { max-width: 760px; margin: clamp(72px, 12vh, 128px) auto 0; display: grid; gap: 20px; }
+.score-n { font: 400 clamp(64px, 10vw, 128px)/1.2 var(--mincho); }
 .lines { display: flex; justify-content: space-between; height: 96px; max-width: 520px; }
 .lines i { width: 1px; }
 .lines i.ok { width: 2px; background: var(--white); }
 .lines i.part { background: linear-gradient(180deg, var(--white) 50%, rgba(244, 241, 234, 0.22) 50%); }
 .lines i.miss { background: rgba(244, 241, 234, 0.22); }
+.lines-k { display: flex; flex-wrap: wrap; gap: 4px 22px; font-size: 15px; color: var(--white-2); }
+.lines-k span::before { content: ""; display: inline-block; width: 2px; height: 14px; margin-right: 8px; vertical-align: -2px; }
+.lines-k .ok::before { background: var(--white); }
+.lines-k .part::before { background: linear-gradient(180deg, var(--white) 50%, rgba(244, 241, 234, 0.22) 50%); }
+.lines-k .miss::before { background: rgba(244, 241, 234, 0.22); width: 1px; }
 .score-d summary { display: inline-flex; align-items: center; min-height: 44px; text-decoration: underline; text-underline-offset: 0.22em; text-decoration-thickness: 1px; cursor: pointer; list-style: none; }
 .score-d summary::-webkit-details-marker { display: none; }
-.score-d ol { margin-top: 6px; }
 .score-d li { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; padding: 10px 0; border-top: 1px solid var(--hair); }
 .score-d li p { font-size: 16px; line-height: 1.8; }
 .score-d li p b { display: block; font-weight: 600; }
 .score-d li > span { white-space: nowrap; font-size: 15px; }
 .score-d li.miss { color: rgba(244, 241, 234, 0.72); }
-.own { position: relative; max-width: 760px; margin: 0 auto; padding: 0 var(--gut); }
+.moyou { margin-top: clamp(72px, 12vh, 128px); }
+.moyou img { border-radius: 4px; }
+.own { display: grid; grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); gap: clamp(28px, 5vw, 80px); align-items: center; margin-top: clamp(72px, 12vh, 128px); }
 .own-t { display: grid; gap: 18px; }
-.own-shots { position: relative; display: grid; justify-items: center; gap: clamp(36px, 6vh, 64px); margin-top: clamp(48px, 8vh, 80px); padding: 0 var(--gut); }
-.own-flow { width: 100%; max-width: 760px; }
-.own-step { width: 100%; max-width: 600px; }
-.own-shots img { width: 100%; }
-.restore-e { position: relative; max-width: 26em; margin: clamp(72px, 12vh, 128px) auto 0; padding: 0 var(--gut); font: 400 clamp(20px, 2vw, 27px)/1.9 var(--mincho); }
-.ifever { --ifs: clamp(27px, 3.6vw, 52px); --rule: calc(var(--ifs) * 2); display: flex; justify-content: center; padding: clamp(84px, 14vh, 144px) var(--gut); overflow: hidden; }
-/* 罫は字の列と同じ間隔で、字の列の右の端から引く（両わきにも 4 本ずつ続ける） */
-.ifever-v { font-size: var(--ifs); line-height: 2; padding: clamp(84px, 14vh, 144px) calc(var(--rule) * 4); margin: calc(clamp(84px, 14vh, 144px) * -1) 0; /* 縦書きでは padding-block が左右になるので、上下・左右は物の向きで書く（2026-11-06：罫が字の列にかかっていた） */ background-image: linear-gradient(to right, rgba(190, 50, 30, 0.22) 0 1px, transparent 1px); background-size: var(--rule) 100%; background-repeat: repeat-x; background-position: right calc(var(--rule) * 4) top; }
-
-/* ---- Claude の立ち位置 ---- */
-.stance { max-width: 1000px; margin: 0 auto; padding: var(--gap-sec) var(--gut) 0; display: grid; gap: 22px; }
-.stance h2 { font-size: clamp(32px, 5vw, 68px); line-height: 1.4; }
-.stance > p:not(.note) { max-width: 34em; font-size: clamp(18px, 1.5vw, 20px); }
+.own-f img { border-radius: 8px; border: 1px solid var(--hair); }
+.ifever { margin-top: clamp(72px, 12vh, 128px); text-align: center; font: 400 clamp(24px, 2.6vw, 38px)/1.6 var(--mincho); letter-spacing: 0.06em; }
 
 /* ---- 結 ---- */
-.end { display: grid; justify-items: center; gap: 44px; padding: var(--gap-sec) var(--gut); text-align: center; }
-.end-h { font-size: clamp(27px, 3.2vw, 44px); line-height: 2; grid-row: 1; }
-.end-t { font-size: clamp(72px, 9vw, 128px); line-height: 1; letter-spacing: 0.1em; }
-.end .cta { justify-content: center; }
-.end-n { max-width: 34em; }
+.end { display: grid; justify-items: center; text-align: center; gap: 20px; padding: calc(var(--sec) * 1.2) var(--gut) var(--sec); }
+.end-h { font-size: clamp(36px, 4.6vw, 64px); line-height: 1.5; letter-spacing: 0.1em; }
+.end-t { font: 400 clamp(56px, 7vw, 96px)/1.2 var(--mincho); letter-spacing: 0.2em; margin-top: 8px; }
+.end-made { font: 400 clamp(19px, 1.8vw, 25px)/1.7 var(--mincho); letter-spacing: 0.04em; margin-top: 12px; }
+.end-stance { color: var(--white-2); max-width: 32em; }
+.end .cta { justify-content: center; margin-top: 16px; }
+.end-n { max-width: 32em; }
 
 /* ---- 下 ---- */
 .ft { border-top: 1px solid var(--hair); font-size: 15px; line-height: 1.8; color: var(--white-2); }
 .ft-in { max-width: 1080px; margin: 0 auto; padding: 32px var(--gut) 48px; display: grid; gap: 12px; }
 .ft-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 24px; color: var(--white); }
+.credits li { padding-left: 1em; text-indent: -1em; }
+.credits li::before { content: "・"; }
 
-/* ---- 字は動かない。濃くなるだけ ---- */
+/* ---- 字は濃くなるだけ ---- */
 .rv { opacity: 0; transition: opacity 1s ease; }
 .rv.in { opacity: 1; }
-.pro-3.rv { transition-duration: 1.6s; }
 @media (prefers-reduced-motion: reduce) {
-  .rv { opacity: 1; transition: none; }
-  .thread i { transform: none; transition: none; }
   html { scroll-behavior: auto; }
+  .rv { opacity: 1; transition: none; }
+  .xf-i { transition: none; }
 }
 
-/* ---- 狭い画面 ---- */
-@media (max-width: 1000px) {
+/* ---- 幅 ---- */
+@media (max-width: 1080px) {
   .hide-sm { display: none !important; }
 }
-@media (max-width: 760px) {
-  .hero-ring img { object-fit: contain; object-position: 40% 66%; }
-  .hero-t { top: 76px; right: 20px; }
-  .hero-b { right: var(--gut); max-width: none; }
-  .hero::after { height: 26%; }
-  .cta .btn { flex: 1 1 130px; }
-  .prologue .pro-v { justify-content: flex-start; }
-  .paper-ruled { display: flex; flex-direction: column; min-height: 0; direction: ltr; }
-  .keep-t { flex-direction: column; align-items: flex-end; }
-  .keep-steps { max-width: none; width: 100%; }
-  .keep-card { grid-template-columns: minmax(0, 1fr); }
-  .book { display: flex; flex-direction: column; }
-  .book-h { align-self: flex-end; }
-  .book-two { grid-template-columns: 1fr; width: 100%; }
-  .book-two figure + figure { border-left: 0; border-top: 1px solid var(--hair); }
-  .door { height: 76vh; min-height: 560px; }
-  .d1 .door-t { right: 10%; }
-  .d2 .door-t { right: 42%; }
-  .d3 .door-t { right: 72%; }
-  .thread span:nth-of-type(1) { right: 76%; }
-  .d1 { height: 760px; min-height: 0; }
-  .d1 .door-h { font-size: 36px; }
-  .door-draw { left: var(--gut); right: var(--gut); top: 470px; width: auto; transform: none; }
-  .door-tsuba { right: -42%; width: 128vw; }
-  .word-rings { grid-template-columns: 1fr; }
-      .word-t { padding: 32px var(--gut) 0; }
-  .word-q { font-size: 28px; }
-  .ask-in { flex-direction: column; align-items: flex-end; }
-  .ask-b { max-width: none; }
-  .red-ring img { height: 62vh; object-fit: cover; object-position: 44% 50%; }
-  .red-h { position: static; margin: 0 0 0 auto; padding: 64px 20px 12px; display: block; width: max-content; }
-  .tension { display: block; }
-  .ten-ring { position: static; }
-  .ten-b { padding-top: 16px; }
-  .band-p { grid-template-columns: minmax(0, 1fr); }
-  .band-p figure:last-child:nth-child(odd) { width: auto; }
-  .band-rest { grid-template-columns: minmax(0, 1fr); }
-  .band-rest > figure, .band-rest > figure:nth-child(4), .band-rest > figure:last-child:nth-child(odd) { grid-column: auto; }
-  .learn-sec { grid-template-columns: minmax(0, 1fr); }
-  .learn-b { flex-direction: column; align-items: flex-end; }
-  .learn-b > div { width: 100%; }
-  .naiku-ph img, .naiku-ph::after { height: 74vh; }
-  .naiku-ph::after { width: 100%; }
-  .craft-three { grid-template-columns: 1fr 1fr; }
-  .craft-three figure:first-child { grid-column: 1 / -1; }
-  .restore-ts { width: 118vw; left: -42%; top: 2%; opacity: 0.42; }
-  .restore-t { flex-direction: column; align-items: flex-end; min-height: 0; }
-  .restore-t > div { max-width: none; }
+@media (max-width: 900px) {
+  .hero { grid-template-columns: 1fr; min-height: auto; padding-top: 88px; gap: 8px; }
+  .hero-ring { order: -1; width: min(100%, 560px); }
+  .hero-t { justify-items: start; }
+  .keep-grid, .book, .feat, .feat.flip, .naiku, .restore-head, .own, .flows { grid-template-columns: 1fr; }
+  .feat.flip .feat-t { order: 0; }
+  .feat-m { order: 2; }
+  .keep-shots { position: static; }
+  .route { grid-template-columns: 1fr 1fr; }
+  .route li:nth-child(3) { border-left: 0; }
+  .route li:nth-child(n + 3) { border-top: 1px solid var(--hair); }
 }
+@media (max-width: 560px) {
+  br.sm { display: inline; }
+  .hero-h { font-size: 88px; }
+  .cta .btn { flex: 1 1 130px; padding: 0 18px; }
+  .nav { gap: 14px; font-size: 15px; }
+  .nav .go { padding: 0 14px; }
+  .reason-q p::before { margin-left: -0.5em; }
+  .xf-bar { flex-direction: column; align-items: flex-start; gap: 0; }
+  .mk-rows, .mk-watch, .mk-flow, .mk-tools { margin-left: 0; }
+  .mk-cards { max-height: 480px; }
+  .say { padding-left: 16px; }
+  .steps li { grid-template-columns: 34px minmax(0, 1fr); }
+}
+.restore-head h2 { font-size: clamp(30px, 3.4vw, 46px); }

@@ -392,6 +392,63 @@ input[type="range"]::-moz-range-thumb { width: 13px; height: 13px; border-radius
 .published-note { margin: 0 0 12px; padding: 8px 12px; border-left: 2px solid var(--accent); background: rgba(10, 132, 255, 0.07); border-radius: 0 6px 6px 0; font-size: 12px; line-height: 1.7; color: var(--fg-2); }
 .no-example .row { justify-content: center; gap: 8px; }
 
+/* ---- 手を比べる：はじめに見せる、いい例とよくない例（src/app/hands-pair.ts） ---- */
+.pair-demo { display: grid; gap: 12px; margin: 0 0 8px; }
+.pd-diff { margin: 0; display: grid; gap: 4px; }
+.pd-diff-h { font-size: 12px; font-weight: 600; color: var(--fg-3); }
+.pd-diff b { font-size: 20px; font-weight: 700; line-height: 1.4; }
+.pd-diffs { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.pd-diffs li { display: grid; gap: 2px; }
+.pd-l { font-size: 20px; font-weight: 700; line-height: 1.4; }
+.pd-diffs li + li .pd-l { font-size: 16px; }
+.pd-l em { font: 700 1.15em var(--mono); font-style: normal; color: var(--ng-2); white-space: nowrap; }
+.pd-diffs small { font-size: 12px; color: var(--fg-3); }
+.pd-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 320px)); justify-content: center; gap: 10px; }
+.pd-fig { margin: 0; display: grid; gap: 6px; align-content: start; }
+.pd-frame { position: relative; border-radius: var(--radius); overflow: hidden; background: #111113; cursor: pointer; }
+.pd-good .pd-frame { border: 2px solid var(--master); }
+.pd-bad .pd-frame { border: 2px solid var(--ng); }
+.pd-frame video { display: block; width: 100%; height: 100%; object-fit: fill; }
+.pd-frame canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.pd-tag { position: absolute; left: 6px; top: 6px; padding: 2px 10px; border-radius: 999px; font-size: 14px; font-weight: 700; line-height: 1.7; }
+.pd-good .pd-tag { background: var(--master); color: #1c1c1e; }
+.pd-bad .pd-tag { background: var(--ng); color: #fff; }
+.pd-here { position: absolute; left: 6px; bottom: 6px; padding: 2px 10px; border-radius: 999px; background: rgba(16, 16, 18, 0.85); border: 1px solid var(--ng); color: var(--ng-2); font-size: 13px; font-weight: 600; line-height: 1.7; }
+.pd-fig figcaption { font-size: 14px; line-height: 1.5; color: var(--fg); display: grid; gap: 2px; }
+.pd-fig figcaption small { font-size: 12px; color: var(--fg-3); }
+.pd-note { margin: 0; }
+.pd-track { position: absolute; right: 6px; bottom: 8px; padding: 1px 6px; border-radius: 4px; background: rgba(10, 10, 12, 0.72); color: rgba(120, 220, 255, 0.95); font: 600 11px var(--mono); letter-spacing: 0.02em; }
+.pd-key { display: inline-flex; align-items: center; gap: 4px; margin-right: 10px; color: var(--fg-2); white-space: nowrap; }
+.pd-key i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; }
+.pd-key .k-hand { background: rgba(120, 220, 255, 0.95); }
+.pd-key .k-tool { background: linear-gradient(90deg, var(--master) 50%, var(--ng) 50%); }
+/* 判定（いい例と比べる。src/app/hands-pair.ts の judgeHtml） */
+.judge { display: grid; gap: 8px; padding: 14px; border-radius: var(--radius); background: var(--panel); border: 1px solid var(--line-2); }
+.jd-h { margin: 0; display: grid; gap: 2px; }
+.jd-h b { font-size: 16px; font-weight: 700; }
+.jd-h span { font-size: 13px; color: var(--fg-2); line-height: 1.6; }
+.jd-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.jd-table th, .jd-table td { padding: 6px 6px 2px; text-align: left; vertical-align: top; }
+.jd-table thead th { font-size: 11px; font-weight: 600; color: var(--fg-3); padding-top: 0; }
+.jd-table tbody th { font-weight: 600; white-space: nowrap; }
+.jd-table tbody tr:not(.jd-say) { border-top: 1px solid var(--line); }
+.jd-table td:last-child { text-align: center; width: 36px; }
+.jd-say td { padding: 0 6px 8px; font-size: 12px; color: var(--fg-2); }
+.jd-mark { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; font-size: 16px; font-weight: 800; }
+.jd-ok { background: var(--ok-weak); color: var(--ok); }
+.jd-warn { background: var(--caution-weak); color: var(--caution); }
+.jd-ng { background: var(--ng-weak); color: var(--ng-2); }
+.jd-na { background: var(--panel-2); color: var(--fg-3); }
+.jd-note { margin: 0; }
+.result .judge { margin-bottom: 4px; }
+@media (max-width: 600px) { .pd-tag { font-size: 12px; padding: 1px 8px; } .pd-fig figcaption { font-size: 13px; } }
+/* 自分の手で比べる（2 つ目。例の下に、控えめに） */
+.mine { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line-2); }
+.mine-h { margin: 0 0 10px; font-size: 16px; font-weight: 600; }
+.mine .see-title { margin: 0 0 10px; }
+.no-model { margin: 0 0 4px; font-size: 14px; color: var(--fg-2); display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.with-pair .cta { background: transparent; }
+
 /* ---- 技（ほかの技にも）・聞き取り ---- */
 .linklike { padding: 0; border: 0; background: none; color: var(--accent-2); font-size: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .waza .tech { padding: 0; gap: 0; }

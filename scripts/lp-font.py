@@ -7,7 +7,8 @@ from fontTools import subset
 
 root = pathlib.Path(__file__).resolve().parent.parent
 src = sys.argv[1]
-text = "".join(p.read_text(encoding="utf-8") for p in [root / "src/lp/main.ts", root / "src/studio/why.ts"])
+# 作り方の札（public/lp/make-steps.json）の工程の名前も明朝で出るので入れる（2026-11-07）
+text = "".join(p.read_text(encoding="utf-8") for p in [root / "src/lp/main.ts", root / "src/studio/why.ts", root / "public/lp/make-steps.json"])
 chars = {c for c in text if ord(c) > 0x2000}
 # かなと記号は全部、英数字も入れる（あとで言葉を少し変えても崩れない）
 chars |= {chr(c) for c in range(0x3041, 0x3097)} | {chr(c) for c in range(0x30a1, 0x30fb)}

@@ -3,6 +3,7 @@
 // Claude がなくても動くように、質問は決まった文、答えは数字を読む簡単なしくみで決まりにする（Claude があれば言い直しを任せる）。
 // 決まりの数字は、職人が答えた言葉の中の数字だけ。ここで数字を作らない。
 import { effectiveGuides, PARAMS, activeRules, addRule, sourceLabel, type Ledger, type ParamId, type Rule, type SizeStep } from "./ledger.js";
+import { craftProngPoints, mergeCraftPoints, prongPointsRule } from "./prong-points.js";
 import { TECHS, type TechId } from "./techniques.js";
 
 export type Technique = "ring" | TechId;
@@ -229,9 +230,9 @@ export function ringGaps(ledger: Ledger): Gap[] {
       const span = points[i + 1].stone - points[i].stone;
       if (span > widest.span) widest = { span, mid: half((points[i].stone + points[i + 1].stone) / 2) };
     }
-    if (widest.span > MAX_POINT_SPAN_MM) ask(widest.mid, "この間は、点と点をまっすぐつないで出しているだけ。");
+    if (widest.span > MAX_POINT_SPAN_MM) ask(widest.mid, rule.sizePoints?.length ? "この間は、職人の点から割合で出した推測だけ。" : "この間は、点と点をまっすぐつないで出しているだけ。");
     const last = points[points.length - 1].stone;
-    if (last < LARGE_STONE_MM - MAX_POINT_SPAN_MM / 2) ask(LARGE_STONE_MM, "大きい石は、線を伸ばして出しているだけ。");
+    if (last < LARGE_STONE_MM - MAX_POINT_SPAN_MM / 2) ask(LARGE_STONE_MM, rule.sizePoints?.length ? "大きい石は、職人の点から割合で出した推測だけ。" : "大きい石は、線を伸ばして出しているだけ。");
   } else if (!rule) {
     gaps.push({
       id: "ring:prong-size:any",
@@ -335,22 +336,21 @@ function confirmWordsGap(technique: Technique, r: Rule<string>): Gap {
  * 職人の今の点に、新しい点を足して、点の間をまっすぐつなぐ決まりにする（前の決まりを置き換える。前の言葉は履歴に残る）。
  */
 export function prongPointDraft(ledger: Ledger, gap: Gap, value: number, said: string, ctx: AnswerContext): RuleDraft<ParamId> {
-  const { rule, points } = prongPoints(ledger);
+  const { rule } = prongPoints(ledger);
   const stone = gap.stoneMm;
-  const next = stone === undefined ? points : [...points.filter((p) => Math.abs(p.stone - stone) > 1e-9), { stone, value }].sort((a, b) => a.stone - b.stone);
-  const bySize = next.map((p) => ({ upToMm: p.stone, value: p.value }));
+  // 職人の点を足し、ほかの大きさは公開の目安の線を職人の点に合わせて割合でずらした推測にする（src/rules/prong-points.ts）
+  const old = craftProngPoints(ledger);
+  const next = stone === undefined ? old : mergeCraftPoints(old, [{ stoneMm: stone, value, quote: said.trim(), date: ctx.date }]);
+  const body = prongPointsRule(next, next[next.length - 1]?.value ?? value);
   return {
     title: "爪の太さ（最低）",
-    text: `爪の最低の太さ：${next.map((p) => `石の大きさ ${fmtNum(p.stone)} mm で ${fmtNum(p.value)} mm`).join("、")}。点の間はまっすぐつなぎ、外は同じ傾きで伸ばす`,
+    ...body,
     reason: rule?.reason ?? gap.reason,
     ...(rule?.example ? { example: rule.example } : {}),
     quote: said.trim(),
     question: ctx.asked ?? gap.question,
     gap: gap.id,
     param: "prong.minDiameterMm",
-    value: next[next.length - 1]?.value ?? value,
-    bySize,
-    bySizeLine: true,
     source: { kind: "craftsman", name: ctx.name },
     date: ctx.date,
   };
