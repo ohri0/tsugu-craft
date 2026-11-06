@@ -1,6 +1,6 @@
 // 見本：合言葉も、職人の本当の言葉もなしで、流れを最後まで見られる出し方（app.html?mihon）。
 // 入れる言葉は作り話の例。画面にいつも「作り話」と出す。
-// 手本と学ぶ人の動画は、作者（職人）の本物の手元（ヤスリがけ）の別の場面。学ぶ人の手は見立てた例（scripts/make-mihon.ts）。
+// 手本と学ぶ人の動画は、作者（職人）が撮り分けた本物の手元（ヤスリがけ）の「いい例」と「よくない例」（2026-11-07。scripts/make-mihon.ts --pair）。
 // 見本の間は、このブラウザの帳面に触らない（残す先をメモリーに替える。閉じれば消える）。Claude は呼ばない。
 //
 // ?flow … 撮影（?rec）でも新しい流れの画面を出す（本当の帳面のまま）
@@ -50,7 +50,7 @@ export interface MihonClip {
   mp4: string;
 }
 
-/** 見本の動画（職人の本物の手元・ヤスリがけ。手本と学ぶ人は同じ動画の別の秒。scripts/make-mihon.ts で作った） */
+/** 見本の動画（職人の本物の手元・ヤスリがけ。手本＝いい例、学ぶ人＝よくない例。どちらも職人が撮った。scripts/make-mihon.ts --pair で作った） */
 export const MIHON_CLIPS: { master: MihonClip; learner: MihonClip } = {
   master: { record: "mihon/master.json", webm: "mihon/master.webm", mp4: "mihon/master.mp4" },
   learner: { record: "mihon/learner.json", webm: "mihon/learner.webm", mp4: "mihon/learner.mp4" },

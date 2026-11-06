@@ -27,6 +27,7 @@ export { ringTarget, techTarget };
  * 技の札：名前・一行の説明・残ったもの・次にやること。
  * 2026-11-06：数を「0 職人の決まり 0 手本 0 届いた質問」と並べ、4 つの点を添えていたが、何の数か分からなかった。
  * 残ったものは「決まり 1 ・ 手本 0」の短い字に、点の代わりに「次：…」をはっきり書く。届いた質問は赤い札で。
+ * 2026-11-07：「届いた質問 0」は、赤い札「質問 1 件 ・ 答える」と同じことを 2 回言っていたので外した。
  */
 function flowCard(id: HowtoId): string {
   const t = pageInfo(id);
@@ -41,7 +42,7 @@ function flowCard(id: HowtoId): string {
   return `<li><a class="big-tech" href="#waza/${id}${c.questions ? "?step=answer" : ""}">
     <span class="bt-mark" aria-hidden="true">${esc(t.mark)}</span>
     <span class="bt-body"><b>${esc(id === "ring" ? "指輪の石留め" : t.name)}</b><small>${esc(t.lead)}</small>
-      <span class="bt-stats">${stat(c.craftsman, isMihon() ? "残した決まり" : "職人の決まり")}${stat(c.models, "手本")}${stat(c.questions, "届いた質問", c.questions ? " alert" : "")}${todo}</span></span>
+      <span class="bt-stats">${stat(c.craftsman, isMihon() ? "残した決まり" : "職人の決まり")}${stat(c.models, "手本")}${todo}</span></span>
     <span class="bt-go" aria-hidden="true">›</span>
   </a></li>`;
 }

@@ -107,7 +107,7 @@ Built with Claude: Japan 2026（テーマ #1「あなたにしかない深さを
 ## デモについて
 
 - 動画は、継ぐの本物の画面を本当に操作したものです。言葉で頼む場面の Claude の返事は本物です（撮り直しでは、その回の本物の返事を記録して使いました）。
-- 例のデータを使う画面があります（`app.html?mihon` の見本）。入れる言葉と決まりは作り話で、画面にも「見本・作り話」と出ます。手本と学ぶ人の動画は、作者が撮った本物の手元（ヤスリがけ）の別の場面です。学ぶ人の手は見立てた例で、本物の生徒の手ではありません（`scripts/make-mihon.ts`）。
+- 例のデータを使う画面があります（`app.html?mihon` の見本）。入れる言葉と決まりは作り話で、画面にも「見本・作り話」と出ます。手本と学ぶ人の動画は、作者が撮り分けた本物の手元（ヤスリがけ）の「いい例」と「よくない例」です。学ぶ人の手も作者の手で、本物の生徒の手ではありません（`scripts/make-mihon.ts --pair`）。
 - 金属を彫る手元の映像は、ほかの人の映像です（Wikimedia Commons、CC BY 3.0）。出典は動画の最後と、下のライセンスの一覧にあります。
 
 ## だれの判断か（職人・公開の資料・仮）
@@ -272,7 +272,7 @@ Claude を使う所は、サーバーの関数（`api/claude.ts`）が Claude AP
 | `public/heritage/kazari-tachi.jpg`（飾太刀、平安時代。一部を切り出し） | 東京国立博物館、[ColBase](https://colbase.nich.go.jp/collection_items/tnm/F-356)・[Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Kazari-tachi_Style_Sword_Mounting,_Heian_period.jpg) | CC BY 4.0 |
 | `public/lp/*.webp`（入口のページと README の写真。それぞれ半分の幅の `-sm` つき） | 継ぐの画面を撮ったもの（`scripts/lp-shots.cjs`） | このリポジトリの作品の一部 |
 | `samples/triangle_closeup_2026-11-02.jpg`・`public/stones/triangle.jpg`（同じ写真） | 作者が撮った石の写真（撮影情報は消してある） | このリポジトリの作品の一部 |
-| `public/mihon/`（見本の動画と手の記録） | 作者が撮った手元の映像（ヤスリがけ。`raw/file_hands.mov` の 0〜5 秒と 5〜10.2 秒を切り出して軽くした）。手の記録は、その動画から `scripts/make-mihon.ts` で読んだもの | このリポジトリの作品の一部 |
+| `public/mihon/`（見本の動画と手の記録） | 作者が撮った手元の映像（ヤスリがけ。いい例 `raw/file_good.mov`・よくない例 `raw/file_bad.mov` を軽くした。2026-11-07）。手の記録は、その動画から `scripts/make-mihon.ts --pair` で読んだもの。ヤスリの線（`tool-lines.json`）は `scripts/mihon-tool-line.ts` で探したもの | このリポジトリの作品の一部 |
 
 動画の素材（`video/work/footage/` に置くだけで、リポジトリにもアプリにも入れない。出典は動画の最後の出典の画面にまとめる）：
 
