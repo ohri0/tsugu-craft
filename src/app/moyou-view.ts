@@ -353,14 +353,15 @@ export function mountMoyou(root: HTMLElement, opts: { onBack?: () => void; auto?
     if (r.unbonded > 0) out.push(`黄の縁は、層がはがれた所。締めつけ（A4）とすぐ叩く（A6）が無く、層がつながりきらないため（目安。量は仮）。`);
     if (r.cycles < MOKUME_VALUES.cycles.value) out.push(`彫る・平らにするをくり返さない（A9 が一部）ので、細かい目が無く、粗い。本当の手順は ${MOKUME_VALUES.cycles.value} 回（仮）。`);
     if (!r.sameSize) out.push(`板を切りそろえないと、はしがそろわない（形にするとき切り落とす）。`);
-    return out;
+    // 番号（A4 など）は画面に出さない決まり（2026-11-06）。撮影（?rec）は前の字のまま
+    return rec ? out : out.map((d) => d.replace(/（A\d+）/g, "").replace(/（A\d+ が一部）/g, "（一部しか当たっていない）"));
   }
 
   function render() {
     const r = run.recipe;
     root.innerHTML = `
     <section class="view moyou" data-step="${step}">
-      ${opts.onBack && !rec ? `<button type="button" class="back">← 組み立て直す</button>` : ""}
+      ${opts.onBack && !rec ? `<button type="button" class="back">← 答え合わせの結果</button>` : ""}
       <header class="mo-head">
         <p class="mo-eyebrow">模様の試し ・ 木目金（もくめがね）</p>
         <h2>この手順で作ったら、どんな模様になるか</h2>

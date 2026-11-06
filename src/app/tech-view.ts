@@ -164,7 +164,7 @@ export function mountTech(root: HTMLElement, id: HowtoId, opts: { gapId?: string
         ? `${blocks.ask}
     <section class="tp-block fl-panel" id="tp-model" hidden>
       <h3><span class="fl-h-n">2</span>手本を残す <small class="model-n"></small></h3>
-      <p class="small muted">作業を撮るだけ。学ぶ人が、自分の手の動きと比べられるようになります。</p>
+      <p class="small muted">学ぶ人が、自分の手の動きと比べられるようになります。</p>
       <ul class="tp-models"></ul>
       <div class="model-root motion-root"></div>
       <div class="fl-next-slot" data-for="model"></div>

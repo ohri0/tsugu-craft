@@ -108,6 +108,8 @@ export function mountRebuild(root: HTMLElement, opts: { onBack?: () => void } = 
     const h = run?.hypothesis;
     const g = run?.grade;
     const sum = h && g ? tally(h, g, t.answer) : null;
+    // 答え合わせが済んでいれば、手順の長い一覧は畳む（スマホで 1 万 px を超えていた）。撮影は前のまま開いた形
+    const fold = !!sum && !filming();
     // 手がかりの選び方と、渡す手がかりの一覧（組み立てる前は上に、組み立てたあとは結果の下に）
     const cluePart = `
       <section class="tp-block">
@@ -127,15 +129,15 @@ export function mountRebuild(root: HTMLElement, opts: { onBack?: () => void } = 
       <section class="tp-block">
       <h3><span class="tp-n">2</span>Claude が組み立てる</h3>
       <div class="actions">
-        <button type="button" class="primary go">${h ? "もう一度組み立てる" : `Claude が組み立てる（手がかり ${clues.length}）`}</button>
+        <button type="button" class="${h && !filming() ? "ghost" : "primary"} go">${h ? "もう一度組み立てる" : `Claude が組み立てる（手がかり ${clues.length}）`}</button>
         ${h && !g ? `<button type="button" class="primary gold check">答え合わせ（答えを開く）</button>` : ""}
         ${h && !run!.published ? `<button type="button" class="ghost export">記録を書き出す</button>` : ""}
       </div>
-      <p class="small status">${h ? "" : "組み立てには合言葉が要ります（1〜2 分）。"}</p>
+      <p class="small status">${h ? (filming() ? "" : "組み立て直すには合言葉が要ります（1〜2 分）。") : "組み立てには合言葉が要ります（1〜2 分）。"}</p>
       </section>`;
     root.innerHTML = `
     <section class="view rebuild tp">
-      ${opts.onBack || TECHNIQUES.length > 1 ? `<button type="button" class="back">← ${TECHNIQUES.length > 1 ? "一覧へ" : "技を選ぶ"}</button>` : ""}
+      ${opts.onBack || TECHNIQUES.length > 1 ? `<button type="button" class="back">← ${TECHNIQUES.length > 1 ? "一覧へ" : filming() ? "技を選ぶ" : "技の一覧"}</button>` : ""}
       <header class="tp-head">
         <span class="bt-mark" aria-hidden="true">？</span>
         <div class="tp-hb">
@@ -150,9 +152,14 @@ export function mountRebuild(root: HTMLElement, opts: { onBack?: () => void } = 
         </div>
       </header>
       ${
-        filming()
+        // 2026-11-06：いちばん上に「自分の途切れた技を入れる」の大きな札があり、別の頁へ迷い出やすかった。結果を先に、入口は下へ
+        filming() || !sum
           ? ""
-          : `<a class="rs-cross" href="#waza/restore"><span>自分の途切れた技を入れる</span><span aria-hidden="true">›</span></a>`
+          : `<div class="rb-hero">
+        <ol class="rb-steps" aria-label="流れ"><li class="done">手がかりを渡す</li><li class="done">Claude が組み立てる</li><li class="done">答え合わせ</li><li class="now">模様で見る</li></ol>
+        <div class="rb-score"><b>${sum.covered}<small> / ${sum.answerSteps}</small></b><p>${esc(scoreLine(sum).replace(/工程/g, "手順"))}</p></div>
+        <div class="rb-acts"><a class="primary btnlike rb-moyou" href="#waza/rebuild/moyou">この手順で作った模様を見る <span aria-hidden="true">›</span></a><button type="button" class="ghost rb-detail">手順を 1 つずつ見る</button></div>
+      </div>`
       }
 
       ${cluePart}${actPart}
@@ -162,6 +169,7 @@ export function mountRebuild(root: HTMLElement, opts: { onBack?: () => void } = 
           ? `<section class="tp-block">
         <h3><span class="tp-n">3</span>${g ? "答え合わせの結果" : "組み立てた作り方"} <small>${esc(run!.date)}${run!.published ? " ・ 公開の記録" : ""}</small></h3>
         ${sum ? `<div class="score"><b>${sum.covered}<small>/${sum.answerSteps}</small></b><p>${esc(filming() ? scoreLine(sum) : scoreLine(sum).replace(/工程/g, "手順"))}</p></div>` : ""}
+        ${fold ? `<details class="tp-more rb-more"><summary>手順を 1 つずつ見る <small>${h.steps.length} 手順 ・ 根拠と確からしさ</small></summary>` : ""}
         <ol class="steps-h tp-check">${h.steps
           .map((s, i) => {
             const gs = g?.steps.find((x) => x.n === i + 1);
@@ -179,6 +187,7 @@ export function mountRebuild(root: HTMLElement, opts: { onBack?: () => void } = 
           })
           .join("")}</ol>
         ${h.summary ? `<p class="hsum">${esc(shown(h.summary, clues))}</p>` : ""}
+        ${fold ? `</details>` : ""}
         ${
           h.trials.length
             ? `<div class="trials"><h4>次に職人に試してほしいこと</h4><ul>${h.trials.map((x) => `<li><b>${esc(shown(x.what, clues))}</b><span>${esc(shown(x.why, clues))}</span></li>`).join("")}</ul></div>`
@@ -201,6 +210,7 @@ export function mountRebuild(root: HTMLElement, opts: { onBack?: () => void } = 
       }
 
 
+      ${filming() ? "" : `<p class="rs-cross-line">答えの分からない技なら <a href="#waza/restore">途切れた技を入れる ›</a></p>`}
       ${CAVEAT}
     </section>`;
 
@@ -223,6 +233,11 @@ export function mountRebuild(root: HTMLElement, opts: { onBack?: () => void } = 
       }),
     );
     $(".go")!.addEventListener("click", () => void build());
+    $(".rb-detail")?.addEventListener("click", () => {
+      const d = root.querySelector<HTMLDetailsElement>(".rb-more");
+      if (d) d.open = true;
+      (d ?? root.querySelector(".tp-check"))?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
     $(".check")?.addEventListener("click", () => void check());
     $(".export")?.addEventListener("click", () => {
       const blob = new Blob([JSON.stringify(run, null, 2)], { type: "application/json" });

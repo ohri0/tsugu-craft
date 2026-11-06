@@ -172,6 +172,37 @@ html.fit .acts .act small { font-size: 12px; }
   html.fit .rule-card blockquote { font-size: 14px; }
 }
 
+/* ---- 答えの分かっている技で試す：結果を先に、次は模様で見る ---- */
+.rb-hero { display: grid; gap: 14px; margin: 4px 0 6px; padding: 16px; background: var(--panel); border: 1px solid var(--line-2); border-radius: 10px; }
+.rb-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 6px; font-size: 13px; color: var(--fg-2); }
+.rb-steps li { display: inline-flex; align-items: center; gap: 6px; }
+.rb-steps li + li::before { content: "→"; color: var(--fg-3); margin-right: 2px; }
+.rb-steps li.done { color: var(--fg); }
+.rb-steps li.now { color: var(--accent-2); font-weight: 600; }
+.rb-score { display: flex; align-items: center; gap: 14px; }
+.rb-score b { flex: none; font: 600 40px/1 var(--mono); color: var(--fg); }
+.rb-score b small { font-size: 18px; color: var(--fg-3); }
+.rb-score p { margin: 0; font-size: 14px; line-height: 1.7; color: var(--fg-2); }
+.rb-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.rb-acts .primary { flex: 1 1 260px; min-height: 48px; font-size: 15px; border-radius: 10px; }
+.rb-acts .ghost { min-height: 48px; font-size: 14px; }
+.rb-hero ~ .tp-block .score { display: none; }
+html.fit .rb-more > summary { margin-bottom: 0; }
+html.fit .rb-more[open] > summary { margin-bottom: 10px; }
+/* 手本を撮るボタン（技の頁の段の中） */
+html.fit .tp .fl-panel .motion-pick { gap: 8px; }
+html.fit .tp .fl-panel .motion-pick .btn { min-height: 48px; padding: 0 22px; font-size: 15px; display: inline-flex; align-items: center; }
+html.fit .tp .fl-panel .motion .note { font-size: 13px; }
+.rs-cross-line { margin: 22px 0 0; font-size: 14px; color: var(--fg-2); }
+.rs-cross-line a { color: var(--accent-2); font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; min-height: 44px; }
+html.fit .rebuild .actions .go.ghost { min-height: 44px; font-size: 14px; color: var(--fg-2); }
+@media (max-width: 480px) {
+  .rb-score { align-items: flex-start; }
+  .rb-score b { font-size: 34px; }
+  html.fit .rebuild :is(.sdetail, .sunsure, .gnote, .hsum, .smeta, .trials li span, .missed li span, .cond button small, .clue-list p) { font-size: 14px; }
+  html.fit .rebuild :is(.cid, .verdict, .tag) { font-size: 12px; }
+}
+
 /* ---- 作り方を見る（畳んだ欄の見た目をほかとそろえる） ---- */
 html.fit .tp-howto-more > summary { padding: 0 14px; min-height: 44px; font-size: 14px; }
 html.fit .tp-more > summary, html.fit .tp-gaps > summary { min-height: 44px; padding: 0 14px; font-size: 14px; }

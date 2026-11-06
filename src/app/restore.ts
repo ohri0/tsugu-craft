@@ -158,7 +158,7 @@ function mountList(root: HTMLElement, opts: { onBack: () => void }) {
   const projects = listProjects();
   root.innerHTML = `
   <section class="view rs">
-    <button type="button" class="rs-back">← 技を選ぶ</button>
+    <button type="button" class="rs-back">← 技の一覧</button>
     <h2 class="rs-title">途切れた技</h2>
     <p class="rs-lead">分かることを入れると、Claude が作り方の案を出します。</p>
     <div class="rs-start">
