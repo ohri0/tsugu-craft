@@ -1155,6 +1155,15 @@ html.fit .command { flex: 1 1 320px; min-width: 0; }
 .hold-help small { display: block; color: var(--fg-3); font-size: 11px; }
 .tn-hold .tn-facts dt { white-space: normal; }
 .tn-hold .tn-facts dd small { margin-left: 4px; font-size: 11px; color: var(--fg-3); }
+/* 2026-11-07：数のあとの小さな注（「戻りきらない分を引いて」など）が折り返さず、欄の右がはみ出して数字の端（mm）とつまみの数が切れていた。
+   注は数の下の行に回し、欄の中の物は欄の幅より広がらないようにする */
+.tn-hold > * { min-width: 0; }
+/* 2026-11-07：地金の比べの表に「戻りきらない」の列が足されて表が欄より広くなり、欄の中の物（浅く留めたいときの数など）がみな右へはみ出して、
+   数の端（mm）とつまみの数が切れていた。欄の中の物は欄の幅に合わせ、表だけ横に送れるようにする */
+.tn-card > * { min-width: 0; }
+.tn-table { overflow-x: auto; }
+.tn-hold .tn-facts dd { white-space: normal; text-align: right; }
+.tn-hold .tn-facts dd small { display: block; margin-left: 0; white-space: nowrap; }
 @media (max-width: 760px) {
   html.fit .hold-help-btn { width: 44px; height: 44px; border: 11px solid transparent; background-clip: padding-box; box-shadow: inset 0 0 0 1px var(--line-2); margin-block: -11px; }
 }
