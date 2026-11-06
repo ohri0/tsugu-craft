@@ -15,7 +15,7 @@ import { measureOutline, type StoneOutline } from "../geometry/measure";
 import { outlineIndexAtT, type JoinStyle, type ProngTip, type SettingResult } from "../geometry/setting";
 import { nameShape } from "../geometry/shape";
 import { runClaude, type LogEntry } from "../claude/loop";
-import { cannotFrom, hasJapanese, plainWords, ruleTitles, toolLogLine, withoutCannot, type RuleTitles, type StoneWords } from "../claude/words";
+import { cannotFrom, hasJapanese, offlineWhy, plainWords, ruleTitles, toolLogLine, withoutCannot, type RuleTitles, type StoneWords } from "../claude/words";
 import { STONE_FREE_NOTE, STONE_KEEP_NOTE, designPrompt, gouNote, keepPrompt } from "../claude/prompt";
 import { TOOLS, type ChooseStoneInput, type ChooseStoneResult, type ProposeRuleInput, type ProposeRuleResult, type ToolHost, type Metal } from "../claude/tools";
 import type { ClaudeContentBlockParam } from "../claude/wire";
@@ -36,6 +36,7 @@ import { LAYOUT_LABEL, METAL_LABEL, RingSession, type RingState, SLOT_SHAPE_LABE
 import { bindShankLine, sectionBinding, shankLineHtml } from "./shank-line";
 import bandShowcase from "../lp/band-showcase.json" with { type: "json" };
 import { renderRingShape, ringSectionWord, type RingShapeHost } from "./ring-shape";
+import { shapeOffload } from "./shape-offload";
 import { howToMake, placeText, type Method } from "./howto";
 import { sheetHtml } from "./sheet";
 import { bindFlowMotion, whyHtml } from "./why";
@@ -246,8 +247,13 @@ let holdDims = false;
 /** 石座の箱（3D、mm）。数字の札をこの上に重ねない */
 let headBox: { min: [number, number, number]; max: [number, number, number] } | null = null;
 /** 札を重ねない所：画面のボタンと、石座が映っている所 */
+/**
+ * 寸法の線の絵。「寸法を引く」の絵も class に dims を持ち、3D の後ろ（この絵より前）に置かれるので、
+ * $(".dims") ではそちらを取って寸法が出なかった（2026-11-06 通しの確かめ）。最初の 1 つをここで覚えておく
+ */
+const dimsSvgEl = document.querySelector<SVGSVGElement>(".vp > svg.dims:not(.measures)")!;
 function dimsAvoid(): { avoid: Rect[]; bounds: Rect } {
-  const svg = $(".dims").getBoundingClientRect();
+  const svg = dimsSvgEl.getBoundingClientRect();
   const avoid: Rect[] = [];
   for (const sel of [".vp-tl", ".verdict-chip", ".gen-swap", ".tools", ".gizmo", ".ms-panel", ".prong-pop"]) {
     const el = document.querySelector<HTMLElement>(sel);
@@ -276,7 +282,7 @@ function drawDims(d: Dim[] = dims) {
   const flat = viewer.flatView;
   if (flat) d = flatDims(d, flat);
   dimsPlaced = [];
-  $(".dims").innerHTML = showDims && !holdDims ? dimsSvg(d, (x, y, z) => viewer.project(x, y, z), 1, { ...dimsAvoid(), placed: dimsPlaced }) : "";
+  dimsSvgEl.innerHTML = showDims && !holdDims ? dimsSvg(d, (x, y, z) => viewer.project(x, y, z), 1, { ...dimsAvoid(), placed: dimsPlaced }) : "";
 }
 /** 自分で引く寸法（撮影では作らない） */
 let measure: MeasureUi | null = null;
@@ -456,9 +462,14 @@ async function loadStone(img: ImageData, label: string, longMm: number, depthMm:
   if (opts.intro) await intro();
   else session.build("最初の案");
 }
+/** 一体の石座の重い所を作る別の糸（つまみを動かしても画面が止まらないように。?nooffload で前と同じく画面の糸で作る） */
+const offload = new URLSearchParams(location.search).has("nooffload") ? null : shapeOffload();
 function newSession(m: StoneOutline, depthMm: number): RingSession {
+  // 前の設計の場の作り直し（別の糸に頼んだ形も）は、新しい設計の画面に出さない
+  session?.retire();
   const s = new RingSession({ outlineMm: m.outlineMm, longMm: m.longMm, widthMm: m.widthMm, depthMm }, ledgerNow, onBuilt, (view) => viewer.snapshotFrom(view).split(",")[1]);
   s.solid = !new URLSearchParams(location.search).has("tube");
+  s.offload = offload;
   return s;
 }
 
@@ -1024,6 +1035,29 @@ function panelKeyOf(b: Built): string {
   const r = b.ring;
   return JSON.stringify([b.problems.map((p) => [p.check, p.current, p.required, p.options.map((o) => o.id)]), r.setting.join, r.setting.prongTip, r.setting.style, r.setting.prongs.length, r.setting.prongs[0]?.diameterMm, r.notchDepthMm, r.culetGapMm, r.shank.widthMm, r.shank.thicknessMm]);
 }
+/**
+ * 画面に出している一体の石座の作り（石・留め方・付け方・爪の数と太さ・向き・高さ・下の輪）。一体でない形を出しているときは空。
+ * 同じなら、すぐの形では腕だけ替える（石座は前の一体の形のまま）。ちがえば、すぐの形（管を重ねた形）をそのまま出す（石座が浮いたり、腕に穴が見えたりしないように）
+ */
+let shownHead = "";
+function headKeyOf(b: Built): string {
+  const r = b.ring;
+  const st = r.params.stone;
+  const mm = (x: number | undefined) => (x === undefined ? null : Math.round(x * 1000));
+  const c = r.setting.collar;
+  return JSON.stringify([
+    r.setting.style,
+    r.setting.join,
+    r.setting.prongTip,
+    r.setting.prongs.map((p) => [mm(p.t), mm(p.diameterMm), mm(p.tipZ)]),
+    r.stones.length,
+    r.orientation,
+    [st.longMm, st.widthMm, st.depthMm, st.outlineMm.length, st.outlineMm[0]?.x, st.outlineMm[0]?.y],
+    mm(r.shank.outerRadiusMm),
+    mm(r.culetGapMm),
+    c ? [mm(c.topZ), mm(c.bottomZ), mm(c.heightMm), mm(c.wallMm)] : null,
+  ]);
+}
 function onBuilt(b: Built, _why: string, refined = false) {
   if (tuning || !stone || kind !== "solitaire") return;
   keepDesignSoon();
@@ -1037,12 +1071,21 @@ function onBuilt(b: Built, _why: string, refined = false) {
   panelKey = key;
   if (sheetOn) {
     clearTimeout(sheetTimer);
-    sheetTimer = window.setTimeout(() => sheetOn && showSheet(), 400);
+    // すぐの形（一体の形が別の糸から届く前）では描かない。届いたときに、もう一度ここへ来る
+    sheetTimer = window.setTimeout(() => sheetOn && !session?.quick && showSheet(), 400);
   }
-  viewer.setRing(b.ring, { color: stone.extraction.color, colorless: stone.extraction.colorless, shade: session!.state.metal }, b.problems, narrowArmOf(b)?.level);
+  // すぐの形（一体にしない管の形。一体の形は別の糸で作っていて、すぐ届く）：石・石座が前と同じ作りなら、石座は前の一体の形のまま腕だけ替える
+  // （つまみを動かしている間と同じ見せ方。管の形と一体の形が入れ替わって、ちらつかないように）
+  const keep = session!.quick && shownHead !== "" && shownHead === headKeyOf(b);
+  if (keep) viewer.updateShank(b.ring.shank, b.problems);
+  else {
+    viewer.setRing(b.ring, { color: stone.extraction.color, colorless: stone.extraction.colorless, shade: session!.state.metal }, b.problems, narrowArmOf(b)?.level);
+    shownHead = b.ring.ringPositions.settingNormals ? headKeyOf(b) : "";
+  }
   headBox = headBoxOf(b);
   setDims(ringDims(b));
-  prongEdit?.sync(b);
+  // 爪の欄の赤い印は、見せている石座の三角形の番号で付ける（前の一体の形のままのときは、一体の形が届いてから）
+  if (!keep) prongEdit?.sync(b);
   if (session?.takeEditsDropped()) toast("爪の本数が変わったので、1 本ずつの直しを消しました");
   const r = b.ring;
   const s = session!.state;
@@ -1165,9 +1208,22 @@ $(".t-grid").addEventListener("click", (e) => {
   more.dataset.tip = "寸法を選ぶ";
   more.textContent = "▾";
   $(".t-dims").after(more);
+  more.setAttribute("aria-expanded", "false");
+  const shut = () => {
+    menu.hidden = true;
+    more.setAttribute("aria-expanded", "false");
+  };
   more.addEventListener("click", () => {
     menu.hidden = !menu.hidden;
+    more.setAttribute("aria-expanded", String(!menu.hidden));
     render();
+  });
+  // 寸法を選ぶ窓は、外を押すか Esc で閉じる（前は開いたままで、指輪の上に残っていた。2026-11-06 通しの確かめ）
+  document.addEventListener("pointerdown", (e) => {
+    if (!menu.hidden && !menu.contains(e.target as Node) && !more.contains(e.target as Node)) shut();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !menu.hidden) shut();
   });
 }
 $(".t-dims").addEventListener("click", (e) => {
@@ -1343,6 +1399,10 @@ $(".command").addEventListener("submit", (e) => {
   e.preventDefault();
   void make();
 });
+/** Claude につながらなかったときの一言（同じ言葉を 2 回出さない） */
+function offlineWords(message: string | undefined, next: string): string {
+  return `Claude につながりませんでした${offlineWhy(message)}。${next}`;
+}
 async function make() {
   if (kind === "band") return makeBand();
   if (!session || !stone || making) return;
@@ -1396,7 +1456,7 @@ async function make() {
   historyEnd(mark, true);
   if (r.offline || (r.error && !r.log.length)) {
     if (r.error?.code === "wrong_password") resetPassword();
-    setStatus(`Claude につながりませんでした${r.error?.message ? `（${r.error.message}）` : ""}。決まりごとから作った案を出しています。`);
+    setStatus(offlineWords(r.error?.message, "決まりごとから作った案を出しています。"));
     return;
   }
   // 表せなかった希望を、目立つ所に出す（できたふりをさせない）
@@ -1419,6 +1479,7 @@ async function chooseStoneTool(input: ChooseStoneInput): Promise<ChooseStoneResu
   };
 }
 /** 一粒石の指輪の腕の形の欄（地金のみの指輪と同じ部品。撮影では欄がない） */
+let shankLive = 0;
 const ringShapeHost: RingShapeHost = {
   state: () => session!.state,
   size: () => {
@@ -1426,13 +1487,18 @@ const ringShapeHost: RingShapeHost = {
     return { widthMm: sh.widthMm, thicknessMm: sh.thicknessMm };
   },
   set: (input) => {
+    cancelAnimationFrame(shankLive);
     holdPanel = false;
     session!.setShank({ ...input, reason: "手で" });
   },
   live: (widthMm, thicknessMm) => {
     holdPanel = true;
-    const cur = session!.built!;
-    viewer.updateShank(rebuildShank(cur.ring, { ...cur.ring.params.shank, widthMm, thicknessMm }), cur.problems);
+    // 1 こまに 1 回まで（指の動きの知らせは、1 こまに何度も来ることがある）
+    cancelAnimationFrame(shankLive);
+    shankLive = requestAnimationFrame(() => {
+      const cur = session!.built!;
+      viewer.updateShank(rebuildShank(cur.ring, { ...cur.ring.params.shank, widthMm, thicknessMm }), cur.problems);
+    });
   },
   bindEditor: bindRingSectionEditor,
 };
@@ -2891,6 +2957,8 @@ function renderBuild() {
 
 /** 図面・指示書を印刷する（印刷する物を選ぶ窓から）。どの場面からでも */
 function printSheet() {
+  // 図面は 3D の絵から描くので、細かい一体の形にしてから
+  if (kind === "solitaire") session?.flush();
   if (kind === "band") {
     if (!bandPositions) return;
     return askPrint(false, (pick) => {
@@ -2961,6 +3029,8 @@ function exportStl() {
     return;
   }
   if (!session?.built || !stone) return toast("指輪が組み上がるまで、少し待ってください");
+  // 動かした直後は、すぐの形・粗い形のことがある。STL はいつも細かい一体の形で
+  session.flush();
   const r = session.built.ring.ringPositions;
   const all = new Float32Array(r.setting.length + r.shank.length);
   all.set(r.setting, 0);
@@ -2992,7 +3062,7 @@ async function addRuleFromWords(said: string) {
   const r = await runClaude({ host, messages: [{ role: "user", content: `${name}さんが話したこと：${said}` }], system: keepPrompt(store.ledger(), name), tools: TOOLS.filter((t) => t.name === "propose_rule"), password: pass, maxTurns: 3, speed: "fast" });
   if (r.offline || (r.error && !r.log.length)) {
     if (r.error?.code === "wrong_password") resetPassword();
-    $(".ar-proposal").innerHTML = `<p class="tech-what">Claude につながりませんでした。${esc(r.error?.message ?? "")}</p>`;
+    $(".ar-proposal").innerHTML = `<p class="tech-what">${esc(offlineWords(r.error?.message, "通信を確かめて、もう一度試してください。"))}</p>`;
     showProposalSlot();
   }
 }
@@ -3486,7 +3556,7 @@ async function fixWithClaude() {
   historyEnd(mark, false);
   if (r.offline || (r.error && !r.log.length)) {
     if (r.error?.code === "wrong_password") resetPassword();
-    fixLog.push({ text: `Claude につながりませんでした。${r.error?.message ?? ""}`, cls: "ng" });
+    fixLog.push({ text: offlineWords(r.error?.message, "上の直し方のボタンか「手で変える」で直せます。"), cls: "ng" });
   }
   renderCheck();
   flashVerdict();
@@ -3582,7 +3652,8 @@ function showBand(live = false) {
   // 図面を開いたままなら、図面も描き直す（一粒石の指輪と同じ）
   if (sheetOn) {
     clearTimeout(sheetTimer);
-    sheetTimer = window.setTimeout(() => sheetOn && showSheet(), 400);
+    // すぐの形（一体の形が別の糸から届く前）では描かない。届いたときに、もう一度ここへ来る
+    sheetTimer = window.setTimeout(() => sheetOn && !session?.quick && showSheet(), 400);
   }
   renderPresent();
   if (live) return;

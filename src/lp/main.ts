@@ -177,7 +177,7 @@ const html = `
     <figure class="red-ring rv">${shot("ring-red", 3200, 2000, "爪を細くした指輪。細すぎる爪 3 本が赤く光っている", "100vw")}</figure>
     <h2 id="red-h" class="v red-h rv">作れない所を、<br>職人の言葉で<br>教えます。</h2>
     <div class="red-b">
-      <p class="rv">赤く光る所を押すと、なぜ作れないかを、その工房の職人の言葉で教えます。直し方のボタンを押すと、その場で直ります。</p>
+      <p class="rv">赤い印のついた所を押すと、なぜ作れないかを、その工房の職人の言葉で教えます。直し方のボタンを押すと、その場で直ります。</p>
       <figure class="rv"><picture><source media="(max-width: 760px)" srcset="lp/fixpop-pop-sm.webp 368w, lp/fixpop-pop.webp 736w" sizes="92vw" width="368" height="361">${shot("fixpop", 1624, 738, "赤く光る爪の指輪と、作れない所の窓。爪が細い 0.60 mm → 0.70 mm 以上、職人の言葉「このサイズの石なら最低ライン 0.7 mm は欲しい感じ」、爪を太くするボタン、まとめて直す、Claude で直す", "(max-width: 900px) 92vw, 860px")}</picture><figcaption>数字と言葉は、この工房の帳面から。数字は目安・最後は職人が決めます。</figcaption></figure>
     </div>
   </section>

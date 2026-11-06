@@ -551,7 +551,7 @@ dialog.sheet input:focus { border-color: var(--accent); }
 .places { display: flex; align-items: center; gap: 2px; margin-right: 6px; padding-right: 8px; border-right: 1px solid var(--line); }
 .places a { height: 26px; padding: 0 9px; display: inline-flex; align-items: center; border-radius: 5px; color: var(--fg-2); font-size: 12px; text-decoration: none; }
 .places a:hover { background: var(--panel-2); color: var(--fg); }
-.places-sm { display: grid; gap: 6px; margin: 18px 0 8px; padding-top: 14px; border-top: 1px solid var(--line); }
+.places-sm { display: grid; gap: 6px; margin: 18px 14px 8px; padding-top: 14px; border-top: 1px solid var(--line); }
 .places-sm small { font-size: 11px; color: var(--fg-3); }
 .places-sm a { display: grid; gap: 2px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 7px; background: var(--field); color: var(--fg); font-size: 13px; font-weight: 600; text-decoration: none; }
 .places-sm a span { font-size: 11px; font-weight: 400; color: var(--fg-3); }

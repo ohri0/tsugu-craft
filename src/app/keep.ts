@@ -5,6 +5,7 @@
 import { askConfirm, filming } from "./confirm";
 import { openRuleEditor, removedRulesHtml } from "./rule-editor";
 import { runClaude } from "../claude/loop";
+import { offlineWhy } from "../claude/words";
 import { printHtml } from "../ui/print";
 import { keepPrompt } from "../claude/prompt";
 import { TOOLS, type ProposeRuleInput, type ProposeRuleResult, type ToolHost } from "../claude/tools";
@@ -409,7 +410,7 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
     });
     if (r.offline || (r.error && !r.log.some((e) => e.kind === "tool"))) {
       if (r.error?.code === "wrong_password") resetPassword();
-      fallback(`Claude につながらないので、話した言葉をそのまま案にしました。${r.error?.message ? `（${r.error.message}）` : ""}`);
+      fallback(`Claude につながらないので、話した言葉をそのまま案にしました。${offlineWhy(r.error?.message)}`);
     }
   }
 

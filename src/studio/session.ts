@@ -8,6 +8,7 @@ import type { SectionCurve, SectionPoint, ShankSection, ShankStation } from "../
 import type { ReliefParams } from "../geometry/shank-relief";
 import type { TensionGrip, TensionInfo } from "../geometry/tension";
 import type { StoneParams } from "../geometry/stone";
+import { recordHeavy, replayHeavy } from "../geometry/sdf";
 import { FIXES, checkRing, cornerDistances, grooveNote, holdRatio, shankWidthNote, widthFixMm, tensionInsert, tensionNotes, tensionOpening, tensionOpeningText, type FixId, type Problem } from "../rules/checks";
 import { springForClaude, springIdOf, tensionCautions, tensionSpring } from "../rules/tension-calc";
 import { GUIDES, requiredHold, stoneSizeMm, type Guides, type HeightOption, type MetalId, type StonePosition } from "../rules/guides";
@@ -133,6 +134,52 @@ export const LAYOUT_LABEL: Record<StoneLayout | "free", string> = { solo: "一�
 
 /** つまみや Claude の set_setting が止まってから、細かい一体の形を作り直すまでの待ち（ms）。作り直しは重いので、続けて押している間は始めない */
 export const FINAL_DELAY_MS = 500;
+
+/** 別の糸に頼むとき、細かい一体の形を頼むまでの待ち（ms）。この糸は止まらないので短く。続けて押している間に、古い設計の細かい形を作り始めないため */
+export const OFFLOAD_FINAL_DELAY_MS = 250;
+
+/** 別の糸に頼む、一体の形の作り（石・設計・帳面と、粗いか細かいか） */
+export interface ShapeJob {
+  stone: StoneParams;
+  state: RingState;
+  ledger: Ledger;
+  quality: SolidQuality;
+}
+
+/** 別の糸が作った重い所（一体の石座・ロウの丸みを、作った順に。sdf.ts の heavy） */
+export interface ShapeSolids {
+  list: unknown[];
+  sigs: string[];
+}
+
+/**
+ * 一体の形の重い所を、別の糸で作る口（画面が Web Worker で用意する。session は Worker を知らない）。
+ * lane ごとに 1 つずつ作り、作っている間に来た頼みは、いちばん新しい 1 つだけ残す。done は作れなければ null
+ */
+export interface ShapeOffload {
+  request(lane: SolidQuality, job: ShapeJob, done: (got: ShapeSolids | null) => void): void;
+}
+
+function jobSession(job: ShapeJob): RingSession {
+  const s = new RingSession(job.stone, () => job.ledger, () => undefined, () => "");
+  s.solid = true;
+  s.deferFinal = false;
+  s.state = job.state;
+  return s;
+}
+
+/** 別の糸の中で：一体の形を作り、重い所を作った順に返す */
+export function solidsForJob(job: ShapeJob): ShapeSolids {
+  const s = jobSession(job);
+  const { list, sigs } = recordHeavy(() => s.shapeOnly(job.quality));
+  return { list, sigs };
+}
+
+/** 別の糸から届いた重い所を使って、同じ設計の一体の形を組む（重い所は作らない。形は、この糸で全部作ったときと同じ） */
+export function shapeFromSolids(job: ShapeJob, got: ShapeSolids): Built {
+  const s = jobSession(structuredClone(job));
+  return replayHeavy(got.list, got.sigs, () => s.shapeOnly(job.quality));
+}
 
 /** 爪の形の直しの「直していない」値（全部の爪にそろえるとき、この値なら残さない） */
 export const PRONG_LOOK_NONE: Partial<Record<keyof ProngLook, number>> = { flareMm: 0, tipLengthMm: 0, baseScale: 1, tipScale: 1 };
@@ -423,10 +470,25 @@ export class RingSession implements ToolHost<RingState> {
    * 既定は、画面（window がある）のときだけ。テストでは同期のまま（いつも細かい形）
    */
   deferFinal = typeof window !== "undefined";
+  /**
+   * 一体の形の重い所（一体の石座・ロウの丸み。sdf.ts の heavy）を、別の糸（Web Worker）で作る口。画面の主な設計にだけ main.ts が渡す。
+   * あると、続けて動かしているときは、まず一体にしない形（管を重ねた形。確かめの結果は同じ）ですぐ返し、
+   * 粗い一体の形・細かい一体の形は別の糸で作って、届いたら onChange（refined）で差し替える。この糸は止まらない（2026-11-06 作者：つまみが重い）。
+   * なければ、今までどおりこの糸で作る
+   */
+  offload: ShapeOffload | null = null;
   /** 細かい一体の形を一度作ったか（最初の 1 回は、粗い形を見せずに細かく作る） */
   private hadFinal = false;
   private finalTimer: ReturnType<typeof setTimeout> | null = null;
   private finalWhy = "";
+  /** 組み直した回数（別の糸から遅れて届いた形が、今の設計の形かを見分ける） */
+  private version = 0;
+  /** 別の糸の細かい形を待っているか */
+  private awaitingFinal = false;
+  /** 別の糸から届いて見せた形の質（細かい形のあとに、粗い形を重ねない） */
+  private shownQuality: SolidQuality | null = null;
+  /** 今の形が、一体にしない「すぐの形」か（画面は、石座を前の一体の形のまま、腕だけ替えて見せてよい。すぐに一体の形が届く） */
+  quick = false;
 
   private sizeMm() {
     return stoneSizeMm(this.stone.longMm, this.stone.widthMm);
@@ -444,13 +506,20 @@ export class RingSession implements ToolHost<RingState> {
       st.orientation = autoOrientation(this.stone, st.shankWidthMm ?? GUIDES.shank.widthMm);
     }
     const preview = this.solid && this.deferFinal && this.hadFinal;
-    if (this.solid) this.cancelFinal();
-    this.built = this.compose(preview ? "preview" : "final");
+    const waited = this.awaitingFinal;
+    if (this.solid || waited) this.cancelFinal();
+    this.version++;
+    this.awaitingFinal = false;
+    this.shownQuality = null;
+    const off = preview ? this.offload : null;
+    this.quick = off !== null;
+    this.built = off ? this.compose("preview", false) : this.compose(preview ? "preview" : "final");
     if (this.solid && !preview) this.hadFinal = true;
-    if (preview) {
-      this.finalWhy = why;
-      this.finalTimer = setTimeout(() => this.finish(), FINAL_DELAY_MS);
-    }
+    this.finalWhy = why;
+    if (off) this.sendOff(off);
+    else if (preview) this.finalTimer = setTimeout(() => this.finish(), FINAL_DELAY_MS);
+    // 一体でない形で組み直した（爪の太さを決める間など）：待っていた細かい形は、前と同じく少し後にこの糸で
+    else if (waited && !this.solid) this.finalTimer = setTimeout(() => this.finish(), FINAL_DELAY_MS);
     this.onChange(this.built, why);
     return this.built;
   }
@@ -462,28 +531,89 @@ export class RingSession implements ToolHost<RingState> {
 
   /** 細かい形への作り直しを待っているか */
   get pendingFinal(): boolean {
-    return this.finalTimer !== null;
+    return this.finalTimer !== null || this.awaitingFinal;
   }
 
   /** 待っている細かい形への作り直しを、今すぐ済ませる（look の画像・書き出しの前など） */
   flush(): void {
-    if (this.finalTimer === null) return;
+    if (!this.pendingFinal) return;
     this.cancelFinal();
     this.finish();
+  }
+
+  /**
+   * この設計の場を使い終える（石を替えて新しい場を作るとき）。待っている作り直しをやめ、別の糸から遅れて届く形も使わない。
+   * 前は、使い終えた場の細かい形への作り直しが少し後に動き、新しい石の画面に前の石の形を出すことがありえた
+   */
+  retire(): void {
+    this.cancelFinal();
+    this.offload = null;
   }
 
   private cancelFinal() {
     if (this.finalTimer !== null) clearTimeout(this.finalTimer);
     this.finalTimer = null;
+    if (this.awaitingFinal) {
+      // 別の糸で作っている形は、届いても使わない
+      this.awaitingFinal = false;
+      this.version++;
+    }
   }
 
   private finish() {
     this.finalTimer = null;
     this.built = this.compose("final");
+    this.quick = false;
+    this.shownQuality = "final";
     this.onChange(this.built, this.finalWhy, true);
   }
 
-  private compose(quality: SolidQuality): Built {
+  /** 別の糸に、粗い一体の形はすぐ、細かい一体の形は少し待ってから頼む。届いた重い所を使って、この糸で同じ設計を組む */
+  private sendOff(off: ShapeOffload) {
+    const v = this.version;
+    const job = (quality: SolidQuality): ShapeJob => ({ stone: this.stone, state: structuredClone(this.state), ledger: this.ledger(), quality });
+    const take = (j: ShapeJob) => (got: ShapeSolids | null) => {
+      if (this.offload !== off || v !== this.version) return; // 古い設計の形・切り離した後に届いた形は使わない
+      let b: Built | null = null;
+      if (got) {
+        try {
+          b = shapeFromSolids(j, got);
+        } catch {
+          b = null;
+        }
+      }
+      if (!b) {
+        // 別の糸が使えない・届いた形が合わない：前と同じく、この糸で少し後に細かく作る
+        this.offload = null;
+        this.awaitingFinal = false;
+        if (this.finalTimer !== null) clearTimeout(this.finalTimer);
+        this.finalTimer = setTimeout(() => this.finish(), FINAL_DELAY_MS);
+        return;
+      }
+      if (j.quality === "preview" && this.shownQuality === "final") return;
+      this.shownQuality = j.quality;
+      if (j.quality === "final") this.awaitingFinal = false;
+      this.quick = false;
+      this.built = b;
+      this.onChange(b, this.finalWhy, true);
+    };
+    this.awaitingFinal = true;
+    const pj = job("preview");
+    off.request("preview", pj, take(pj));
+    this.finalTimer = setTimeout(() => {
+      this.finalTimer = null;
+      if (v !== this.version || this.offload !== off) return;
+      const fj = job("final");
+      off.request("final", fj, take(fj));
+    }, OFFLOAD_FINAL_DELAY_MS);
+  }
+
+  /** 一体の形を作るだけ（onChange を呼ばない）。別の糸と、届いた形から組み直すときに使う */
+  shapeOnly(quality: SolidQuality): Built {
+    return this.compose(quality, true);
+  }
+
+  private compose(quality: SolidQuality, solid = this.solid): Built {
     const s = this.state;
     const outline = this.stone.outlineMm;
     const ledger = this.ledger();
@@ -496,7 +626,7 @@ export class RingSession implements ToolHost<RingState> {
       height: trio ? GUIDES.multi.trio.sideHeight : s.height,
       culetGapMm: trio ? undefined : s.culetGapMm,
       minProngMm: prongMinOverride(guides),
-      solid: this.solid,
+      solid,
       solidQuality: quality,
       vAtCorners: false,
       prongTip,
@@ -528,7 +658,7 @@ export class RingSession implements ToolHost<RingState> {
         prongDiameterMm: s.prongMm,
         minProngMm: prongMinOverride(guides),
         prongs: s.prongPositions?.length ? s.prongPositions.map((i) => ({ t: tAtOutlineIndex(outline, i) })) : undefined,
-        solid: this.solid,
+        solid,
         solidQuality: quality,
         // 既定は、角を丸い爪で押さえる普通の爪留め（作者の判断）。V 字の爪は選んだときだけ
         // V 字の爪は、形の出来がまだ足りないので画面では使わない（作者と決めた。2026-11-04）

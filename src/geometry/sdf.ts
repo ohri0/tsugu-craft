@@ -180,6 +180,70 @@ export function resolveAmbiguousFaces(val: Float32Array, nx: number, ny: number,
   return flips;
 }
 
+/**
+ * 重い形（一体の石座・ロウの丸み）を、作った順に覚える（record）か、前に覚えた物を順に返す（replay）。
+ * 設計の画面は、重い形だけを別の糸（Web Worker）で作り、その結果をこの糸で順に使って、同じ指輪を組む（つまみが指についてくるように）。
+ * 同じ設計なら、重い形は同じ順・同じ入力で作られる（組む処理は、同じ入力なら同じ出力）。順がずれたら投げる（間違った形を出さない）
+ */
+interface Tape {
+  mode: "record" | "replay";
+  list: unknown[];
+  /** 作った所の名前。replay で順がずれていないかを見る */
+  sigs: string[];
+  at: number;
+  /** 覚える形の中で、さらに覚える形を作っている深さ（外側の 1 つだけ覚える） */
+  depth: number;
+}
+let tape: Tape | null = null;
+
+/** f の中で作った重い形を、作った順に返す（写しなので、別の糸へそのまま送れる） */
+export function recordHeavy<T>(f: () => T): { result: T; list: unknown[]; sigs: string[] } {
+  const prev = tape;
+  const t: Tape = { mode: "record", list: [], sigs: [], at: 0, depth: 0 };
+  tape = t;
+  try {
+    return { result: f(), list: t.list, sigs: t.sigs };
+  } finally {
+    tape = prev;
+  }
+}
+
+/** f の中の重い形を、作らずに list から順に返す。数や順が合わなければ投げる */
+export function replayHeavy<T>(list: readonly unknown[], sigs: readonly string[], f: () => T): T {
+  const prev = tape;
+  const t: Tape = { mode: "replay", list: [...list], sigs: [...sigs], at: 0, depth: 0 };
+  tape = t;
+  try {
+    const out = f();
+    if (t.at !== t.list.length) throw new Error(`重い形の数が合わない（覚えた ${t.list.length}・使った ${t.at}）`);
+    return out;
+  } finally {
+    tape = prev;
+  }
+}
+
+/** 重い形を作る所（sig：作る所の名前）。覚えている間は写しを覚え、前の物を使う間は作らずに返す。ふだんは make() そのもの */
+export function heavy<T>(sig: string, make: () => T): T {
+  const t = tape;
+  if (!t || t.depth > 0) return make();
+  if (t.mode === "replay") {
+    const i = t.at++;
+    if (i >= t.list.length || t.sigs[i] !== sig) throw new Error("重い形の順が合わない");
+    return t.list[i] as T;
+  }
+  t.depth++;
+  let out: T;
+  try {
+    out = make();
+  } finally {
+    t.depth--;
+  }
+  // 写しを覚える（あとの処理が配列を書き換えても、覚えた物は作ったときのまま）
+  t.list.push(structuredClone(out));
+  t.sigs.push(sig);
+  return out;
+}
+
 /** 管をなめらかにつないだ形を、三角形の面にする */
 export function buildSolid(tubes: readonly Tube[], o: SolidOptions): SolidMesh {
   const segs: Seg[] = [];
