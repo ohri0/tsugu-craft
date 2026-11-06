@@ -980,7 +980,27 @@ def finished(s, t, f):
     両手で小さな銀の指輪（三角の石）を持つ所。動かさない切り抜きで約 1.5 倍に（寄る動きはしない）、ほかの暗い映像に色をそろえる。声なし・音なし"""
     a = grade_hands(foot_at(s["foot"], t, t0=0.15, speed=0.9, box=FIN_BOX, src_fps=24000 / 1001), 0.92)
     a = a * vign(0.45, 0.5)
-    return heading(a, "継ぐのデータから、実際に作った指輪", t, 0.35)
+    # 最終案 16（作者の声：アールデコの生成のすぐあとだと、その指輪に見えて誤解される）：前にテンションの計算を入れ、字は「この計算から」
+    return heading(a, "この計算から、実際に作った指輪", t, 0.35)
+
+
+# ---- テンションの「浅く留めたいとき」（最終案 16）：くぼみ 0.35（ぎりぎり）→ ＋ を 3 回 → 0.50 mm で「留まる見込み」。作者が作った指輪の値
+TENSION_Z = (842, 300, 880)   # 指輪（左）と、浅く留めたいときの札（右）が 1 つの寄りに入る（頁の px：真ん中 x・y と幅）
+
+
+@scene("tension16")
+def tension16(s, t, f):
+    """撮った章 tension16 を、寄った絵のまま等倍で（印が動く所も、＋ を押す所も）。見出し「テンションセッティングのような、計算が要る留め方も」"""
+    M = meta("tension16")
+    m, nfr = M["marks"], M["frames"]
+    n = s["len"]
+    B = M["boxes"]
+    # 札の上の端から、事実の表の 4 行目くらいまでが入る高さ
+    cy = (B["hold"]["y"] + 495 / 2 - 44) if "hold" in B else TENSION_Z[1]   # 下の石の欄の上の端が入らない高さ
+    st = max(0, m["ok"] - int(round((n - 1.2) * FPS)))     # 留まる見込みの所（ok）に、終わりの 1.2 秒前に着く（次の本物の指輪へ 0.8 秒で重ねて替える）
+    i = min(nfr - 1, st + int(t * FPS))
+    a = css_crop("tension16", i, TENSION_Z[0], cy, TENSION_Z[2])
+    return heading(a, "テンションセッティングのような、計算が要る留め方も", t, 0.2)
 
 
 FIN_BOX = (275, 150, 1100, 619)  # 元の映像の切り出し（指輪が真ん中より少し上。上の明るい帯は入れない。約 1.5 倍）
@@ -1658,20 +1678,25 @@ def teach15(s, t, f):
     m, nfr = M["marks"], M["frames"]
     n = s["len"]
     t_fin = n - 1.35
-    # 最終案 15（2 回目）：欄へ動く所は等倍（はじめの 4 こまは前の場面との重ねの中なので飛ばす）
-    #   これでいいへ動く所（read から）も等倍。その前の、案の上をゆっくり漂う所で時間を合わせる
-    pts = [(0, m["full"] + 4), (0.75, m["type"] - 2), (1.15, m["typed"]), (1.6, m["wait"]), (1.8, m["proposal"]),
-           (t_fin - 0.05 - (m["applied"] - 3 - m["read"]) / FPS, m["read"]), (t_fin - 0.05, m["applied"] - 3)]
-    i = ramp_frame(pts, t) if t < t_fin else min(nfr - 1, m["final"] + int((t - t_fin) * FPS * 0.8))
+    # 最終案 16（作者の声：速すぎて追えない。止めるのでなく、動きをゆっくり）：撮るときに、打つのを 1 字 2 こま・案を読む間を長くした。
+    #   組むときは、はじめから「これでいい」まで、すべて等倍（はじめの欄へ動く所は、前の場面との重ねの中なので、入りきらない分を頭から飛ばす）
+    st = max(m["full"], m["applied"] - 3 - int(round((t_fin - 0.05) * FPS)))
+    pts = [(0, st), (t_fin - 0.05, st + int(round((t_fin - 0.05) * FPS)))]
+    i = ramp_frame(pts, t) if t < t_fin else min(nfr - 1, m["final"] + int((t - t_fin) * FPS))
     B = M["boxes"]
     cy0 = (B["field"]["y"] + 220) if "field" in B else 360
     cy1 = ((B["read"]["y"] + B["ok"]["y"] + B["ok"]["h"]) / 2) if "ok" in B else cy0
     cy2 = (B["ptcard"]["y"] + B["ptcard"]["h"] / 2) if "ptcard" in B else cy0
+    # 最終案 16：帳面の表が案の寄り（cy1）に入るなら、寄り直さない（重ねて替える間に、指輪が上下 2 つに見えないように）
+    half = TEACH15_W * 9 / 32
+    if "ptcard" in B and B["ptcard"]["y"] >= cy1 - half + 8 and B["ptcard"]["y"] + B["ptcard"]["h"] <= min(720, cy1 + half) - 8:
+        cy2 = cy1
     view = lambda j, cy: css_crop("teach15", j, 1280 - TEACH15_W / 2, cy, TEACH15_W)  # noqa: E731
-    if t < 1.85:
+    t_up = (m["wait"] - st) / FPS + 0.1   # 聞いたあと、案の出る所へ寄り直す秒（等倍なので、こまから決まる）
+    if t < t_up:
         return view(i, cy0)
     if t < t_fin:
-        return blend_views(lambda: view(i, cy0), lambda: view(i, cy1), t, 1.85, 0.4)
+        return blend_views(lambda: view(i, cy0), lambda: view(i, cy1), t, t_up, 0.4)
     return blend_views(lambda: view(m["applied"] - 3, cy1), lambda: view(i, cy2), t, t_fin, 0.35)
 
 
@@ -1917,7 +1942,7 @@ def firstnow10(s, t, f):
     k2 = fade(t, vat(s) + 1.2, 0.8)
     a = ink(a, Hz(1440, 968, "職人の言葉から", "min", S, 0.08, "c"), SHIRO, k2)
     a = ink(a, Hz(1440, 1016, "今の版　爪 ø 0.80 mm", "sans", T, 0.06, "c"), SHIRO, 0.9 * k2)
-    a = ink(a, Hz(W / 2, 1060, "目安・最後は職人が決める", "sans", 22, 0.08, "c"), SHIRO, 0.8 * k2)
+    # 最終案 16（作者の声）：下の「目安・最後は職人が決める」は外した（自動で組んだ形が頼りなく、右だけ手で直したように見える）
     return a
 
 
@@ -2803,7 +2828,9 @@ def moyou11(s, t, f):
     pts.append((s["len"], hold_fr))
     # 最終案 15（作者の声：段が次々に出て、寄る所も替わるので「あ、次行った、見えない」）：
     #   表は 5 つの段がそろった 1 枚のまま、寄り直さずに見せる（本当の手順・Claude の手順・本当の工程と比べると、がいつも見える）
-    table = moyou_table(hold_fr)
+    # 最終案 16（作者の声：一度に全部出て、どこを見ればいいか分からない。「9 に」が 5 つの段と合わない）：
+    #   枠も寄りも同じまま、本当の手順 → Claude の手順を段ごとに → 本当の 11 の手順を 1 行ずつ出して、たどり着いた数（一致・一部）を 9 まで数える
+    table = moyou_reveal(hold_fr, t, a0) if "li00_ok" in meta("moyou11")["boxes"] or any(k.startswith("li00_") for k in meta("moyou11")["boxes"]) else moyou_table(hold_fr)
     t_three = a1 - 1.5         # 3 枚へ、1 秒かけて重ねて替える（n39 の 0.5 秒前に替わり終わる）
     if t < t_three:
         return table
@@ -2812,6 +2839,77 @@ def moyou11(s, t, f):
     if k >= 1:
         return three
     return table * (1 - k) + three * k
+
+
+# ---- 模様の試しの表を、順に出す（最終案 16）
+MOYOU_C0 = 0.9      # Claude の手順の行が出はじめる秒（場面の頭から）
+MOYOU_CSTEP = 0.45  # Claude の手順の段の間（5 つ）
+MOYOU_LSTEP = 0.2   # 本当の 11 の手順の行の間
+
+
+def moyou_page_xy(x, y):
+    """頁の px（moyou_table の切り抜きの中）→ 画面の px"""
+    k = W / 1240
+    hh = round(W * 560 / 1240)
+    return (x - 20) * k, (H - hh) // 2 + y * k
+
+
+def moyou_rect(b, pad=0):
+    x0, y0 = moyou_page_xy(b["x"] - pad, b["y"] - pad)
+    x1, y1 = moyou_page_xy(b["x"] + b["w"] + pad, b["y"] + b["h"] + pad)
+    return max(0, int(x0)), max(0, int(y0)), min(W, int(math.ceil(x1))), min(H, int(math.ceil(y1)))
+
+
+def moyou_lines():
+    """本当の 11 の手順の行（頁の並び＝段の順・上から）：[(枠, ok/part/miss)]"""
+    B = meta("moyou11")["boxes"]
+    keys = sorted(k for k in B if k.startswith("li"))
+    return [(B[k], k.split("_", 1)[1]) for k in keys]
+
+
+def moyou_reveal(fr, t, a0):
+    """表（5 つの段がそろったこま）に、まだ出していない所を頁の地の色でかぶせる。出す所は 0.3 秒ほどでふわっと"""
+    B = meta("moyou11")["boxes"]
+    base = moyou_table(fr)
+    a = base.copy()
+    bg = base[4, 4].copy()
+
+    def cover(b, k, pad=0):
+        if b is None or k >= 1:
+            return
+        x0, y0, x1, y1 = moyou_rect(b, pad)
+        a[y0:y1, x0:x1] = a[y0:y1, x0:x1] * k + bg * (1 - k)
+
+    # Claude の手順：行の名前 → 段ごと
+    cover(B.get("rlC"), fade(t, MOYOU_C0, 0.4))
+    for j in range(5):
+        cover(B.get(f"cc{j + 1}"), fade(t, MOYOU_C0 + 0.15 + MOYOU_CSTEP * j, 0.35))
+    # 本当の工程と比べると：行の名前 → 11 の手順を 1 行ずつ（n37「本当の 11 の手順と比べると」のあたりから。仮声では 9 に数え終わって 0.4 秒ほどで「9 に」）
+    t_m0 = a0 + 1.25
+    cover(B.get("rlM"), fade(t, t_m0, 0.35))
+    lines = moyou_lines()
+    for i, (b, v) in enumerate(lines):
+        cover(b, fade(t, t_m0 + 0.25 + MOYOU_LSTEP * i, 0.2), pad=2)
+    # 数える（一致と一部。たどり着けずは数えない）：表の右下の空いた所（③〜⑤ の行の下）から、表の下の地へ。入口のページの「11 のうち 9」と同じ言い方
+    got = sum(1 for i, (b, v) in enumerate(lines) if v in ("ok", "part") and t >= t_m0 + 0.25 + MOYOU_LSTEP * i + 0.1)
+    k = fade(t, t_m0 + 0.1, 0.4)
+    if k > 0 and lines:
+        mk = [B[f"mk{j}"] for j in (3, 4, 5) if f"mk{j}" in B]
+        x_l = min(b["x"] for b in mk) if mk else 590
+        y_t = max(b["y"] + b["h"] for b in mk) if mk else 485
+        X0, Y0 = moyou_page_xy(x_l + 6, y_t + 6)
+        X1, _ = moyou_page_xy(1250, 0)
+        cx = (X0 + X1) / 2
+        yb = Y0 + 92                      # 大きな数の下の端（字の並ぶ線）
+        n_all = len(lines)
+        a = ink(a, Hz(cx - 62, yb, f"{n_all}", "thin", 96, 0.0, "r"), SHIRO, 0.9 * k)
+        a = ink(a, Hz(cx, yb - 6, "のうち", "sans", 30, 0.08, "c"), SHIRO, 0.9 * k)
+        a = ink(a, Hz(cx + 62, yb, f"{got}", "thin", 96, 0.0, "l"), SHIRO, k)
+        t_done = t_m0 + 0.25 + MOYOU_LSTEP * (n_all - 1) + 0.3
+        ok = sum(1 for _, v in lines if v == "ok")
+        part = sum(1 for _, v in lines if v == "part")
+        a = ink(a, Hz(cx, yb + 52, f"にたどり着いた（一致 {ok}・一部 {part}）", "sans", T, 0.06, "c"), SHIRO, 0.9 * fade(t, t_done, 0.5))
+    return a
 
 
 # 模様の試しの表を寄って見せる所（頁の px：真ん中 x・y と幅）。左＝見出しと ①〜③（下の行の「たどり着けず」も入る）、右＝③ の右の端から ⑤
