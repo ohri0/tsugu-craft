@@ -292,7 +292,7 @@ figcaption { font-size: 15px; line-height: 1.7; margin-top: 12px; color: var(--w
 .restore-e { position: relative; max-width: 26em; margin: clamp(72px, 12vh, 128px) auto 0; padding: 0 var(--gut); font: 400 clamp(20px, 2vw, 27px)/1.9 var(--mincho); }
 .ifever { --ifs: clamp(27px, 3.6vw, 52px); --rule: calc(var(--ifs) * 2); display: flex; justify-content: center; padding: clamp(84px, 14vh, 144px) var(--gut); overflow: hidden; }
 /* 罫は字の列と同じ間隔で、字の列の右の端から引く（両わきにも 4 本ずつ続ける） */
-.ifever-v { font-size: var(--ifs); line-height: 2; padding: 0 calc(var(--rule) * 4); margin: calc(clamp(84px, 14vh, 144px) * -1) 0; padding-block: clamp(84px, 14vh, 144px); background-image: linear-gradient(to right, rgba(190, 50, 30, 0.22) 0 1px, transparent 1px); background-size: var(--rule) 100%; background-repeat: repeat-x; background-position: right calc(var(--rule) * 4) top; }
+.ifever-v { font-size: var(--ifs); line-height: 2; padding: clamp(84px, 14vh, 144px) calc(var(--rule) * 4); margin: calc(clamp(84px, 14vh, 144px) * -1) 0; /* 縦書きでは padding-block が左右になるので、上下・左右は物の向きで書く（2026-11-06：罫が字の列にかかっていた） */ background-image: linear-gradient(to right, rgba(190, 50, 30, 0.22) 0 1px, transparent 1px); background-size: var(--rule) 100%; background-repeat: repeat-x; background-position: right calc(var(--rule) * 4) top; }
 
 /* ---- Claude の立ち位置 ---- */
 .stance { max-width: 1000px; margin: 0 auto; padding: var(--gap-sec) var(--gut) 0; display: grid; gap: 22px; }
