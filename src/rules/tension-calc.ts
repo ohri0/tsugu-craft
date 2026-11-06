@@ -153,7 +153,7 @@ export function tensionCautions(s: Pick<SettingResult, "tension">, table: Spring
     out.push({
       id: "long-triangle",
       title: "残りの角が横へ出る",
-      text: `長い辺の両はしの角を挟むので、残りの角が腕の幅の外へ、片側 ${info.overhangMm.toFixed(2)} mm 出ます。作者の本物の指輪はこの向きです。出た角をぶつけると、2 つの角を結ぶ線のまわりに石が回ろうとします。留まるかは職人が確かめてください`,
+      text: `長い辺の両はしの角を挟むので、残りの角が腕の幅の外へ、片側 ${info.overhangMm.toFixed(2)} mm 出ます。出た角をぶつけると、2 つの角を結ぶ線のまわりに石が回ろうとします。留まるかは職人が確かめてください`,
     });
   else if (info.overhangRatio > g.tension.askOverhangRatio + 1e-9 && info.overhangRatio <= g.tension.maxOverhangRatio + 1e-9)
     out.push({
