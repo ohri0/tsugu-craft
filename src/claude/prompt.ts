@@ -6,6 +6,7 @@
 import skillText from "../../.claude/skills/jeweler-guides/SKILL.md?raw";
 import { GUIDE_NOTE } from "../rules/guides";
 import { ledgerText, type Ledger } from "../rules/ledger";
+import { prongFactsText, type ProngLearnFacts } from "../rules/prong-learn";
 import { BAND_WIDTH_WORDS } from "./tools";
 
 /** 先頭の --- で囲まれた見出し（Skill の名前と説明）を除いた本文 */
@@ -185,12 +186,38 @@ ${JEWELER_GUIDES}
  * 「聞く」の指示。学ぶ人の質問に、職人（master）の目安帳の言葉で短く答える。
  * 返事の形は「答え：」「なぜ：」「決まり：」の 3 行（src/claude/answer.ts が読む）。
  */
-export function askPrompt(ledger: Ledger, master: string): string {
-  return askPromptText(ledgerText(ledger), master);
+export function askPrompt(ledger: Ledger, master: string, prong?: ProngLearnFacts): string {
+  return askPromptText(ledgerText(ledger), master, undefined, prong);
 }
 
-/** 技の帳面でも同じ答え方で（覆輪留め・毛彫りなど。craft はその技の名前） */
-export function askPromptText(text: string, master: string, craft?: string): string {
+/**
+ * 爪の太さの問いの、画面が計算した事実（src/rules/prong-learn.ts）と、その言い方（作者の声 2026-11-07）。
+ * 数字はすべて画面の計算から。Claude は言い方だけを作る。答えの数字は画面が確かめ、合わなければ画面の計算の答えに替える（src/app/ask.ts）
+ */
+export function prongFactsSection(f: ProngLearnFacts, master: string): string {
+  const how = f.exact
+    ? `- この大きさは、${master}さんが言った大きさと同じです。答えに「職人の言葉そのまま」と書き、${master}さんの言葉を「」で添えます。推測とは書きません。`
+    : `- この大きさは、${master}さんが言っていない大きさです。答えに「推測」と書き、推測の値には「（推測・職人がまだ確かめていない値）」を添えます。
+- 答えでは、${master}さんがいくつかの大きさで言ったこと（使った職人の点）と、この石とを比べ、公開の目安の線と比べた割合から推し量ったことを、ふつうの言葉で書きます。
+  形の例：答え：${master}さんは、〇 mm くらいの石なら最低 〇 mm、メレなら 〇 mm と言っていました。割合から見ると、この石なら最低 約 〇 mm、ふつうは 〇〜〇 mm くらいと推測できます（推測・職人がまだ確かめていない値）。
+  なぜ：（石の大きさの読み方と、出し方を 1〜2 文。${master}さんの言葉を「」で、名前と日付を添える）`;
+  const ask = f.asked ? "" : `
+- 問いに石の大きさがありません。${master}さんが言った石の場合で答え、答えの終わりに「何 mm の石ですか？」のように 1 つだけ聞き返します。`;
+  return `## この問いの爪の太さ（画面が帳面から計算した値）
+
+学ぶ人の今の問いは、爪の太さの問いです。次は、画面が目安帳の${master}さんの点と公開の目安の線から計算した値です。
+
+<prong_facts>
+${prongFactsText(f)}
+</prong_facts>
+
+- 数字は、この中の値をそのまま使います。自分で計算し直したり、丸め方を変えたり、ない数字を足したりしません。画面が答えの数字を確かめ、合わなければ画面の計算の答えに替えます。
+${how}${ask}
+- 「答え：」は 1〜3 文にしてかまいません。決まり：には [${f.ruleId}] を入れます。`;
+}
+
+/** 技の帳面でも同じ答え方で（覆輪留め・毛彫りなど。craft はその技の名前）。prong：爪の太さの問いの、画面が計算した事実 */
+export function askPromptText(text: string, master: string, craft?: string, prong?: ProngLearnFacts): string {
   return `あなたは「継ぐ」の中で、${master}さんの代わりに、学ぶ人の質問に答える係です。
 ${craft ? `今聞かれている技は「${craft}」です。\n` : ""}${master}さんが残した決まり（目安帳）だけを使って、${master}さんならこう言う、という答えを短く返します。目的は、${master}さんがいないときも、学ぶ人が同じ判断と理由にたどり着けるようにすることです。
 
@@ -211,7 +238,7 @@ ${craft ? `今聞かれている技は「${craft}」です。\n` : ""}${master}�
 
 <ledger>
 ${text}
-</ledger>`;
+</ledger>${prong ? `\n\n${prongFactsSection(prong, master)}` : ""}`;
 }
 
 /**

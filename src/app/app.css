@@ -789,6 +789,22 @@ html.fit .tp-toc a { font-size: 12px; }
 .a-voice blockquote, .fl-saved blockquote { margin: 0; padding: 0; border: 0; background: none; font-size: 14px; line-height: 1.7; }
 .a-voice small { font-size: 11px; color: var(--fg-2); }
 .a-voice small a { color: var(--fg-2); }
+/* 学ぶの爪の太さ：職人の点と推測の値の小さな表（設計の画面の pt-table と同じ見た目。2026-11-07） */
+.pt-learn { margin: 10px 0 4px; padding: 8px 10px; border-radius: 6px; background: var(--field); border: 1px solid var(--line); }
+.pt-learn .pt-table { width: 100%; margin: 0 0 4px; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+.pt-learn .pt-table th, .pt-learn .pt-table td { padding: 4px 3px; text-align: center; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.pt-learn .pt-table thead th { font-weight: 500; color: var(--fg-3); font-family: var(--mono); }
+.pt-learn .pt-table thead th:first-child, .pt-learn .pt-table tbody th { text-align: left; font-family: var(--sans); font-weight: 500; color: var(--fg-3); font-size: 11px; }
+.pt-learn .pt-table thead th.pt-now { color: var(--fg); box-shadow: inset 0 -2px 0 var(--accent); }
+.pt-learn .pt-table td { font-family: var(--mono); }
+.pt-learn .pt-table td.is-c { color: var(--fg); font-weight: 600; }
+.pt-learn .pt-table td.is-g { color: var(--fg-2); font-style: italic; }
+.pt-learn .pt-c, .pt-learn .pt-g { display: block; width: fit-content; margin: 2px auto 0; padding: 0 4px; border-radius: 3px; font-style: normal; font-size: 9.5px; font-weight: 600; line-height: 15px; font-family: var(--sans); letter-spacing: 0; }
+.pt-learn .pt-c { background: rgba(255, 255, 255, 0.9); color: #18181a; }
+.pt-learn .pt-g { border: 1px dashed var(--fg-3); color: var(--fg-2); line-height: 13px; }
+.pt-learn .pt-how { margin: 4px 0 0; font-size: 11.5px; line-height: 1.6; color: var(--fg-2); }
+.pt-learn .pt-how small { display: block; font-size: 10.5px; color: var(--fg-3); }
+.pt-learn .pt-src { margin: 4px 0 0; font-size: 10.5px; color: var(--fg-3); }
 /* 学ぶの画面：案内を小さく、見出しを省いて、例の問いと答えを 1 画面に入れる */
 .flow.compact { padding: 8px 10px 4px; margin-bottom: 8px; }
 .flow.compact .fl-icon { width: 36px; height: 36px; }

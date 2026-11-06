@@ -12,12 +12,15 @@ import type { HowtoId } from "../rules/howto-steps";
 import { sourceLabel, type Rule } from "../rules/ledger";
 import { isTechId, techLedgerText } from "../rules/techniques";
 import { findRules, prongSizeAnswer } from "../rules/search";
+import { checkProngAnswer, prongLearnAnswer, prongLearnColumns, prongLearnFacts, type ProngLearnFacts } from "../rules/prong-learn";
 import { addQuestion } from "../rules/teacher-queue";
 import { isMihonSource, learnNav, techName, techPicker, techRules } from "./flow-view";
 import { flowUI, isMihon, MIHON_NAME, MIHON_UNKNOWN } from "./mihon";
 import { esc, store, today } from "./store";
 import { bindVoice } from "./voice";
 import { askPassword, resetPassword } from "./password";
+import { GUIDE_NOTE } from "../rules/guides";
+import { mmText } from "../rules/prong-points";
 import { bookLabel, masterName, ruleQuote } from "./master";
 import { getVideo } from "./video-store";
 
@@ -154,13 +157,34 @@ export function mountAsk(root: HTMLElement): { refresh(): void; route(tech?: str
     return `<div class="a-voice${q ? " quoted" : ""}">${q && q !== short.trim() ? `<blockquote>「${esc(q)}」</blockquote>` : ""}<small>${srcLine(r)}${r.unverified ? " ・ 未確認" : ""} ・ ${esc(r.date)}</small></div>`;
   }
 
-  function answerCard(a: AskAnswer, rules: Rule[], via: "claude" | "local", asked: boolean): string {
+  /**
+   * 爪の太さの問いの、職人の点と推測の値の小さな表（設計の画面の pt-table と同じ見た目）。
+   * 数字はすべて画面の計算（src/rules/prong-learn.ts）。職人の点は「職人」、推し量った値は「推測」の印
+   */
+  function prongBlock(f: ProngLearnFacts): string {
+    const cols = prongLearnColumns(f);
+    const tag = (by: string) => (by === "craftsman" ? `<i class="pt-c">職人</i>` : `<i class="pt-g">推測</i>`);
+    const cls = (by: string) => (by === "craftsman" ? "is-c" : "is-g");
+    const typical = cols.some((c) => c.typical);
+    return `<div class="pt-learn">
+      <table class="pt-table"><thead><tr><th>石の大きさ（mm）</th>${cols.map((c) => `<th${c.now ? ` class="pt-now"` : ""}>${mmText(c.stoneMm)}</th>`).join("")}</tr></thead><tbody>
+        <tr><th>爪の最低（mm）</th>${cols.map((c) => `<td class="${cls(c.min.by)}">${c.min.value.toFixed(2)}${tag(c.min.by)}</td>`).join("")}</tr>
+        ${typical ? `<tr><th>ふつう（mm）</th>${cols.map((c) => (c.typical ? `<td class="${cls(c.typical.by)}">${mmText(c.typical.from)}〜${mmText(c.typical.to)}${tag(c.typical.by)}</td>` : "<td></td>")).join("")}</tr>` : ""}
+      </tbody></table>
+      ${f.size.longMm !== undefined || !f.asked ? `<p class="pt-how"><small>石の大きさ</small>${esc(f.size.read)}</p>` : ""}
+      <p class="pt-how"><small>${f.exact ? "職人の言葉そのまま" : "推測の出し方"}</small>${esc(f.method)}</p>
+      <p class="pt-src">職人：${esc(f.name)} ・ ${esc(f.date)}${f.exact ? "" : " ・ 推測は、職人がまだ確かめていない値"} ・ ${esc(GUIDE_NOTE)}</p>
+    </div>`;
+  }
+
+  function answerCard(a: AskAnswer, rules: Rule[], via: "claude" | "local", asked: boolean, prong?: ProngLearnFacts | null, redone = false): string {
     const name = whoLabel();
     return `<p class="a-short">${esc(a.short)}</p>
+      ${prong ? prongBlock(prong) : ""}
       ${voiceBlock(rules, a.short)}
       ${a.why || rules.length ? `<button type="button" class="why-btn" aria-expanded="false">なぜ？</button>
       <div class="a-why" hidden>${a.why ? `<p>${esc(a.why)}</p>` : ""}${rules.map(ruleBlock).join("")}</div>` : ""}
-      <p class="a-meta">${asked ? `<span class="tag gold">${esc(name)}に回しました ・ 帳面に届きます</span>` : ""}${via === "local" && !isMihon() ? `<span class="tag">Claude なし ・ 帳面から探しました</span>` : ""}${rules.length ? `<span>決まり ${rules.length} つから</span>` : ""}</p>
+      <p class="a-meta">${asked ? `<span class="tag gold">${esc(name)}に回しました ・ 帳面に届きます</span>` : ""}${via === "local" && !isMihon() ? `<span class="tag">Claude なし ・ 帳面から探しました</span>` : ""}${redone ? `<span class="tag">Claude の数字が計算と合わないので、画面の計算で答えました</span>` : ""}${rules.length ? `<span>決まり ${rules.length} つから</span>` : ""}</p>
       ${asked && flow ? `<a class="linklike to-master" href="#waza/${tech}?step=answer">職人の画面で、届いた質問を見る ›</a>` : ""}`;
   }
 
@@ -194,11 +218,15 @@ export function mountAsk(root: HTMLElement): { refresh(): void; route(tech?: str
 
   function localAnswer(question: string, el: HTMLElement, reason: string) {
     const rules = rulesNow();
-    const sized = tech === "ring" ? prongSizeAnswer(question, rules) : null;
+    const prong = tech === "ring" ? prongLearnFacts(question, rules) : null;
+    const sized = tech === "ring" && !prong ? prongSizeAnswer(question, rules) : null;
     // 技の帳面は、職人の言葉を資料より先に出す（文字の重なりだけだと、言葉の多い資料が勝ってしまう）
     const hits = findRules(question, rules, 0.3, tech === "ring" ? 2 : 8);
     const found = tech === "ring" ? hits : [...hits.filter((r) => r.source.kind === "craftsman"), ...hits.filter((r) => r.source.kind !== "craftsman")].slice(0, 2);
-    if (sized) {
+    if (prong) {
+      const r = rules.find((x) => x.id === prong.ruleId)!;
+      el.innerHTML = answerCard({ ...prongLearnAnswer(prong), ruleIds: [r.id] }, [r], "local", false, prong);
+    } else if (sized) {
       el.innerHTML = answerCard({ short: sized.short, why: sized.why, ruleIds: [sized.rule.id] }, [sized.rule], "local", false);
     } else if (found.length) {
       const r = found[0];
@@ -221,6 +249,8 @@ export function mountAsk(root: HTMLElement): { refresh(): void; route(tech?: str
     bubble("q", esc(question));
     const el = bubble("a", `<p class="thinking"><span></span><span></span><span></span></p>`);
     const ledger = store.ledger();
+    // 爪の太さの問いは、画面が先に職人の点から計算しておく（Claude は言い方だけ。数字はこの計算から）
+    const prong = tech === "ring" ? prongLearnFacts(question, rulesNow()) : null;
     const password = store.password() || (await askPassword());
     if (!password) {
       localAnswer(question, el, isMihon() ? "" : "合言葉がないので、Claude なしで帳面から探しました。");
@@ -245,7 +275,7 @@ export function mountAsk(root: HTMLElement): { refresh(): void; route(tech?: str
     const r = await runClaude({
       host,
       messages,
-      system: tech === "ring" ? askPrompt(ledger, masterName(ledger)) : askPromptText(techLedgerText(store.techLedger(tech)), masterName(store.mainLedger()), techName(tech)),
+      system: tech === "ring" ? askPrompt(ledger, masterName(ledger), prong ?? undefined) : askPromptText(techLedgerText(store.techLedger(tech)), masterName(store.mainLedger()), techName(tech)),
       tools: TOOLS.filter((t) => t.name === "ask_teacher"),
       password,
       maxTurns: 3,
@@ -258,8 +288,18 @@ export function mountAsk(root: HTMLElement): { refresh(): void; route(tech?: str
     }
     messages = r.messages;
     const rules = rulesNow();
-    const a = parseAskAnswer(r.finalText, rules.map((x) => x.id));
-    el.innerHTML = answerCard(a, a.ruleIds.map((id) => rules.find((x) => x.id === id)!).filter(Boolean), "claude", asked);
+    let a = parseAskAnswer(r.finalText, rules.map((x) => x.id));
+    let redone = false;
+    if (prong && !asked) {
+      // Claude の数字が、画面の計算（と問い・もとにした決まり）にあるか確かめる。合わなければ画面の計算の答えに替える
+      const cited = a.ruleIds.map((id) => rules.find((x) => x.id === id)!).filter((x) => x && x.id !== prong.ruleId);
+      const check = checkProngAnswer(`${a.short}\n${a.why}`, prong, question, cited);
+      if (!check.ok) {
+        a = { ...prongLearnAnswer(prong), ruleIds: [prong.ruleId, ...cited.map((x) => x.id)] };
+        redone = true;
+      } else if (!a.ruleIds.includes(prong.ruleId)) a = { ...a, ruleIds: [prong.ruleId, ...a.ruleIds] };
+    }
+    el.innerHTML = answerCard(a, a.ruleIds.map((id) => rules.find((x) => x.id === id)!).filter(Boolean), "claude", asked, asked ? null : prong, redone);
     wireWhy(el);
     status(r.remaining !== undefined ? `今日あと ${r.remaining} 回` : "");
   }
