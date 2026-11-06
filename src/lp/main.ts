@@ -213,7 +213,6 @@ const html = `
       <p class="rv">今まで手間のかかった断面の形も、見本を選ぶか、線を描くだけで作れます。上と下で変えることもできます。</p>
     </div>
     <div class="band-p band-big">
-      <figure class="rv">${shot("band-blade", 2000, 2000, "切り口を見せた、地金のみの指輪。上はナイフの刃のように細く立ち、下は幅の広い平打ちへ流れる", "(max-width: 760px) 92vw, 46vw")}<figcaption><b>刃から平打ちへ</b>上はナイフの刃のように細く立ち、下は幅の広い平打ちへ流れる</figcaption></figure>
       <figure class="rv">${shot("band-wing", 2000, 2000, "切り口を見せた、地金のみの指輪。上で片側だけ大きく張り出し、下は細い甲丸へ戻る", "(max-width: 760px) 92vw, 46vw")}<figcaption><b>片側の翼</b>上で片側だけ大きく張り出し、下は細い甲丸へ戻る</figcaption></figure>
     </div>
     <div class="band-p band-rest">
