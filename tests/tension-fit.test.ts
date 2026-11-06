@@ -197,7 +197,8 @@ describe("確かめのルールが、刺さった形を必ず見つける", () =
 
 describe("挟む向きを選べる", () => {
   it("石の形ごとの選べる向き", () => {
-    expect(tensionGrips(tri())).toEqual(["short"]);
+    // 三角：角と辺／長い辺の両はしの角（作者の本物の指輪の向き。2026-11-07）
+    expect(tensionGrips(tri())).toEqual(["short", "corner"]);
     expect(tensionGrips(preset("round"))).toEqual(["short"]);
     expect(tensionGrips(preset("pear"))).toEqual(["short"]);
     expect(tensionGrips(preset("oval"))).toEqual(["short", "long"]);
@@ -222,6 +223,32 @@ describe("挟む向きを選べる", () => {
     expect(f.depth).toBeLessThan(MESH_TOLERANCE_MM);
     expect(f.clear).toBeGreaterThan(0.02);
     expect(r.culetGapMm).toBeGreaterThanOrEqual(0.5 - 1e-9);
+  }, 120000);
+
+  it("三角の長い辺の両はしの角を挟む（作者の本物の指輪）：両方くぼみ、開きは長い辺 − 両はしの深さ、閉じた形で石は地金に入らない。はみ出しは作れないにせず、職人に聞く", () => {
+    const sv14 = { shank: { gou: 14, ...phi4, metal: "sv925" as const } };
+    // 角と辺の値 0.8 mm にすると：開きは長い辺 − 1.6 mm。とがった角（約 60°）のくぼみは幅が広く、片方は腕の幅に収まらない（作れない、と言う）
+    const deep = ringOf(tri(), 14, { tension: { grip: "corner", cornerPitMm: 0.8 }, ...sv14 }).setting.tension!;
+    expect(deep.mode).toBe("corner-corner");
+    expect(deep.ends.map((e) => [e.kind, e.depthMm])).toEqual([["pit", 0.8], ["pit", 0.8]]);
+    expect(deep.spanMm).toBeGreaterThan(8.7);
+    expect(deep.gapMm).toBeCloseTo(deep.spanMm - 1.6, 6);
+    expect(checkRing(ringOf(tri(), 14, { tension: { grip: "corner", cornerPitMm: 0.8 }, ...sv14 })).map((x) => x.check)).toContain("tension-pit");
+    // 既定は職人の値 0.5 mm ずつ（作者が本物の指輪で使った深さ。2026-11-07）。くぼみは収まる。残りの角は腕の幅より大きく出るが、作れないにせず、職人に聞く
+    expect(GUIDES.tension.longCornerPitMm).toBe(0.5);
+    const r = ringOf(tri(), 14, { tension: { grip: "corner" }, ...sv14 });
+    const i = r.setting.tension!;
+    expect(i.ends.map((e) => [e.kind, e.depthMm])).toEqual([["pit", 0.5], ["pit", 0.5]]);
+    expect(i.overhangRatio).toBeGreaterThan(GUIDES.tension.maxOverhangRatio);
+    expect(checkRing(r)).toEqual([]);
+    expect(checkRing(r).map((x) => x.check)).not.toContain("tension-overhang");
+    expect(tensionCautions(r.setting, tensionSpring(r.setting, r.shank), "sv925").map((c) => c.id)).toContain("long-triangle");
+    expect(topology(r.ringPositions.shank)).toMatchObject({ open: 0, flipped: 0, shells: 1, degenerate: 0 });
+    const f = fit(r);
+    expect(f.depth).toBeLessThan(MESH_TOLERANCE_MM);
+    expect(f.clear).toBeGreaterThan(0.02);
+    // 狭い幅を挟む向きは、前のまま
+    expect(ringOf(tri(), 14, { tension: { grip: "short" } }).setting.tension!.mode).toBe("corner-edge");
   }, 120000);
 
   it("選べない向きを渡しても、壊れない（既定の向きになる）", () => {

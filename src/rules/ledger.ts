@@ -24,6 +24,8 @@ export const PARAMS = {
   "hold.requiredPalm": { label: "必要な留まり（手のひら側寄り）", unit: "倍", checks: ["hold"] },
   "band.minThicknessMm": { label: "腕の厚み（最低）", unit: "mm", checks: ["band-thin"] },
   "band.minWidthMm": { label: "腕の幅（これ以下は赤）", unit: "mm", checks: ["band-narrow"] },
+  "tension.holdDropMm": { label: "テンションの外れにくさ：落としても外れない高さ（仮の目安 1000 mm）", unit: "mm", checks: [] },
+  "tension.holdFriction": { label: "テンションの外れにくさ：石と地金の摩擦の係数（仮の目安 0.1）", unit: "", checks: [] },
   "hold.cornerSet": { label: "角が 3 つの石を、角に 1 本ずつの爪 3 本で留めたとき 4 本と同じ留まりとみなす（1 ＝ みなす）", unit: "", checks: ["hold"] },
 } as const satisfies Record<string, { label: string; unit: string; checks: readonly CheckId[] }>;
 

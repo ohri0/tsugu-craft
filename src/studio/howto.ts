@@ -7,10 +7,11 @@ import type { PlacedStone, RingDesign } from "../geometry/ring";
 import { SHANK_SECTION_LABEL, reliefWords, shankSizeWords } from "../geometry/shank";
 import { perimeter } from "../geometry/polygon";
 import { tensionInsert } from "../rules/checks";
-import { GUIDES } from "../rules/guides";
+import { GUIDES, type Guides } from "../rules/guides";
 import { SPRING_SHORT_TEXT, tensionSpring, type SpringMetalId } from "../rules/tension-calc";
 import { howtoFor, type HowtoStep } from "../rules/howto-steps";
 import { TSUCHIME_STYLE_LABEL, TSUCHIME_STYLE_NOTE, tsuchimeSpec, tsuchimeStyleOf } from "../geometry/finish";
+import { holdSummary, tensionHoldSet } from "../rules/tension-hold";
 import type { AlloyId, Detail } from "./process";
 import { castSteps, dropVDetails, finishStep, forgeSteps, settingStep } from "./steps";
 
@@ -140,6 +141,8 @@ export interface HowToInput {
   springMetal?: SpringMetalId;
   /** 煮色で色を出す色金（なければ、ふつうの地金） */
   irogane?: Irogane;
+  /** 目安帳を当てはめた目安（外れにくさの落とす高さなど。なければ GUIDES） */
+  guides?: Guides;
 }
 
 export type Irogane = "shakudo" | "shibuichi" | "copper";
@@ -440,11 +443,18 @@ function tensionSteps(o: HowToInput, method: Method): Step[] {
           { label: "作る時の開き", value: `約 ${row.makeGapMm!.toFixed(2)} mm（同じ計算${kari}）` },
         ]
       : [{ label: "詰める量", value: `${row.name}は、この腕のままでは開ききらない見込み（限界 約 ${row.limitMm.toFixed(2)} mm、要る量 ${spring.needMm.toFixed(2)} mm。大まかな計算${kari}）。地金ごとに腕の太さ・形を変えて組み直す。${SPRING_SHORT_TEXT}` }];
+  // 外れにくさ（浅く留めたいとき。src/rules/tension-hold.ts）：選んだ深さで、留めるのに要る詰める量と、答え
+  const hold = tensionHoldSet(spring, r.metalWeightG, row.metal, row.metal, o.guides ?? GUIDES);
+  const depthWords = info.ends.map((e) => `${e.kind === "pit" ? "くぼみ" : "溝"} ${mm(e.depthMm, 2)}`).join("・");
+  const holdSpecs: Spec[] = [
+    { label: "深さ", value: `${depthWords}（和 ${mm(hold.now.depthSumMm, 2)}）` },
+    { label: "外れにくさ（目安・仮）", value: `${holdSummary(hold.now, row.name)}${hold.atAppSqueeze ? `。上の詰める量なら、求める分の 約 ${hold.atAppSqueeze.margin.toFixed(2)} 倍` : ""}。最後は職人が決める` },
+  ];
   const close: Step = {
     id: "tension_close",
     title: "開きを詰める",
     text: "地金を硬くしながら、腕の開きを石より小さめに詰める（プリロード＝石を押さえる力の分）。図面の開きには入れない。",
-    specs: [gap, ...closeSpecs],
+    specs: [gap, ...closeSpecs, ...holdSpecs],
     watch: "硬くなったあとに曲げすぎると割れやすい（資料の声）。",
   };
   const set: Step = {
