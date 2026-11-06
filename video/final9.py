@@ -73,7 +73,7 @@ def main():
             continue
         ins += ["-i", p]
         st = s["start"]
-        ln = s["len"]
+        ln = s.get("nat", s["len"])  # 最終案 14：炎の音は、彫りの映像に替わる所で消す（台本の nat）
         ms = int(st * 1000)
         flt.append(f"[{k}:a]atrim={t0}:{t0 + ln * 0.8},asetpts=N/SR/TB,atempo=0.8,aresample=48000,aformat=channel_layouts=stereo,afade=t=in:d=0.5,afade=t=out:st={max(0.1, ln - 0.9)}:d=0.9,volume={vol},adelay={ms}|{ms}[n{k}]")
         mix.append(f"[n{k}]")

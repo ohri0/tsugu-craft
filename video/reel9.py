@@ -412,9 +412,26 @@ def vend(s, k=-1):
 
 
 # ---- 序
+# 最終案 14（作者が決めた）：はじめから彫金・金工の伝統が感じられるように、「彫金の職人です」で、彫る手元の映像（CC BY 3.0。出典は最後）を 2〜3 秒重ねる。
+#   寄る・動く切り替えはしない（重ねて替えるだけ）。映像の人物の絵が映らない所（たがねの先と彫った線）だけを切り出す
+KEB_IN, KEB_D = 2.45, 0.8           # 彫りへ重ねて替え始める秒と、重ねる長さ（そのまま hands0 へ重なる）
+KEB_T0, KEB_SPEED = 4.3, 0.8        # 映像の何秒目から、何倍で
+KEB_BOX = (800, 190, 1120, 630)     # 元の映像（1920×1080）の切り出し：たがねの先・指・彫った線（左の人物の顔は入れない）
+
+
+def kebori_open(t):
+    a = foot_at("kari_kebori.mov", t, t0=KEB_T0, speed=KEB_SPEED, box=KEB_BOX, src_fps=25.0)
+    a = np.clip(a, 0, 1) ** 1.12 * 0.9
+    a = a * np.array((1.03, 0.99, 0.94), F32)
+    return dark_right(a * vign(0.55, 0.45), 1240, 1700, 0.62)
+
+
 @scene()
 def flame(s, t, f):
     a = grade_flame(foot_at("raw/anneal.mov", t, t0=1.0))
+    if t > KEB_IN:
+        k = sm((t - KEB_IN) / KEB_D)
+        a = a * (1 - k) + kebori_open(t - KEB_IN) * k
     k = fade(t, vat(s) - 0.15, 1.0)
     if k > 0:
         a = ink(a, V(RIGHT - 30, TOP + 6, "私は、"), SHIRO, k)
@@ -944,7 +961,14 @@ def make(s, t, f):
 # ---- 完成した指輪（本物の映像。あるときだけ）
 @scene()
 def finished(s, t, f):
-    return grade_hands(foot_at(s["foot"], t, t0=0.0, speed=1.0), 1.0)
+    """最終案 14：作者が継ぐのデータから実際に作った指輪（作者の映像 raw/finished.mov。1650×928）。
+    両手で小さな銀の指輪（三角の石）を持つ所。動かさない切り抜きで約 1.5 倍に（寄る動きはしない）、ほかの暗い映像に色をそろえる。声なし・音なし"""
+    a = grade_hands(foot_at(s["foot"], t, t0=0.15, speed=0.9, box=FIN_BOX, src_fps=24000 / 1001), 0.92)
+    a = a * vign(0.45, 0.5)
+    return heading(a, "継ぐのデータから、実際に作った指輪", t, 0.35)
+
+
+FIN_BOX = (275, 150, 1100, 619)  # 元の映像の切り出し（指輪が真ん中より少し上。上の明るい帯は入れない。約 1.5 倍）
 
 
 # ---- 学校
@@ -1494,6 +1518,71 @@ def word11(s, t, f):
     return blend_views(lambda: full_view("word10", i), lambda: zoom_view("word10", i, cx, cy), t, 1.25, 0.5)
 
 
+# ---- 残す（最終案 14。作者の声：Claude は書き写すのでなく、読み取る）：本物の「Claude に教える」に声を載せる（字だけの「言葉 → 決まり」はやめた）。
+#   全体 → 欄に寄る → 職人の言葉を打つ（n5）→ Claude の案：表に寄る（n6。8.2 mm は職人 0.70、ほかの大きさは推測）
+#   → 全体に戻して「これでいい」→ 赤い爪が消える（n7）→ 欄に寄る → 話して直す「18 ミリなら 1.2 は欲しい」（n8）→ 案 2 の表 → これでいい → 帳面の表
+#   寄るのは、欄の右の端にそろえた 640×360（ページの px。撮ったこまの 3 倍をそのまま）。表の字は画面で 30 px 以上
+def teach_cy(key, dy=0):
+    b = meta("teach14")["boxes"].get(key)
+    return (b["y"] + b["h"] / 2 + dy) if b else 360
+
+
+def teach_zoom(i, cy):
+    return zoom_view("teach14", i, 1280, cy)
+
+
+@scene("teach14")
+def teach14(s, t, f):
+    M = meta("teach14")
+    m, nfr, cur = M["marks"], M["frames"], M["cur"]
+    v = s["voice"]
+    a5, a6, a7, a8 = (x["at"] for x in v[:4])
+    e8 = a8 + v[3]["dur"]
+    t_fin = e8 + 0.6  # 帳面の表へ重ねて替える秒（章の終わりの黒の前に、表を 1 秒ほど読める）
+    pts = [(0.0, m["full"]), (a5 + 0.1, m["type"] - 2),        # 全体：印が欄へ動いて押す（黒からの重ねのあと、全体を 0.7 秒ほど）
+           (a5 + 1.45, m["typed"]),                              # 打つ（29 字）
+           (a5 + 2.2, m["wait"]),                                # Claude に教える を押す
+           (a6 - 0.15, m["proposal"]),                           # Claude が読んでいる
+           (a6 + 0.45, m["read"]),                               # 案が出て、欄のまん中へ動く
+           (a6 + 1.6, m["row"]),                                 # Claude の読み取り
+           (a7 - 0.75, m["rowEnd"]),                             # 表の「この案」を左から右へ
+           (a7 - 0.05, m["applied"] - 3),                        # これでいい（全体で。押した輪のこま。押したあとのこまは、もう欄が描き直されている）
+           (a7 + 0.25, m["applied"] + 17),                       # 押した直後の欄の描き直し・上へ戻る動きは重ねて替える（下）
+           (a7 + 0.75, m["flash"]),                              # 赤い爪が消えた・上の知らせ
+           (a7 + 1.75, m["flashEnd"]),
+           (a7 + 2.25, m["back"]),                               # 欄へ戻る（n7 の終わりから）
+           (a8, m["type2"]), (a8 + 0.5, m["typed2"]), (a8 + 1.05, m["wait2"]), (a8 + 1.3, m["proposal2"]),
+           (a8 + 1.85, m["row2"]), (e8 + 0.15, m["row2End"]), (t_fin - 0.05, m["applied2"])]
+    if t < t_fin:
+        i = ramp_frame(pts, t)
+    else:
+        i = min(nfr - 1, m["final"] + int((t - t_fin) * FPS * 0.8))
+    # 寄る所（ページの y）：欄（「Claude に教える」の題から）・案 1（題・職人の言葉・読み取り・表）・欄（戻った所。押した印の位置）・案 2・帳面の表
+    B = M["boxes"]
+    cy_field = B["sec"]["y"] + 180 if "sec" in B else teach_cy("field", 30)
+    cy_p1 = B["card"]["y"] + 172 if "card" in B else 400
+    cy_field2 = cur[max(0, m["type2"] - 3)][1] + 30
+    cy_p2 = B["card2"]["y"] + 172 if "card2" in B else 400
+    cy_fin = teach_cy("pttable", 30)
+    full = lambda: full_view("teach14", i)  # noqa: E731
+    if a7 - 0.05 < t < a7 + 0.25:
+        # これでいいを押した瞬間：押す前のこまから、上の知らせへ戻り終えたこまへ重ねて替える（途中の欄の描き直しは見せない）
+        return blend_views(lambda: full_view("teach14", m["applied"] - 3), lambda: full_view("teach14", m["applied"] + 17), t, a7 - 0.05, 0.3)
+    if t < a6 - 0.1:
+        return blend_views(full, lambda: teach_zoom(i, cy_field), t, a5 + 0.05, 0.5)
+    if t < a7 - 0.95:
+        return blend_views(lambda: teach_zoom(i, cy_field), lambda: teach_zoom(i, cy_p1), t, a6 - 0.1, 0.45)
+    if t < a7 + 1.95:
+        return blend_views(lambda: teach_zoom(i, cy_p1), full, t, a7 - 0.95, 0.5)
+    if t < a8 + 1.25:
+        return blend_views(full, lambda: teach_zoom(i, cy_field2), t, a7 + 1.95, 0.5)
+    if t < t_fin:
+        return blend_views(lambda: teach_zoom(i, cy_field2), lambda: teach_zoom(i, cy_p2), t, a8 + 1.25, 0.4)
+    # これでいいを押した後は、欄が上の知らせへ戻る（撮っていない）。案 2 の絵から、帳面の表へ重ねて替える
+    j = int(m["applied2"])
+    return blend_views(lambda: teach_zoom(j, cy_p2), lambda: teach_zoom(i, cy_fin), t, t_fin, 0.35)
+
+
 # ---- 渡す 1：行き来の図（デザイン・設計 ⇄ 制作。制作から何度も戻る）。図面は爪が見た目で分かるほど細い（作れない）
 FLOW10_Y = 880
 FLOW10_X = (560, 1360)  # 2 つの字のまん中
@@ -1825,6 +1914,32 @@ def make10(s, t, f):
     return full_view("make10", i)
 
 
+# ---- 作り方（最終案 14。作者の声：作り方は 3D の形だけでなく、帳面に残った職人の言葉からも作る）：
+#   全体 → 手順を押す → 鋳造 → 鍛造 → ロウ付けの札 → その札の「職人の決まり」（ロウ付けのあとは、ゆっくり冷ます）に寄って、字をなぞる。
+#   n20「鋳造でも鍛造でも、3D モデルと帳面の言葉から、作り方を自動で作ります。」の言葉の順と、画面の順をそろえた
+MAKE14_W = 560  # 寄るときの幅（ページの px）。右の欄だけ（指輪の端が切れて入らない）。職人の決まりの字が画面で 40 px くらい
+
+
+@scene("make14")
+def make14(s, t, f):
+    a0 = vat(s)
+    d = s["voice"][0]["dur"]
+    n = s["len"]
+    M = meta("make14")
+    m, nfr = M["marks"], M["frames"]
+    t_rule = a0 + d * 0.5           # 職人の決まりの所に着く秒（「帳面の言葉から」のあたり）
+    pts = [(0, m["full"] + 4), (a0 - 0.1, m["cast"] - 4), (a0 + 0.3, m["cast"]),
+           (a0 + d * 0.17, m["forge"] - 6), (a0 + d * 0.25, m["forge"]), (a0 + d * 0.42, m["card"]),
+           (t_rule, m["rule"]), (n, min(nfr - 1, m["rule"] + int((n - t_rule) * FPS * 0.92)))]
+    i = ramp_frame(pts, t)
+    b = M["boxes"].get("rule")
+    if not b:
+        return full_view("make14", i)
+    # 寄る：職人の決まりの箱を、画面のまん中より少し上に（右の欄の幅いっぱいが入る）
+    cx, cy = 1280, b["y"] + b["h"] / 2 + 8
+    return blend_views(lambda: full_view("make14", i), lambda: css_crop("make14", i, cx, cy, MAKE14_W), t, t_rule - 0.2, 0.7)
+
+
 # ---- 学校：待つ生徒の線が 1 本ずつ増えて、1 時間に
 @scene()
 def school10(s, t, f):
@@ -1862,15 +1977,24 @@ def school10(s, t, f):
 # ---- 学ぶ（全体 → 問いを打つ → 答えに寄る）。最終案 11：作者の問い「長辺 8.8 mm くらいの三角の石を留めたい。爪の太さは、どれくらい？」で撮り直した learn11
 @scene("learn11")
 def learn10(s, t, f):
-    """全体 → 問いを打つ（約 2 秒）→ 聞く → 答え（約 2 秒）→ 職人の言葉（名前・日付）（約 2 秒）。最終案 12：速すぎて使い方を見切れない（作者の声）"""
+    """全体 → 問いを打つ → 聞く → 答え（文 → 表：職人の点と推測）→ 職人の言葉（名前・日付）。最終案 14：問いは職人が言っていない 9.3 mm の石"""
     a0 = vat(s)
-    m = meta("learn11")["marks"]
+    M = meta("learn11")
+    m, nfr = M["marks"], M["frames"]
     n = s["len"]
-    pts = [(0, m["full"] + 4), (0.35, m["type"]), (a0 - 0.4, m["typed"] + 6), (a0 + 0.2, m["wait"]), (n, min(m["answer"] + 38, meta("learn11")["frames"] - 1))]
+    if "table0" in m:
+        # 答えの文（職人の 2 つの点 → この石なら約 0.73 mm）→ 表（職人・推測）→ 職人の言葉（名前・日付）。章の終わりの黒の前に言葉まで
+        pts = [(0, m["full"] + 4), (0.55, m["type"]), (a0 - 0.75, m["typed"] + 2), (a0 - 0.2, m["wait"]), (a0 + 0.15, m["answer"]),
+               (a0 + 1.5, m["table0"]), (a0 + 2.2, m["table1"]), (a0 + 2.7, m["voice"]), (n, min(nfr - 1, m["voice"] + int((n - a0 - 2.7) * FPS * 0.9)))]
+    else:
+        pts = [(0, m["full"] + 4), (0.35, m["type"]), (a0 - 0.4, m["typed"] + 6), (a0 + 0.2, m["wait"]), (n, min(m["answer"] + 38, nfr - 1))]
     i = ramp_frame(pts, t)
-    tz = a0 + 0.5
-    b = meta("learn11")["boxes"]["thread"]
-    return blend_views(lambda: full_view("learn11", i), lambda: css_crop("learn11", i, b["x"] + b["w"] / 2, box_center("learn11", "answer", 0, 30)[1], min(820, b["w"] + 40)), t, tz, 0.6)
+    tz = a0 + 0.3
+    b = M["boxes"]["thread"]
+    # 寄る：会話の欄の幅（820 px まで）。高さは、欄の見えている所のまん中（中は撮るときに送る）
+    # 最終案 14：問いの吹き出しを上の帯のすぐ下に（その下に答えの文と表。撮るときに送る）
+    cy = 240 if "q" in M["boxes"] else box_center("learn11", "answer", 0, 30)[1]  # 切り抜きの下の端を、聞く欄（464 px）の上に
+    return blend_views(lambda: full_view("learn11", i), lambda: css_crop("learn11", i, b["x"] + b["w"] / 2, cy, min(820, b["w"] + 40)), t, tz, 0.6)
 
 @scene("kebori9", "hands9")
 def kebori10(s, t, f):
@@ -2142,10 +2266,11 @@ def section13(s, t, f):
     m = meta("sec13")["marks"]
     n = s["len"]
     nfr = meta("sec13")["frames"]
-    pts = [(0, 0), (0.5, 6), (0.9, m["a0"] - 1),            # 前の図との重ね（0.5 秒）→ 全体（押す所）
-           (1.55, m["a1"]), (1.65, m["b0"]), (2.25, m["b1"]), (2.35, m["c0"]),
-           (3.05, m["red"]), (3.55, m["red"] + 15), (4.05, m["back"]),
-           (n, min(nfr - 1, m["back"] + int((n - 4.05) * FPS)))]
+    # 最終案 14：場面 4.6 → 3.95 秒。印は撮影で止めない（頭も漂う）。元に戻して赤が消えた所は 0.6 秒見せる
+    pts = [(0, 0), (0.45, 8), (0.75, m["a0"] - 1),            # 前の図との重ね（0.5 秒）→ 全体（押す所）
+           (1.3, m["a1"]), (1.4, m["b0"]), (1.9, m["b1"]), (2.0, m["c0"]),
+           (2.5, m["red"]), (2.95, m["red"] + 15), (3.35, m["back"]),
+           (n, min(nfr - 1, m["back"] + int((n - 3.35) * FPS)))]
     i = ramp_frame(pts, t)
     a = blend_views(lambda: full_view("sec13", i), lambda: css_crop("sec13", i, *OPS_Z), t, 0.85, 0.4)
     return heading(a, "描くそばから、確かめる", t, 0.85)
@@ -2217,6 +2342,35 @@ def setting12(s, t, f):
     return heading(a, "留め方を変える", t, 0.0)
 
 
+# ---- 伝統の仕上げ（最終案 14。2026-11-06 に入った機能）：見出し 1 つ、声なし。作者の確認：ミル打ちは見せない、槌目は短く寄りすぎない。
+#   1 つ目：寄った絵（指輪と右の欄）で、印が 四分一 → 槌目 を押す（銀灰に金づちの跡）→ 切り替えて
+#   2 つ目：赤銅 → 布目象嵌（紫がかった黒に、金の菱つなぎの帯）→ 腕の肌に寄った絵でゆっくり回す
+FINISH_Z = (720, 330, 1120)   # 指輪と右の欄（伝統の仕上げの欄。右の端までそろえる）
+FINISH_VP = (490, 330, 900)   # 3D の所だけ（寄った絵）
+FINISH_CUT = 1.3              # 1 つ目から 2 つ目へ切り替える秒
+
+
+@scene("finish14")
+def finish14(s, t, f):
+    M = meta("finish14")
+    m, nfr = M["marks"], M["frames"]
+    n = s["len"]
+    t_close = FINISH_CUT + 1.1  # 腕の肌に寄った絵へ重ねて替える秒（場面 3.9 秒なら、次の場面の重ねの前に 0.45 秒ほど見える）
+    if t < FINISH_CUT:
+        pts = [(0, m["full"]), (0.4, m["s0"] - 1), (0.45, m["s0"] + 1), (0.85, m["s1"] - 1), (0.9, m["s1"] + 1),
+               (FINISH_CUT, m["s1"] + 1 + int((FINISH_CUT - 0.9) * FPS))]
+        a = css_crop("finish14", ramp_frame(pts, t), *FINISH_Z)
+    else:
+        u = t - FINISH_CUT
+        uc = t_close - FINISH_CUT
+        pts = [(0, m["p2"]), (0.4, m["f0"] - 1), (0.45, m["f0"] + 1), (0.85, m["f1"] - 1), (0.9, m["f1"] + 1),
+               (uc + 0.45, min(m["close"] - 1, m["f1"] + 1 + int((uc - 0.45) * FPS)))]
+        i = ramp_frame(pts, u)
+        j = min(nfr - 1, m["close"] + int(max(0.0, t - t_close) * FPS))
+        a = blend_views(lambda: css_crop("finish14", i, *FINISH_Z), lambda: css_crop("finish14", j, *FINISH_VP), t, t_close, 0.45)
+    return heading(a, "伝統の仕上げも：煮色・槌目・象嵌", t, 0.0)
+
+
 # ---- 言葉で頼む（本物の Claude の「アールデコな感じ」。組んでいる途中の絵は使わず、作れますの出来上がりへ重ねて替える）
 # 撮った章：deco11（本物の Claude に「アールデコな感じ」と頼んだ 4 回目の返事で撮った物。2026-11-06 作者が最終に決めた）。ゴシックの回は gothic11（GEN_CH=gothic11 で戻せる）
 GEN_CH = os.environ.get("GEN_CH", "deco11")
@@ -2234,9 +2388,11 @@ def deco11(s, t, f):
     t_go = a0 + 0.44 * d        # 生成を押したこまが映る秒
     t_done = t_go + 0.9         # 出来上がり（作れます）へ重ねて替える秒
     if t < t_go + 0.05:
-        i = ramp_frame([(0, 4), (0.5, m["type"] + 4), (a0 + 0.3, m["type"] + 23), (t_go - 0.9, m["typed"] + 4), (t_go, m["go"] - 2)], t)
+        # 最終案 14：撮影の頭に、欄へ漂う所（24 こま）と押す所（23 こま）が入った（印は止めない）
+        i = ramp_frame([(0, 4), (0.5, 20), (a0 + 0.3, m["type"] - 1), (t_go - 0.9, m["typed"] + 4), (t_go, m["go"] - 2)], t)
         return full_view(GEN_CH, i)
-    j = m["done"] + int((t - t_done) * FPS) if t > t_done else m["done"]
+    # 出来上がりのこまは、重ねて替え始める秒（t_go）から進める（重ねる間も印が漂う。最終案 14：止まった印はラグに見える）
+    j = m["done"] + int((t - t_go) * FPS * 0.83) if t > t_go else m["done"]
     j = min(j, m["refine"] - 24)
     done_full = lambda: full_view(GEN_CH, j)  # noqa: E731
     if t < t_done + 0.6:
@@ -2256,20 +2412,20 @@ def fix11(s, t, f):
     d1 = s["voice"][1]["dur"]
     n = s["len"]
     # 声（n18）の前に：確かめるを押す → 爪を押す → 太さのつまみを左へ → その場で赤（ここまで約 4 秒。台本の pre を 4.2 秒に固定）
-    if "drag0" in m:
-        # 最終案 13：つまみを押さえて 2 秒ほどかけて動かす所（drag0〜drag1）は等倍で（目盛りが変わるごとに指輪がその場で変わり、0.65 mm で赤）
-        t_d0 = 2.6
-        t_d1 = t_d0 + (m["drag1"] - m["drag0"]) / FPS
-        hand = [(1.9, m["pop"]), (2.15, m["pop"] + 8), (t_d0, m["drag0"]), (t_d1, m["drag1"])]
-    else:
-        hand = [(1.9, m["pop"]), (2.2, m["pop"] + 10), (3.5, m["thin"] - 2)]
-    pts = [(0, m["refine"] - 22), (0.75, m["refine"] + 2), (1.0, m["refine"] + 10), *hand, (a0 + 0.1, m["thin"] + 5), (a0 + 1.6, m["thin"] + 30), (a1 - 0.6, m["reason"] - 4), (a1 + 0.3, m["reason"] + 14),
-           (a1 + d1 + 0.2, m["press"] - 2), (a1 + d1 + 0.5, m["fixed"] + 2), (n, min(m["fixed"] + 2 + int((n - a1 - d1 - 0.5) * FPS), m["draw"] - 30))]
+    # 最終案 14（作者の声：印が止まるとラグに見える）：撮影は印を止めない。頭（全体 → 確かめる → 爪を押す）を少し詰め、
+    #   つまみを 2 秒かけて動かす所（drag0〜drag1）は等倍。n18 の間に赤い確かめの字をなぞり、「作れない所」の札を押して職人の言葉の窓を開く。
+    #   窓の言葉は、印がなぞる（n19 の終わりまで）→ まとめて直す
+    t_d0 = 2.2
+    t_d1 = t_d0 + (m["drag1"] - m["drag0"]) / FPS
+    t_win = a0 + 1.7  # 職人の言葉の窓が開いている秒
+    pts = [(0, m["refine"] - 21), (0.6, m["refine"]), (1.45, m["pop"]), (1.75, m["pop"] + 9), (t_d0, m["drag0"]), (t_d1, m["drag1"]),
+           (a0 + 0.9, m["thin"] + 40), (t_win, m["reason"] + 2), (a1 + d1 + 0.05, m["press"] - 18), (a1 + d1 + 0.45, m["press"] - 1),
+           (a1 + d1 + 0.7, m["fixed"] + 2), (n, min(m["fixed"] + 2 + int((n - a1 - d1 - 0.7) * FPS), m["draw"] - 30))]
     pts = sorted(pts)
     i = ramp_frame(pts, t)
-    tz = 1.3
+    tz = 1.0
     # 職人の言葉の窓を読む間は、窓と赤い爪にもう一段寄る
-    tr0, tr1 = a1 - 0.2, a1 + d1 + 0.05
+    tr0, tr1 = t_win + 0.2, a1 + d1 + 0.05
     if t < tr0 or t > tr1 + 0.5:
         return blend_views(lambda: full_view(GEN_CH, i), lambda: css_crop(GEN_CH, i, *FIX_Z), t, tz, 0.5)
     fix = lambda: css_crop(GEN_CH, i, *FIX_Z)  # noqa: E731
@@ -2289,7 +2445,7 @@ def out11(s, t, f):
     m = meta(GEN_CH)["marks"]
     n = s["len"]
     # 最終案 13：見出しの下に、職人（作者）の言葉を 1 行（声はなし）。図面 → STL の間ずっと出す
-    t_stl = n - OUT_STL
+    t_stl = max(1.9, n - OUT_STL)
     if t < t_stl:
         i = ramp_frame([(0, m["fixed"] + 30), (0.9, m["draw"] - 2), (1.2, m["draw"] + 8), (t_stl, min(m["draw"] + 8 + int((t_stl - 1.2) * FPS), m["stl"] - 18))], t)
     else:
@@ -2312,7 +2468,7 @@ def boxed(a, m, k, pad=(24, 14), dark=0.88):
     return ink(a, m, SHIRO, k)
 
 
-OUT_STL = 2.6  # STL を押してから場面の終わりまで（言葉を読む間を含む）
+OUT_STL = 1.6  # STL を押してから場面の終わりまで（最終案 14：場面 3.6 秒。図面を 1 秒あまり見せてから STL）
 OUT_WORDS = "この 3D データは、そのまま鋳造できます。あとは仕上げだけ。"
 
 
