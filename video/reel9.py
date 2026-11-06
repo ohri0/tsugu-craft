@@ -2109,10 +2109,11 @@ def section12(s, t, f):
     m = meta("ops12")["marks"]
     n = s["len"]
     # 点を外へ引きすぎる → 離すと赤（尖りすぎ）→ つまみ直して少し戻す → 赤が消える
-    pts = [(0, 6), (0.55, m["grab"]), (1.1, m["red"] - 2), (1.25, m["red"] + 1), (1.95, m["red"] + 18), (2.45, m["back"]), (n, min(m["back"] + int((n - 2.45) * FPS), m["refine"] - 24))]
+    # 最終案 12：前の図からの重ね（0.5 秒）が終わってから全体を見せ、寄ってからつまむ（重ねの中で操作が始まっていた）
+    pts = [(0, 6), (0.5, 8), (1.0, m["grab"]), (1.5, m["red"] - 2), (1.62, m["red"] + 1), (2.25, m["red"] + 18), (2.75, m["back"]), (n, min(m["back"] + int((n - 2.75) * FPS), m["refine"] - 24))]
     i = ramp_frame(pts, t)
-    a = blend_views(lambda: full_view("ops12", i), lambda: css_crop("ops12", i, *OPS_Z), t, 0.4, 0.4)
-    return heading(a, "描くそばから、確かめる", t, 0.55)
+    a = blend_views(lambda: full_view("ops12", i), lambda: css_crop("ops12", i, *OPS_Z), t, 0.85, 0.4)
+    return heading(a, "描くそばから、確かめる", t, 0.85)
 
 
 PRONG12_Z = (530, 300, 820)    # 爪を押す：左の指輪と、爪の欄（指輪を大きめに）

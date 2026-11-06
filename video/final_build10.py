@@ -83,14 +83,14 @@ SCENES = [
     dict(id="word11", ch="残す", v=[], hold=6.8, xf=0.9),
     # 渡す 1：デザインする人へ。手で変える操作（声なし・見出し 1 つずつ）→ 言葉で頼む → 人が直す → 職人の言葉 → 図面と STL → 作り方
     dict(id="door1h", ch="渡す1", v=[10], pre=0.8, post=1.6, xf=1.0, dip=True),
-    dict(id="flow11", ch="渡す1", v=[11], pre=0.6, post=7.6, xf=0.8, fixed=True),  # 継ぐがあれば を 3 秒以上
+    dict(id="flow11", ch="渡す1", v=[11], pre=0.6, post=7.2, xf=0.8, fixed=True),  # 継ぐがあれば を 3 秒以上
     # 操作の結果が、次の場面に重ねて替わる前に 1 秒ほど見えるように（hold ＝ 結果の秒 ＋ 約 1.1 秒 ＋ 次の重ね）
     # 手で変える（最終案 12）：短く 3 種類、パッ・パッ・パッと（描くそばから確かめる／爪を押して形を変える／留め方を変える）。寸法を引くは外した
-    dict(id="section12", ch="渡す1", v=[], hold=3.0, xf=0.8),
+    dict(id="section12", ch="渡す1", v=[], hold=3.4, xf=0.5),
     # 最終案 12：爪と留め方は、寄った絵へパッと切り替える（重ねると指輪が 2 つに見える）。1 つ 2 秒ほど
     dict(id="prong12", ch="渡す1", v=[], hold=2.3, xf=0.0),
-    dict(id="setting12", ch="渡す1", v=[], hold=2.0, xf=0.0),
-    dict(id="firstnow10", ch="渡す1", v=[13], pre=1.2, post=2.0, xf=0.9),
+    dict(id="setting12", ch="渡す1", v=[], hold=2.6, xf=0.0),  # 覆輪に変わったあとも、次の場面の重ね（0.6 秒）の前に見える
+    dict(id="firstnow10", ch="渡す1", v=[13], pre=1.2, post=2.0, xf=0.6),
     dict(id="deco11", ch="渡す1", v=[15], pre=2.8, post=2.2, xf=0.8),
     dict(id="fix11", ch="渡す1", v=[18, 19], gap=0.9, pre=4.2, post=1.6, xf=0.8, fixed=True),
     dict(id="out11", ch="渡す1", v=[], hold=4.0, xf=0.8),
