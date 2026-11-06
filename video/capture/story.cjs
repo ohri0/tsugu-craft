@@ -4397,9 +4397,10 @@ Object.assign(CH, {
     await p.evaluate(() => {
       const s = window.__studio.session;
       s.setSetting({ style: 'tension', reason: '撮る' });
-      s.setSetting({ tension_grip: 'corner', reason: '撮る' });
+      // 最終案 17（作者の本物の指輪）：短い辺を溝に・反対の角をくぼみに（挟む向き side）。くぼみ 0.5・溝 0.2 mm（ぎりぎり）から始める
+      s.setSetting({ tension_grip: 'side', reason: '撮る' });
       s.setShank({ metal: 'sv925', gou: 14, reason: '撮る' });
-      s.setTensionDepths(0.35, undefined);
+      s.setTensionDepths(0.5, 0.2);
     });
     await fine(a, 600);
     await refine(a);
@@ -4417,7 +4418,7 @@ Object.assign(CH, {
     await a.settle(300);
     await new Promise((r) => setTimeout(r, 4000));
     await a.settle(300);
-    const plus = '.tn-hold .slider[data-s="r-hold-pit"] .sl-step[data-d="1"]';
+    const plus = '.tn-hold .slider[data-s="r-hold-groove"] .sl-step[data-d="1"]';
     const state = () => p.evaluate(() => [JSON.stringify(window.__studio.session.state.tensionPitMm), document.querySelector('.tn-hold .tn-verdict')?.innerText.replace(/\s+/g, ' '), [...document.querySelectorAll('.tn-hold .tn-facts dd')].slice(0, 2).map((d) => d.innerText).join(' ')].join(' ／ '));
     console.log('tension16 はじめ', await state());
     const pb = await boxOf(p, plus);
@@ -4425,8 +4426,9 @@ Object.assign(CH, {
     a.mark('full'); await a.box('hold', '.tn-hold', 6); await a.box('verdict', '.tn-hold .tn-verdict', 6); await a.box('facts', '.tn-hold .tn-facts', 6); await a.box('plus', plus, 6);
     await a.drift(N(10), plus, { k: 0.45 });
     // 押すと欄が描き直され、上の札（注意の行）の高さが変わって、この札が下へずれる。押したすぐあとに同じ所へ戻す（ずれは映らない）
-    for (const k of [1, 2, 3]) {
-      const c = await a.move(plus, k === 1 ? 12 : 4);
+    // 溝の深さの ＋ を 6 回（0.2 → 0.5 mm。2 回目で「留まる見込み」、最後は作者の指輪と同じ 0.5 / 0.5）
+    for (const k of [1, 2, 3, 4, 5, 6]) {
+      const c = await a.move(plus, k === 1 ? 12 : 3);
       await a.shot({ rip: 1 });
       await p.mouse.click(c.x, c.y);
       await refineTo(p, '.tn-hold', 70);
@@ -4434,7 +4436,7 @@ Object.assign(CH, {
       await fine(a, 200);
       await refineTo(p, '.tn-hold', 70);
       await blackVp11(a);
-      await a.hold(2);
+      await a.hold(k === 2 ? 4 : 1);
       a.mark(`p${k}`);
       console.log('tension16 押した', k, await state());
     }

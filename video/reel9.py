@@ -998,7 +998,8 @@ def tension16(s, t, f):
     B = M["boxes"]
     # 札の上の端から、事実の表の 4 行目くらいまでが入る高さ
     cy = (B["hold"]["y"] + 495 / 2 - 44) if "hold" in B else TENSION_Z[1]   # 下の石の欄の上の端が入らない高さ
-    st = max(0, m["ok"] - int(round((n - 1.2) * FPS)))     # 留まる見込みの所（ok）に、終わりの 1.2 秒前に着く（次の本物の指輪へ 0.8 秒で重ねて替える）
+    # 最終案 17（作者の本物の指輪：短い辺を溝・反対の角をくぼみ）：ぎりぎりの所を 0.6 秒ほど見せてから、溝の ＋ を 6 回（2 回目で留まる見込み）。等倍
+    st = max(0, m["p1"] - 18) if "p1" in m else max(0, m["ok"] - int(round((n - 1.2) * FPS)))
     i = min(nfr - 1, st + int(t * FPS))
     a = css_crop("tension16", i, TENSION_Z[0], cy, TENSION_Z[2])
     return heading(a, "テンションセッティングのような、計算が要る留め方も", t, 0.2)
