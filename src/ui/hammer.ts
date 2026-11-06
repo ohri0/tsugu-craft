@@ -27,24 +27,33 @@ export interface FinishLook {
   area: 0 | 1;
   /** 腕の外の半径（mm。跡を一周にきっちり並べるため） */
   outerRadiusMm: number;
-  /** 布目象嵌の帯（なければ入れない）：帯の半分の幅・線の太さ（mm）と、はめこむ地金の色（リニア） */
-  inlay?: { halfMm: number; lineMm: number; color: [number, number, number] };
+  /**
+   * 布目象嵌の帯（なければ入れない）：帯の半分の幅（mm）、はめこむ地金の色（リニア）、模様の絵（src/ui/nunome-tex.ts。
+   * 横が指のまわりの一周、縦が帯の幅。白い所がはめこんだ地金）
+   */
+  inlay?: { halfMm: number; color: [number, number, number]; tex: THREE.Texture };
+  /** 輪の中心の高さ（mm。地金のみの指輪は、いちばん下が床なので中心が上にある。石の指輪は 0） */
+  centerZ?: number;
 }
 
 const STYLE_ID: Record<TsuchimeStyle, number> = { maru: 0, kaku: 1, tate: 2, arashi: 3 };
+/** 象嵌のないときの模様の絵（1 点の黒） */
+const BLANK = new THREE.DataTexture(new Uint8Array([0, 0, 0, 255]), 1, 1);
+BLANK.needsUpdate = true;
 
 /** 跡の並びの間かく（跡の大きさに対する割合）：となりの跡と少し重なる（一打ちずつ、半分ほど重ねて打つ） */
 const SPACING = 0.82;
 
 const VERT_PARS = /* glsl */ `
 attribute float aFinS;
+uniform float uCZ;
 varying vec3 vFObj; varying vec3 vFObjN; varying vec3 vFTu; varying float vFinS;
 `;
 const VERT_MAIN = /* glsl */ `
-vFObj = position; vFObjN = objectNormal; vFinS = aFinS;
+vFObj = position - vec3(0.0, 0.0, uCZ); vFObjN = objectNormal; vFinS = aFinS;
 {
-  float rr = max(length(position.yz), 1e-4);
-  vFTu = normalize(normalMatrix * (vec3(0.0, position.z, -position.y) / rr));
+  float rr = max(length(vFObj.yz), 1e-4);
+  vFTu = normalize(normalMatrix * (vec3(0.0, vFObj.z, -vFObj.y) / rr));
 }
 `;
 
@@ -52,7 +61,7 @@ const FRAG_PARS = /* glsl */ `
 varying vec3 vFObj; varying vec3 vFObjN; varying vec3 vFTu; varying float vFinS;
 uniform float uStyle; uniform float uMark; uniform float uLen; uniform float uDepth; uniform float uArea; uniform float uR0;
 uniform float uCells; uniform float uCellU; uniform float uCellS;
-uniform float uInlay; uniform float uInlayHalf; uniform float uInlayLine; uniform vec3 uInlayColor;
+uniform float uInlay; uniform float uInlayHalf; uniform vec3 uInlayColor; uniform sampler2D uInlayTex;
 float fInlay = 0.0;
 float fMatte = 0.0;
 vec4 fHash4(vec2 p) {
@@ -110,26 +119,24 @@ vec2 fHammer(vec2 q, float pxMm) {
   float wB = 0.5 * (1.0 - smoothstep(0.0, 1.0, (h2 - h1) / k));
   return mix(g1, g2, wB);
 }
-// 外の面の真ん中の帯：両縁の線と、その間の菱つなぎの線（はめこんだ地金）。1 ならはめこんだ地金
+// 外の面の真ん中の帯の模様（はめこんだ地金）。模様は絵（横：指のまわりの角度、縦：断面に沿った長さ）から読む。1 ならはめこんだ地金
 float fInlayMask(float pxMm) {
   if (uInlay < 0.5) return 0.0;
   float rr = max(length(vFObj.yz), 1e-4);
   vec3 radial = vec3(0.0, vFObj.y, vFObj.z) / rr;
   float outerW = smoothstep(0.3, 0.7, dot(normalize(vFObjN), radial));
-  float phi = atan(vFObj.y, vFObj.z);
-  float x = vFinS;
-  float u = phi * uR0;
   float hw = uInlayHalf;
-  float lw = uInlayLine * 0.5;
   float aa = pxMm * 0.75 + 1e-4;
-  float border = 1.0 - smoothstep(lw - aa, lw + aa, abs(abs(x) - (hw - lw)));
-  float period = 6.28318530718 * uR0 / max(1.0, floor(6.28318530718 * uR0 / (hw * 2.6)));
-  float t = abs(fract(u / period) - 0.5) * 2.0;
-  float zig = (hw - 2.0 * lw) * (2.0 * t - 1.0);
-  float dz = abs(abs(x) - abs(zig)) / sqrt(1.0 + pow(4.0 * (hw - 2.0 * lw) / period, 2.0));
-  float diamond = 1.0 - smoothstep(lw * 0.8 - aa, lw * 0.8 + aa, dz);
-  float inside = 1.0 - smoothstep(hw - aa, hw + aa, abs(x));
-  return clamp(max(border, diamond), 0.0, 1.0) * inside * outerW;
+  float inside = 1.0 - smoothstep(hw - aa, hw + aa, abs(vFinS));
+  float tx = atan(vFObj.y, vFObj.z) / 6.28318530718 + 0.5;
+  vec2 uv = vec2(tx, clamp((vFinS + hw) / (2.0 * hw), 0.0, 1.0));
+  // 一周の継ぎ目（手のひら側）で、絵の細かさの選び方がとばないように、継ぎ目をまたがない側の変化を使う
+  float tx2 = fract(tx + 0.5);
+  vec2 gx = vec2(dFdx(tx), dFdx(uv.y));
+  vec2 gy = vec2(dFdy(tx), dFdy(uv.y));
+  if (abs(gx.x) > 0.25 || abs(gy.x) > 0.25) { gx.x = dFdx(tx2); gy.x = dFdy(tx2); }
+  float m = textureGrad(uInlayTex, uv, gx, gy).r;
+  return clamp(m, 0.0, 1.0) * inside * outerW;
 }
 `;
 
@@ -181,7 +188,8 @@ export function applyFinishLook(mat: THREE.MeshStandardMaterial, look: FinishLoo
     uCellS: { value: Math.max(mark * SPACING * 0.866, 0.04) },
     uInlay: { value: look.inlay ? 1 : 0 },
     uInlayHalf: { value: look.inlay?.halfMm ?? 0 },
-    uInlayLine: { value: look.inlay?.lineMm ?? 0 },
+    uInlayTex: { value: look.inlay?.tex ?? BLANK },
+    uCZ: { value: look.centerZ ?? 0 },
     uInlayColor: { value: new THREE.Color().setRGB(...(look.inlay?.color ?? [1, 1, 1]), THREE.LinearSRGBColorSpace) },
   };
   mat.userData.finishLook = look;
@@ -204,7 +212,7 @@ export function applyFinishLook(mat: THREE.MeshStandardMaterial, look: FinishLoo
     }
     shader.fragmentShader = f;
   };
-  mat.customProgramCacheKey = () => `finish-look2-${physical ? "p" : "s"}`;
+  mat.customProgramCacheKey = () => `finish-look3-${physical ? "p" : "s"}`;
   mat.needsUpdate = true;
   return mat;
 }

@@ -14,7 +14,8 @@ import { springForClaude, springIdOf, tensionCautions, tensionSpring } from "../
 import { holdForClaude, tensionHoldSet } from "../rules/tension-hold";
 import { GUIDES, requiredHold, stoneSizeMm, type Guides, type HeightOption, type MetalId, type StonePosition } from "../rules/guides";
 import { effectiveGuides, prongMinOverride, ruleForCheck, type Ledger, type Rule } from "../rules/ledger";
-import { INPUT_BOUNDS } from "../claude/tools";
+import { INPUT_BOUNDS, nunomeInput, nunomePatchOf, nunomeState } from "../claude/tools";
+import { defaultNunome, nunomeOf } from "../geometry/nunome";
 import { finishWords, hasFinish, tsuchimeSpec, tsuchimeStyleOf, type RingFinish } from "../geometry/finish";
 import type {
   CheckResult,
@@ -321,8 +322,21 @@ export function finishFrom(input: FinishInput, prev: RingFinish | undefined): Ri
   else if (input.tsuchime_area && out.tsuchime) out.tsuchime = { ...out.tsuchime, area: input.tsuchime_area };
   if (input.milgrain === "none") delete out.milgrain;
   else if (input.milgrain) out.milgrain = input.milgrain;
-  if (input.inlay === "none") delete out.inlay;
-  else if (input.inlay) out.inlay = input.inlay;
+  if (input.inlay === "none") {
+    delete out.inlay;
+    delete out.nunome;
+  } else {
+    const patch = nunomePatchOf(input);
+    if (input.inlay || Object.keys(patch).length) {
+      out.inlay = "nunome";
+      // 模様を替えたら、その模様の はじめの大きさ（大きさを書いていなければ）
+      const base = nunomeOf(out) ?? defaultNunome();
+      const pat = patch.pattern && patch.pattern !== base.pattern ? { ...defaultNunome(patch.pattern), lineMm: base.lineMm, widthMm: base.widthMm, border: base.border, around: base.around, metal: base.metal } : base;
+      const next = { ...pat, ...patch };
+      if (next.metal === undefined) delete next.metal;
+      out.nunome = next;
+    }
+  }
   return hasFinish(out) ? out : undefined;
 }
 
@@ -331,8 +345,8 @@ export function finishOut(f: RingFinish, ring: RingDesign): FinishState {
   return {
     ...(f.tsuchime ? { tsuchime: f.tsuchime.size, tsuchime_style: tsuchimeStyleOf(f.tsuchime), tsuchime_area: f.tsuchime.area, tsuchime_mark_mm: tsuchimeSpec(f.tsuchime).markMm } : {}),
     ...(f.milgrain ? { milgrain: f.milgrain, milgrain_beads: ring.milgrain?.count ?? 0, milgrain_bead_mm: ring.milgrain?.beadMm ?? GUIDES.finish.milgrain.beadMm } : {}),
-    ...(f.inlay ? { inlay: f.inlay } : {}),
-    words: finishWords(f).join("・"),
+    ...(f.inlay ? { inlay: f.inlay, ...nunomeState(nunomeOf(f)!, ring.metal.startsWith("k18")) } : {}),
+    words: finishWords(f, ring.metal.startsWith("k18")).join("・"),
   };
 }
 
@@ -439,14 +453,27 @@ const CHECK_NAME: Record<string, string> = {
   "tension-overhang": "石が腕の幅の外へ出すぎないか",
   "tsuchime-thin": "槌目を打つ腕の厚み",
   "milgrain-fit": "ミル打ちの粒が腕の縁に収まるか",
+  "nunome-line": "布目象嵌の線の太さ",
+  "nunome-gap": "布目象嵌の線と線の間の地",
+  "nunome-piece": "布目象嵌の離れた小さなかけら",
+  "nunome-fit": "布目象嵌の帯が腕の面に収まるか",
+  "nunome-foil": "布目象嵌の平金の厚み",
 };
 
 /** テンションで意味のある確かめ（爪の確かめや留まりの比べはない） */
 const TENSION_CHECKS = new Set(["finger-gap", "band-thin", "band-narrow", "band-spike", "tension-gap", "tension-cut", "tension-lip", "tension-girdle", "tension-pit", "tension-culet", "tension-sunk", "tension-overhang"]);
 
 /** 直し方 → Claude が使える道具と入力の例 */
-function hintFor(id: FixId, s: RingState, std: number, tension?: TensionInfo | null): FixOption["tool_hint"] {
+function hintFor(id: FixId, s: RingState, std: number, tension?: TensionInfo | null, prob?: Problem): FixOption["tool_hint"] {
   switch (id) {
+    case "noInlay":
+      return { tool: "set_shank", input: { finish: { inlay: "none" } } };
+    case "inlayLine":
+    case "inlayLarger":
+    case "inlayNarrower":
+    case "inlayFoil":
+    case "inlayBorder":
+      return prob?.nunomePatch ? { tool: "set_shank", input: { finish: nunomeInput(prob.nunomePatch) } } : undefined;
     case "raise":
       return { tool: "set_setting", input: { height: s.height === "low" ? "standard" : "high" } };
     case "lower":
@@ -1177,10 +1204,10 @@ export class RingSession implements ToolHost<RingState> {
         current: p.current,
         required: p.required,
         reason: p.rule ? `${p.reason}（根拠：${p.rule.title}・${p.rule.source.kind === "craftsman" ? `職人 ${p.rule.source.name}` : p.rule.source.kind === "public" ? `公開情報 ${p.rule.source.title}` : "仮の目安"}）` : p.reason,
-        options: p.options.map((o) => ({ action: o.label, appearance: o.effectOnLook, tool_hint: hintFor(o.id, this.state, std, b.ring.setting.tension) })),
+        options: p.options.map((o) => ({ action: o.label, appearance: o.effectOnLook, tool_hint: hintFor(o.id, this.state, std, b.ring.setting.tension, p) })),
       })),
       passed: Object.entries(CHECK_NAME)
-        .filter(([k]) => !failed.has(k as Problem["check"]) && (b.ring.setting.style === "tension" ? TENSION_CHECKS.has(k) : !k.startsWith("tension-") && (b.ring.stones.length > 1 || !k.endsWith("-space")) && (b.ring.setting.collar !== null || (k !== "collar-wall" && k !== "band-end")) && (k !== "band-relief" || !!b.ring.shank.relief) && (k !== "band-valley" || b.ring.shank.section === "free")))
+        .filter(([k]) => !failed.has(k as Problem["check"]) && (b.ring.setting.style === "tension" ? TENSION_CHECKS.has(k) : !k.startsWith("tension-") && (b.ring.stones.length > 1 || !k.endsWith("-space")) && (b.ring.setting.collar !== null || (k !== "collar-wall" && k !== "band-end")) && (k !== "band-relief" || !!b.ring.shank.relief) && (k !== "band-valley" || b.ring.shank.section === "free") && (!k.startsWith("nunome-") || !!this.state.finish?.inlay)))
         .map(([, v]) => v),
       cautions: [
         ...(width ? [{ check: CHECK_NAME["band-narrow"], level: width.level, where: width.where, current: `${width.widthMm.toFixed(2)} mm`, text: `${width.text}（止めません。作れない所ではありません）` }] : []),

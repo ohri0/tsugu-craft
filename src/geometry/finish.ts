@@ -4,6 +4,7 @@
 // 座標は指輪の座標（shank.ts と同じ）：x が指の軸、腕は y–z の面の円、いちばん上が +z。
 import { GUIDES } from "../rules/guides.js";
 import type { V3 } from "./mesh.js";
+import { nunomeOf, nunomeWords, type NunomeDesign } from "./nunome.js";
 
 export type TsuchimeSize = "small" | "medium" | "large";
 /** 槌目の種類（鎚の面の形）：maru＝丸槌目、kaku＝角槌目（平槌目）、tate＝縦槌目（筋目）、arashi＝荒らし槌目 */
@@ -18,6 +19,8 @@ export interface RingFinish {
   milgrain?: "edges";
   /** 象嵌：nunome＝腕の外の真ん中に、色のちがう地金の帯の模様（布目象嵌） */
   inlay?: "nunome";
+  /** 布目象嵌の模様と大きさ（なければ菱つなぎの はじめの値。前の記録はこれがない） */
+  nunome?: NunomeDesign;
 }
 
 /**
@@ -63,12 +66,12 @@ export function tsuchimeWords(t: NonNullable<RingFinish["tsuchime"]>): string {
 }
 
 /** 仕上げの言葉（図面の表題欄・指示書・Claude への返事）。なければ空 */
-export function finishWords(f: RingFinish | undefined): string[] {
+export function finishWords(f: RingFinish | undefined, goldBase?: boolean): string[] {
   if (!f) return [];
   const out: string[] = [];
   if (f.tsuchime) out.push(`槌目（${tsuchimeWords(f.tsuchime)}）`);
   if (f.milgrain) out.push(`ミル打ち（腕の縁・粒 ø${GUIDES.finish.milgrain.beadMm.toFixed(2)} mm）`);
-  if (f.inlay) out.push("布目象嵌（腕の真ん中の帯）");
+  if (f.inlay) out.push(`布目象嵌（${nunomeWords(nunomeOf(f)!, goldBase)}）`);
   return out;
 }
 

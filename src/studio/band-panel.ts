@@ -7,7 +7,14 @@ import { widthLevel } from "../rules/checks";
 import type { Metal } from "../claude/tools";
 import { bandWidthNote, checkBand, curveOf, drawSection, endOf, kindOf, pickSection, setInner, setSize, setSplit, type Band, type BandEndName, type BandProblem } from "./band";
 import { bindSectionEditor, sectionEditorHtml, startShape, type SectionShape } from "./section-edit";
-import { METAL_LABEL } from "./session";
+import { METAL_LABEL, finishFrom } from "./session";
+import { bandCircumference } from "./band";
+import { nunomeInput, type FinishInput } from "../claude/tools";
+import { MILGRAIN_OFFERED, TSUCHIME_AREA_LABEL, TSUCHIME_LABEL, TSUCHIME_STYLE_LABEL, TSUCHIME_STYLE_NOTE, tsuchimeStyleOf, type TsuchimeStyle } from "../geometry/finish";
+import { faceSpan } from "../geometry/nunome";
+import { sectionLoop as loopOfSection } from "../cad/section";
+import { specOf } from "./band";
+import { bindNunomePanel, nunomePanelHtml, type NunomeHost } from "./nunome-panel";
 import { bindSlider, sliderHtml, type SliderSpec } from "./slider";
 
 /** 地金のみの指輪の号の範囲（手で変えるつまみと、生成の欄で同じ） */
@@ -85,6 +92,12 @@ function pickRow(name: string, attr: string, cur: string, list: [string, string]
 
 /** 確かめの種類 → その値を手で変える欄（赤く印をつける） */
 function badControls(p: BandProblem): string[] {
+  if (p.check === "tsuchime-thin") return ['.pick:has(button[data-bt="tsuchime"])'];
+  if (p.check === "milgrain-fit") return ['.pick:has(button[data-bt="milgrain"])'];
+  if (p.check === "nunome-line") return ['.nm-panel .slider[data-s="nm-line"]'];
+  if (p.check === "nunome-gap" || p.check === "nunome-piece") return ['.nm-panel .slider[data-s="nm-scale"]'];
+  if (p.check === "nunome-fit") return ['.nm-panel .slider[data-s="nm-width"]'];
+  if (p.check === "nunome-foil") return ['.nm-panel .slider[data-s="nm-foil"]'];
   if (p.check === "band-thin") return ['.slider[data-s="b-t"]', '.slider[data-s="b-tt"]', '.slider[data-s="b-bt"]'];
   if (p.check === "band-narrow") return ['.slider[data-s="b-w"]', '.slider[data-s="b-tw"]', '.slider[data-s="b-bw"]'];
   if (p.check === "band-valley") return [".sec-edit", '.slider[data-s="b-t"]', '.slider[data-s="b-tt"]', '.slider[data-s="b-bt"]'];
@@ -133,7 +146,8 @@ export function renderBandPanel(box: HTMLElement, host: BandPanelHost): void {
       const wn = bandWidthNote(b, host.guides());
       return wn ? `<p class="w-note w-${wn.level}"><b>${wn.where} ${wn.widthMm.toFixed(2)} mm</b>${wn.text}（止めません）</p>` : "";
     })()}
-    ${pickRow("地金", "metal", host.metal(), (["k18yg", "pt900", "k18wg", "k18pg", "sv925"] as Metal[]).map((m) => [m, METAL_LABEL[m]] as [string, string]))}`;
+    ${pickRow("地金", "metal", host.metal(), (["k18yg", "pt900", "k18wg", "k18pg", "sv925"] as Metal[]).map((m) => [m, METAL_LABEL[m]] as [string, string]))}
+    ${bandTradHtml(b, host)}`;
 
   bindSectionGrid(box, (kind) => host.change(pickSection(host.band(), kind, bandTarget(host.band()))));
   box.querySelectorAll<HTMLButtonElement>("[data-split]").forEach((btn) => btn.addEventListener("click", () => host.change(setSplit(host.band(), btn.dataset.split === "1"))));
@@ -152,6 +166,7 @@ export function renderBandPanel(box: HTMLElement, host: BandPanelHost): void {
   );
   box.querySelectorAll<HTMLButtonElement>("[data-metal]").forEach((btn) => btn.addEventListener("click", () => host.setMetal(btn.dataset.metal as Metal)));
   box.querySelector(".bs-cut")!.addEventListener("click", () => host.setCut(!host.cut()));
+  bindBandTrad(box, host);
 
   // 地金のみの指輪は形が軽いので、つまみを動かしている間も形を変える
   bindSlider(
@@ -205,4 +220,77 @@ export function renderBandPanel(box: HTMLElement, host: BandPanelHost): void {
     const lv = widthLevel(sp.value, host.guides());
     if (lv) box.querySelector(`.slider[data-s="${sp.cls}"]`)?.classList.add(`w-${lv}`);
   }
+}
+
+// ---- 伝統の仕上げ（地金のみの指輪。2026-11-07 作者の頼み：甲丸・平打ち・変わった断面にも、槌目・ミル打ち・布目象嵌） ----
+/** 色金（煮色で色を出す地金） */
+const IROGANE_PICK: [Metal | "none", string][] = [["none", "なし"], ["shakudo", "赤銅"], ["shibuichi", "四分一"], ["copper", "銅"]];
+/** 色金を「なし」に戻したときの地金 */
+let plainMetal: Metal = "k18yg";
+const TS: TsuchimeStyle[] = ["maru", "kaku", "tate", "arashi"];
+const isIro = (m: Metal) => m === "shakudo" || m === "shibuichi" || m === "copper";
+const GROUND: Record<Metal, string> = { k18yg: "#d6ae62", k18wg: "#d9d6cf", k18pg: "#dfa48e", pt900: "#cfcfcf", sv925: "#e2e0da", shakudo: "#16161b", shibuichi: "#86847f", copper: "#5e2c1c" };
+
+function bandTradHtml(b: Band, host: BandPanelHost): string {
+  const f = b.finish;
+  const row = (name: string, key: string, cur: string, list: [string, string][]) =>
+    `<div class="pick"><span>${name}</span><div>${list.map(([v, l]) => `<button type="button" data-bt="${key}" data-v="${v}" aria-pressed="${v === cur}">${l}</button>`).join("")}</div></div>`;
+  const note = (t: string) => `<p class="trad-note">${t}</p>`;
+  const m = host.metal();
+  return `<section class="trad band-trad" aria-label="伝統の仕上げ">
+    <h4>伝統の仕上げ<small>彫金・鍛金の技</small></h4>
+    ${row("色金", "metal", isIro(m) ? m : "none", IROGANE_PICK as [string, string][])}${note("銅に金や銀を混ぜた地金を、液で煮て色を出す（煮色）。赤銅はほとんど黒（うっすら青紫の艶）、四分一は銀灰、銅は赤茶")}
+    ${row("槌目", "tsuchime", f?.tsuchime ? tsuchimeStyleOf(f.tsuchime) : "none", [["none", "なし"], ...TS.map((k) => [k, TSUCHIME_STYLE_LABEL[k].replace("槌目", "")] as [string, string])])}${f?.tsuchime ? note(TSUCHIME_STYLE_NOTE[tsuchimeStyleOf(f.tsuchime)]) : note("金づちで叩いた跡を、模様として面に残す")}
+    ${f?.tsuchime && tsuchimeStyleOf(f.tsuchime) !== "arashi" ? row("槌目の大きさ", "tsuchime_size", f.tsuchime.size, (["small", "medium", "large"] as const).map((k) => [k, TSUCHIME_LABEL[k]] as [string, string])) : ""}
+    ${f?.tsuchime ? row("槌目の場所", "tsuchime_area", f.tsuchime.area, [["outer", TSUCHIME_AREA_LABEL.outer], ["all", TSUCHIME_AREA_LABEL.all]]) : ""}
+    ${MILGRAIN_OFFERED ? `${row("ミル打ち", "milgrain", f?.milgrain ?? "none", [["none", "なし"], ["edges", "外の面の両縁"]])}${note("縁の細い山に、ミル鏨で小さな粒を一粒ずつ押しこんで並べる（形と STL に入る）")}` : ""}
+    ${row("象嵌", "inlay", f?.inlay ?? "none", [["none", "なし"], ["nunome", "布目象嵌"]])}${note("細い溝を刻んだ面に、金や銀を打ちこむ（布目象嵌）。外の面の真ん中に帯の模様が入る")}
+    ${f?.inlay ? nunomePanelHtml(bandNunomeHost(host)) : ""}
+  </section>`;
+}
+
+function bandNunomeHost(host: BandPanelHost): NunomeHost {
+  return {
+    finish: () => host.band().finish,
+    ctx: () => {
+      const b = host.band();
+      return { circumferenceMm: bandCircumference(b), face: faceSpan(loopOfSection(specOf(b, "top")).map((p) => ({ x: p.x, y: p.h })), true, host.guides()) };
+    },
+    goldBase: () => host.metal().startsWith("k18"),
+    groundColor: () => GROUND[host.metal()],
+    guides: () => host.guides(),
+    set: (patch) => {
+      const b = host.band();
+      host.change({ ...b, finish: finishFrom(nunomeInput(patch), b.finish) });
+    },
+  };
+}
+
+function bindBandTrad(box: HTMLElement, host: BandPanelHost) {
+  const setFinish = (input: FinishInput) => {
+    const b = host.band();
+    host.change({ ...b, finish: finishFrom(input, b.finish) });
+  };
+  box.querySelectorAll<HTMLButtonElement>("[data-bt]").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      const v = btn.dataset.v!;
+      switch (btn.dataset.bt) {
+        case "metal":
+          if (!isIro(host.metal())) plainMetal = host.metal();
+          host.setMetal(v === "none" ? plainMetal : (v as Metal));
+          return;
+        case "tsuchime":
+          return setFinish(v === "none" ? { tsuchime: "none" } : { tsuchime_style: v as TsuchimeStyle });
+        case "tsuchime_size":
+          return setFinish({ tsuchime: v as "small" });
+        case "tsuchime_area":
+          return setFinish({ tsuchime_area: v as "outer" });
+        case "milgrain":
+          return setFinish({ milgrain: v as "edges" });
+        case "inlay":
+          return setFinish({ inlay: v as "nunome" });
+      }
+    }),
+  );
+  if (host.band().finish?.inlay) bindNunomePanel(box, bandNunomeHost(host));
 }
