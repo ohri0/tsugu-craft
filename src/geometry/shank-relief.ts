@@ -6,11 +6,26 @@
 // 線の太さ・窓の割合は形を作るための決まりで、職人の目安の数ではない（**仮**。作者が見て直す）。
 import { pushTri, type V3 } from "./mesh";
 
-export type ReliefKind = "arch" | "diamond" | "wave" | "beads" | "lines" | "leaf" | "mil" | "blade";
+export type ReliefKind = "arch" | "diamond" | "wave" | "beads" | "lines" | "leaf" | "mil" | "blade" | "chevron" | "zigzag" | "fan" | "steps" | "panel" | "flutes";
 
-export const RELIEF_KINDS: readonly ReliefKind[] = ["arch", "diamond", "wave", "beads", "lines", "leaf", "mil", "blade"];
+export const RELIEF_KINDS: readonly ReliefKind[] = ["arch", "diamond", "wave", "beads", "lines", "leaf", "mil", "blade", "chevron", "zigzag", "fan", "steps", "panel", "flutes"];
 
-export const RELIEF_LABEL: Record<ReliefKind, string> = { arch: "尖ったアーチ", diamond: "菱の格子", wave: "波の線", beads: "粒", lines: "横の筋", leaf: "葉とつる", mil: "縁の粒", blade: "尖った葉" };
+export const RELIEF_LABEL: Record<ReliefKind, string> = {
+  arch: "尖ったアーチ",
+  diamond: "菱の格子",
+  wave: "波の線",
+  beads: "粒",
+  lines: "横の筋",
+  leaf: "葉とつる",
+  mil: "縁の粒",
+  blade: "尖った葉",
+  chevron: "山形",
+  zigzag: "ジグザグ",
+  fan: "扇",
+  steps: "段の窓",
+  panel: "長方形の区切り",
+  flutes: "平行の溝",
+};
 
 export interface ReliefParams {
   kind: ReliefKind;
@@ -37,8 +52,30 @@ export interface ReliefParams {
  * ratio：升の長さ ÷ 列の幅（模様ごと）。fadeCells：はじめと終わりの、この升の数で深さが 0 まで消える。
  * archRatio：アーチの尖った部分の高さ ÷ 窓の半分の幅（大きいほど鋭い）。archGapMm：窓と窓の間。
  * twoLightMm：窓の半分の幅がこれより広ければ、中に 2 つの小さな窓と丸窓を入れる（ゴシックの窓の組子）。
+ * chevronRise：山形の V の深さ（升の長さの割合。列の縁で、真ん中より石座の側から遠い）。zigzagAmp：ジグザグの振れ（列の半分の幅の割合）。
+ * fanDeg：扇の開き（真ん中から片側、度）。fanRays：扇の骨の数。fanHub：扇のかなめの円（半径の割合）。
+ * steps：段の窓の段の数。panelFloor：長方形の区切りの中の深さ（線の深さの割合）。fluteMm：平行の溝と溝の間（mm）。
  */
-const SHAPE = { lineMm: 0.15, edgeMm: 0.26, colGapMm: 0.2, ratio: { arch: 3.1, diamond: 1.3, wave: 3.4, beads: 1, lines: 1, leaf: 1.5, mil: 1, blade: 2.8 } as Record<ReliefKind, number>, fadeCells: 0.85, archRatio: 2.7, archGapMm: 0.14, twoLightMm: 0.72, archMaxHalf: 1.05, innerFloor: 0.28 };
+const SHAPE = {
+  lineMm: 0.15,
+  edgeMm: 0.26,
+  colGapMm: 0.2,
+  ratio: { arch: 3.1, diamond: 1.3, wave: 3.4, beads: 1, lines: 1, leaf: 1.5, mil: 1, blade: 2.8, chevron: 0.62, zigzag: 1.5, fan: 0.66, steps: 1.5, panel: 2.3, flutes: 1 } as Record<ReliefKind, number>,
+  fadeCells: 0.85,
+  archRatio: 2.7,
+  archGapMm: 0.14,
+  twoLightMm: 0.72,
+  archMaxHalf: 1.05,
+  innerFloor: 0.28,
+  chevronRise: 0.55,
+  zigzagAmp: 0.7,
+  fanDeg: 68,
+  fanRays: 7,
+  fanHub: 0.3,
+  steps: 3,
+  panelFloor: 0.5,
+  fluteMm: 0.48,
+};
 
 /**
  * 網目の決まり（形を作るための決まり）。baseMm：土台の升の大きさ。minCellMm：いちばん小さい升。tolMm：土台の面との差がこれより小さければ分けない。
@@ -109,6 +146,60 @@ function archWindow(lx: number, y: number, b: number, L: number, w: number): num
   return inside ? Math.max(line, SHAPE.innerFloor * smooth(d / (w * 1.4))) : line;
 }
 
+/** 長方形の中か外かと、縁までの距離（中で正、外で負）。cx・cy：真ん中、hx・hy：半分の大きさ */
+function insideRect(x: number, y: number, cx: number, cy: number, hx: number, hy: number): number {
+  return Math.min(hx - Math.abs(x - cx), hy - Math.abs(y - cy));
+}
+
+/** 扇：かなめを升の終わり（石座から遠い側）に置き、骨が石座の側へ広がる。骨・外の弧・かなめの弧の線 */
+function fanPattern(lx: number, y: number, b: number, L: number, w: number): number {
+  const m = SHAPE.archGapMm;
+  const half = (SHAPE.fanDeg * Math.PI) / 180;
+  const yc = L - m;
+  const R = Math.max(0.05, Math.min(yc - m, (b - w * 0.5) / Math.sin(half)));
+  const dy = yc - y;
+  const rho = Math.hypot(lx, dy);
+  const th = Math.atan2(lx, dy);
+  if (rho > R + w || dy < -w) return 0;
+  let d = Infinity;
+  // 外の弧とかなめの弧（開きの内だけ）
+  if (Math.abs(th) <= half) d = Math.min(Math.abs(rho - R), Math.abs(rho - R * SHAPE.fanHub));
+  // 骨（かなめの弧から外の弧まで）
+  const n = SHAPE.fanRays;
+  for (let k = 0; k < n; k++) {
+    const tk = -half + (2 * half * k) / (n - 1);
+    const along = lx * Math.sin(tk) + dy * Math.cos(tk);
+    if (along < R * SHAPE.fanHub || along > R) continue;
+    d = Math.min(d, Math.abs(lx * Math.cos(tk) - dy * Math.sin(tk)));
+  }
+  return stroke(d, w * 0.8);
+}
+
+/** 段の窓：長方形の窓の中が、平らな面のまま段々に深くなる（段の壁は立てる）。いちばん奥が 1 */
+function stepsPattern(lx: number, y: number, b: number, L: number, w: number): number {
+  const m = SHAPE.archGapMm;
+  const hy = (L - 2 * m) / 2;
+  if (hy <= 0) return 0;
+  const din = insideRect(lx, y, 0, L / 2, b, hy);
+  if (din <= 0) return 0;
+  const n = SHAPE.steps;
+  const step = Math.min(b, hy) / (n + 0.4);
+  const wall = Math.max(0.012, w * 0.22);
+  let level = 0;
+  for (let k = 0; k < n; k++) level += smooth((din - k * step) / wall);
+  return level / n;
+}
+
+/** 長方形の区切り：細長い長方形の窓が並ぶ（輪郭の線と、中の浅い平らな底） */
+function panelPattern(lx: number, y: number, b: number, L: number, w: number): number {
+  const m = SHAPE.archGapMm;
+  const hy = (L - 2 * m) / 2;
+  if (hy <= 0) return 0;
+  const din = insideRect(lx, y, 0, L / 2, b, hy);
+  const line = stroke(Math.abs(din), w * 0.85);
+  return din > 0 ? Math.max(line, SHAPE.panelFloor * smooth(din / (w * 1.2))) : line;
+}
+
 /** 窓の列の数：幅の広い面では、窓が広がりすぎないように列を増やす（縦に細長いまま） */
 function columnsOf(kind: ReliefKind, U: number, cols: number): number {
   return kind === "arch" ? Math.max(cols, Math.round(U / SHAPE.archMaxHalf)) : cols;
@@ -149,6 +240,37 @@ export function reliefPattern(kind: ReliefKind, u: number, x: number, L: number,
   switch (kind) {
     case "arch":
       return archWindow(lx, y, b, L, w);
+    case "chevron": {
+      // 山形：V の線が腕に沿って重なる。V の先は石座の側を向く（列の真ん中で左右対称）
+      const a = SHAPE.chevronRise;
+      const g = u - (a * Math.abs(lx)) / Math.max(b, 0.02);
+      const grad = Math.hypot(1 / L, a / Math.max(b, 0.02));
+      if (Math.abs(lx) > b) return 0;
+      return stroke(Math.abs(g - Math.round(g)) / grad, w * 0.85);
+    }
+    case "zigzag": {
+      // ジグザグ：腕に沿う、角の立った折れ線（列の数だけ）
+      const A = b * SHAPE.zigzagAmp;
+      const fr = u - Math.floor(u);
+      const x0 = A * (1 - 4 * Math.abs(fr - 0.5));
+      const slope = Math.hypot(1, (4 * A) / L);
+      return stroke(Math.abs(lx - x0) / slope, w);
+    }
+    case "fan":
+      return fanPattern(lx, y, b, L, w);
+    case "steps":
+      return stepsPattern(lx, y, b, L, w);
+    case "panel":
+      return panelPattern(lx, y, b, L, w);
+    case "flutes": {
+      // 平行の溝：腕に沿って続く細い溝を、幅の向きに等しい間で並べる（升では切れない）
+      const n = Math.max(2, Math.floor((2 * b) / SHAPE.fluteMm));
+      const pitch = (2 * b) / n;
+      const q = (lx + b) / pitch - 0.5;
+      const dq = Math.abs(q - Math.round(q)) * pitch;
+      if (Math.abs(lx) > b) return 0;
+      return stroke(dq, Math.min(w * 0.75, pitch * 0.32));
+    }
     case "diamond": {
       // 菱の格子と、両わきの枠の線
       const q = lx / (2 * b);

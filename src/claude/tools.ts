@@ -416,6 +416,23 @@ const range = (k: keyof typeof INPUT_BOUNDS, unit = "") =>
   `${INPUT_BOUNDS[k][0]}〜${INPUT_BOUNDS[k][1]}${unit}`;
 
 /** 断面の線の入力の形（set_shank のいちばん上の断面と、場所ごとの断面で同じ） */
+/**
+ * 腕の彫りの模様の名前（geometry/shank-relief.ts の RELIEF_KINDS と同じ並び。tests/shank-loft.test.ts が見る）。
+ * ここに置くのは、公開先の関数（api/claude.ts）がこのファイルだけを読むため（形の処理を持ち込まない）
+ */
+export const RELIEF_PATTERNS = ["arch", "diamond", "wave", "beads", "lines", "leaf", "mil", "blade", "chevron", "zigzag", "fan", "steps", "panel", "flutes"] as const satisfies readonly ReliefKind[];
+
+/**
+ * 模様の説明。線の性格ごとにまとめる（どの言葉にどれ、とは決めない。Claude が言葉の性格から選ぶ）
+ */
+export const RELIEF_PATTERN_WORDS =
+  "直線・水平と垂直・平らな面の模様：steps＝段の窓（長方形の窓の中が、平らな面のまま段々に深くなる）、panel＝長方形の区切り（細長い長方形の窓の列。輪郭の線と浅い平らな底）、flutes＝平行の溝（腕に沿って続く細い溝を、幅の向きに等しい間で並べる）、lines＝腕を横切る筋。" +
+  "幾何学の繰り返し・角の立つ模様：chevron＝山形（V の線が腕に沿って重なる。先は石座の側を向き、列の真ん中で左右対称）、zigzag＝ジグザグ（腕に沿う、角の立った折れ線）、diamond＝菱の格子。" +
+  "中心から広がる模様：fan＝扇（かなめから骨が石座の側へ広がり、外の弧で閉じる）。" +
+  "縦に高く伸びて先が尖る模様：arch＝先の鋭く尖った縦長の窓（幅があれば、中に 2 つの小窓と丸窓）、blade＝尖った葉（肩に少しだけ）。" +
+  "曲線・やわらかい模様：wave＝腕に沿う波の線、leaf＝葉とつる、beads＝丸い粒のくぼみの列。" +
+  "縁を飾る：mil＝縁の粒（帯の上面を削って粒を連ねる。縁取りの上に）";
+
 const SECTION_CURVE_SCHEMA = {
   type: "object",
   description:
@@ -565,10 +582,10 @@ export const TOOLS: ClaudeTool[] = [
           properties: {
             pattern: {
               type: "string",
-              enum: ["none", "arch", "diamond", "wave", "beads", "lines", "leaf", "mil", "blade"],
-              description: "模様。arch＝先の鋭く尖った縦長の窓が腕に沿って並ぶ（幅があれば、中に 2 つの小窓と丸窓）、diamond＝菱の格子、wave＝腕に沿う波の線、beads＝丸い粒のくぼみの列、lines＝腕を横切る筋、leaf＝葉とつる、mil＝縁の粒（帯の上面を削って粒を連ねる。縁取りの上に）、blade＝尖った葉（肩に少しだけ）、none＝彫りをなくす",
+              enum: ["none", ...RELIEF_PATTERNS],
+              description: `模様。${RELIEF_PATTERN_WORDS}、none＝彫りをなくす`,
             },
-            count: { type: "integer", description: `片側の腕に並べる数（${range("relief_count", " つ")}）。省くと 4` },
+            count: { type: "integer", description: `片側の腕に並べる数（${range("relief_count", " つ")}）。省くと 4。平行の溝では、はじめと終わりの消える長さだけが変わる（溝の数は幅で決まる）` },
             depth_mm: { type: "number", description: `彫りの深さ（mm、${range("relief_depth", " mm")}）。省くと ${GUIDES.band.relief.depthMm} mm` },
             from_deg: { type: "number", description: `彫り始める場所（いちばん上からの角度、度、${range("relief_deg")}）。省くと 25` },
             to_deg: { type: "number", description: `彫り終わる場所（度、${range("relief_deg")}）。省くと 100。指の真横が 90` },
@@ -581,11 +598,11 @@ export const TOOLS: ClaudeTool[] = [
         },
         relief_more: {
           type: "array",
-          description: `重ねて彫る模様（${range("relief_more", " つ")}。relief があるときだけ。空の並びでなくす）。窓は溝の中、粒は縁取りの上、葉は肩に、のように場所を分けると、断面と彫りが一体に見える`,
+          description: `重ねて彫る模様（${range("relief_more", " つ")}。relief があるときだけ。空の並びでなくす）。溝の中に 1 つの模様、縁取りの上に粒、肩に別の模様、のように場所を分けると、断面と彫りが一体に見える`,
           items: {
             type: "object",
             properties: {
-              pattern: { type: "string", enum: ["arch", "diamond", "wave", "beads", "lines", "leaf", "mil", "blade"], description: "模様。relief と同じ" },
+              pattern: { type: "string", enum: [...RELIEF_PATTERNS], description: "模様。relief と同じ" },
               count: { type: "integer", description: "片側の腕に並べる数" },
               depth_mm: { type: "number", description: "深さ（mm）" },
               from_deg: { type: "number", description: "彫り始める場所（度）" },
@@ -872,7 +889,7 @@ function checkStations(v: unknown): string | null {
 function checkRelief(v: unknown): string | null {
   const r = v as Record<string, unknown> | null;
   if (typeof r !== "object" || r === null || Array.isArray(r)) return "腕の彫りは {pattern, …} の形で書いてください";
-  const kinds = ["none", "arch", "diamond", "wave", "beads", "lines", "leaf", "mil", "blade"];
+  const kinds: readonly string[] = ["none", ...RELIEF_PATTERNS];
   if (!kinds.includes(r.pattern as string)) return `腕の彫りの模様は ${kinds.join(" / ")} のどれかです（今は ${String(r.pattern)}）`;
   const bounds: Record<string, keyof typeof INPUT_BOUNDS> = { count: "relief_count", depth_mm: "relief_depth", from_deg: "relief_deg", to_deg: "relief_deg", columns: "relief_columns", across_from: "relief_across", across_to: "relief_across" };
   for (const k of Object.keys(r)) {

@@ -12,7 +12,7 @@ import { GUIDE_NOTE, GUIDES, type HeightOption, type MetalId } from "../src/rule
 import { activeRules, addRule, effectiveGuides, ledgerText, PARAMS, sourceLabel, type Ledger, type ParamId, type Rule } from "../src/rules/ledger";
 import { build, DEFAULT_DESIGN, type Design } from "../src/ui/design";
 import { sectionCurveProblem, SECTION_INPUT } from "../src/geometry/section-input";
-import { BAND_WIDTH_WORDS, INPUT_BOUNDS } from "../src/claude/tools";
+import { BAND_WIDTH_WORDS, INPUT_BOUNDS, RELIEF_PATTERN_WORDS, RELIEF_PATTERNS } from "../src/claude/tools";
 import type { ShankStation } from "../src/geometry/shank";
 import { readLedger, REPO_ROOT, writeLedger } from "./ledger-file";
 import { readyStone, STONE_PRESETS } from "./stone-input";
@@ -101,7 +101,7 @@ const designShape = z
       .describe("腕の場所ごとの形（角度の小さい順。左右は同じ）。石座のそばの形は shank_width_mm・shank_thickness_mm・断面で決まり、ここにはそれより下の場所を書く。間はなめらかにつながる"),
     shank_relief: z
       .object({
-        pattern: z.enum(["arch", "diamond", "wave", "beads", "lines", "leaf", "mil", "blade"]).describe("模様：arch＝先の尖ったアーチの列、diamond＝菱の格子、wave＝波の線、beads＝粒のくぼみ、lines＝横の筋、leaf＝葉とつる、mil＝縁の粒、blade＝尖った葉"),
+        pattern: z.enum(RELIEF_PATTERNS).describe(`模様。${RELIEF_PATTERN_WORDS}`),
         across_from: z.number().min(0).max(1).optional().describe("彫る帯の内側（真ん中 0・腕の縁 1 の割合）"),
         across_to: z.number().min(0).max(1).optional().describe("彫る帯の外側"),
         count: z.number().int().min(INPUT_BOUNDS.relief_count[0]).max(INPUT_BOUNDS.relief_count[1]).optional().describe("片側の腕に並べる数。省くと 4"),
