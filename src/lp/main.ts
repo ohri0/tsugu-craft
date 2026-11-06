@@ -230,8 +230,8 @@ const html = `
 
   <section class="wait" aria-labelledby="wait-h">
     <div class="wait-big rv" aria-hidden="true">${Array.from({ length: 24 }, () => "<i></i>").join("")}</div>
-    <h2 id="wait-h" class="rv">長いときは、<br><span class="big">1 時間</span>待ちます。</h2>
-    <p class="rv">学校では、独自のデザインは、先生に聞くしかありません（職人の経験です）。継ぐなら、すぐ答えが出ます。答えには、理由と、もとになった職人の言葉がついています。</p>
+    <h2 id="wait-h" class="rv">長いときは、<br><span class="big">1 時間</span>。</h2>
+    <p class="rv">学校では、独自のデザインは先生に聞くしかなく、混んでいるときは順番を待つ必要があります（職人の経験です）。継ぐなら、すぐ答えが出ます。答えには、理由と、もとになった職人の言葉がついています。</p>
   </section>
 
   <section class="learn-sec" aria-label="学ぶの画面">
