@@ -35,14 +35,14 @@ const SIZE = { ledger3m: [480, 900], waza3m: [480, 900], learn3m: [480, 900], le
   word10: [1280, 720], gothic10: [1280, 720], reason10: [1280, 720], make10: [1280, 720], ask10: [960, 540], learn10: [960, 540], rebuild10: [960, 540], ledger10: [960, 540],
   // 最終案 10（作者の声：実際に使っている所を中心に）：手で変える操作と、生成のあとに人が直す流れ
   ops11: [1280, 720], gothic11: [1280, 720], moyou11: [1280, 720], deco11: [1280, 720], gen12: [1280, 720], learn11: [960, 540], ops12: [1280, 720], sec13: [1280, 720],
-  teach14: [1280, 720], make14: [1280, 720], teach15: [1280, 720], finish15: [1280, 720], tension16: [1280, 720], finish16: [1280, 720] };
+  teach14: [1280, 720], make14: [1280, 720], teach15: [1280, 720], finish15: [1280, 720], tension16: [1280, 720], finish16: [1280, 720], finish17: [1280, 720] };
 const DSF = { photo9: 3, gothic9: 3, reason9: 3, make9: 3, word9: 4, ask9: 4, learn9: 4,
   word10: 3, gothic10: 3, reason10: 3, make10: 3, ask10: 4, learn10: 4, rebuild10: 4, ledger10: 4, ops11: 3, gothic11: 3, moyou11: 3, deco11: 3, gen12: 3, learn11: 4, ops12: 3, sec13: 3,
-  teach14: 3, make14: 3, teach15: 3, finish15: 3, tension16: 3, finish16: 3 };
+  teach14: 3, make14: 3, teach15: 3, finish15: 3, tension16: 3, finish16: 3, finish17: 3 };
 // マウスの印の大きさ（4 倍で撮る章で大きくなりすぎないように）
 const CURK = { word9: 0.5, ask9: 0.5, learn9: 0.5, photo9: 0.72, gothic9: 0.72, reason9: 0.72, make9: 0.72,
   word10: 0.8, gothic10: 0.8, reason10: 0.8, make10: 0.8, ask10: 0.62, learn10: 0.62, rebuild10: 0.62, ledger10: 0.62, ops11: 0.8, gothic11: 0.8, moyou11: 0.8, deco11: 0.8, gen12: 0.8, learn11: 0.62, ops12: 0.8, sec13: 0.8,
-  teach14: 0.8, make14: 0.8, teach15: 0.8, finish15: 0.8, tension16: 0.8, finish16: 0.8 };
+  teach14: 0.8, make14: 0.8, teach15: 0.8, finish15: 0.8, tension16: 0.8, finish16: 0.8, finish17: 0.8 };
 // 最終案 9：本物の Claude の返事を章ごと・順番ごとに覚える（work/story/_claude9/）。撮り直しでは覚えた返事を使うので、Claude は呼ばない（呼ぶのは最初の 1 回だけ）
 const CLAUDE9 = new Set(['word9', 'ask9', 'learn9', 'gothic9', 'reason9', 'word10', 'ask10', 'learn10', 'gothic10', 'reason10', 'gothic11', 'deco11', 'gen12', 'learn11', 'teach14', 'teach15']);
 // 最終案 10：同じ操作の章は、前に覚えた本物の Claude の返事をそのまま使う（新しく呼ばない）。gothic11 は gothic10（今のアプリで本物の Claude が組んだ「ゴシックな感じ」）の返事
@@ -4285,6 +4285,104 @@ Object.assign(CH, {
     const h1 = await boxOf(p, `${cS(idx + 1)} h3`);
     if (h1) await a.drift(N(26), { x: h1.x + h1.width + 16, y: h1.y + h1.height * 0.65 });
     await a.drift(N(30), { x: a.cur.x - 30, y: a.cur.y + 40 });
+  },
+});
+// 最終案 17（作者の声：麻の葉 → 青海波は、見本を選んでいるだけに見える。模様を「作る」所と、作れるかの答え（作れない → 理由 → 直すと作れる）を見せたい）：
+//   赤銅・布目象嵌の地金のみの指輪（くぼみ）で、自分の模様（4×4 のマス目）を押して形を作る → 線の太さを細くすると赤（線が細すぎる・資料の線の太さ）→ 戻すと作れます → 布目を切るの札
+Object.assign(CH, {
+  finish17: async (a) => {
+    const { p } = a;
+    await studioNow9(a, { query: '?nooffload' }); await builtNow9(a);
+    await p.addStyleTag({ content: OPS_CSS11 });
+    await p.click('.kinds [data-kind="band"]'); await a.settle(1500);
+    await p.click(`.band-ctrl [data-sec="${process.env.FIN16_SEC || 'kubomi'}"]`); await a.settle(1500);
+    await p.click('.band-ctrl [data-bt="metal"][data-v="shakudo"]'); await a.settle(1200);
+    await p.click('.band-ctrl [data-bt="inlay"][data-v="nunome"]'); await a.settle(1500);
+    // 「模様を自分で変える」は、撮る前に開いておく（開いたままになる）
+    await p.click('.band-ctrl .nm-own > summary'); await a.settle(600);
+    await new Promise((r) => setTimeout(r, 2000)); await a.settle(500);
+    await blackVp11(a);
+    await frame11(a, FIN16_DIR, Number(process.env.FIN16_FRAC || 0.62), Number(process.env.FIN16_DX || 190));
+    await p.evaluate(({ dx, ey }) => {
+      const v = window.__viewer; const w = v.host.clientWidth || 1; const h = v.host.clientHeight || 1;
+      const dy = h * (v.lift || 0) + ((v.insets?.bottom || 0) - (v.insets?.top || 0)) / 2 - ey;
+      for (const cam of [v.cams.persp, v.cams.ortho]) { cam.setViewOffset(w, h, -dx, dy, w, h); cam.updateProjectionMatrix(); }
+      v.dirty = true; v.draw?.();
+    }, { dx: Number(process.env.FIN16_DX || 190), ey: Number(process.env.FIN16_EY || 60) });
+    // 模様の札の段を、画面の上から 150 px に（上に「象嵌 布目象嵌」の行が見える）
+    await scrollToY(p, '.band-ctrl .nm-grid', Number(process.env.FIN17_CARDS_Y || 168));
+    await a.settle(400);
+    await new Promise((r) => setTimeout(r, 2500));
+    await a.settle(400);
+    const info = () => p.evaluate(() => [document.querySelector('.band-ctrl .nm-panel h5')?.innerText.replace(/\s+/g, ' '), [...document.querySelectorAll('.band-ctrl .nm-cell')].map((c) => (c.getAttribute('aria-pressed') === 'true' ? '1' : '0')).join(''), document.querySelector('.band-ctrl .nm-checks')?.innerText.replace(/\s+/g, ' ').slice(0, 120)].join(' ／ '));
+    const jz = await boxOf(p, '.band-ctrl [data-nm-pat="jiyu"]');
+    if (jz) await a.jump({ x: jz.x + jz.width / 2 - 130, y: jz.y + jz.height / 2 + 110 });
+    a.mark('full'); await a.box('trad', '.band-ctrl .band-trad', 4);
+    // 自分の模様（はじめは真ん中の 2 × 2 のマス）
+    await a.drift(N(8), '.band-ctrl [data-nm-pat="jiyu"]', { k: 0.45 });
+    await a.press('.band-ctrl [data-nm-pat="jiyu"]', { n: 12, after: 2 });
+    await a.settle(800); await blackVp11(a);
+    a.mark('s2'); console.log('finish17 自分の模様', await info());
+    // マス目が見えるまで、欄をなめらかに送る
+    await glideTo(a, '.band-ctrl .nm-cells', Number(process.env.FIN17_CELLS_Y || 470), 18);
+    a.mark('grid'); await a.box('cells', '.band-ctrl .nm-cells', 6);
+    // マスを 3 つ足す（つながったまま。指輪の模様がその場で変わる）
+    const cells = (process.env.FIN17_CELLS || '1,14,4').split(',').map(Number);
+    for (const [k, i] of cells.entries()) {
+      const sel = `.band-ctrl .nm-cell[data-i="${i}"]`;
+      if (k === 0) await a.drift(N(6), sel, { k: 0.5 });
+      await a.press(sel, { n: k === 0 ? 10 : 8, after: 2 });
+      await a.settle(700); await blackVp11(a);
+      a.mark(`c${k}`); console.log('finish17 マス', i, await info());
+    }
+    // 線の太さの段が見えるまで、欄を上へ送る（上に「作れます」の札）
+    await glideTo(a, '.band-ctrl .nm-checks', Number(process.env.FIN17_CHECKS_Y || 150), 18);
+    a.mark('line'); await a.box('checks0', '.band-ctrl .nm-checks', 6);
+    const lm = '.band-ctrl .nm-panel .slider[data-s="nm-line"] .sl-step[data-d="-1"]';
+    const lp = '.band-ctrl .nm-panel .slider[data-s="nm-line"] .sl-step[data-d="1"]';
+    await a.drift(N(6), lm, { k: 0.5 });
+    await a.press(lm, { n: 10, after: 2 });
+    await a.settle(800); await blackVp11(a);
+    a.mark('red'); console.log('finish17 赤', await info());
+    await a.box('checks', '.band-ctrl .nm-checks', 6); await a.box('bad', '.band-ctrl .nm-checks .nm-bad li', 6);
+    // 赤い理由の字の上を、ゆっくりなぞる
+    const bd = await boxOf(p, '.band-ctrl .nm-checks .nm-bad li');
+    if (bd) {
+      await a.drift(N(14), { x: bd.x + 30, y: bd.y + 18 });
+      await a.drift(N(22), { x: bd.x + bd.width * 0.8, y: bd.y + 42 });
+    }
+    a.mark('read');
+    await a.press(lp, { n: 14, after: 2 });
+    await a.settle(800); await blackVp11(a);
+    a.mark('ok'); console.log('finish17 戻した', await info());
+    await a.box('checks2', '.band-ctrl .nm-checks', 6);
+    const ok = await boxOf(p, '.band-ctrl .nm-checks .nm-ok');
+    if (ok) await a.drift(N(14), { x: ok.x + ok.width * 0.25, y: ok.y + ok.height * 0.5 });
+    await a.drift(N(10), { x: a.cur.x + 20, y: a.cur.y + 8 });
+    // 作り方：手順を押す（寄りから全体へ切り替える所で、印をタブの近くへ置き直す）
+    const tab = await boxOf(p, '.tabs [data-mode="hand"]');
+    if (tab) await a.jump({ x: tab.x + tab.width / 2 + 150, y: tab.y + tab.height / 2 + 130 });
+    a.mark('cutC');
+    await a.press('.tabs [data-mode="hand"]', { n: 14, after: 2 });
+    await a.settle(800);
+    await blackVp11(a);
+    await a.drift(N(14), { x: a.cur.x + 120, y: a.cur.y + 90 });
+    a.mark('hand');
+    const idx = await p.evaluate(() => { const cs = [...document.querySelectorAll('.build-panel .mk-card')]; return cs.findIndex((c) => /布目を切る/.test(c.querySelector('h3')?.innerText || '')) + 1; });
+    const cS = (k) => `.build-panel .mk-card:nth-child(${k})`;
+    console.log('finish17 布目を切る', await p.evaluate((sel) => document.querySelector(sel)?.innerText.replace(/\s+/g, ' ').slice(0, 320), cS(idx)));
+    await p.evaluate((sel) => { const e = document.querySelector(sel); let c = e?.parentElement; while (c && !(c.scrollHeight > c.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(c).overflowY))) c = c.parentElement; if (e && c) c.scrollTop += e.getBoundingClientRect().top - c.getBoundingClientRect().top - 12; }, cS(idx));
+    await a.settle(300);
+    const c0 = await boxOf(p, `${cS(idx)} h3`);
+    if (c0) await a.jump({ x: c0.x - 6, y: c0.y + c0.height * 0.65 });
+    a.mark('card0'); await a.box('card0', cS(idx), 4);
+    // 題 → この模様の数字（「この指輪では…」）の行へ、ゆっくり
+    if (c0) await a.drift(N(20), { x: c0.x + c0.width + 16, y: c0.y + c0.height * 0.65 });
+    const num = await p.evaluate((sel) => { const card = document.querySelector(sel); if (!card) return null; const w = document.createTreeWalker(card, NodeFilter.SHOW_TEXT); let n; while ((n = w.nextNode())) { const i = n.textContent.indexOf('この指輪では'); if (i >= 0) { const r = document.createRange(); r.setStart(n, i); r.setEnd(n, Math.min(n.textContent.length, i + 6)); const b = r.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height }; } } return null; }, cS(idx));
+    if (num) { a.boxRaw('num', Math.round(num.x - 4), Math.round(num.y - 4), 300, Math.round(num.h + 30)); await a.drift(N(20), { x: num.x + 8, y: num.y + num.h * 0.7 }); }
+    a.mark('num');
+    await a.drift(N(30), { x: a.cur.x + 160, y: a.cur.y + 14 });
+    await a.drift(N(20), { x: a.cur.x - 30, y: a.cur.y + 30 });
   },
 });
 // 最終案 16（作者の声：本物の指輪が、アールデコの生成のすぐあとに急に出て、その指輪だと思われる）：その前に、テンションの「浅く留めたいとき」を短く。

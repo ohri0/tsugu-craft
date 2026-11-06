@@ -752,7 +752,10 @@ def plan_hinode(sections, end):
             cello(bt, b0p + nxt, STR_LOW[ch])
 
         phrases2(k, nm, ["G2", "As"], level=1.05, octave=lambda i: 0.34, low_level=1.05, cel=dbl)
-        k.pulse(b0p, nbp, notes=(57, 64, 62, 64), g0=0.9, g1=0.5)
+        # 最終案 17（作者の声：2:32 あたりで、カチカチと脈打つ音が気になる）：復元の 4 分の脈は外した。模様の試しの頭（声のない所）で、
+        #   この脈だけが聞こえていた。弦とピアノの音型だけで、ほかの所と同じように、声の間はやさしく下がるだけ
+        if os.environ.get("HINODE_PEAK_PULSE") == "1":
+            k.pulse(b0p, nbp, notes=(57, 64, 62, 64), g0=0.9, g1=0.5)
     # 結：弦は前半で消え、低い D だけが少し残る。ピアノで静かに収める
     d = quiet_end(s, k, cel_level=0.7, pad=False)
     k.pad(d["b0"], d["b0"] + d["beats"] * 0.6, "D", level=0.8)

@@ -59,7 +59,8 @@ def main():
         k += 1
     flt.append("".join(vkeys) + f"amix=inputs={len(vkeys)}:normalize=0,apad,atrim=0:{total},asplit=2[vo][vk]")
     flt.append(f"[0:a]aresample=48000,aformat=channel_layouts=stereo,atrim=0:{total},volume=0.78[m]")
-    flt.append("[m][vk]sidechaincompress=threshold=0.018:ratio=5:attack=40:release=500:makeup=1[md]")
+    # 最終案 17（作者の声：2:32 あたりで脈打つように聞こえる）：声の言葉ごとに音楽が上下しないよう、戻りをゆっくり（0.5 → 0.9 秒）、下がり始めも少しゆっくり
+    flt.append("[m][vk]sidechaincompress=threshold=0.018:ratio=5:attack=80:release=900:makeup=1[md]")
     mix = ["[vo]", "[md]"]
     # 本物の音：炎（はじめ）とヤスリ（手元の場面）。ごく小さく
     by_id = {s["id"]: s for s in tl["scenes"]}

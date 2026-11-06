@@ -980,8 +980,9 @@ def finished(s, t, f):
     両手で小さな銀の指輪（三角の石）を持つ所。動かさない切り抜きで約 1.5 倍に（寄る動きはしない）、ほかの暗い映像に色をそろえる。声なし・音なし"""
     a = grade_hands(foot_at(s["foot"], t, t0=0.15, speed=0.9, box=FIN_BOX, src_fps=24000 / 1001), 0.92)
     a = a * vign(0.45, 0.5)
-    # 最終案 16（作者の声：アールデコの生成のすぐあとだと、その指輪に見えて誤解される）：前にテンションの計算を入れ、字は「この計算から」
-    return heading(a, "この計算から、実際に作った指輪", t, 0.35)
+    # 最終案 16（作者の声：アールデコの生成のすぐあとだと、その指輪に見えて誤解される）：前にテンションの計算を入れ、字は「この計算から」。
+    #   テンションの場面を外したとき（TENSION16=0）は、前の字「継ぐのデータから」に戻す（台本の fin_cap）
+    return heading(a, "この計算から、実際に作った指輪" if s.get("fin_cap") == "calc" else "継ぐのデータから、実際に作った指輪", t, 0.35)
 
 
 # ---- テンションの「浅く留めたいとき」（最終案 16）：くぼみ 0.35（ぎりぎり）→ ＋ を 3 回 → 0.50 mm で「留まる見込み」。作者が作った指輪の値
@@ -1677,7 +1678,8 @@ def teach15(s, t, f):
     M = meta("teach15")
     m, nfr = M["marks"], M["frames"]
     n = s["len"]
-    t_fin = n - 1.35
+    # 帳面の表を見せる長さ：ふだん 1.35 秒。場面が長いとき（FINISH=0 で時間を返したとき）は、操作は等倍のまま、表を長く見せる
+    t_fin = n - max(1.35, n - (m["applied"] - 3 - m["full"]) / FPS - 0.05)
     # 最終案 16（作者の声：速すぎて追えない。止めるのでなく、動きをゆっくり）：撮るときに、打つのを 1 字 2 こま・案を読む間を長くした。
     #   組むときは、はじめから「これでいい」まで、すべて等倍（はじめの欄へ動く所は、前の場面との重ねの中なので、入りきらない分を頭から飛ばす）
     st = max(m["full"], m["applied"] - 3 - int(round((t_fin - 0.05) * FPS)))
@@ -2614,6 +2616,68 @@ def finish16(s, t, f):
     return heading(a, "作り方まで：布目象嵌の手順", t, t_a + 0.05)
 
 
+# ---- 伝統の仕上げ（最終案 17。作者の声：麻の葉 → 青海波は見本を選んでいるだけに見える。模様を「作る」所と、作れるかの答えを見せる）：
+#   赤銅・布目象嵌の地金のみの指輪で、自分の模様（4×4 のマス目）を押して形を作る → 線の太さを細くすると赤（理由を約 1 秒、寄って読ませる）
+#   → 戻すと「作れます」→ 全体で手順を押す → 布目を切る（この模様の数字）
+FIN17_CAP = "模様を自分で作る → 作れない所は赤く → 直すと作れる"
+FIN17_RED_W = 680     # 赤い理由に寄るときの幅（頁の px。指輪の右の半分と、欄の赤い札が入る）
+
+
+@scene("finish17")
+def finish17(s, t, f):
+    """撮った章 finish17 を、どこも等倍で（押した輪だけ 2 倍）。寄り（自分の模様 → 赤 → 作れます）→ 全体（手順）→ 札"""
+    M = meta("finish17")
+    m, nfr = M["marks"], M["frames"]
+    n = s["len"]
+    B = M["boxes"]
+    segs = [(m["s2"] - 5, 1), (m["s2"], 2), (m["grid"], 1)]
+    for k in range(3):
+        if f"c{k}" in m:
+            segs += [(m[f"c{k}"] - 5, 1), (m[f"c{k}"], 2)]
+    segs += [(m["line"], 1), (m["red"] - 5, 1), (m["red"], 2), (m["read"], 1), (m["ok"] - 5, 1), (m["ok"], 2), (m["ok"] + 12, 1)]
+    pts = chain(0, max(m["full"], m["s2"] - 15), segs)
+    t_a = pts[-1][0]
+    t_at = lambda fr: next((tt for tt, ff in pts if ff >= fr), t_a)  # noqa: E731
+    t_red, t_read = t_at(m["red"]), t_at(m["read"])
+    t_c = (m["hand"] - 1 - m["cutC"] + 2) / FPS
+    if t < t_a:
+        i = min(nfr - 1, int(ramp_frame(pts, t)))
+        base = lambda: css_crop("finish17", i, *FIN16_Z)  # noqa: E731
+        bad = B.get("bad")
+        if bad:
+            cx = bad["x"] + bad["w"] / 2 - (FIN17_RED_W / 2 - bad["w"] / 2 - 24)
+            cy = bad["y"] + bad["h"] / 2 + 10
+            near = lambda: css_crop("finish17", i, cx, cy, FIN17_RED_W)  # noqa: E731
+            r0, r1 = t_red + 0.15, t_read + 0.2
+            if t < r0:
+                a = base()
+            elif t < r1:
+                a = blend_views(base, near, t, r0, 0.3)
+            else:
+                a = blend_views(near, base, t, r1, 0.3)
+        else:
+            a = base()
+        a = heading(a, "伝統の仕上げも：煮色・槌目・象嵌", t, 0.0, t_a - 0.35)
+        # 小さな説明（作っている間）。寄りから全体へ替わる前に消す
+        k_out = 1 - sm((t - (t_a - 0.35)) / 0.35)
+        if k_out > 0:
+            b = subheading(a.copy(), FIN17_CAP, t, 0.5)
+            a = a * (1 - k_out) + b * k_out
+        return a
+    u = t - t_a
+    if u < t_c:
+        a = full_view("finish17", min(m["hand"] - 1, m["cutC"] + int(round(u * FPS))))
+    else:
+        v = u - t_c
+        j = min(nfr - 1, m["card0"] + int(round(v * FPS)))
+        top = B["card0"]["y"] if "card0" in B else 60
+        cy = top - 6 + FIN15_STEPS_W * 9 / 32
+        if "num" in B:
+            cy = max(cy, min(B["num"]["y"] + 40, top - 6 + FIN15_STEPS_W * 9 / 16 - 30) - FIN15_STEPS_W * 9 / 32 + 40)
+        a = blend_views(lambda: full_view("finish17", m["hand"] - 1), lambda: css_crop("finish17", j, 1280 - FIN15_STEPS_W / 2, cy, FIN15_STEPS_W), t, t_a + t_c, 0.35)
+    return heading(a, "作り方まで：布目象嵌の手順", t, t_a + 0.05)
+
+
 # ---- 言葉で頼む（本物の Claude の「アールデコな感じ」。組んでいる途中の絵は使わず、作れますの出来上がりへ重ねて替える）
 # 撮った章：deco11（本物の Claude に「アールデコな感じ」と頼んだ 4 回目の返事で撮った物。2026-11-06 作者が最終に決めた）。ゴシックの回は gothic11（GEN_CH=gothic11 で戻せる）
 GEN_CH = os.environ.get("GEN_CH", "deco11")
@@ -2916,8 +2980,10 @@ def moyou_reveal(fr, t, a0):
 
     # Claude の手順：行の名前 → 段ごと
     cover(B.get("rlC"), fade(t, MOYOU_C0, 0.4))
+    # 段の間：ふだん 0.45 秒。声の前の間が長いとき（FINISH=0）は、ゆっくり（0.6 秒まで）。下の行が出る前に出し終える
+    cstep = min(0.6, max(MOYOU_CSTEP, (a0 - 0.2) / 4))
     for j in range(5):
-        cover(B.get(f"cc{j + 1}"), fade(t, MOYOU_C0 + 0.15 + MOYOU_CSTEP * j, 0.35))
+        cover(B.get(f"cc{j + 1}"), fade(t, MOYOU_C0 + 0.15 + cstep * j, 0.35))
     # 本当の工程と比べると：行の名前 → 11 の手順を 1 行ずつ（n37「本当の 11 の手順と比べると」のあたりから。仮声では 9 に数え終わって 0.4 秒ほどで「9 に」）
     t_m0 = a0 + 1.25
     cover(B.get("rlM"), fade(t, t_m0, 0.35))

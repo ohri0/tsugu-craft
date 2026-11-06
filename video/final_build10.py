@@ -87,12 +87,24 @@ STORY = os.path.join(WORK, "story")
 # 最終案 14：デザインする人への章の「伝統の仕上げ」（槌目・四分一や赤銅の煮色・ミル打ち。別の係が作っている）。撮った章 finish14 があるときだけ入れる（FINISH14=0 で外す）
 HAS_FINISH = os.path.exists(os.path.join(STORY, "finish15", "meta.json")) and os.environ.get("FINISH14", "1") != "0"
 # 最終案 16b（作者の頼み）：伝統の仕上げは、石のない地金のみの指輪（撮った章 finish16）で。FINISH16=0 で前の石の指輪（finish15）に戻せる
-FIN_ID = "finish16" if os.path.exists(os.path.join(STORY, "finish16", "meta.json")) and os.environ.get("FINISH16", "1") != "0" else "finish15"
-FIN_HOLD = float(os.environ.get("FIN_HOLD", "6.4" if FIN_ID == "finish16" else "6.05"))  # 最終案 16b：地金のみの指輪は 6.4 秒（＋0.35 秒はテンションと図面と STL から）
+# 最終案 17（作者の声：見本を選ぶだけに見える。模様を作る所と、作れない → 直すと作れる、を見せる）：自分の模様の章 finish17（FIN=16 で 16b の章）
+_FIN = os.environ.get("FIN", "17")
+FIN_ID = next((k for k in ([f"finish{_FIN}"] + ["finish17", "finish16"]) if os.path.exists(os.path.join(STORY, k, "meta.json"))), "finish15")
+if os.environ.get("FINISH16") == "0":
+    FIN_ID = "finish15"
+FIN_HOLD = float(os.environ.get("FIN_HOLD", {"finish17": "8.5", "finish16": "6.4"}.get(FIN_ID, "6.05")))  # 17：8.5 秒（16b より ＋2.1 秒。声のない所から）
 # 最終案 16：本物の指輪の前の、テンションの計算（撮った章 tension16 があるときだけ。TENSION16=0 で外す）
 HAS_TENSION = os.path.exists(os.path.join(STORY, "tension16", "meta.json")) and os.environ.get("TENSION16", "1") != "0"
 # 最終案 15（作者の声：彫りが入ると、はじめが速く感じる）：ふだんは炎とヤスリだけ。OPENING=kebori で最終案 14 の彫りを戻せる（reel9 も同じ値を読む）
 OPENING = os.environ.get("OPENING", "plain")
+# 最終案 17（作者が伝統の仕上げを動画から外すか考えている）：FINISH=0 で伝統の仕上げの場面を外し、空いた約 8.5 秒を、詰めていた所へ返す
+#   （話して直す・11 のうち 9 と 3 枚の鐔・図面と STL・本物の指輪・テンション ほか）。nf(ふだん, 外したとき)
+#   2026-11-07 作者が決めた：伝統の仕上げは動画からもアプリからも外す。ふだんは外した形（FINISH=1 で前の形に戻せる）
+SHOW_FIN = os.environ.get("FINISH", "0") != "0"
+
+
+def nf(a, b):
+    return a if SHOW_FIN else b
 
 # 場面の並び。pre：声の前の間、post：声の後の間、gap：同じ場面の声の間、xf：前の場面との重ね（秒）。dip：黒をはさむ（章の変わり目）。hold：のばす分
 # ch は章（音楽の区切りと、確かめの表に使う）。nat：その場面の本物の音（炎・ヤスリ）を鳴らす長さ（なければ場面の長さ）
@@ -100,41 +112,41 @@ SCENES = [
     # 最終案 12（作者の声）：はじめの 3 行は、1 行ずつ間を開けて（各行のあとに 1 秒ほどの静けさ。間 ＝ post − 次の xf ＋ 次の pre）
     # 最終案 14：「彫金の職人です」で、伝統の彫りの手元（彫る手元の映像）を 2〜3 秒重ねる（reel9 の flame）。炎の音は彫りに替わる所で消す
     #   最終案 14：3:00 に入れるため、n1・n2 のあとの静けさを約 1.15 → 1.0 秒に（作者の頼みの「1 秒ほど」は残す）
-    dict(id="flame", ch="序", v=[1], pre=1.7, post=1.2, xf=0, fixed=True, **({"nat": 3.3} if OPENING == "kebori" else {})),
+    dict(id="flame", ch="序", v=[1], pre=nf(1.7, 1.9), post=1.2, xf=0, fixed=True, **({"nat": 3.3} if OPENING == "kebori" else {})),
     dict(id="hands0", ch="序", v=[2], pre=0.7, post=1.3, xf=0.9, fixed=True),
     # 最終案 14：3:00 に入れるため、n3 のあとの静けさを 1.9 → 1.6 秒に（題の字が出てくる間。作者の頼みの 1 秒は残る）
     dict(id="vanish10", ch="序", v=[3], pre=0.6, post=1.4, xf=0.9, fixed=True),
     # 題：「継ぐ。」（間）「職人の判断を、次の人へ。」。声は n42 → n41（結と同じ言葉）。絵も長めに
-    dict(id="title10", ch="序", v=[42, 41], gap=1.2, pre=0.6, post=1.15, xf=0.8, fixed=True),  # 最終案 16：n3 のあとの静けさ 1.5 → 1.2 秒（作者の頼みの 1 秒は残す）
+    dict(id="title10", ch="序", v=[42, 41], gap=1.2, pre=nf(0.6, 0.9), post=1.15, xf=0.8, fixed=True),  # 最終案 16：n3 のあとの静けさ 1.5 → 1.2 秒（作者の頼みの 1 秒は残す）
     # 残す（最終案 15。作者の声：前の字の札の方が、見ていて入ってきた。推測を強く言わない）：字の札（言葉 → Claude → 決まり。ほかの大きさの石も計算した数字）
     #   →「これでいい」→ 帳面に残る → 設計の確かめに使う（n5〜n7）→ 本物の画面を短く：話して直す「18 ミリなら 1.2 は欲しい」→ 18 mm が 1.20 → これでいい（n8）
-    dict(id="rule15", ch="残す", v=[5, 6, 7], gap=0.45, pre=0.8, post=0.8, xf=1.0, dip=True, fixed=True),
-    dict(id="teach15", ch="残す", v=[8], pre=0.8, post=1.75, xf=0.6, fixed=True),  # 最終案 16（作者の声：速くて追えない）：4.5 → 5.5 秒。動きそのものをゆっくり（等倍）
+    dict(id="rule15", ch="残す", v=[5, 6, 7], gap=0.45, pre=0.8, post=nf(0.7, 1.0), xf=1.0, dip=True, fixed=True),
+    dict(id="teach15", ch="残す", v=[8], pre=nf(0.8, 0.9), post=nf(1.75, 2.65), xf=0.6, fixed=True),  # 最終案 16（作者の声：速くて追えない）：4.5 → 5.5 秒。動きそのものをゆっくり（等倍）
     # 渡す 1：デザインする人へ。行き来の図 → 手で変える操作（声なし・見出し 1 つずつ）→ 最初の版と今の版 → 言葉で頼む → 人が直す → 職人の言葉 → 図面と STL
     dict(id="door1h", ch="渡す1", v=[10], pre=0.25, post=0.63, xf=1.0, dip=True, fixed=True),
     # 最終案 13：行き来の図に声を足す（n12「継ぐがあれば、制作から戻ることは、ごく少なくなります。」）。2 回目の朱入れ（石の深さの寸法つき）を読んでから継ぐの枠へ。
     #   n12 の頭は、継ぐの枠に替わり始めて 0.5 秒（reel9 の flow11 が n12 の頭から替わる秒を決める）
-    dict(id="flow11", ch="渡す1", v=[11, 12], gap=2.5, pre=0.6, post=0.9, xf=0.8, fixed=True),
+    dict(id="flow11", ch="渡す1", v=[11, 12], gap=nf(2.3, 2.87), pre=0.6, post=0.9, xf=0.8, fixed=True),
     # 手で変える（最終案 14）：断面をパッパッパと 3 回（印は止めない）→ 伝統の仕上げ（四分一 → 丸槌目 → 少し寄る、切り替えて 赤銅 → 布目象嵌 → 腕の肌。ミル打ちは見せない）。
     #   爪を押す（prong12）は外した（人が直すの場面で同じ爪の欄を見せる）。留め方（setting12）は、伝統の仕上げを撮ったら、それに替える（3:00 に入れるため）
-    dict(id="section13", ch="渡す1", v=[], hold=4.4, xf=0.5),  # 最終案 15：赤を 1 秒ほど見せる
-] + ([dict(id=FIN_ID, ch="渡す1", v=[], hold=FIN_HOLD, xf=0.0)] if HAS_FINISH else [dict(id="setting12", ch="渡す1", v=[], hold=2.3, xf=0.0)]) + [  # 最終案 15：仕上げのあと、布目象嵌の作り方まで
+    dict(id="section13", ch="渡す1", v=[], hold=nf(4.3, 4.4), xf=0.5),  # 最終案 15：赤を 1 秒ほど見せる
+] + (([dict(id=FIN_ID, ch="渡す1", v=[], hold=FIN_HOLD, xf=0.0)] if HAS_FINISH else [dict(id="setting12", ch="渡す1", v=[], hold=2.3, xf=0.0)]) if SHOW_FIN else []) + [  # 最終案 15：仕上げのあと、布目象嵌の作り方まで
     dict(id="firstnow10", ch="渡す1", v=[13], pre=1.2, post=2.0, xf=0.6),
     # 最終案 13：n15 は「好きな雰囲気や細かい希望を打ち込むだけで、…」。打つ所は声の前半に重ねる（画面の字はアールデコのまま）
-    dict(id="deco11", ch="渡す1", v=[15], pre=0.85, post=0.6, xf=0.8, fixed=True),
+    dict(id="deco11", ch="渡す1", v=[15], pre=0.85, post=nf(0.5, 0.6), xf=0.8, fixed=True),
     # 最終案 13：爪のつまみを 2 秒かけてゆっくり（目盛りごとに形が変わる → 0.65 mm で赤）。そのあと n18。最終案 14：頭の全体 → 確かめるを少しだけ詰めた
-    dict(id="fix11", ch="渡す1", v=[18, 19], gap=0.7, pre=4.6, post=0.6, xf=0.8, fixed=True),  # 最終案 15：頭の動きは、印が動く所を等倍（印が跳ばない）。n18 と n19 の間は 0.7 秒のまま
+    dict(id="fix11", ch="渡す1", v=[18, 19], gap=0.7, pre=4.6, post=nf(0.5, 0.8), xf=0.8, fixed=True),  # 最終案 15：頭の動きは、印が動く所を等倍（印が跳ばない）。n18 と n19 の間は 0.7 秒のまま
     # 図面と STL：章の終わり。STL のあとに「この 3D データは、そのまま鋳造できます。あとは仕上げだけ。」（作者の言葉）と、章が変わる前の一息
-    dict(id="out11", ch="渡す1", v=[], hold=2.25, xf=0.8),
+    dict(id="out11", ch="渡す1", v=[], hold=nf(2.1, 3.0), xf=0.8),
     # 最終案 16（作者の声：本物の指輪が、アールデコの生成のすぐあとに急に出て、その指輪に見える）：テンションの「浅く留めたいとき」を短く（声なし・見出し）
-] + ([dict(id="tension16", ch="渡す1", v=[], hold=3.1, xf=0.6)] if HAS_TENSION else []) + ([dict(id="finished", ch="渡す1", v=[], hold=2.5, xf=0.8)] if REAL_FIN else []) + [  # 最終案 14：作者が継ぐのデータから作った本物の指輪（2026-11-06）
+] + ([dict(id="tension16", ch="渡す1", v=[], hold=nf(2.9, 3.4), xf=0.6)] if HAS_TENSION else []) + ([dict(id="finished", ch="渡す1", v=[], hold=nf(2.3, 2.8), xf=0.8, **({"fin_cap": "calc"} if HAS_TENSION else {}))] if REAL_FIN else []) + [  # 最終案 14：作者が継ぐのデータから作った本物の指輪（2026-11-06）
     # 渡す 2：学ぶ人へ（最終案 13：作り方はおもに学ぶ人のため → この章の頭へ）。「次に、学ぶ人へ。」のあと 1 秒ほど静かに
     dict(id="door2", ch="渡す2", v=[21], pre=0.5, post=1.2, xf=1.0, dip=True, fixed=True),
     # 最終案 14：作り方は、帳面の職人の言葉からも作る（n20）。手順のロウ付けの札の「職人の決まり」まで送って寄る（make14）
     dict(id="make14", ch="渡す2", v=[20], pre=1.2, post=1.35, xf=0.8, fixed=True),  # 言い終わったあと 1 拍（作者の声）→ 学校
-    dict(id="school10", ch="渡す2", v=[22, 23], gap=0.45, pre=0.4, post=0.45, xf=0.8, fixed=True),
+    dict(id="school10", ch="渡す2", v=[22, 23], gap=0.45, pre=0.4, post=nf(0.35, 0.6), xf=0.8, fixed=True),
     # 最終案 14：問いは職人が言っていない 9.3 mm の石。答えと表（職人の点と推測）、職人の言葉（名前・日付）を読める長さ
-    dict(id="learn10", ch="渡す2", v=[24], pre=2.4, post=2.3, xf=0.8, fixed=True),
+    dict(id="learn10", ch="渡す2", v=[24], pre=2.4, post=nf(2.1, 2.6), xf=0.8, fixed=True),
     dict(id="door3h", ch="渡す3", v=[27], pre=0.5, post=1.0, xf=1.0, dip=True, fixed=True),
     # 最終案 13（作者の声：約 6 割から 20 年に一度へ移るのが速い）：約 6 割の札を読める長さ残し、n28 と n29 の間に 1 秒あまりの静けさ
     dict(id="stat", ch="渡す3", v=[28], pre=0.4, post=1.75, xf=1.0, fixed=True),
@@ -142,14 +154,14 @@ SCENES = [
     # 職人が残す → 学ぶ人が受け取る：それぞれの画面を読める長さ（作者の声：移るのが速すぎる）。中の段の秒は kebori10 が声の頭から決める
     dict(id="kebori10", ch="渡す3", v=[30], pre=0.8, post=5.75, xf=0.9, fixed=True),
     # 途切れた技：木目金の鐔（n32・n33）→ 模様の試し（別の係の新しい頁。頁の全体 → 表に寄って段が順に出る（n37）→ 下の行を読める大きさで → 3 枚へゆっくり → n39）
-    dict(id="mokume11", ch="途絶え", v=[32, 33], gap=0.45, pre=0.25, post=0.25, xf=1.0, dip=True, fixed=True),
-    dict(id="moyou11", ch="復元", v=[37, 39], pre=2.2, gap=3.0, post=0.8, xf=0.8, fixed=True),  # 最終案 16：本当の手順 → Claude の手順を段ごと → 本当の 11 の手順を 1 行ずつ数える（n37）。言い終わって 1.5 秒は表の下の行（作者の頼み）
+    dict(id="mokume11", ch="途絶え", v=[32, 33], gap=0.45, pre=nf(0.15, 0.25), post=0.25, xf=1.0, dip=True, fixed=True),
+    dict(id="moyou11", ch="復元", v=[37, 39], pre=nf(2.0, 2.6), gap=nf(3.0, 3.6), post=nf(0.8, 1.4), xf=0.8, fixed=True),  # 最終案 16：本当の手順 → Claude の手順を段ごと → 本当の 11 の手順を 1 行ずつ数える（n37）。言い終わって 1.5 秒は表の下の行（作者の頼み）
     # 結（最終案 12）：CG の指輪をやめ、実写の手元（磨いて仕上げる）→ 題「継ぐ」→ 間 →「職人の判断を、次の人へ。」。最終案 14：映像 2.4 → 2.0 秒
-    dict(id="endhands", ch="結", v=[], hold=1.5, xf=1.0, dip=True),
+    dict(id="endhands", ch="結", v=[], hold=nf(1.3, 1.8), xf=1.0, dip=True),
     dict(id="title3", ch="結", v=[42, 41], gap=1.2, pre=0.8, post=0.8, xf=1.2, fixed=True),
     dict(id="credit", ch="結", v=[43], pre=0.4, post=0.3, xf=0.8, dip=True, fixed=True),  # 題と字が重ならないよう、黒をはさむ（最終案 13）
     # 出典（作者の判断：途中の画面には出さず、最後にまとめて 2〜3 秒）
-    dict(id="sources", ch="結", v=[], hold=1.6, xf=0.8),
+    dict(id="sources", ch="結", v=[], hold=nf(1.5, 1.8), xf=0.8),
 ]
 FIXED_PRE = {"flame", "moyou11", "deco11", "fix11", "make10", "make14", "learn10", "naiku", "teach14", "rule15", "teach15"}  # 声の前の間を、全体の倍率でのばし縮みしない場面（本物の画面は、まず全体 → 押す所を見せる時間。模様の試しは、最後の 3 枚が出てから n39）
 
@@ -195,7 +207,7 @@ def layout(durs, kk):
         # フレームの区切りにそろえる
         ln = round(ln * FPS) / FPS
         start = round(start * FPS) / FPS
-        out.append(dict(id=sc["id"], ch=sc["ch"], start=start, len=ln, xf=round(xf * FPS) / FPS, dip=bool(sc.get("dip")), voice=voices, **({"nat": sc["nat"]} if "nat" in sc else {})))
+        out.append(dict(id=sc["id"], ch=sc["ch"], start=start, len=ln, xf=round(xf * FPS) / FPS, dip=bool(sc.get("dip")), voice=voices, **({"nat": sc["nat"]} if "nat" in sc else {}), **({"fin_cap": sc["fin_cap"]} if "fin_cap" in sc else {})))
         t = start + ln
     return out, t
 
@@ -280,6 +292,9 @@ def main():
     # 山：模様の試しの、最後の 3 枚が出る所（n39 の少し前）
     moy = next(x for x in scenes if x["id"] == "moyou11")
     peak = moy["start"] + (moy["voice"][0]["at"] - 1.6 if moy["voice"] else 9.0)
+    # 最終案 17（作者の声：2:32 あたりの脈のような音）：復元の頭に、短い build の段（16b は 0.6 秒）が残ると、音型が 0.6 秒ずれて 2 度始まった。
+    #   山は章の頭より後ろにしない（短い build の段を作らない。最終案 12 と同じ形）
+    peak = min(peak, ch_at["復元"])
     sections = [["intro", 0.0], ["main", ch_at["残す"]], ["thin", ch_at["渡す3"]], ["gap", ch_at["途絶え"]], ["build", ch_at["復元"]], ["peak", round(peak, 3)], ["end", ch_at["結"]]]
     commits = subprocess.run(["git", "-C", REPO, "rev-list", "--count", "HEAD"], capture_output=True, text=True).stdout.strip()
     first_day = subprocess.run(["git", "-C", REPO, "log", "--reverse", "--format=%ad", "--date=short"], capture_output=True, text=True).stdout.split("\n")[0].strip()
