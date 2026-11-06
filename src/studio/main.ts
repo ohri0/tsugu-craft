@@ -35,7 +35,7 @@ import { buildStone } from "../geometry/stone";
 import { LAYOUT_LABEL, METAL_LABEL, RingSession, type RingState, SLOT_SHAPE_LABEL, STONE_LONG_RANGE, bandFixInput, carryDesign, fitStoneDepth, fitStoneLong, reliefFixInput, stationFrom, tuneProngMm, underLedger, type Built, type SlotShape } from "./session";
 import { bindShankLine, sectionBinding, shankLineHtml } from "./shank-line";
 import bandShowcase from "../lp/band-showcase.json" with { type: "json" };
-import { renderRingShape, ringSectionWord, type RingShapeHost } from "./ring-shape";
+import { renderRingShape, ringSectionInput, ringSectionKind, ringSectionWord, type RingShapeHost } from "./ring-shape";
 import { shapeOffload } from "./shape-offload";
 import { howToMake, placeText, type Method } from "./howto";
 import { sheetHtml } from "./sheet";
@@ -730,9 +730,9 @@ function presentGroups(): PresentGroup[] {
   const st = session.built.ring.setting;
   const near = STONE_SIZES.reduce((a, c) => (Math.abs(c.mm - session!.stone.longMm) < Math.abs(a.mm - session!.stone.longMm) ? c : a));
   return [
-    { key: "stone", label: "石の大きさ", options: STONE_SIZES.map((x) => ({ v: String(x.mm), label: x.label })), on: Math.abs(near.mm - session.stone.longMm) < 0.05 ? String(near.mm) : "" },
-    { key: "section", label: "腕の断面", options: [...(st.style === "tension" ? (["maru"] as ShankSection[]) : []), ...SHANK_SECTIONS].map((x) => ({ v: x, label: SHANK_SECTION_LABEL[x] })), on: session.built.ring.shank.section },
-    { key: "setting", label: "留め方", options: [{ v: "4", label: "4 本爪" }, { v: "6", label: "6 本爪" }, { v: "bezel", label: "覆輪" }, { v: "tension", label: "テンション" }], on: st.style === "prong" ? String(st.prongs.length) : st.style },
+    { key: "stone", label: "石の大きさ", options: stoneSizeOptions(near), on: Math.abs(near.mm - session.stone.longMm) < 0.05 ? String(near.mm) : filming() ? "" : session.stone.longMm.toFixed(2) },
+    presentSectionGroup(),
+    { key: "setting", label: "留め方", options: (filming() ? PATTERNS.filter(([v]) => v !== "v" && v !== "3") : patternsFor(session.built)).map(([v, label]) => ({ v, label })), on: st.style === "prong" ? String(st.prongs.length) : st.style },
     { key: "metal", label: "地金", options: (["pt900", "k18yg", "k18pg", "k18wg"] as Metal[]).map((m) => ({ v: m, label: METAL_LABEL[m] })), on: s.metal },
     ...(MULTI_STONE_UI ? [{
       key: "layout",
@@ -746,6 +746,27 @@ function presentGroups(): PresentGroup[] {
       on: s.layout === "trio" || s.layout === "row" ? s.layout : s.stones?.length ? "" : "solo",
     }] : []),
   ];
+}
+/**
+ * 見せるの石の大きさの札。今の石がどの札とも合わなければ（例：8.88 mm）、今の大きさの札を 1 つ足して、選ばれて見えるように。
+ * 撮影の絵は前のまま
+ */
+function stoneSizeOptions(near: { mm: number }): { v: string; label: string }[] {
+  const list = STONE_SIZES.map((x) => ({ v: String(x.mm), label: x.label, mm: x.mm }));
+  const now = session!.stone.longMm;
+  if (!filming() && Math.abs(near.mm - now) >= 0.05) list.push({ v: now.toFixed(2), label: `${now.toFixed(2)} mm（今の石）`, mm: now });
+  return list.sort((a, b) => a.mm - b.mm).map(({ v, label }) => ({ v, label }));
+}
+/** 見せるの腕の断面の札：ふだんは作ると同じ 12 の見本。テンションと撮影では、前の腕の断面の札 */
+function presentSectionGroup(): PresentGroup {
+  const s = session!.state;
+  const sh = session!.built!.ring.shank;
+  if (!filming() && s.style !== "tension") {
+    const k = ringSectionKind(s, sh.widthMm, sh.thicknessMm);
+    return { key: "section", label: "腕の断面", options: [...SECTION_LIST.map((x) => ({ v: x.id as string, label: x.label })), ...(k === "free" ? [{ v: "free", label: "手で描いた形" }] : [])], on: k };
+  }
+  const names = filming() ? FILM_SECTION_LABEL : SHANK_SECTION_LABEL;
+  return { key: "section", label: "腕の断面", options: [...(s.style === "tension" ? (["maru"] as ShankSection[]) : []), ...SHANK_SECTIONS.filter((x) => filming() || x !== "hangouman")].map((x) => ({ v: x, label: names[x] })), on: sh.section };
 }
 /** 見せるの欄を描いて、押せるようにする */
 function showPresentPanel(html: string) {
@@ -789,7 +810,7 @@ function renderPresent() {
       stone: `${stone.shapeName} ${session.stone.longMm.toFixed(2)} × ${session.stone.widthMm.toFixed(2)} mm${r.stones.length > 1 ? ` ほか ${r.stones.length - 1} 石` : ""}`,
       prongLabel: st.tension ? "留め方" : undefined,
       prong: st.tension ? tensionWord(st) : st.style === "bezel" ? `覆輪 ・ 壁 ${st.bezel?.wallMm.toFixed(2)} mm` : `ø ${st.prongs[0]?.diameterMm.toFixed(2)} mm × ${st.prongs.length}`,
-      shank: `${SHANK_SECTION_LABEL[r.shank.section]} ${shankSizeWords(r.shank)}`,
+      shank: `${filming() ? FILM_SECTION_LABEL[r.shank.section] : ringSectionWord(session.state, r.shank.widthMm, r.shank.thicknessMm)} ${shankSizeWords(r.shank)}`,
       metal: `${METAL_LABEL[session.state.metal]} ・ 約 ${r.metalWeightG.toFixed(1)} g`,
       gou: `${session.state.gou} 号（内径 ${(r.shank.innerRadiusMm * 2).toFixed(1)} mm）`,
       verdict: { ok: n === 0, text: n === 0 ? (tensionCautionsOf(b).length ? `職人に聞く ${tensionCautionsOf(b).length}` : "作れます") : `作れない所 ${n}` },
@@ -811,7 +832,13 @@ function presentPick(g: string, v: string) {
   }
   if (!session) return;
   if (g === "stone") resizeStone(Number(v), true);
-  else if (g === "section") session.setShank({ section: v as ShankSection, reason: "見せる" });
+  else if (g === "section") {
+    if (filming() || session.state.style === "tension") session.setShank({ section: v as ShankSection, reason: "見せる" });
+    else if (v !== "free") {
+      const sh = session.built!.ring.shank;
+      session.setShank({ ...ringSectionInput(v as PresetKind, sh.widthMm, sh.thicknessMm), reason: "見せる" });
+    }
+  }
   else if (g === "setting") session.setSetting(v === "bezel" || v === "tension" ? { style: v, reason: "見せる" } : { style: "prong", prong_count: Number(v), reason: "見せる" });
   else if (g === "metal") session.setShank({ metal: v as Metal, reason: "見せる" });
   else if (g === "layout") session.setStones({ layout: v as "solo", count: v === "row" ? GUIDES.multi.rowCount[1] : undefined, reason: "見せる" });
@@ -1714,7 +1741,7 @@ const SHORT: Record<string, string> = {
   "prong-thin": "爪が細い",
   "finger-gap": "石が指に近い",
   "tip-height": "爪の先の高さ",
-  hold: "石の留まりが弱い",
+  hold: "爪が石を押さえる力が足りない",
   "prong-gap": "爪と爪の間が広い",
   corner: "角が守られていない",
   "bezel-wall": "覆輪の壁が薄い",
@@ -2062,7 +2089,7 @@ function openSweep() {
   setTimeout(step, 400);
 }
 /** 留め方の型：4 本爪・6 本爪・V 字の爪（尖った角のある石だけ）・覆輪 */
-type Pattern = "4" | "6" | "v" | "bezel" | "tension";
+type Pattern = "3" | "4" | "5" | "6" | "v" | "bezel" | "tension";
 /** テンションの一言（留め方の札） */
 function tensionWord(st: SettingResult): string {
   return `テンション ・ 開き ${st.tension!.gapMm.toFixed(2)} mm`;
@@ -2082,15 +2109,27 @@ function prongCountNote(b: Built): string {
   if (c === 0 && n === 5) return "丸い形の石に、爪 5 本";
   return "";
 }
-const PATTERNS: [Pattern, string][] = [["4", "4 本爪"], ["6", "6 本爪"], ["v", "V 字の爪"], ["bezel", "覆輪"], ["tension", "テンション"]];
+const PATTERNS: [Pattern, string][] = [["3", "3 本爪"], ["4", "4 本爪"], ["6", "6 本爪"], ["v", "V 字の爪"], ["bezel", "覆輪"], ["tension", "テンション"]];
+/** 留め方の札。今の爪の本数が 3・4・6 のどれでもなければ（5 本など）、その本数の札も足して、いつも 1 つが選ばれて見えるように */
+function patternsFor(b: Built): [Pattern, string][] {
+  const st = b.ring.setting;
+  const n = st.style === "prong" && !st.prongs.some((p) => p.isV) ? st.prongs.length : 0;
+  const list = PATTERNS.filter(([v]) => v !== "v");
+  if (n && !list.some(([v]) => v === String(n))) {
+    // 本数の順に入れる（3・4・5・6）
+    const at = list.findIndex(([v]) => !/^\d$/.test(v) || Number(v) > n);
+    list.splice(at, 0, [String(n) as Pattern, `${n} 本爪`]);
+  }
+  return list;
+}
+/** 撮影の絵は前の腕の断面の名前のまま（前の動画とそろえる） */
+const FILM_SECTION_LABEL: Record<ShankSection, string> = { kouman: "甲丸", hirauchi: "平打ち", hangouman: "半甲丸", kaku: "角", maru: "丸線", free: "自由な線" };
 function patternOf(b: Built): Pattern | "" {
   const st = b.ring.setting;
   if (st.style === "bezel") return "bezel";
   if (st.style === "tension") return "tension";
   if (st.prongs.some((p) => p.isV)) return "v";
-  if (st.prongs.length === 4) return "4";
-  if (st.prongs.length === 6) return "6";
-  return "";
+  return String(st.prongs.length) as Pattern;
 }
 const round2 = (v: number) => Math.round(v * 100) / 100;
 /** 「手で変える」を人が開いた・閉じたか（一度触ったら、描き直してもそのまま。触る前は、作れない所がなければ開く） */
@@ -2268,6 +2307,9 @@ function renderCheck() {
   const pick = <T extends string | number>(name: string, cur: T, list: [T, string][]) =>
     `<div class="pick"><span>${name}</span><div>${list.map(([v, l]) => `<button type="button" data-k="${name}" data-v="${v}" aria-pressed="${v === cur}">${l}</button>`).join("")}</div></div>`;
   const fresh = lastRule ? new Set<string>(lastRule.checks) : new Set<string>();
+  /** 腕の断面の札：ふだんは作ると同じ 12 の見本。テンション（丸線の腕）と撮影では、前の腕の断面の札（撮影の台本が data-v で押す） */
+  const presetPick = !filming() && s.style !== "tension";
+  const sectionName: Record<ShankSection, string> = filming() ? FILM_SECTION_LABEL : SHANK_SECTION_LABEL;
   // 決まりの案と「案にしています…」は、欄を描き直しても消さない（形の作り直しが案を消すと、もう押せなくなる）
   const heldProposal = [...(box.querySelector(".ar-proposal")?.childNodes ?? [])];
   box.innerHTML = `
@@ -2309,7 +2351,7 @@ function renderCheck() {
     })()}
     <details class="manual" ${manualOpen ?? !probs.length ? "open" : ""}><summary>手で変える</summary>
       ${s.style === "prong" && !filming() ? prongHintHtml(b) : ""}
-      ${pick("留め方", patternOf(b), PATTERNS.filter(([v]) => v !== "v"))}
+      ${pick("留め方", patternOf(b), filming() ? PATTERNS.filter(([v]) => v !== "v" && v !== "3") : patternsFor(b))}
       ${s.style === "prong" ? pick("爪の本数", s.prongCount ?? 0, [[0, "自動"], [3, "3"], [4, "4"], [5, "5"], [6, "6"]]) : ""}
       ${b.ring.setting.tension && b.ring.setting.tension.grips.length > 1 ? `${pick("挟む向き", b.ring.setting.tension.grip, b.ring.setting.tension.grips.map((x) => [x, GRIP_LABEL[x]] as [TensionGrip, string]))}<ul class="pick-notes">${b.ring.setting.tension.grips.map((x) => `<li${x === b.ring.setting.tension!.grip ? ' class="on"' : ""}><b>${GRIP_LABEL[x]}</b>${esc(GRIP_NOTE[x])}</li>`).join("")}</ul>` : ""}
       ${s.style === "tension" ? "" : pick("高さ", s.height, [["low", "低め"], ["standard", "標準"], ["high", "高め"]])}
@@ -2323,7 +2365,12 @@ function renderCheck() {
         ${kind === "solitaire" ? sliderHtml(stoneSlider()) : ""}
         ${sliderHtml(gouSlider(s.gou))}
       </div>
-      ${pick("腕の断面", s.shankSection ?? "kouman", [...(s.style === "tension" || s.shankSection === "maru" ? [["maru", SHANK_SECTION_LABEL.maru] as [ShankSection, string]] : []), ...SHANK_SECTIONS.map((k) => [k, SHANK_SECTION_LABEL[k]] as [ShankSection, string]), ...(s.shankSection === "free" ? [["free", ringSectionWord(s, b.ring.shank.widthMm, b.ring.shank.thicknessMm)] as [ShankSection, string]] : [])])}
+      ${
+        presetPick
+          ? // 作るの「腕の形」と同じ 12 の名前と並び（2026-11-06）。押すと作ると同じ見本の線になる
+            pick("腕の断面", ringSectionKind(s, b.ring.shank.widthMm, b.ring.shank.thicknessMm) as string, [...SECTION_LIST.map((x) => [x.id, x.label] as [string, string]), ["free", "手で描く"]])
+          : pick("腕の断面", s.shankSection ?? "kouman", [...(s.style === "tension" || s.shankSection === "maru" ? [["maru", sectionName.maru] as [ShankSection, string]] : []), ...SHANK_SECTIONS.filter((k) => filming() || k !== "hangouman" || s.shankSection === "hangouman").map((k) => [k, sectionName[k]] as [ShankSection, string]), ...(s.shankSection === "free" ? [["free", ringSectionWord(s, b.ring.shank.widthMm, b.ring.shank.thicknessMm)] as [ShankSection, string]] : [])])
+      }
       ${s.style === "tension" ? "" : sectionEditorHtml()}
       ${shankLineHtml(s)}
     </details>
@@ -2378,7 +2425,17 @@ function renderCheck() {
         else session!.setSetting({ style: "prong", v_corners: false, prong_count: Number(pat), reason: "手で" });
       }
       if (k === "挟む向き") session!.setSetting({ tension_grip: v as TensionGrip, reason: "手で" });
-      if (k === "腕の断面") session!.setShank({ section: v as ShankSection, reason: "手で" });
+      if (k === "腕の断面") {
+        if (!presetPick) session!.setShank({ section: v as ShankSection, reason: "手で" });
+        else if (v === "free") {
+          // 手で描く：下の断面を描く画面へ
+          box.querySelector<HTMLElement>(".sec-edit")?.scrollIntoView({ behavior: "smooth", block: "center" });
+          return;
+        } else {
+          const sh = session!.built!.ring.shank;
+          session!.setShank({ ...ringSectionInput(v as PresetKind, sh.widthMm, sh.thicknessMm), reason: "手で" });
+        }
+      }
       if (k === "爪の本数") {
         if (Number(v)) session!.setSetting({ prong_count: Number(v), reason: "手で" });
         else {
@@ -3838,7 +3895,7 @@ function solitaireDrawing(b: Built, problems: string[], sess: RingSession = sess
       { label: "留め方", value: r.setting.tension ? tensionWord(r.setting) : r.setting.style === "bezel" ? `覆輪（壁の厚み ${r.setting.bezel?.wallMm.toFixed(2)} mm）` : `爪 ${r.setting.prongs.length} 本（太さ ${prongDiaWord(r.setting)}${r.setting.prongTip === "oni" ? ` ・ ${PRONG_TIP_LABEL.oni}` : ""}）` },
       ...(r.setting.tension
         ? []
-        : [{ label: "腕", value: `${SHANK_SECTION_LABEL[r.shank.section]} 幅 ${r.shank.widthMm.toFixed(1)} × 厚み ${r.shank.thicknessMm.toFixed(1)} mm` }]),
+        : [{ label: "腕", value: `${ringSectionWord(sess.state, r.shank.widthMm, r.shank.thicknessMm)} 幅 ${r.shank.widthMm.toFixed(1)} × 厚み ${r.shank.thicknessMm.toFixed(1)} mm` }]),
       ...(r.setting.tension
         ? [
             { label: "腕の両はし", value: r.setting.tension.ends.map((e) => `${e.kind === "pit" ? "角のくぼみ" : "辺の溝"} ${e.depthMm.toFixed(2)}`).join(" ・ ") },

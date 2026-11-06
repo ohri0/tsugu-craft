@@ -112,7 +112,7 @@ const fmtNum = (v: number) => String(Math.round(v * 1000) / 1000);
 /** 値をその単位の言葉に（割合は %） */
 export function valueText(v: number, unit = "mm"): string {
   if (unit === "") return `${Math.round(v * 1000) / 10}%`;
-  if (unit === "×") return `${fmtNum(v)}×`;
+  if (unit === "×" || unit === "倍") return `${fmtNum(v)} 倍`;
   return `${fmtNum(v)} ${unit}`;
 }
 

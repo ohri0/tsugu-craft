@@ -697,7 +697,7 @@ dialog.sheet input:focus { border-color: var(--accent); }
 .p-quote span { margin-left: 6px; color: var(--fg-3); font-size: 10px; }
 /* 見せる：全画面、黒の上の指輪。左下に選ぶ欄と本物の数字 */
 .pro.presenting .tb, .pro.presenting .tools, .pro.presenting .insp, .pro.presenting .cmd-wrap, .pro.presenting .sb,
-.pro.presenting .vp-tl, .pro.presenting .verdict-chip, .pro.presenting .dims, .pro.presenting .gizmo, .pro.presenting .tabs { display: none !important; }
+.pro.presenting .vp-tl, .pro.presenting .verdict-chip, .pro.presenting .dims, .pro.presenting .gizmo, .pro.presenting .tabs, .pro.presenting .fix-pop { display: none !important; }
 .pro.presenting .vp { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 50; background: #000; }
 .present { position: absolute; inset: 0; pointer-events: none; z-index: 5; font-family: "Helvetica Neue", "Hiragino Sans", var(--sans, sans-serif); font-weight: 300; color: #f5f5f7; -webkit-font-smoothing: antialiased; }
 .present > * { pointer-events: auto; }

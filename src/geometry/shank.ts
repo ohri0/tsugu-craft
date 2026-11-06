@@ -14,7 +14,11 @@ import { RELIEF_LABEL, RELIEF_MESH, adaptivePatch, combineFields, makeReliefFiel
 /** 腕の断面：甲丸・平打ち・半甲丸・角、丸線（内側も丸い）、と手で描いた形 */
 export type ShankSection = "kouman" | "hirauchi" | "hangouman" | "kaku" | "maru" | "free";
 export const SHANK_SECTIONS = ["kouman", "hirauchi", "hangouman", "kaku"] as const;
-export const SHANK_SECTION_LABEL: Record<ShankSection, string> = { kouman: "甲丸", hirauchi: "平打ち", hangouman: "半甲丸", kaku: "角", maru: "丸線", free: "自由な線" };
+/**
+ * 画面に出す名前は、作るの「腕の形」の見本（cad/section.ts の 12 種）にそろえる（2026-11-06）。
+ * 腕の平打ちの線は見本の平甲丸と同じ線（角が丸い）。半甲丸も、見本の中でいちばん近い平甲丸と呼ぶ。形の数字は変えない
+ */
+export const SHANK_SECTION_LABEL: Record<ShankSection, string> = { kouman: "甲丸", hirauchi: "平甲丸", hangouman: "平甲丸", kaku: "角", maru: "丸線", free: "手で描いた形" };
 
 /** 断面の点（幅の位置 x：真ん中 0〜端 1、高さ y：内側 0〜いちばん厚い所 1） */
 export interface SectionPoint {

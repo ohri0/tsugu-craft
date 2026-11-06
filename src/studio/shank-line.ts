@@ -76,7 +76,8 @@ export function shankLineHtml(s: RingState): string {
       ${list
         .map((st, i) => {
           const cur = st.curve ? "free" : (st.section ?? "same");
-          const opts: [string, string][] = [["same", "上と同じ"], ...SHANK_SECTIONS.map((k) => [k, SHANK_SECTION_LABEL[k]] as [string, string]), ...(st.curve ? [["free", SHANK_SECTION_LABEL.free] as [string, string]] : [])];
+          // 半甲丸は平甲丸と同じ名前で出るので、選んでいないときは出さない（2026-11-06）
+          const opts: [string, string][] = [["same", "上と同じ"], ...SHANK_SECTIONS.filter((k) => k !== "hangouman" || cur === "hangouman").map((k) => [k, SHANK_SECTION_LABEL[k]] as [string, string]), ...(st.curve ? [["free", SHANK_SECTION_LABEL.free] as [string, string]] : [])];
           return `<div class="pick"><span>${placeName(st)}の断面</span><div>${opts.map(([v, l]) => toggle(`section:${i}`, v, v === cur, l)).join("")}</div></div>`;
         })
         .join("")}

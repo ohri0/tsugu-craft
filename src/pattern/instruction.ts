@@ -47,7 +47,7 @@ export function instructionHtml(o: InstructionInput): string {
   ];
   const checks: [string, string][] = [
     ["石の一番下と指のすき間", mm(ring.culetGapMm)],
-    ["石の留まり", s.style === "bezel" ? "覆輪" : `${holdRatio(s).toFixed(2)}×（標準の 4 本爪 ＝ 1.0×）`],
+    ["石の留まり", s.style === "bezel" ? "覆輪" : `標準の 4 本爪の ${holdRatio(s).toFixed(2)} 倍`],
   ];
   const problems = o.problems.length
     ? `<ul>${o.problems

@@ -152,7 +152,8 @@ const ORIENT: Record<string, string> = { along: "縦向き", across: "横向き"
 const JOIN: Record<string, string> = { on: "腕の上にのせる", between: "腕の間に挟む" };
 const PRONG_TIP: Record<string, string> = { round: "丸い爪", oni: "尖り爪" };
 const METAL: Record<string, string> = { pt900: "プラチナ", k18yg: "18 金イエロー", k18wg: "18 金ホワイト", k18pg: "18 金ピンク", sv925: "シルバー" };
-const SECTION: Record<string, string> = { kouman: "甲丸", hirauchi: "平打ち", hangouman: "半甲丸", kaku: "角", maru: "丸線", free: "自由な線" };
+// 画面の腕の形の名前と同じ（geometry/shank.ts の SHANK_SECTION_LABEL）
+const SECTION: Record<string, string> = { kouman: "甲丸", hirauchi: "平甲丸", hangouman: "平甲丸", kaku: "角", maru: "丸線", free: "手で描いた形" };
 const VIEW: Record<string, string> = { top: "上から", side: "横から", front: "正面から", angle: "斜めから" };
 const LAYOUT: Record<string, string> = { solo: "一粒", trio: "三石", row: "横一列" };
 const RELIEF: Record<string, string> = { arch: "尖ったアーチ", diamond: "菱の格子", wave: "波の線", beads: "粒", lines: "横の筋", leaf: "葉とつる", mil: "縁の粒", blade: "尖った葉" };
@@ -174,7 +175,7 @@ function stationWords(list: unknown): string {
   return list
     .map((raw) => {
       const st = raw as { at_deg: number; width_mm: number; thickness_mm: number; section?: string; section_curve?: unknown; sway_mm?: number };
-      const extra = [st.section_curve ? "自由な線" : st.section ? (SECTION[st.section] ?? "") : "", st.sway_mm ? `${num(Math.abs(st.sway_mm))} mm 流す` : ""].filter(Boolean);
+      const extra = [st.section_curve ? "手で描いた形" : st.section ? (SECTION[st.section] ?? "") : "", st.sway_mm ? `${num(Math.abs(st.sway_mm))} mm 流す` : ""].filter(Boolean);
       return `${placeOf(st.at_deg)} 幅 ${num(st.width_mm)} × 厚み ${num(st.thickness_mm)} mm${extra.length ? `（${extra.join("・")}）` : ""}`;
     })
     .join("、");
@@ -207,7 +208,7 @@ function partOf(key: string, v: unknown, stone?: StoneWords): string | null {
       return `断面 ${SECTION[s] ?? s}`;
     case "section_curve":
     case "section_points":
-      return "断面 自由な線";
+      return "断面 手で描いた形";
     case "stations":
       return `場所ごとの形：${stationWords(v)}`;
     case "relief": {
