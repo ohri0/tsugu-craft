@@ -5,10 +5,10 @@
 // 道具の入力と結果は Claude とやり取りするので、名前は snake_case にそろえる。
 import { MAKING_STEPS, MAKING_STEP_IDS, type MakingStepId } from "../rules/making.js";
 import { GUIDE_NOTE, GUIDES } from "../rules/guides.js";
-import { PARAMS, type ParamId } from "../rules/ledger.js";
+import { OFFERED_PARAM_IDS, PARAMS, type ParamId } from "../rules/ledger.js";
 import { SECTION_INPUT, sectionCurveProblem } from "../geometry/section-input.js";
 import type { ReliefKind } from "../geometry/shank-relief.js";
-import { MILGRAIN_OFFERED } from "../geometry/finish.js";
+import { FINISHES_OFFERED, MILGRAIN_OFFERED } from "../geometry/finish.js";
 import { JIYU_N, NUNOME_LABEL, NUNOME_PATTERNS, NUNOME_RANGE, nunomeWords, validateNunome, type NunomeDesign, type NunomePattern } from "../geometry/nunome.js";
 import type { holdForClaude } from "../rules/tension-hold.js";
 import type { ClaudeTool } from "./wire.js";
@@ -206,8 +206,12 @@ export function nunomeInput(p: Partial<NunomeDesign>): FinishInput {
 export function nunomeState(d: NunomeDesign, goldBase: boolean): Pick<FinishState, "inlay_pattern" | "inlay_scale_mm" | "inlay_line_mm" | "inlay_width_mm" | "inlay_words"> {
   return { inlay_pattern: d.pattern, inlay_scale_mm: d.scaleMm, inlay_line_mm: d.lineMm, inlay_width_mm: d.widthMm, inlay_words: nunomeWords(d, goldBase) };
 }
-/** Claude に出す仕上げの項目（ミル打ちは MILGRAIN_OFFERED のときだけ） */
-export const FINISH_OFFERED_KEYS = (Object.keys(FINISH_KEYS) as (keyof typeof FINISH_KEYS)[]).filter((k) => MILGRAIN_OFFERED || k !== "milgrain");
+/** Claude に出す仕上げの項目（仕上げは FINISHES_OFFERED のときだけ。ミル打ちは MILGRAIN_OFFERED のときだけ） */
+export const FINISH_OFFERED_KEYS = (Object.keys(FINISH_KEYS) as (keyof typeof FINISH_KEYS)[]).filter((k) => FINISHES_OFFERED && (MILGRAIN_OFFERED || k !== "milgrain"));
+/** Claude に出す、機械で確かめる値（布目象嵌の値 inlay.* は FINISHES_OFFERED のときだけ。目安帳に前からある決まりは、そのまま読める） */
+export const OFFERED_PARAMS = OFFERED_PARAM_IDS;
+/** Claude に出す地金（色金は FINISHES_OFFERED のときだけ） */
+export const OFFERED_METALS: readonly Metal[] = ["pt900", "k18yg", "k18wg", "k18pg", "sv925", ...(FINISHES_OFFERED ? IROGANE : [])];
 export type View = "top" | "side" | "front" | "angle";
 
 export type ProngTipChoice = "round" | "oni";
@@ -589,6 +593,49 @@ const SECTION_CURVE_SCHEMA = {
   additionalProperties: false,
 } as const;
 
+/** 色金の言葉（set_shank の metal。FINISHES_OFFERED のときだけ） */
+const FINISH_METAL_WORDS =
+  "色金（いろがね。煮色＝にいろ で色を出す伝統の地金）：shakudo＝赤銅（煮色で、ほとんど黒。うっすら青紫の艶）、shibuichi＝四分一（煮色で銀灰）、copper＝銅（煮色で赤茶）。「四分一の煮色に」なら shibuichi";
+
+/** 伝統の仕上げの入力の形（set_shank の finish。FINISHES_OFFERED のときだけ Claude に出す） */
+const FINISH_SCHEMA = {
+  type: "object",
+  description:
+    "伝統の仕上げ（彫金・鍛金の技）。書いた項目だけが変わり、none でなくす。" +
+    `tsuchime＝槌目（金づちの跡を模様として残す。small・medium・large は跡の大きさ ${GUIDES.finish.tsuchime.small.markMm}・${GUIDES.finish.tsuchime.medium.markMm}・${GUIDES.finish.tsuchime.large.markMm} mm、仮の値）、` +
+    `tsuchime_style＝槌目の種類（maru＝丸槌目：丸いくぼみ。kaku＝角槌目・平槌目：平らな小さな面。tate＝縦槌目・筋目：腕に沿って細長い跡。arashi＝荒らし槌目：細かく密で、つやを抑える。大きさは選ばず ${GUIDES.finish.tsuchimeStyle.arashi.markMm} mm。省くと丸槌目）、` +
+    "tsuchime_area＝打つ所（outer＝腕の外側、all＝外側と横）、" +
+    (MILGRAIN_OFFERED ? `milgrain＝ミル打ち（edges＝腕の外の面の両縁の細い縁に、ø${GUIDES.finish.milgrain.beadMm} mm の粒を一列ずつ、半分沈めて並べる。形と STL に入る）、` : "") +
+    "inlay＝象嵌（nunome＝布目象嵌：腕の真ん中に、色のちがう地金の帯の模様。純金・純銀の線や平金を打ちこむ）。" +
+    `inlay_pattern＝布目象嵌の模様（${NUNOME_PATTERNS.map((k) => `${k}＝${NUNOME_LABEL[k]}`).join("、")}。「麻の葉の布目象嵌で」なら asanoha。書くと象嵌が入る）、` +
+    `inlay_scale_mm＝模様の大きさ（くり返し 1 つ分 mm）、inlay_line_mm＝線の太さ（打ちこむ線の直径 mm。資料の線は ${GUIDES.inlay.wireMinMm}〜${GUIDES.inlay.wireMaxMm} mm）、inlay_width_mm＝帯の幅（mm）、` +
+    "inlay_metal＝はめこむ地金（gold＝純金、silver＝純銀、auto＝地金で決める）、inlay_border＝帯の両縁の線、inlay_around＝入れる回り（full＝一周、half＝上の半周、third＝上の三分の一）、" +
+    `inlay_foil_mm＝平金の厚み（市松・自分の模様）、inlay_rotate_deg＝模様を回す、inlay_stretch＝腕に沿って伸ばす倍、inlay_mirror＝上下に裏返す、inlay_offset_mm＝腕に沿ってずらす、inlay_cells＝自分の模様の ${JIYU_N}×${JIYU_N} のマス目（"0" と "1"）。` +
+    "線が細すぎる・線の間がせまい・小さなかけら・帯が腕の面からはみ出す・平金の厚みは check が見る（作れない形だけ。好みは見ない）。" +
+    `槌目は跡の深さだけ腕が薄くなる${MILGRAIN_OFFERED ? "。ミルの粒は腕の幅に収まる必要がある" : ""}（check が見る）`,
+  properties: {
+    tsuchime: { type: "string", enum: [...FINISH_KEYS.tsuchime], description: "槌目の跡の大きさ。none でやめる" },
+    tsuchime_style: { type: "string", enum: [...FINISH_KEYS.tsuchime_style], description: "槌目の種類。省くと今の種類（はじめは maru）" },
+    tsuchime_area: { type: "string", enum: [...FINISH_KEYS.tsuchime_area], description: "槌目を打つ所。省くと outer" },
+    ...(MILGRAIN_OFFERED ? { milgrain: { type: "string", enum: [...FINISH_KEYS.milgrain], description: "ミル打ち。none でやめる" } } : {}),
+    inlay: { type: "string", enum: [...FINISH_KEYS.inlay], description: "象嵌。none でやめる" },
+    inlay_pattern: { type: "string", enum: [...NUNOME_PATTERNS], description: "布目象嵌の模様" },
+    inlay_scale_mm: { type: "number", description: `模様の大きさ（mm、${NUNOME_RANGE.scaleMm[0]}〜${NUNOME_RANGE.scaleMm[1]}）` },
+    inlay_line_mm: { type: "number", description: `線の太さ（mm、${NUNOME_RANGE.lineMm[0]}〜${NUNOME_RANGE.lineMm[1]}）` },
+    inlay_width_mm: { type: "number", description: `帯の幅（mm、${NUNOME_RANGE.widthMm[0]}〜${NUNOME_RANGE.widthMm[1]}）` },
+    inlay_metal: { type: "string", enum: [...FINISH_KEYS.inlay_metal], description: "はめこむ地金" },
+    inlay_border: { type: "boolean", description: "帯の両縁の線" },
+    inlay_around: { type: "string", enum: [...FINISH_KEYS.inlay_around], description: "模様を入れる回り" },
+    inlay_foil_mm: { type: "number", description: `平金の厚み（mm、${NUNOME_RANGE.foilMm[0]}〜${NUNOME_RANGE.foilMm[1]}）` },
+    inlay_rotate_deg: { type: "number", description: `模様を回す（度、${NUNOME_RANGE.rotateDeg[0]}〜${NUNOME_RANGE.rotateDeg[1]}）` },
+    inlay_stretch: { type: "number", description: `腕に沿って伸ばす（倍、${NUNOME_RANGE.stretch[0]}〜${NUNOME_RANGE.stretch[1]}）` },
+    inlay_mirror: { type: "boolean", description: "上下に裏返す" },
+    inlay_offset_mm: { type: "number", description: `腕に沿ってずらす（mm、${NUNOME_RANGE.offsetMm[0]}〜${NUNOME_RANGE.offsetMm[1]}）` },
+    inlay_cells: { type: "string", description: `自分の模様のマス目（"0" と "1" を ${JIYU_N * JIYU_N} 字。上の行から）` },
+  },
+  additionalProperties: false,
+};
+
 export const TOOLS: ClaudeTool[] = [
   {
     name: "set_setting",
@@ -755,48 +802,13 @@ export const TOOLS: ClaudeTool[] = [
         gou: { type: "integer", description: `指輪のサイズ（日本の号数、${range("gou", " 号")}）。号数から内径が決まる` },
         metal: {
           type: "string",
-          enum: ["pt900", "k18yg", "k18wg", "k18pg", "sv925", ...IROGANE],
+          enum: [...OFFERED_METALS],
           description:
             "地金。pt900＝プラチナ、k18yg＝18 金イエロー、k18wg＝18 金ホワイト、k18pg＝18 金ピンク、sv925＝シルバー。" +
-            "色金（いろがね。煮色＝にいろ で色を出す伝統の地金）：shakudo＝赤銅（煮色で、ほとんど黒。うっすら青紫の艶）、shibuichi＝四分一（煮色で銀灰）、copper＝銅（煮色で赤茶）。「四分一の煮色に」なら shibuichi",
+            (FINISHES_OFFERED ? FINISH_METAL_WORDS : ""),
         },
-        finish: {
-          type: "object",
-          description:
-            "伝統の仕上げ（彫金・鍛金の技）。書いた項目だけが変わり、none でなくす。" +
-            `tsuchime＝槌目（金づちの跡を模様として残す。small・medium・large は跡の大きさ ${GUIDES.finish.tsuchime.small.markMm}・${GUIDES.finish.tsuchime.medium.markMm}・${GUIDES.finish.tsuchime.large.markMm} mm、仮の値）、` +
-            `tsuchime_style＝槌目の種類（maru＝丸槌目：丸いくぼみ。kaku＝角槌目・平槌目：平らな小さな面。tate＝縦槌目・筋目：腕に沿って細長い跡。arashi＝荒らし槌目：細かく密で、つやを抑える。大きさは選ばず ${GUIDES.finish.tsuchimeStyle.arashi.markMm} mm。省くと丸槌目）、` +
-            "tsuchime_area＝打つ所（outer＝腕の外側、all＝外側と横）、" +
-            (MILGRAIN_OFFERED ? `milgrain＝ミル打ち（edges＝腕の外の面の両縁の細い縁に、ø${GUIDES.finish.milgrain.beadMm} mm の粒を一列ずつ、半分沈めて並べる。形と STL に入る）、` : "") +
-            "inlay＝象嵌（nunome＝布目象嵌：腕の真ん中に、色のちがう地金の帯の模様。純金・純銀の線や平金を打ちこむ）。" +
-            `inlay_pattern＝布目象嵌の模様（${NUNOME_PATTERNS.map((k) => `${k}＝${NUNOME_LABEL[k]}`).join("、")}。「麻の葉の布目象嵌で」なら asanoha。書くと象嵌が入る）、` +
-            `inlay_scale_mm＝模様の大きさ（くり返し 1 つ分 mm）、inlay_line_mm＝線の太さ（打ちこむ線の直径 mm。資料の線は ${GUIDES.inlay.wireMinMm}〜${GUIDES.inlay.wireMaxMm} mm）、inlay_width_mm＝帯の幅（mm）、` +
-            "inlay_metal＝はめこむ地金（gold＝純金、silver＝純銀、auto＝地金で決める）、inlay_border＝帯の両縁の線、inlay_around＝入れる回り（full＝一周、half＝上の半周、third＝上の三分の一）、" +
-            `inlay_foil_mm＝平金の厚み（市松・自分の模様）、inlay_rotate_deg＝模様を回す、inlay_stretch＝腕に沿って伸ばす倍、inlay_mirror＝上下に裏返す、inlay_offset_mm＝腕に沿ってずらす、inlay_cells＝自分の模様の ${JIYU_N}×${JIYU_N} のマス目（"0" と "1"）。` +
-            "線が細すぎる・線の間がせまい・小さなかけら・帯が腕の面からはみ出す・平金の厚みは check が見る（作れない形だけ。好みは見ない）。" +
-            `槌目は跡の深さだけ腕が薄くなる${MILGRAIN_OFFERED ? "。ミルの粒は腕の幅に収まる必要がある" : ""}（check が見る）`,
-          properties: {
-            tsuchime: { type: "string", enum: [...FINISH_KEYS.tsuchime], description: "槌目の跡の大きさ。none でやめる" },
-            tsuchime_style: { type: "string", enum: [...FINISH_KEYS.tsuchime_style], description: "槌目の種類。省くと今の種類（はじめは maru）" },
-            tsuchime_area: { type: "string", enum: [...FINISH_KEYS.tsuchime_area], description: "槌目を打つ所。省くと outer" },
-            ...(MILGRAIN_OFFERED ? { milgrain: { type: "string", enum: [...FINISH_KEYS.milgrain], description: "ミル打ち。none でやめる" } } : {}),
-            inlay: { type: "string", enum: [...FINISH_KEYS.inlay], description: "象嵌。none でやめる" },
-            inlay_pattern: { type: "string", enum: [...NUNOME_PATTERNS], description: "布目象嵌の模様" },
-            inlay_scale_mm: { type: "number", description: `模様の大きさ（mm、${NUNOME_RANGE.scaleMm[0]}〜${NUNOME_RANGE.scaleMm[1]}）` },
-            inlay_line_mm: { type: "number", description: `線の太さ（mm、${NUNOME_RANGE.lineMm[0]}〜${NUNOME_RANGE.lineMm[1]}）` },
-            inlay_width_mm: { type: "number", description: `帯の幅（mm、${NUNOME_RANGE.widthMm[0]}〜${NUNOME_RANGE.widthMm[1]}）` },
-            inlay_metal: { type: "string", enum: [...FINISH_KEYS.inlay_metal], description: "はめこむ地金" },
-            inlay_border: { type: "boolean", description: "帯の両縁の線" },
-            inlay_around: { type: "string", enum: [...FINISH_KEYS.inlay_around], description: "模様を入れる回り" },
-            inlay_foil_mm: { type: "number", description: `平金の厚み（mm、${NUNOME_RANGE.foilMm[0]}〜${NUNOME_RANGE.foilMm[1]}）` },
-            inlay_rotate_deg: { type: "number", description: `模様を回す（度、${NUNOME_RANGE.rotateDeg[0]}〜${NUNOME_RANGE.rotateDeg[1]}）` },
-            inlay_stretch: { type: "number", description: `腕に沿って伸ばす（倍、${NUNOME_RANGE.stretch[0]}〜${NUNOME_RANGE.stretch[1]}）` },
-            inlay_mirror: { type: "boolean", description: "上下に裏返す" },
-            inlay_offset_mm: { type: "number", description: `腕に沿ってずらす（mm、${NUNOME_RANGE.offsetMm[0]}〜${NUNOME_RANGE.offsetMm[1]}）` },
-            inlay_cells: { type: "string", description: `自分の模様のマス目（"0" と "1" を ${JIYU_N * JIYU_N} 字。上の行から）` },
-          },
-          additionalProperties: false,
-        },
+        // 伝統の仕上げは FINISHES_OFFERED のときだけ出す（2026-11-07 作者の判断で、提出には出さない）
+        ...(FINISHES_OFFERED ? { finish: FINISH_SCHEMA } : {}),
         reason: { type: "string", description: "なぜこう変えるか。短く書く（作業の記録に残る）" },
       },
       required: ["reason"],
@@ -847,10 +859,10 @@ export const TOOLS: ClaudeTool[] = [
         quote: { type: "string", description: "職人の言葉そのまま（短く）" },
         param: {
           type: "string",
-          enum: Object.keys(PARAMS),
+          enum: [...OFFERED_PARAMS],
           description:
             "機械で確かめる値のどれに当たるか：" +
-            Object.entries(PARAMS)
+            OFFERED_PARAMS.map((k) => [k, PARAMS[k]] as const)
               .map(([k, v]) => `${k}＝${v.label}${v.unit ? `（${v.unit}）` : ""}`)
               .join("、"),
         },
@@ -1193,7 +1205,17 @@ export function parseToolCall(name: string, input: unknown): ParseResult {
   }
   const schema = tool.input_schema as { properties?: Record<string, PropSchema>; required?: readonly string[] };
   const props = schema.properties ?? {};
-  const record = input as Record<string, unknown>;
+  let record = input as Record<string, unknown>;
+  // 伝統の仕上げを出さない間（FINISHES_OFFERED が false）：仕上げと色金は道具に無い。届いても止めずに外す（前の会話や記録から来ても読めるように）
+  if (name === "set_shank" && !FINISHES_OFFERED && (record.finish !== undefined || (typeof record.metal === "string" && (IROGANE as readonly string[]).includes(record.metal)))) {
+    const { finish: _finish, ...rest } = record;
+    if (typeof rest.metal === "string" && (IROGANE as readonly string[]).includes(rest.metal)) delete rest.metal;
+    if (!Object.keys(rest).some((k) => k !== "reason" && rest[k] !== undefined)) {
+      return { ok: false, error: "伝統の仕上げ（槌目・ミル打ち・象嵌）と色金（赤銅・四分一・銅）は、今は選べません。ほかの項目で形を変えてください" };
+    }
+    record = rest;
+    input = rest;
+  }
   for (const key of schema.required ?? []) {
     if (record[key] === undefined) return { ok: false, error: `${key} がありません` };
   }

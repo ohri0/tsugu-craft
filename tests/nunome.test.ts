@@ -1,5 +1,5 @@
 // 布目象嵌の模様（選ぶ・変える・作れるかの確かめ）、地金のみの指輪の伝統の仕上げ、Claude の道具の入力（src/geometry/nunome.ts ほか）
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   NUNOME_FORM,
   NUNOME_PATTERNS,
@@ -25,6 +25,9 @@ import { finishFrom } from "../src/studio/session";
 import { buildRing, type RingParams } from "../src/geometry/ring";
 import { checkRing } from "../src/rules/checks";
 import { triangleStone } from "./helpers/stones";
+
+// 伝統の仕上げは今は画面と道具に出さない（FINISHES_OFFERED が false）。ここでは育てるときのために、出したときの形を確かめる（テストだけ true にする）
+vi.mock("../src/geometry/finish", async (importOriginal) => ({ ...(await importOriginal<typeof import("../src/geometry/finish")>()), FINISHES_OFFERED: true }));
 
 const C = 2 * Math.PI * 9.75;
 /** 平らで広い面（帯が収まるかで止まらない） */

@@ -10,7 +10,7 @@ import type { ClaudeTool } from "../claude/wire";
 import type { Step } from "./howto";
 import type { AlloyId } from "./process";
 import { castSteps, finishStep, forgeSteps } from "./steps";
-import { finishWords, milgrainBeads, tsuchimeStyleOf, type RingFinish } from "../geometry/finish";
+import { FINISHES_OFFERED, finishWords, milgrainBeads, tsuchimeStyleOf, type RingFinish } from "../geometry/finish";
 import { checkNunome, faceSpan, nunomeOf, type NunomeCheck, type NunomeDesign } from "../geometry/nunome";
 import { withTraditionalCtx, type Irogane } from "./howto";
 
@@ -75,7 +75,8 @@ export function normalizeBand(b: Band): Band {
   const differ = b.top.width !== b.bottom.width || b.top.thickness !== b.bottom.thickness || (b.top.inner ?? 0) !== (b.bottom.inner ?? 0);
   const bk = b.bottomKind && isSectionKind(b.bottomKind) ? (b.bottomKind === "free" && !b.bottomCurve?.points.length ? undefined : b.bottomKind) : undefined;
   // 前の版の記録は、見本の寸法から変えたかが分からないので、人が決めた寸法として扱う
-  return { ...b, kind, bottomKind: bk, split: b.split ?? (differ || (bk !== undefined && bk !== kind)), dimsSet: b.dimsSet ?? true };
+  // 伝統の仕上げを出さない間は、前に残した仕上げを外す（地金のみの指輪の、ふつうの地金の形として開く）
+  return { ...b, kind, bottomKind: bk, split: b.split ?? (differ || (bk !== undefined && bk !== kind)), dimsSet: b.dimsSet ?? true, finish: FINISHES_OFFERED ? b.finish : undefined };
 }
 
 const sameSize = (b: Band) => b.top.width === b.bottom.width && b.top.thickness === b.bottom.thickness;

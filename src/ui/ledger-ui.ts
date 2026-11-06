@@ -4,7 +4,7 @@ import { runClaude } from "../claude/loop";
 import { interviewPrompt } from "../claude/prompt";
 import { TOOLS, type ProposeRuleInput, type ProposeRuleResult, type ToolHost } from "../claude/tools";
 import type { ClaudeMessageParam } from "../claude/wire";
-import { activeRules, addRule, PARAMS, removeLastRule, seedLedger, parseSizeSteps, sizeStepsText, sourceLabel, type Ledger, type ParamId, type Rule } from "../rules/ledger";
+import { activeRules, addRule, OFFERED_PARAM_IDS, PARAMS, removeLastRule, seedLedger, parseSizeSteps, sizeStepsText, sourceLabel, type Ledger, type ParamId, type Rule } from "../rules/ledger";
 
 
 import repoLedger from "../../ledger/jewelry.json";
@@ -123,7 +123,7 @@ export function mountLedger(root: HTMLElement, onChange: LedgerChange): LedgerUI
         <label>短い名前<input data-f="title" type="text" placeholder="例：鋳造の爪の根元"></label>
         <label>決まり<textarea data-f="text" rows="2" placeholder="いつ・何を・どこまで"></textarea></label>
         <label>理由<textarea data-f="reason" rows="2" placeholder="なぜそうするか"></textarea></label>
-        <label>機械で確かめる値（あれば）<select data-f="param"><option value="">なし（言葉だけの決まり）</option>${Object.entries(PARAMS)
+        <label>機械で確かめる値（あれば）<select data-f="param"><option value="">なし（言葉だけの決まり）</option>${OFFERED_PARAM_IDS.map((k) => [k, PARAMS[k]] as const)
           .map(([k, v]) => `<option value="${k}">${v.label}${v.unit ? `（${v.unit}）` : ""}</option>`)
           .join("")}</select></label>
         <label>値<input data-f="value" type="number" step="0.01"></label>

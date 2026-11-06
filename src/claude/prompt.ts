@@ -4,6 +4,7 @@
 // 開発中の Claude Code が読む Skill と、アプリの中の Claude が読む目安を、同じ 1 つのファイルにするための、わざとの作り。
 // 目安を直すときは Skill を直せば両方に効き、書き写しの食い違いが起きない。
 import skillText from "../../.claude/skills/jeweler-guides/SKILL.md?raw";
+import { FINISHES_OFFERED } from "../geometry/finish";
 import { GUIDE_NOTE } from "../rules/guides";
 import { ledgerText, type Ledger } from "../rules/ledger";
 import { prongFactsText, type ProngLearnFacts } from "../rules/prong-learn";
@@ -17,9 +18,12 @@ export function skillBody(text: string): string {
 
 /**
  * アプリの中の Claude（設計の助手・聞き手）には渡さない Skill の節。手を比べる判定の値は、画面の計算（GUIDES.handJudge）だけが使い、
- * 設計の判断には使わない。2026-11-07：布目象嵌・テンションとアールデコの直しを合わせたら、目安帳つきの指示が公開の窓口の上限（40,000 字）を越えたので外した
+ * 設計の判断には使わない。2026-11-07：布目象嵌・テンションとアールデコの直しを合わせたら、目安帳つきの指示が公開の窓口の上限（40,000 字）を越えたので外した。
+ * 伝統の仕上げの節は、仕上げを出さない間（FINISHES_OFFERED が false）だけ外す
  */
-const NOT_FOR_CLAUDE = ["## 道具の扱いの判定"];
+const NOT_FOR_CLAUDE = ["## 道具の扱いの判定", ...(FINISHES_OFFERED ? [] : ["## 伝統の仕上げ"])];
+/** 伝統の仕上げを出さない間は、ほかの節の色金の行も渡さない（道具に色金がないので） */
+const NOT_FOR_CLAUDE_LINES = FINISHES_OFFERED ? [] : ["- 色金"];
 /** Skill の本文から、NOT_FOR_CLAUDE の見出しで始まる節（次の ## 見出しの前まで）を除く */
 export function guidesForClaude(body: string): string {
   let out = body;
@@ -29,6 +33,7 @@ export function guidesForClaude(body: string): string {
     const j = out.indexOf("\n## ", i + head.length);
     out = (out.slice(0, i) + (j < 0 ? "" : out.slice(j + 1))).replace(/\n{3,}/g, "\n\n");
   }
+  for (const head of NOT_FOR_CLAUDE_LINES) out = out.split("\n").filter((l) => !l.startsWith(head)).join("\n");
   return out.trim();
 }
 
@@ -36,6 +41,14 @@ export const JEWELER_GUIDES = guidesForClaude(skillBody(skillText));
 
 /** 直して確かめ直す周の上限（docs/SPEC.md「組んで直す」：最大 3 周） */
 export const MAX_FIX_ROUNDS = 3;
+
+/**
+ * 伝統の仕上げ（色金・槌目・ミル打ち・布目象嵌）の言い方。FINISHES_OFFERED のときだけ指示に入れる
+ * （2026-11-07 作者の判断で提出には出さない。外して空いた字数は、目安帳に回る）
+ */
+const FINISH_LINE = FINISHES_OFFERED
+  ? `   - 伝統の仕上げ：彫金・鍛金の技の言葉（槌目、ミル打ち、象嵌、赤銅・四分一・銅、煮色）が出たら、set_shank の metal と finish で入れます。「槌目で、四分一の煮色に」なら metal: shibuichi と finish: { tsuchime: medium }。跡の大きさを言われなければ medium、場所を言われなければ腕の外側。言われていない仕上げは足しません（様式の言葉で、その時代の指輪によくある縁のミル打ちだけは足してよい）。「麻の葉の布目象嵌で」なら finish: { inlay_pattern: asanoha }（模様の大きさ・線は言われなければ書かない）。\n`
+  : "";
 
 const ROLE = `あなたは「継ぐ」の中で働く、一粒石の指輪の設計の助手です。
 石を見て、道具でその石のための指輪を組み、職人の目安で確かめて直し、理由を言います。写真の読み取りは入口で、主役はこの設計と判断です。
@@ -61,8 +74,7 @@ const ROLE = `あなたは「継ぐ」の中で働く、一粒石の指輪の設
    - 腕の線：set_shank の stations で、上（石座のそば）・肩・下で、幅・厚み・断面を変えられます（肩へ向かって立ち上がる、肩を絞る、下を薄くする、上と下で断面を変える、腕を流す）。石座から段々に細く・薄く下がる肩は、step の場所を 2〜3 つ。手の甲から見て・横から見て、線がどう変わるかを考えます。
    - 腕の彫り：set_shank の relief で、腕の面に浅い模様を彫れます。模様も線の性格で選びます。直線・水平と垂直・平らな面なら段の窓・長方形の区切り・平行の溝・横の筋、幾何学のくり返しや角なら山形・ジグザグ・菱の格子、放射なら扇、縦に高く尖るなら尖ったアーチ・尖った葉、曲線ややわらかさなら波の線・葉とつる・粒、縁には縁の粒（どれが何かは道具の説明）。言葉の性格と違う模様は使いません（水平と段の言葉に尖った窓や尖った葉、のように。同じ窓を腕に沿って 5 つ以上重ねると、塔の窓に見えます）。across_from・across_to で断面の溝や縁取りに収め、relief_more で重ねられます（溝に 1 つの模様、縁取りに粒、のように断面と一体に）。直線と段の言葉でも、肩の平らな面に石座へ開く放射（扇）を 1 つ置き、直線の模様と重ねると、石へ目が集まります。模様が言葉に合うときだけ使い、合わなければ彫りません。
    - 石座と地金：留め方・爪の本数・爪の先の形（set_setting の prong_tip。round＝丸くやわらかい、oni＝尖り爪：先が尖って、きりっとする）・高さ・向き・色。
-   - 伝統の仕上げ：彫金・鍛金の技の言葉（槌目、ミル打ち、象嵌、赤銅・四分一・銅、煮色）が出たら、set_shank の metal と finish で入れます。「槌目で、四分一の煮色に」なら metal: shibuichi と finish: { tsuchime: medium }。跡の大きさを言われなければ medium、場所を言われなければ腕の外側。言われていない仕上げは足しません（様式の言葉で、その時代の指輪によくある縁のミル打ちだけは足してよい）。「麻の葉の布目象嵌で」なら finish: { inlay_pattern: asanoha }（模様の大きさ・線は言われなければ書かない）。
-   差がはっきり見えるように決めます。幅や厚みの差が 0.1〜0.2 mm では、目に見えません。
+${FINISH_LINE}   差がはっきり見えるように決めます。幅や厚みの差が 0.1〜0.2 mm では、目に見えません。
    線の性格が強い言葉（様式の名前でも、「重厚」「無骨」「荘厳」のような気分でも）では、控えめにまとめません。確かめのルールの内側で、指輪全体の形（横から見た線、正面から見た線）で強さを出します。
    - 腕：肩の幅を 6〜10 mm、肩の厚みを 4〜5 mm まで使い、肩を大きく張り出します。手のひらの側は細く薄くして（幅 4〜5 mm、厚み 2 mm くらい）、指が曲がるようにします。段の言葉なら、肩は外へ張り出さず、石座のそばをいちばん広く厚くして、step で段々に下げます。
    - 断面：段を深く、稜線を高く（平らな面が主役なら、上面を広く平らに）、溝を広く。角は同じ点を重ねて立てます。

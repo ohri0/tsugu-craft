@@ -1,5 +1,5 @@
 // 伝統の仕上げ：ミル打ちの粒（本当の形）、槌目とミルの確かめ、色金の重さ、Claude の道具の入力（src/geometry/finish.ts ほか）
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { openEdges } from "../src/cad/solid";
 import { BEAD_TRIANGLES, milgrainBeads, sectionArc, tsuchimeSpec, tsuchimeWords } from "../src/geometry/finish";
 import { buildRing, type RingParams } from "../src/geometry/ring";
@@ -11,6 +11,9 @@ import { toolLogLine } from "../src/claude/words";
 import { finishFrom, metalIdOf, smallerTsuchime } from "../src/studio/session";
 import { triangleStone } from "./helpers/stones";
 import { howToMake } from "../src/studio/howto";
+
+// 伝統の仕上げは今は画面と道具に出さない（FINISHES_OFFERED が false）。ここでは育てるときのために、出したときの形を確かめる（テストだけ true にする）
+vi.mock("../src/geometry/finish", async (importOriginal) => ({ ...(await importOriginal<typeof import("../src/geometry/finish")>()), FINISHES_OFFERED: true }));
 
 const params = (o: Partial<RingParams> = {}): RingParams => ({
   stone: triangleStone(),

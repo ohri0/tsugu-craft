@@ -10,7 +10,7 @@ import { bindSectionEditor, sectionEditorHtml, startShape, type SectionShape } f
 import { METAL_LABEL, finishFrom } from "./session";
 import { bandCircumference } from "./band";
 import { nunomeInput, type FinishInput } from "../claude/tools";
-import { MILGRAIN_OFFERED, TSUCHIME_AREA_LABEL, TSUCHIME_LABEL, TSUCHIME_STYLE_LABEL, TSUCHIME_STYLE_NOTE, tsuchimeStyleOf, type TsuchimeStyle } from "../geometry/finish";
+import { FINISHES_OFFERED, MILGRAIN_OFFERED, TSUCHIME_AREA_LABEL, TSUCHIME_LABEL, TSUCHIME_STYLE_LABEL, TSUCHIME_STYLE_NOTE, tsuchimeStyleOf, type TsuchimeStyle } from "../geometry/finish";
 import { faceSpan } from "../geometry/nunome";
 import { sectionLoop as loopOfSection } from "../cad/section";
 import { specOf } from "./band";
@@ -147,7 +147,7 @@ export function renderBandPanel(box: HTMLElement, host: BandPanelHost): void {
       return wn ? `<p class="w-note w-${wn.level}"><b>${wn.where} ${wn.widthMm.toFixed(2)} mm</b>${wn.text}（止めません）</p>` : "";
     })()}
     ${pickRow("地金", "metal", host.metal(), (["k18yg", "pt900", "k18wg", "k18pg", "sv925"] as Metal[]).map((m) => [m, METAL_LABEL[m]] as [string, string]))}
-    ${bandTradHtml(b, host)}`;
+    ${FINISHES_OFFERED ? bandTradHtml(b, host) : ""}`;
 
   bindSectionGrid(box, (kind) => host.change(pickSection(host.band(), kind, bandTarget(host.band()))));
   box.querySelectorAll<HTMLButtonElement>("[data-split]").forEach((btn) => btn.addEventListener("click", () => host.change(setSplit(host.band(), btn.dataset.split === "1"))));
@@ -166,7 +166,7 @@ export function renderBandPanel(box: HTMLElement, host: BandPanelHost): void {
   );
   box.querySelectorAll<HTMLButtonElement>("[data-metal]").forEach((btn) => btn.addEventListener("click", () => host.setMetal(btn.dataset.metal as Metal)));
   box.querySelector(".bs-cut")!.addEventListener("click", () => host.setCut(!host.cut()));
-  bindBandTrad(box, host);
+  if (FINISHES_OFFERED) bindBandTrad(box, host);
 
   // 地金のみの指輪は形が軽いので、つまみを動かしている間も形を変える
   bindSlider(
@@ -222,7 +222,7 @@ export function renderBandPanel(box: HTMLElement, host: BandPanelHost): void {
   }
 }
 
-// ---- 伝統の仕上げ（地金のみの指輪。2026-11-07 作者の頼み：甲丸・平打ち・変わった断面にも、槌目・ミル打ち・布目象嵌） ----
+// ---- 伝統の仕上げ（地金のみの指輪。2026-11-07 作者の頼み：甲丸・平打ち・変わった断面にも、槌目・ミル打ち・布目象嵌）。FINISHES_OFFERED が false の間は出さない ----
 /** 色金（煮色で色を出す地金） */
 const IROGANE_PICK: [Metal | "none", string][] = [["none", "なし"], ["shakudo", "赤銅"], ["shibuichi", "四分一"], ["copper", "銅"]];
 /** 色金を「なし」に戻したときの地金 */

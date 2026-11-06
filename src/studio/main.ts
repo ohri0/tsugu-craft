@@ -20,14 +20,14 @@ import { STONE_FREE_NOTE, STONE_KEEP_NOTE, correctPrompt, designPrompt, gouNote 
 import { craftPointsFromProposal, designNowText, isPointProposal, previewPoints, type DesignNow, type PointsPreview } from "../claude/rule-points";
 import { craftProngPoints, craftProngRule, mergeCraftPoints, mmText, prongMinAt, prongPointsRule, prongTable } from "../rules/prong-points";
 import { TOOLS, isIrogane, nunomeInput, type ChooseStoneInput, type ChooseStoneResult, type FinishInput, type ProposeRuleInput, type ProposeRuleResult, type ToolHost, type Metal } from "../claude/tools";
-import { MILGRAIN_OFFERED, TSUCHIME_AREA_LABEL, TSUCHIME_LABEL, TSUCHIME_STYLE_LABEL, TSUCHIME_STYLE_NOTE, finishWords, tsuchimeSpec, tsuchimeStyleOf, type TsuchimeStyle } from "../geometry/finish";
+import { FINISHES_OFFERED, MILGRAIN_OFFERED, TSUCHIME_AREA_LABEL, TSUCHIME_LABEL, TSUCHIME_STYLE_LABEL, TSUCHIME_STYLE_NOTE, finishWords, tsuchimeSpec, tsuchimeStyleOf, type TsuchimeStyle } from "../geometry/finish";
 import type { ClaudeContentBlockParam } from "../claude/wire";
 import { patternSvg } from "../pattern/sheet";
 import { rulePlans } from "../ui/design";
 import { loadPhoto } from "../ui/photo";
 import { Viewer, type DisplayMode } from "../ui/viewer";
 import { extractStone, type Extraction } from "../vision/extract";
-import { PARAMS, activeRules, addRule, seedLedger, sourceLabel, valueFor, type Ledger, type ParamId, type Rule } from "../rules/ledger";
+import { OFFERED_PARAM_IDS, PARAMS, activeRules, addRule, seedLedger, sourceLabel, valueFor, type Ledger, type ParamId, type Rule } from "../rules/ledger";
 import { askConfirm, filming } from "../app/confirm";
 import { askPassword, resetPassword } from "../app/password";
 import { esc, store, today } from "../app/store";
@@ -35,7 +35,7 @@ import { bindVoice } from "../app/voice";
 import { bookLabel, bookTitle, masterName, sourceName } from "../app/master";
 import { toStl } from "../cad/solid";
 import { buildStone } from "../geometry/stone";
-import { LAYOUT_LABEL, METAL_LABEL, RingSession, type RingState, SLOT_SHAPE_LABEL, STONE_LONG_RANGE, bandFixInput, carryDesign, smallerTsuchime, fitStoneDepth, fitStoneLong, reliefFixInput, stationFrom, tuneProngMm, underLedger, type Built, type SlotShape } from "./session";
+import { LAYOUT_LABEL, METAL_LABEL, RingSession, offeredMetal, type RingState, SLOT_SHAPE_LABEL, STONE_LONG_RANGE, bandFixInput, carryDesign, smallerTsuchime, fitStoneDepth, fitStoneLong, reliefFixInput, stationFrom, tuneProngMm, underLedger, type Built, type SlotShape } from "./session";
 import { bindShankLine, sectionBinding, shankLineHtml } from "./shank-line";
 import bandShowcase from "../lp/band-showcase.json" with { type: "json" };
 import { renderRingShape, ringSectionInput, ringSectionKind, ringSectionWord, type RingShapeHost } from "./ring-shape";
@@ -599,7 +599,8 @@ async function restoreDesign(): Promise<boolean> {
   session = newSession(k.measured, k.depthMm);
   session.state = d.state;
   band = normalizeBand(d.band);
-  bandMetal = d.bandMetal;
+  // 前に残した色金は、仕上げを出さない間、ふつうの地金で開く
+  setBandMetal(offeredMetal(d.bandMetal));
   if (d.kind === "band") setKind("band");
   else session.build("前の設計に戻した");
   if (MODES.some((m) => m.id === d.mode)) setMode(d.mode as Mode);
@@ -2553,7 +2554,7 @@ function renderCheck() {
       ${s.style === "prong" ? prongTipPickHtml(pick, b.ring.setting.prongTip) : ""}
       ${s.style === "prong" && b.ring.stones.length === 1 ? joinPickHtml(pick, b.ring.setting.join) : ""}
       ${pick("地金", s.metal, (["k18yg", "pt900", "k18wg", "k18pg", "sv925"] as Metal[]).map((m) => [m, METAL_LABEL[m]] as [Metal, string]))}
-      ${tradHtml(pick, s)}
+      ${FINISHES_OFFERED ? tradHtml(pick, s) : ""}
       <div class="sliders">
         ${s.style === "prong" ? sliderHtml(prongSlider(b)) : ""}
         ${s.style === "tension" ? sliderHtml(wireSlider(b)) : ""}
@@ -2669,7 +2670,7 @@ function renderCheck() {
   // 腕の線：肩と下の幅・厚み・断面
   bindShankLine(box, session!, renderCheck);
   bindRingSectionEditor(box);
-  if (s.finish?.inlay) bindNunomePanel(box, stoneNunomeHost());
+  if (FINISHES_OFFERED && s.finish?.inlay) bindNunomePanel(box, stoneNunomeHost());
   box.querySelector(".to-build")!.addEventListener("click", () => setMode("hand"));
 }
 /** 象嵌の模様の欄の地の色（模様の絵の地。見た目のための色） */
@@ -2688,7 +2689,7 @@ function stoneNunomeHost(): NunomeHost {
     set: (patch) => session!.setShank({ finish: nunomeInput(patch), reason: "手で" }),
   };
 }
-// ---- 伝統の仕上げ（煮色の色金・槌目・ミル打ち・布目象嵌）。2026-11-06 作者が作ると決めた ----
+// ---- 伝統の仕上げ（煮色の色金・槌目・ミル打ち・布目象嵌）。2026-11-06 作者が作ると決めた。FINISHES_OFFERED が false の間は出さない ----
 /** 色金を「なし」に戻したときの地金（色金を選ぶ前の地金） */
 let plainMetal: Metal = "k18yg";
 const TRAD_KEYS = { 色金: "metal", 槌目: "tsuchime_style", 槌目の大きさ: "tsuchime", 槌目の場所: "tsuchime_area", ミル打ち: "milgrain", 象嵌: "inlay" } as const;
@@ -3597,7 +3598,7 @@ function rulesSectionHtml(): string {
     <div class="ar-proposal"></div>
     ${prongPointsCardHtml()}
     <details class="more manual-rule"><summary>Claude なしで、数字で書く</summary>
-      <label class="mr-row"><span>何の値か</span><select class="mr-param">${(Object.keys(PARAMS) as ParamId[])
+      <label class="mr-row"><span>何の値か</span><select class="mr-param">${OFFERED_PARAM_IDS
         .map((k) => `<option value="${k}"${kind === "band" && k === "band.minThicknessMm" ? " selected" : ""}>${esc(PARAMS[k].label)}${PARAMS[k].unit ? `（${esc(PARAMS[k].unit)}）` : ""}</option>`)
         .join("")}</select></label>
       <label class="mr-row"><span>値</span><input class="mr-value" type="number" step="0.05" min="0" inputmode="decimal" placeholder="例：2.5"></label>
@@ -4667,7 +4668,7 @@ function openWork(w: WorkRecord) {
   if (!askConfirm(`この形を開きますか？\n「${w.title}」\n今の設計は、この形に変わります（記録は変わりません）。`)) return;
   if (w.bandDesign) {
     band = normalizeBand(structuredClone(w.bandDesign.band));
-    setBandMetal(w.bandDesign.metal);
+    setBandMetal(offeredMetal(w.bandDesign.metal));
     setKind("band");
   } else if (w.design) {
     stopIntro();
