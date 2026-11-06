@@ -137,7 +137,7 @@ figcaption { font-size: 15px; line-height: 1.7; margin-top: 12px; color: var(--w
 
 /* ---- 言葉で ---- */
 .word { background: #000; padding-bottom: clamp(64px, 10vh, 112px); }
-.word-rings { display: grid; grid-template-columns: 1fr 1fr; max-width: 1440px; margin: 0 auto; }
+.word-rings { display: grid; grid-template-columns: 1.27fr 1fr; align-items: end; max-width: 1440px; margin: 0 auto; }
 .word-rings img { width: 100%; }
 .word-rings figcaption { text-align: center; margin-top: 0; }
 .word-t { display: flex; flex-direction: row-reverse; justify-content: center; gap: clamp(28px, 5vw, 72px); align-items: flex-start; padding: clamp(40px, 7vh, 72px) var(--gut) 0; }

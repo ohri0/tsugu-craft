@@ -56,8 +56,8 @@ const numbers = (p) => p.evaluate(() => {
 });
 
 /** 指輪を黒の上で撮る舞台：画面の部品を隠し、レンダーにして、3D を画面いっぱいに */
-async function stage(w, h) {
-  const p = await page('/studio.html?nointro&rec', w, h);
+async function stage(w, h, q = '') {
+  const p = await page(`/studio.html?nointro&rec${q}`, w, h);
   await p.waitForFunction(() => window.__studio?.session?.built && window.__viewer, null, { timeout: 120000 });
   await p.evaluate(() => {
     window.__studio.setMode('refine');
@@ -154,15 +154,11 @@ const SHOTS = {
     await look(p, MACRO, 0.42, await stoneZ(p));
     await shot(p, 'ring-red');
   },
-  // 「ゴシックな感じ」の見本：本物の Claude が組んだ時の考え（稜線・下へ細く・尖ったアーチの彫り）と同じ形を、人が数字を整えた物（src/lp/gothic-showcase.json）。Claude は呼ばない
+  // 「ゴシックな感じ」の見本：攻めた案（src/lp/gothic-showcase.json の attack。studio.html?gothic=attack で同じ形が開く）。
+  // 本物の Claude の考え方（指示）に沿って、人が数字を整えた形。撮るときは Claude を呼ばない。大きく写すので細かい網目（fine）で
   async gothic() {
-    const show = require('../src/lp/gothic-showcase.json');
-    const STONES = { oval: { id: 'oval', name: 'オーバル', longMm: 8, widthMm: 6, depthMm: 3.7 }, marquise: { id: 'marquise', name: 'マーキス', longMm: 10, widthMm: 5, depthMm: 3.2 } };
-    for (const [name, item, dir, zoom] of [['ring-gothic-heavy', show.heavy, { x: 0.62, y: -0.72, z: 0.36 }, 0.72], ['ring-gothic-slim', show.slim, { x: 0.62, y: -0.72, z: 0.36 }, 0.72]]) {
-      const p = await stage(1000, 1200);
-      await p.evaluate((st) => window.__studio.loadPreset(st), STONES[item.stone]);
-      await p.waitForTimeout(3000);
-      await p.evaluate((st) => { const s = window.__studio.session; Object.assign(s.state, st); s.build('撮る'); }, item.state);
+    for (const [name, dir, zoom] of [['ring-gothic-attack', { x: 0.62, y: -0.72, z: 0.36 }, 0.98], ['ring-gothic-attack-front', { x: 0, y: -1, z: 0.15 }, 0.98]]) {
+      const p = await stage(1000, 1200, '&gothic=attack&fine=1');
       await p.waitForTimeout(9000);
       console.log(name, await numbers(p));
       await look(p, dir, zoom);

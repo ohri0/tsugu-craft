@@ -20,9 +20,10 @@ describe("入口のページ", () => {
   });
 
   it("ゴシックの絵は人が数字を整えたと正直に書く", () => {
-    expect(src).toContain("ring-gothic-heavy");
-    expect(src).toContain("ring-gothic-slim");
-    expect(src).toContain("数字は人が整えました");
+    expect(src).toContain("ring-gothic-attack");
+    expect(src).not.toContain("ring-gothic-heavy");
+    expect(src).toContain("人が数字を整えたものです");
+    expect(src).toContain("Claude は呼んでいません");
   });
 
   it("欄を隠している三石・石を並べる節を書かない", () => {

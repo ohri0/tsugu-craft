@@ -149,15 +149,15 @@ const html = `
 
   <section class="word" aria-labelledby="word-h">
     <div class="word-rings">
-      <figure class="rv">${shot("ring-gothic-heavy", 2000, 2400, "重厚なゴシックの指輪。段のある太い腕に、尖った窓と粒の列の彫り。銀の地金にオーバルの石、尖った爪", "(max-width: 760px) 92vw, 50vw")}<figcaption>重厚 ・ オーバルの石 ・ SV925</figcaption></figure>
-      <figure class="rv">${shot("ring-gothic-slim", 2000, 2400, "細身のゴシックの指輪。稜線の立つ腕に、尖った窓の彫り。白い地金にマーキスの石、尖った爪", "(max-width: 760px) 92vw, 50vw")}<figcaption>細身 ・ マーキスの石 ・ K18 ホワイト</figcaption></figure>
+      <figure class="rv">${shot("ring-gothic-attack", 2000, 2400, "攻めたゴシックの指輪を斜めから。幅の広い腕の側面に、尖った窓と粒の列の彫り。肩が石の両わきで立ち上がる。銀の地金に大きなオーバルの石、尖った爪 6 本", "(max-width: 760px) 92vw, 56vw")}<figcaption>斜めから ・ オーバルの石 12 × 9 mm ・ SV925</figcaption></figure>
+      <figure class="rv">${shot("ring-gothic-attack-front", 2000, 2400, "同じ指輪を正面から。腕の面に、聖堂の正面のように尖った窓と粒の列が並ぶ", "(max-width: 760px) 92vw, 44vw")}<figcaption>正面から ・ 窓と粒の列</figcaption></figure>
     </div>
     <div class="word-t">
       <p class="v word-q rv">「ゴシックな感じ」</p>
       <div class="word-b">
         <h2 id="word-h" class="rv">言葉で、<wbr>腕の形まで<wbr>変わる。</h2>
         <p class="rv">残した言葉から、Claude が、次の石の作りを推測します。石は手持ちの写真でも、よくある形からでも選べます。「ゴシックな感じ」と言葉で頼むと、断面の線、場所ごとの太さ、浅い彫りまで組み、職人の決まりで確かめて直します。</p>
-        <p class="note rv">写真は、本物の Claude が組んだ時と同じ考えの数字で撮り直したものです（数字は人が整えました）。</p>
+        <p class="note rv">この形は、本物の Claude の考え方（指示）に沿って、人が数字を整えたものです。撮るときに Claude は呼んでいません。</p>
       </div>
     </div>
   </section>
