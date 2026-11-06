@@ -6,8 +6,8 @@ import { askGapPrompt, askGapUser, ASK_GAP, gapRulePrompt, gapRuleUser, GAP_RULE
 import { callTool } from "../rebuild/run";
 import { freshGap, valueText, type AnswerResult, type Gap, type RuleDraft } from "../rules/gaps";
 import { PARAMS, type ParamId } from "../rules/ledger";
-import { isMihon } from "./mihon";
-import { askPassword, resetPassword } from "./password";
+import { flowUI, isMihon } from "./mihon";
+import { askPassword, passwordButton, resetPassword } from "./password";
 import { esc, store, today } from "./store";
 import { bindVoice, canListen } from "./voice";
 
@@ -75,8 +75,12 @@ export function mountInterview(root: HTMLElement, target: InterviewTarget, opts:
     known = new Set(gaps.map((g) => g.id));
     drawn = keyOf(gaps);
     const claude = !!store.password();
+    // 2026-11-06：字を減らす。理由は畳み、答える人は 1 行下へ、合言葉の入れ方はボタンで（撮影の前の絵は前のまま）
+    const plain = flowUI();
     if (!gap) {
-      root.innerHTML = `<div class="iv-head"><p class="eyebrow">Claude からの質問</p></div><p class="iv-done">今は聞くことはありません。</p>`;
+      root.innerHTML = plain
+        ? `<div class="iv-empty"><p class="iv-done">いまは、聞くことはありません。</p><p class="small muted">学ぶ人から質問が届くと、ここに出ます。</p></div>`
+        : `<div class="iv-head"><p class="eyebrow">Claude からの質問</p></div><p class="iv-done">今は聞くことはありません。</p>`;
       return;
     }
     asked = gap.question;
@@ -84,10 +88,10 @@ export function mountInterview(root: HTMLElement, target: InterviewTarget, opts:
     root.innerHTML = `
       <div class="iv-head">
         <p class="eyebrow">${gap.kind === "asked" ? "学ぶ人から質問が届いています" : "Claude から質問が 1 つあります"} <span class="iv-mode">${isMihon() ? "見本（Claude は呼びません）" : claude ? "Claude が聞いています" : "Claude なし"}</span></p>
-        <span class="iv-count">まだ決まっていない所 ${gaps.length}</span>
+        <span class="iv-count">${plain ? (gaps.length > 1 ? `ほかに ${gaps.length - 1} 問` : "") : `まだ決まっていない所 ${gaps.length}`}</span>
       </div>
       <p class="iv-q" aria-live="polite">${esc(gap.question)}</p>
-      <p class="iv-why"><span class="iv-kind">${KIND[gap.kind]}</span>${esc(gap.why)}</p>
+      ${plain ? `<details class="iv-why iv-why-more"><summary><span class="iv-kind">${KIND[gap.kind]}</span>なぜ聞くの？</summary><p>${esc(gap.why)}</p></details>` : `<p class="iv-why"><span class="iv-kind">${KIND[gap.kind]}</span>${esc(gap.why)}</p>`}
       <div class="answer-box">
         <div class="ans-line">
           <textarea rows="2" placeholder="${canListen() ? "右の「話す」を押して話すか、書いてください" : "答えを書いてください"}${gap.expects === "number" ? "（数字はミリで）" : gap.expects === "confirm" ? "（「はい」か、ちがう数字で）" : ""}" aria-label="答え"></textarea>
@@ -96,20 +100,26 @@ export function mountInterview(root: HTMLElement, target: InterviewTarget, opts:
         <div class="row">
           <button type="button" class="primary make">決まりにする</button>
           ${opts.example ? `<button type="button" class="ghost use-example">作り話の例を入れる</button>` : ""}
-          <button type="button" class="ghost skip">とばす</button>
-          <label class="iv-name">答える人<input value="${esc(name)}" aria-label="答える人の名前"></label>
+          <button type="button" class="ghost skip">${plain ? "あとで" : "とばす"}</button>
+          ${plain ? "" : `<label class="iv-name">答える人<input value="${esc(name)}" aria-label="答える人の名前"></label>`}
         </div>
+        ${plain ? `<label class="iv-name iv-name-line">答える人<input value="${esc(name)}" aria-label="答える人の名前"></label>` : ""}
         <p class="small box-status"></p>
         <div class="proposal-slot"></div>
       </div>
-      <p class="iv-foot"${isMihon() ? " hidden" : ""}>${claude ? "問いは Claude が言い直し、答えは Claude が決まりにまとめます。職人が言っていない数字は入れません（入っていたら Claude なしの案に戻します）。" : `問いは決まった文で、答えの数字を読んで決まりにします。<button type="button" class="linklike use-claude">合言葉を入れて Claude に聞いてもらう</button>`}</p>`;
+      ${
+        plain
+          ? `<p class="iv-foot"${isMihon() ? " hidden" : ""}>${claude ? "Claude が問いを言い直し、答えを決まりにまとめます。職人が言っていない数字は入れません。" : `<span>いまは Claude なし：決まった問いで聞き、答えの数字を読んで決まりにします。</span>`}</p>`
+          : `<p class="iv-foot"${isMihon() ? " hidden" : ""}>${claude ? "問いは Claude が言い直し、答えは Claude が決まりにまとめます。職人が言っていない数字は入れません（入っていたら Claude なしの案に戻します）。" : `問いは決まった文で、答えの数字を読んで決まりにします。<button type="button" class="linklike use-claude">合言葉を入れて Claude に聞いてもらう</button>`}</p>`
+      }`;
+    if (plain && !claude && !isMihon()) root.querySelector(".iv-foot")!.append(passwordButton());
     const $ = <T extends HTMLElement = HTMLElement>(s: string) => root.querySelector<T>(s)!;
     const field = $<HTMLTextAreaElement>("textarea");
     const st = (t: string) => ($(".box-status").textContent = t);
     const voice = bindVoice($<HTMLButtonElement>(".mic"), field, { onError: st });
     $<HTMLInputElement>(".iv-name input").addEventListener("input", (e) => (name = (e.target as HTMLInputElement).value.trim() || target.defaultName()));
     $(".skip").addEventListener("click", () => {
-      if (!askConfirm("この質問をとばしますか？\n書いた答えは消えます。質問は、あとでまた出ます。")) return;
+      if (!askConfirm(flowUI() ? "この質問を、あとにしますか？\n書いた答えは消えます。質問は、あとでまた出ます。" : "この質問をとばしますか？\n書いた答えは消えます。質問は、あとでまた出ます。")) return;
       voice.stop();
       skipped.add(gap.id);
       const rest = target.gaps().filter((g) => !skipped.has(g.id));
@@ -231,6 +241,11 @@ export function mountInterview(root: HTMLElement, target: InterviewTarget, opts:
   }
 
   render();
+  // 合言葉を入れたら、Claude が聞く形に描き直す（答えを書いている途中なら、そのまま）
+  window.addEventListener("tsugu:password", () => {
+    const t = root.querySelector<HTMLTextAreaElement>("textarea");
+    if (root.isConnected && !(t && t.value.trim())) render();
+  });
   return {
     refresh: () => {
       // 答えている途中（文字が入っている）なら描き直さない

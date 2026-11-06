@@ -2,6 +2,7 @@
 // 画面の切り替えは URL の # で（#ledger / #learn / #waza）。「/」の後ろは画面の中の場所（#learn/hands・#waza/ring・#waza/mokume・#waza/rebuild）。
 // 前の名前（#see・#ask・#keep・#rebuild・#waza/nanako）で来ても、新しい場所へ送る。スマホは下のタブ、PC は上のタブ。
 import "./app.css";
+import "./clear.css";
 // 見本のときの残す先の切り替えは、ほかのどの部品よりも先に動く
 import { flowUI, isMihon, isTour } from "./mihon";
 import { mountAsk } from "./ask";

@@ -34,7 +34,9 @@ export function techName(id: HowtoId): string {
 
 /** その技の決まり（今効いているもの） */
 export function techRules(id: HowtoId): Rule<string>[] {
-  return id === "ring" ? (activeRules(store.ledger()) as Rule<string>[]) : activeRules(store.techLedger(id));
+  const all = id === "ring" ? (activeRules(store.ledger()) as Rule<string>[]) : activeRules(store.techLedger(id));
+  // 見本は作り話だけで流れを見せる。本当の職人の言葉は、見本の数にも答えにも混ぜない（混ぜると、見本が 2 つ目の段から始まっていた）
+  return isMihon() ? all.filter((r) => r.source.kind !== "craftsman" || isMihonSource(r)) : all;
 }
 
 /** その技で、今まで残ったものの数 */
@@ -51,38 +53,63 @@ export function isMihonSource(r: Rule<string> | Rule): boolean {
   return r.source.kind === "craftsman" && r.source.name === MIHON_NAME;
 }
 
-/** 4 つの段（いまどこまで進んだか）と、残った数 */
+/** 段ごとの、残った数の短い言葉（段の印の下に小さく出す） */
+function stepCount(id: FlowStepId, c: FlowCounts): string {
+  if (id === "answer") return `決まり ${c.craftsman}`;
+  if (id === "model") return `手本 ${c.models}`;
+  if (id === "ask") return `聞いた ${c.asked}`;
+  return `比べた ${c.compared}`;
+}
+
+/**
+ * 4 つの段の案内（2026-11-06 作り直し：作者「分かりづらい」）。
+ * いま開いている段（at）だけを強く目立たせる。まだの段のうち次にやる段は、小さな「次」の印だけ。
+ * 前は「いま開いている段」と「次の段」が両方光って、どこにいるのか分からなかった。
+ * 残った数は段の下に小さく（前は下に同じ数の段をもう 1 つ並べていた）。届いた質問があるときだけ、赤い帯で職人へ戻す。
+ */
 export function flowStrip(id: HowtoId, opts: { at?: FlowStepId; compact?: boolean } = {}): string {
   const c = flowCounts(id);
   const st = flowState(c);
-  const node = (s: (typeof st.steps)[number]) => {
+  const node = (s: (typeof st.steps)[number], i: number) => {
     const at = opts.at === s.id;
+    const next = s.current && !at;
     return `<li class="fl-step ${s.who}${s.done ? " done" : ""}${s.current ? " current" : ""}${at ? " at" : ""}">
-      <a href="${stepHref(id, s.id)}" data-step="${s.id}"${at ? ` aria-current="step"` : ""} aria-label="${esc(s.next)}${s.done ? "（できた）" : s.current ? "（次はここ）" : ""}">
-        <span class="fl-icon"><svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true">${ICONS[s.id]}</svg>${s.done ? `<i class="fl-ok">${CHECK}</i>` : ""}</span>
-        <span class="fl-label">${esc(s.label)}</span>
+      <a href="${stepHref(id, s.id)}" data-step="${s.id}"${at ? ` aria-current="step"` : ""} aria-label="${i + 1}. ${esc(s.next)}${s.done ? "（できた）" : ""}${at ? "（いまここ）" : next ? "（次はここ）" : ""}">
+        <span class="fl-icon"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">${ICONS[s.id]}</svg>${s.done ? `<i class="fl-ok">${CHECK}</i>` : ""}</span>
+        <span class="fl-txt"><span class="fl-label">${esc(s.label)}</span><span class="fl-sub">${at ? "いまここ" : next ? "次はここ" : esc(stepCount(s.id, c))}</span></span>
       </a>
     </li>`;
   };
-  const grow = (n: number, label: string, cls = "") => `<span class="fl-n${cls}${n ? " has" : ""}"><b>${n}</b>${esc(label)}</span>`;
-  if (opts.compact) {
-    return `<nav class="flow compact" aria-label="${esc(techName(id))}の流れ">
-    <div class="fl-who"><span class="master">職人が残す</span><span class="learner">学ぶ人が受け取る</span></div>
+  const who = `<div class="fl-who" aria-hidden="true"><span class="master">職人が残す</span><span class="learner">学ぶ人が受け取る</span></div>`;
+  const alert =
+    !opts.compact && c.questions
+      ? `<a class="fl-back has" href="#waza/${id}?step=answer"><b>${c.questions}</b><span>学ぶ人から質問が届いています</span><span class="fl-back-go">答える ›</span></a>`
+      : "";
+  return `<nav class="flow${opts.compact ? " compact" : ""}" aria-label="${esc(techName(id))}の流れ">
+    ${who}
     <ol class="fl-steps">${st.steps.map(node).join("")}</ol>
+    ${alert}
   </nav>`;
-  }
-  return `<nav class="flow" aria-label="${esc(techName(id))}の流れ">
-    <div class="fl-who"><span class="master">職人が残す</span><span class="learner">学ぶ人が受け取る</span></div>
-    <ol class="fl-steps">${st.steps.map(node).join("")}</ol>
-    <a class="fl-back${c.questions ? " has" : ""}" href="#waza/${id}?step=answer"><svg viewBox="0 0 120 10" preserveAspectRatio="none" aria-hidden="true"><path d="M118 1v3a3 3 0 0 1-3 3H6" fill="none" stroke="currentColor" stroke-width="1.2" vector-effect="non-scaling-stroke"/><path d="M6 4 2 7l4 3" fill="none" stroke="currentColor" stroke-width="1.2" vector-effect="non-scaling-stroke"/></svg><span>分からないことは、質問で職人へ戻る</span></a>
-    <div class="fl-grow">${grow(c.craftsman, isMihon() ? "残した決まり" : "職人の決まり")}${grow(c.models, "手本")}${grow(c.questions, "届いた質問", c.questions ? " alert" : "")}</div>
-  </nav>`;
+}
+
+/** 技の札に出す「次にやること」（流れが全部終わっていれば null） */
+export function nextStepLabel(id: HowtoId): { label: string; who: "master" | "learner"; done: number } | null {
+  const st = flowState(flowCounts(id));
+  const n = st.steps.find((s) => s.current);
+  return n ? { label: n.next, who: n.who, done: st.doneCount } : null;
 }
 
 /** 技の札の小さな印（進み具合） */
 export function flowDots(id: HowtoId): string {
   const st = flowState(flowCounts(id));
   return `<span class="fl-dots" role="img" aria-label="流れの ${FLOW_STEPS.length} つのうち ${st.doneCount} つできた">${st.steps.map((s) => `<i class="${s.who}${s.done ? " done" : ""}"></i>`).join("")}</span>`;
+}
+
+/** 学ぶの中の切り替え（聞く・手を比べる）。学ぶ人の画面には、職人の段を出さない（前は「手本を残す」が青く光って押したくなった） */
+export function learnNav(id: HowtoId, at: "ask" | "hands"): string {
+  const tab = (step: "ask" | "hands", label: string, icon: string) =>
+    `<a href="${stepHref(id, step)}" data-step="${step}"${at === step ? ` aria-current="page"` : ""}><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">${icon}</svg><span>${label}</span></a>`;
+  return `<nav class="learn-nav" aria-label="学ぶ">${tab("ask", "職人に聞く", ICONS.ask)}${tab("hands", "手の動きを比べる", ICONS.hands)}</nav>`;
 }
 
 /** 技を選ぶ（学ぶの画面の上）。指輪は例の一つ */

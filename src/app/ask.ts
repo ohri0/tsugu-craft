@@ -12,11 +12,11 @@ import { sourceLabel, type Rule } from "../rules/ledger";
 import { isTechId, techLedgerText } from "../rules/techniques";
 import { findRules, prongSizeAnswer } from "../rules/search";
 import { addQuestion } from "../rules/teacher-queue";
-import { flowStrip, isMihonSource, techName, techPicker, techRules } from "./flow-view";
+import { isMihonSource, learnNav, techName, techPicker, techRules } from "./flow-view";
 import { flowUI, isMihon, MIHON_NAME, MIHON_UNKNOWN } from "./mihon";
 import { esc, store, today } from "./store";
 import { bindVoice } from "./voice";
-import { askPassword, resetPassword } from "./password";
+import { askPassword, passwordButton, resetPassword } from "./password";
 import { bookLabel, masterName, ruleQuote } from "./master";
 import { getVideo } from "./video-store";
 
@@ -37,6 +37,8 @@ export function mountAsk(root: HTMLElement): { refresh(): void; route(tech?: str
     <div class="thread" aria-live="polite">
       <div class="empty">
         <p class="master-lead"></p>
+        ${flow && !isMihon() ? `<p class="learn-pw" hidden><span>いまは Claude なしで、帳面から探して答えます。</span></p>` : ""}
+        ${flow ? `<p class="chips-h">例を押すと、すぐ聞けます</p>` : ""}
         <div class="chips"></div>
       </div>
     </div>
@@ -69,11 +71,22 @@ export function mountAsk(root: HTMLElement): { refresh(): void; route(tech?: str
     $(".master-title").textContent = flow ? label : `${label}の技`;
     $(".master-sub").textContent = flow ? (isMihon() ? "作り話の例" : `職人：${masterName(store.mainLedger())}`) : `宝飾の彫金 ・ 職人：${masterName(ledger)}`;
     const unknown = flow && !mine.length ? "この技の職人の言葉は、まだありません。今は資料の決まりから答えます。" : "";
-    $(".master-lead").textContent = `${unknown}下の例を押すか、書いて聞いてください。帳面の決まり ${all.length} から答えます。答えられないことは${label}に回します。`;
     const open = openQuestions(store.queue(), tech).length;
-    $(".master-stats").innerHTML = `<span><b>${all.length}</b>決まり</span><span><b>${mine.length}</b>${isMihon() ? "残した" : "職人"}</span><span><b>${open}</b>質問中</span>`;
     if (flow) {
-      $(".fl-slot").innerHTML = flowStrip(tech, { at: "ask", compact: true });
+      // 数だけを並べると何の数か分からなかった（2026-11-06）。言葉で 1 行に
+      $(".master-lead").textContent = unknown || `帳面の決まりから、職人の言葉つきで答えます。帳面にないことは、${label}への質問として届きます。`;
+      $(".master-stats").innerHTML = `<span class="ms-line">決まり <b>${all.length}</b>（${isMihon() ? "残した" : "職人の言葉"} <b>${mine.length}</b>）${open ? ` ・ <i class="alert">返事待ちの質問 <b>${open}</b></i>` : ""}</span>`;
+      const pw = root.querySelector<HTMLElement>(".learn-pw");
+      if (pw) {
+        pw.hidden = !!store.password();
+        if (!pw.querySelector("button")) pw.append(passwordButton());
+      }
+    } else {
+      $(".master-lead").textContent = `${unknown}下の例を押すか、書いて聞いてください。帳面の決まり ${all.length} から答えます。答えられないことは${label}に回します。`;
+      $(".master-stats").innerHTML = `<span><b>${all.length}</b>決まり</span><span><b>${mine.length}</b>${isMihon() ? "残した" : "職人"}</span><span><b>${open}</b>質問中</span>`;
+    }
+    if (flow) {
+      $(".fl-slot").innerHTML = learnNav(tech, "ask");
       $(".to-hands").setAttribute("href", `#learn/hands/${tech}`);
       if (!$(".tech-pick-slot").childElementCount) {
         $(".tech-pick-slot").innerHTML = techPicker(tech, WAZA_ORDER, "どの技を学びますか");
@@ -265,6 +278,8 @@ export function mountAsk(root: HTMLElement): { refresh(): void; route(tech?: str
     field.style.height = `${Math.min(field.scrollHeight, 140)}px`;
   });
   bindVoice($<HTMLButtonElement>(".voice"), field, { onError: status });
+  // 合言葉を入れたら「Claude なし」の案内を消す
+  window.addEventListener("tsugu:password", () => refresh());
 
   refresh();
   return { refresh, route };

@@ -14,7 +14,7 @@ import { WAZA_ORDER } from "../rules/flow";
 import type { HowtoId } from "../rules/howto-steps";
 import { activeRules, ledgerText, sourceLabel, type Rule } from "../rules/ledger";
 import { isTechId, techLedgerText } from "../rules/techniques";
-import { flowStrip, isMihonSource, san, techName, techPicker } from "./flow-view";
+import { isMihonSource, learnNav, san, techName, techPicker } from "./flow-view";
 import { clipUrl, flowUI, isMihon, MIHON_CLIPS, MIHON_NAME } from "./mihon";
 import { findRules } from "../rules/search";
 import { addQuestion } from "../rules/teacher-queue";
@@ -136,7 +136,7 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
   function renderFlow() {
     if (!flow) return;
     const id = tech ?? "ring";
-    $(".fl-slot").innerHTML = flowStrip(id, { at: "hands", compact: true });
+    $(".fl-slot").innerHTML = learnNav(id, "hands");
     $<HTMLAnchorElement>(".back").href = `#learn/${id}`;
     if (!$(".tech-pick-slot").childElementCount) {
       $(".tech-pick-slot").innerHTML = techPicker(id, WAZA_ORDER, "どの技を比べますか");

@@ -3,7 +3,7 @@
 // 指輪の石留め（#waza/ring）も同じ形で、見出しに「設計で試す」を置く。六つの技は #waza/bezel・milgrain・tsuchime・kebori・nunome・mokume。
 import { activeRules, editRule, ledgerText, removedList, removeRule, restoreRule, seedLedger, sourceLabel, type Ledger, type Rule } from "../rules/ledger";
 import { answerToDraft, applyDraft, ringAnswerToDraft, ringGaps, techGaps, type Gap, type RuleDraft } from "../rules/gaps";
-import { askedGroupId, flowState, FLOW_STEPS, openQuestions, questionGap, type FlowStepId } from "../rules/flow";
+import { askedGroupId, flowState, FLOW_STEPS, openQuestions, questionGap, stepAfter, type FlowStepId } from "../rules/flow";
 import { importRecord } from "../craft/record";
 import { markAnswered } from "../rules/teacher-queue";
 import { mountMotion, savedRecords, storeRecord } from "../ui/motion-ui";
@@ -140,15 +140,16 @@ export function mountTech(root: HTMLElement, id: HowtoId, opts: { gapId?: string
       <div class="tp-removed"></div>
     </section>`,
     ask: `<section class="tp-block fl-panel" id="tp-ask">
-      <h3>${num(3)}${flow ? "聞かれたことに答える" : "Claude から質問"} <small class="gap-n"></small></h3>
-      <p class="small muted">${flow ? "声か字で答えます。「これでいい」を押すと、だれの言葉か・いつかと一緒に帳面に残ります。" : "資料に無い所・食いちがう所を、Claude が 1 つずつ聞きます。答えると、職人の決まりとして ② に入ります。"}</p>
+      <h3>${flow ? `<span class="fl-h-n">1</span>` : num(3)}${flow ? "聞かれたことに答える" : "Claude から質問"} <small class="gap-n"></small></h3>
+      <p class="small muted">${flow ? "声か字で答えて、「これでいい」で帳面に残します。" : "資料に無い所・食いちがう所を、Claude が 1 つずつ聞きます。答えると、職人の決まりとして ② に入ります。"}</p>
       <div class="iv-card iv-root"></div>
       <details class="tp-gaps"><summary>まだ決まっていない所の一覧</summary><ul class="nk-gaps"></ul></details>
+      ${flow ? `<div class="fl-next-slot" data-for="answer"></div>` : ""}
     </section>`,
   };
   root.innerHTML = `
   <section class="view waza tp">
-    <button type="button" class="back">← 技を選ぶ</button>
+    <button type="button" class="back">← ${flow ? "技の一覧" : "技を選ぶ"}</button>
     <header class="tp-head">
       <span class="bt-mark" aria-hidden="true">${esc(info.mark)}</span>
       <div class="tp-hb">
@@ -162,10 +163,11 @@ export function mountTech(root: HTMLElement, id: HowtoId, opts: { gapId?: string
       flow
         ? `${blocks.ask}
     <section class="tp-block fl-panel" id="tp-model" hidden>
-      <h3>手本を残す <small class="model-n"></small></h3>
-      <p class="small muted">学ぶ人が、自分の手の動きと比べられるようになります。</p>
+      <h3><span class="fl-h-n">2</span>手本を残す <small class="model-n"></small></h3>
+      <p class="small muted">作業を撮るだけ。学ぶ人が、自分の手の動きと比べられるようになります。</p>
       <ul class="tp-models"></ul>
       <div class="model-root motion-root"></div>
+      <div class="fl-next-slot" data-for="model"></div>
     </section>
     ${blocks.rules}${blocks.howto}`
         : `<nav class="tp-toc" aria-label="この頁の中">
@@ -264,13 +266,20 @@ export function mountTech(root: HTMLElement, id: HowtoId, opts: { gapId?: string
       : savedNote === "model"
         ? `<div class="fl-saved"><p class="eyebrow">手本を残しました</p><small>学ぶ人が、手の動きを比べられるようになりました。</small></div>`
         : "";
-    const go = nextInfo && nextInfo.id !== panel ? `<a class="primary fl-go" href="${stepHref(id, nextInfo.id)}" data-step="${nextInfo.id}">次：${esc(nextInfo.next)} <span aria-hidden="true">›</span></a>` : "";
-    const finished = !st.nextId ? `<p class="fl-done">この技は、ひととおり通りました。届いた質問に答えるほど、帳面が育ちます。</p>` : "";
+    // いちばん目立つボタンは 1 つだけ。段を開いて作業している間は出さず（作業の「決まりにする」などと並ばないように）、
+    // 残したあとか、この頁で開く段がないときだけ、上に「次：…」を出す。作業中は段のいちばん下に、控えめな「次へ」
+    const showGo = !!nextInfo && nextInfo.id !== panel && (savedNote !== "" || panel === null);
+    const go = showGo && nextInfo ? `<a class="primary fl-go" href="${stepHref(id, nextInfo.id)}" data-step="${nextInfo.id}">次：${esc(nextInfo.next)} <span aria-hidden="true">›</span></a>` : "";
+    const finished = !st.nextId && panel === null ? `<p class="fl-done">この技は、ひととおり通りました。届いた質問に答えるほど、帳面が育ちます。</p>` : "";
     $(".fl-now").innerHTML = saved + go + finished;
+    root.querySelectorAll<HTMLElement>(".fl-next-slot").forEach((slot) => {
+      const after = stepAfter(slot.dataset.for as FlowStepId);
+      slot.innerHTML = after && !showGo ? `<a class="ghost btnlike fl-next" href="${stepHref(id, after.id)}" data-step="${after.id}">次の段へ：${esc(after.next)} <span aria-hidden="true">›</span></a>` : "";
+    });
     $<HTMLElement>("#tp-ask").hidden = panel !== "answer";
     $<HTMLElement>("#tp-model").hidden = panel !== "model";
     // 同じ頁の中の段は、頁を開き直さずに切り替える（書きかけの答えが消えないように）
-    root.querySelectorAll<HTMLAnchorElement>('.fl-slot a[data-step="answer"], .fl-slot a[data-step="model"], .fl-now a[data-step="answer"], .fl-now a[data-step="model"], .fl-slot .fl-back').forEach((a) =>
+    root.querySelectorAll<HTMLAnchorElement>('.fl-slot a[data-step="answer"], .fl-slot a[data-step="model"], .fl-now a[data-step="answer"], .fl-now a[data-step="model"], .fl-next[data-step="model"], .fl-slot .fl-back').forEach((a) =>
       a.addEventListener("click", (e) => {
         e.preventDefault();
         savedNote = "";
@@ -307,7 +316,8 @@ export function mountTech(root: HTMLElement, id: HowtoId, opts: { gapId?: string
 
   function render() {
     const { rules, gaps } = current(id);
-    const mine = rules.filter((r) => r.source.kind === "craftsman").reverse();
+    // 見本は作り話の決まりだけ（本当の職人の言葉は見本に混ぜない）
+    const mine = rules.filter((r) => r.source.kind === "craftsman" && (!isMihon() || isMihonSource(r))).reverse();
     const rest = rules.filter((r) => r.source.kind !== "craftsman");
     $(".rule-n").textContent = `${flow ? ruleWord() : "職人"} ${mine.length} ・ 資料 ${rest.length}`;
     $(".tp-mine").innerHTML = mine.length

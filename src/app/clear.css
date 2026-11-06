@@ -1,0 +1,141 @@
+/* 2026-11-06 技・帳面・学ぶを分かりやすく（作者：分かりづらい。もっと分かりやすく）。
+   1 画面 1 つの目的。いちばん目立つボタンは 1 つ。いまどこにいるかを 1 か所だけ光らせる。
+   流れの画面（html.fit）だけを変える。撮影の前の絵（?rec・?nointro だけ）は前のまま。app.css のあとに読む。 */
+
+/* ---- 4 つの段の案内：いまここ（at）だけを強く ---- */
+html.fit .flow { gap: 8px; padding: 12px; }
+html.fit .fl-who { font-size: 12px; }
+html.fit .fl-steps { gap: 4px; }
+html.fit .fl-step a { padding: 8px 4px; gap: 6px; border: 1px solid transparent; color: var(--fg-2); min-height: 44px; }
+html.fit .fl-icon { width: 40px; height: 40px; color: var(--fg-3); }
+html.fit .fl-txt { display: grid; justify-items: center; gap: 1px; }
+html.fit .fl-label { font-size: 13px; font-weight: 600; }
+html.fit .fl-sub { font-size: 12px; color: var(--fg-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* 次の段は、光らせずに点線の印だけ */
+html.fit .fl-step.current .fl-icon { background: var(--field); border: 1.5px dashed var(--accent-2); color: var(--accent-2); box-shadow: none; }
+html.fit .fl-step.current a { color: var(--fg); }
+html.fit .fl-step.current .fl-sub { color: var(--accent-2); font-weight: 600; }
+html.fit .fl-step.done .fl-icon { color: var(--fg); }
+/* いまここ：枠と塗りで 1 つだけ */
+html.fit .fl-step.at a { background: var(--accent-weak); border-color: rgba(64, 156, 255, 0.55); color: #fff; }
+html.fit .fl-step.at .fl-icon { background: var(--accent); border: 1.5px solid var(--accent); color: #fff; box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.22); }
+html.fit .fl-step.at .fl-sub { color: #fff; font-weight: 600; }
+html.fit .fl-step.master.at a { background: rgba(233, 196, 106, 0.12); border-color: rgba(233, 196, 106, 0.6); }
+html.fit .fl-step.master.at .fl-icon { background: var(--master); border-color: var(--master); color: #231a00; box-shadow: 0 0 0 3px rgba(233, 196, 106, 0.2); }
+html.fit .fl-step.master.at .fl-sub { color: var(--master); }
+/* 届いた質問：赤い帯で職人へ戻す（あるときだけ） */
+html.fit .fl-back { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 6px 12px; border-radius: var(--r); background: var(--ng-weak); border: 1px solid rgba(255, 69, 58, 0.45); color: var(--fg); font-size: 14px; text-align: left; text-decoration: none; }
+html.fit .fl-back b { display: grid; place-items: center; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 12px; background: var(--ng); color: #fff; font: 600 13px var(--mono); }
+html.fit .fl-back span:not(.fl-back-go) { flex: 1; }
+html.fit .fl-back .fl-back-go { color: var(--ng-2); font-weight: 600; white-space: nowrap; }
+/* 段の見出しの番号（いまの段が流れの何番目か） */
+.fl-h-n { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: rgba(233, 196, 106, 0.16); border: 1px solid rgba(233, 196, 106, 0.6); color: var(--master); font: 600 12px/1 var(--mono); }
+html.fit .tp .fl-panel { margin-top: 16px; padding: 16px; background: var(--panel); border: 1px solid var(--line-2); border-radius: 10px; }
+html.fit .tp .fl-panel > h3 { border-bottom: 0; padding-bottom: 0; margin-bottom: 4px; font-size: 18px; }
+html.fit .tp .fl-panel > .small { margin-bottom: 14px; font-size: 14px; }
+html.fit .tp .fl-panel .iv-card { background: none; border: 0; padding: 0; }
+.fl-next-slot:empty { display: none; }
+html.fit .fl-next { display: flex; width: 100%; min-height: 44px; margin-top: 14px; font-size: 14px; color: var(--fg-2); }
+html.fit .fl-go { min-height: 52px; font-size: 16px; border-radius: 10px; }
+html.fit .fl-now { margin: 0 0 6px; }
+
+/* ---- 技の一覧 ---- */
+html.fit .waza-head { padding-bottom: 4px; }
+html.fit .waza-head .lead { font-size: 14px; }
+html.fit .flow-line { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 10px 0 0; padding: 0; font-size: 13px; color: var(--fg-2); }
+html.fit .flow-line span { display: inline-flex; align-items: center; gap: 6px; }
+html.fit .flow-line span::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--master); }
+html.fit .flow-line span.learner::before { background: var(--accent-2); }
+html.fit .flow-line i { font-style: normal; color: var(--fg-3); }
+.mihon-link-line { margin: 4px 0 0; font-size: 13px; color: var(--fg-2); }
+html.fit .mihon-link-line .mihon-link { display: inline-flex; align-items: center; gap: 4px; width: auto; min-height: 44px; margin: 0; padding: 0; color: var(--accent-2); font-weight: 600; text-decoration: none; }
+html.fit .waza-sec { margin: 18px 0 10px; font-size: 13px; font-weight: 600; color: var(--fg-2); letter-spacing: 0.04em; }
+html.fit .big-tech { padding: 16px; gap: 14px; }
+html.fit .bt-body { gap: 4px; }
+html.fit .bt-body b { font-size: 17px; }
+html.fit .bt-body small { font-size: 13px; }
+html.fit .bt-stats { gap: 6px 14px; margin-top: 6px; }
+html.fit .bt-stat { font-size: 12px; color: var(--fg-3); }
+html.fit .bt-stat b { font: 600 13px var(--mono); color: var(--fg-3); }
+html.fit .bt-stat.has, html.fit .bt-stat.has b { color: var(--fg); }
+html.fit .bt-stat.alert, html.fit .bt-stat.alert b { color: var(--ng-2); }
+.bt-next { margin-left: auto; padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; white-space: nowrap; border: 1px solid var(--line-2); color: var(--fg-2); }
+.bt-next.master { color: var(--master); border-color: rgba(233, 196, 106, 0.5); }
+.bt-next.learner { color: var(--accent-2); border-color: rgba(64, 156, 255, 0.5); }
+.bt-next.alert { color: #fff; background: var(--ng); border-color: var(--ng); }
+.bt-next.done { color: var(--ok); border-color: rgba(48, 209, 88, 0.45); }
+.bt-mark.mo-mark { background: rgba(233, 140, 90, 0.14); border-color: rgba(233, 140, 90, 0.5); color: #f0a070; }
+@media (max-width: 480px) {
+  .bt-next { margin-left: 0; font-size: 13px; }
+  html.fit .big-tech { padding: 14px 12px; gap: 12px; }
+  html.fit .bt-mark { width: 42px; height: 42px; font-size: 18px; }
+  html.fit .bt-body b { font-size: 16px; }
+  html.fit .bt-body small { font-size: 14px; }
+  html.fit .bt-stat { font-size: 13px; }
+  html.fit .flow-line, .mihon-link-line { font-size: 14px; }
+}
+
+/* ---- 学ぶ：聞く・手を比べるの切り替え（学ぶ人の場所だけ） ---- */
+.learn-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; margin: 0 0 12px; background: var(--field); border: 1px solid var(--line-2); border-radius: 10px; }
+.learn-nav a { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 10px; border-radius: 7px; color: var(--fg-2); font-size: 14px; font-weight: 600; text-decoration: none; }
+.learn-nav a:hover { color: var(--fg); background: var(--hover); }
+.learn-nav a[aria-current="page"] { background: var(--accent-weak); color: #fff; box-shadow: inset 0 0 0 1px rgba(64, 156, 255, 0.55); }
+.learn-nav a[aria-current="page"] svg { color: var(--accent-2); }
+
+/* ---- 学ぶ：聞く ---- */
+html.fit .in-flow .master-card { flex-wrap: wrap; row-gap: 6px; }
+html.fit .in-flow .master-stats { flex-basis: 100%; margin-left: 0; display: block; text-align: left; font-size: 13px; color: var(--fg-2); }
+html.fit .in-flow .master-stats span { display: inline; }
+html.fit .in-flow .master-stats b { font: 600 14px var(--mono); color: var(--fg); }
+html.fit .in-flow .master-stats .alert { font-style: normal; color: var(--ng-2); }
+html.fit .in-flow .master-stats .alert b { color: var(--ng-2); }
+html.fit .in-flow .who b { font-size: 15px; }
+html.fit .in-flow .who small { font-size: 13px; }
+html.fit .in-flow .empty { padding: 14px 0 0; }
+html.fit .in-flow .empty .master-lead { font-size: 14px; line-height: 1.7; margin-bottom: 14px; }
+.chips-h { margin: 0 0 8px !important; font-size: 13px !important; font-weight: 600; color: var(--fg-3) !important; }
+html.fit .in-flow .chip { min-height: 40px; padding: 0 16px; border-radius: 20px; font-size: 14px; color: var(--fg); background: var(--panel); border-color: var(--line-2); }
+html.fit .in-flow .chip:hover { border-color: rgba(64, 156, 255, 0.55); background: var(--accent-weak); }
+.learn-pw { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 10px; margin: 0 auto 16px !important; font-size: 13px !important; color: var(--fg-2) !important; }
+.learn-pw[hidden] { display: none; }
+html.fit .in-flow .a-short { font-size: 16px; }
+html.fit .in-flow .q { font-size: 15px; }
+html.fit .in-flow .why-btn { min-height: 36px; padding: 0 14px; font-size: 13px; }
+html.fit .in-flow .send { min-width: 64px; font-size: 14px; }
+html.fit .in-flow .composer { padding: 6px; }
+@media (max-width: 720px) {
+  html.fit .in-flow .chip { font-size: 14px; }
+  html.fit .in-flow .a-meta, html.fit .in-flow .a-voice small, html.fit .in-flow .to-master { font-size: 13px; }
+  html.fit .in-flow .tag { font-size: 12px; }
+}
+
+/* ---- 答える欄（聞き取り）：問いを大きく、理由は畳む、決まりにするを大きく ---- */
+html.fit .iv .iv-head .eyebrow { font-size: 12px; }
+html.fit .iv-mode { font-size: 12px; }
+html.fit .iv-count { font: 12px var(--sans); color: var(--fg-3); }
+html.fit .iv-q { font-size: 18px; line-height: 1.6; margin: 6px 0 6px; }
+html.fit .iv-why-more { margin: 0 0 12px; font-size: 13px; color: var(--fg-2); }
+html.fit .iv-why-more summary { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; cursor: pointer; color: var(--fg-2); list-style: none; }
+html.fit .iv-why-more summary::-webkit-details-marker { display: none; }
+html.fit .iv-why-more summary::after { content: "▾"; font-size: 11px; color: var(--fg-3); }
+html.fit .iv-why-more[open] summary::after { content: "▴"; }
+html.fit .iv-why-more p { margin: 4px 0 0; font-size: 13px; line-height: 1.7; color: var(--fg-2); }
+html.fit .iv .answer-box .row { margin-top: 10px; gap: 8px; }
+html.fit .iv .answer-box .make { min-height: 44px; padding: 0 22px; font-size: 15px; }
+html.fit .iv .answer-box .skip, html.fit .iv .answer-box .use-example { min-height: 44px; font-size: 14px; }
+html.fit .iv-name-line { display: flex; margin: 10px 0 0; font-size: 13px; color: var(--fg-2); }
+html.fit .iv-name-line input { min-height: 36px; font-size: 14px; }
+html.fit .iv-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 13px; color: var(--fg-2); }
+html.fit .iv-foot .pw-state { min-height: 36px; }
+html.fit .iv .proposal { margin-top: 12px; padding: 14px; border-radius: 10px; border: 1px solid rgba(233, 196, 106, 0.5); background: rgba(233, 196, 106, 0.06); }
+html.fit .iv .proposal .iv-rule b { font-size: 16px; }
+html.fit .iv .proposal .iv-text { font-size: 15px; line-height: 1.7; }
+html.fit .iv .proposal [data-a="ok"] { min-height: 48px; padding: 0 20px; font-size: 15px; }
+html.fit .iv .proposal [data-a="no"] { min-height: 48px; }
+.iv-empty { padding: 14px 0; text-align: center; }
+.iv-empty .iv-done { font-size: 15px; color: var(--fg); }
+
+/* ---- 作り方を見る（畳んだ欄の見た目をほかとそろえる） ---- */
+html.fit .tp-howto-more > summary { padding: 0 14px; min-height: 44px; font-size: 14px; }
+html.fit .tp-more > summary, html.fit .tp-gaps > summary { min-height: 44px; padding: 0 14px; font-size: 14px; }
+html.fit .tp-more > summary small { margin-left: 8px; font-weight: 400; font-size: 12px; color: var(--fg-3); }
