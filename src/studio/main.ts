@@ -56,7 +56,7 @@ import { GUIDES, GUIDE_NOTE, minProngMm, stoneSizeMm } from "../rules/guides";
 import { callTool } from "../rebuild/run";
 import { dimsSvg, flatDims, gizmoSvg, type Dim, type Rect, type V3 } from "./dims";
 import { bindSlider, sliderHtml, type SliderSpec } from "./slider";
-import { measureDim, measureLabel, measureMm, ringFeatures } from "./measure";
+import { measureDim, measureLabel, ringFeatures } from "./measure";
 import { setupMeasure, type MeasureUi } from "./measure-ui";
 import { setupProngEdit, type ProngEditUi } from "./prong-edit";
 import { bindSectionEditor, sectionEditorHtml, startShape } from "./section-edit";
@@ -3722,8 +3722,8 @@ function views(list: [DView, string][], dimsOf: (v: DView, box: { min: number[];
   return list.map(([v, name]) => {
     const d = viewer.drawing(v, px);
     // 自分で引いた寸法のうち、この図と同じ向きから引いたものを入れる（記録に残す小さな図には入れない）
-    // 字は数字と「引いた線」だけ（画面の「正面」と図面の「正面図」は見る向きが違うので、向きの名前は書かない）
-    const own = px === DRAW_PX ? (measure?.items ?? []).filter((m) => m.plane && DRAW_AXIS[v](m.plane.dir)).map((m) => ({ ...measureDim(m), label: `${measureMm(m.a, m.b, m.plane?.dir).toFixed(2)}（引いた線）` })) : [];
+    // 画面の正面・横・上は、図面の正面図・側面図・上面図と同じ向き（2026-11-06 にそろえた）
+    const own = px === DRAW_PX ? (measure?.items ?? []).filter((m) => m.plane && DRAW_AXIS[v](m.plane.dir)).map(measureDim) : [];
     return { name, url: d.url, widthMm: d.widthMm, heightMm: d.heightMm, widthPx: d.widthPx, heightPx: d.heightPx, project: d.project, dims: [...dimsOf(v, d.box), ...own] };
   });
 }

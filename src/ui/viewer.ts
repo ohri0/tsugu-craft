@@ -905,7 +905,7 @@ export class Viewer {
 
   /**
    * 方眼を、見ている向きの後ろに立てる（CAD の作業画面のように）。
-   * 斜め・上：床（指輪の下）。正面：指輪の奥に x・z の面。横：指輪の奥に y・z の面
+   * 斜め・上：床（指輪の下）。正面：指輪の奥に y・z の面。横：指輪の奥に x・z の面
    */
   private gridView: ViewName = "angle";
   private alignGrid(view: ViewName) {
@@ -914,11 +914,11 @@ export class Viewer {
     const empty = box.isEmpty();
     const c = empty ? new THREE.Vector3() : box.getCenter(new THREE.Vector3());
     if (view === "front") {
-      // 正面（-y から見る）：奥（+y）に、x-z の面
-      this.cad.setPlane("x", "z", new THREE.Vector3(c.x, empty ? 0 : box.max.y + 2, c.z));
-    } else if (view === "side") {
-      // 横（+x から見る）：奥（-x）に、y-z の面
+      // 正面（+x、指の軸の向きから見る）：奥（-x）に、y-z の面
       this.cad.setPlane("y", "z", new THREE.Vector3(empty ? 0 : box.min.x - 2, c.y, c.z));
+    } else if (view === "side") {
+      // 横（-y から見る）：奥（+y）に、x-z の面
+      this.cad.setPlane("x", "z", new THREE.Vector3(c.x, empty ? 0 : box.max.y + 2, c.z));
     } else {
       this.cad.setPlane("x", "y", new THREE.Vector3(c.x, c.y, empty ? 0 : box.min.z - 0.01));
     }
