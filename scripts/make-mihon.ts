@@ -4,6 +4,8 @@
 // 読んだ点の時刻と位置は、見せる動画とそのまま合う。
 //
 // 使い方：npx tsx scripts/make-mihon.ts <file_hands.mov>
+//         npx tsx scripts/make-mihon.ts --pair <いい例.mov> <よくない例.mov>  … いい例とよくない例を別々に撮ったとき（2026-11-07）。
+//           それぞれ全体を使う。切るときは MIHON_MASTER_SS / _T・MIHON_LEARNER_SS / _T（秒）。画面の言葉は public/mihon/pair.json
 //         npx tsx scripts/make-mihon.ts --scan <file_hands.mov>   … 全体を読んで、秒ごとの手の見え方を出す（秒を選ぶため）
 //         MIHON_REUSE=1 npx tsx scripts/make-mihon.ts --try <file_hands.mov>  … 前に読んだ全体を使い回し、秒の分け方をいくつか比べる
 // 使うもの：ffmpeg、Playwright の Chromium、手の点のモデル（Google の配布先から読む。ネットが要る）
@@ -119,10 +121,35 @@ function report(name: string, input: MotionInput) {
 }
 
 const args = process.argv.slice(2);
+mkdirSync(OUT, { recursive: true });
+
+/** 動画の長さ（秒） */
+const durationOf = (f: string) => Number(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", f]).toString().trim());
+
+// いい例とよくない例を、別々の動画から作る（作者が撮り分けた動画を入れるとき）
+if (args[0] === "--pair") {
+  const pair = [
+    { name: "master", src: resolve(args[1]), ss: Number(process.env.MIHON_MASTER_SS ?? 0), t: process.env.MIHON_MASTER_T, title: "手本（いい例・職人の本物の手元）", craftsman: "見本の人" },
+    { name: "learner", src: resolve(args[2]), ss: Number(process.env.MIHON_LEARNER_SS ?? 0), t: process.env.MIHON_LEARNER_T, title: "よくない例", craftsman: "" },
+  ];
+  const records = [];
+  for (const c of pair) {
+    const t = c.t ? Number(c.t) : durationOf(c.src) - c.ss;
+    const input = slice(steady(await readWhole(c.src)), c.ss, t);
+    report(`${c.name}（${c.src} の ${c.ss}〜${(c.ss + t).toFixed(1)} 秒）`, input);
+    if (!process.env.MIHON_DRY) cut(c.src, c.ss, t, join(OUT, c.name));
+    const record = createRecord(input, { id: `mihon-${c.name}`, title: c.title, craftsman: c.craftsman, videoName: `${c.name}.webm`, date: process.env.MIHON_DATE ?? DATE });
+    if (!process.env.MIHON_DRY) writeFileSync(join(OUT, `${c.name}.json`), JSON.stringify(record));
+    records.push(record);
+  }
+  // 画面の「どこが違うか」と同じ比べ方。pair.json の side（right／left）は、ここで違いの出た手に合わせる
+  compareReport(records);
+  process.exit(0);
+}
+
 const scan = args[0] === "--scan";
 const trySplits = args[0] === "--try";
 const src = resolve(scan || trySplits ? args[1] : args[0]);
-mkdirSync(OUT, { recursive: true });
 // 読むのは数分かかるので、読んだ全体を残しておき、秒を選び直すときは MIHON_REUSE=1 で使い回す
 const cache = join(tmpdir(), "mihon-read-whole.json");
 const raw = process.env.MIHON_REUSE ? (JSON.parse(readFileSync(cache, "utf8")) as MotionInput) : await readWhole(src);
