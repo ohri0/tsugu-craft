@@ -21,7 +21,7 @@ function fakeClaude(body) {
   if (tools.includes('gap_rule')) {
     // 届いた質問への答えと、Claude の問いへの答えで、決まりの名前を分ける
     const asked = JSON.stringify(body.messages).includes('失敗した線');
-    return use('gap_rule', { has_value: false, value: 0, title: asked ? '失敗した線は消せますか' : '線の幅と深さ', text: asked ? '浅い線なら磨いて消す' : ANSWER, reason: '（理由はまだ聞いていない）', follow_up: '' });
+    return use('gap_rule', { has_value: false, value: 0, title: asked ? '失敗した線は消せますか' : '彫りの深さ', text: asked ? '浅い線なら磨いて消す' : ANSWER, reason: '（理由はまだ聞いていない）', follow_up: '' });
   }
   if (tools.includes('ask_teacher')) {
     const all = JSON.stringify(body.messages);
@@ -35,7 +35,7 @@ function fakeClaude(body) {
     }
     if (lastText.includes('tool_result')) return msg([{ type: 'text', text: `答え：職人に聞いておきます。答えが届いたら、ここで答えられるようになります。\nなぜ：帳面にありません。\n決まり：` }]);
     // 作者の本当の決まりにも同じ題があるので、いちばん後に足した決まり（この確かめで入れた答え）を選ぶ
-    const id = [...body.system.matchAll(/\[([^\]]+)\] 線の幅と深さ/g)].pop()?.[1];
+    const id = [...body.system.matchAll(/\[([^\]]+)\] 彫りの深さ/g)].pop()?.[1];
     assert(id, `帳面に職人の決まりが渡っていない：${all.slice(0, 80)}`);
     return msg([{ type: 'text', text: `答え：図案で変えます。\nなぜ：職人がそう言いました。\n決まり：[${id}]` }]);
   }
@@ -128,7 +128,7 @@ export async function trackVideo(video, opts) {
   await p.waitForFunction(() => location.hash === '#learn/kebori');
   assert.equal(await p.locator('.tech-pick select:visible').inputValue(), 'kebori');
   assert((await p.locator('.chip:visible').allInnerTexts()).some((t) => t.includes('鏨')));
-  await p.locator('.composer textarea').fill('毛彫りの線の幅と深さは？');
+  await p.locator('.composer textarea').fill('毛彫りの深さは？');
   await p.locator('.composer .send').click();
   await p.waitForSelector('.a-voice.quoted');
   const voice = await p.locator('.a-voice').first().innerText();

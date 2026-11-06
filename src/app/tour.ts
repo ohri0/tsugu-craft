@@ -68,7 +68,7 @@ const STEPS: { name: string; run(): Promise<void> }[] = [
   { name: "手本を開く", run: () => press('.fl-go[data-step="model"]') },
   { name: "手本を残す", run: () => press(".use-mihon-model") },
   { name: "学ぶを開く", run: () => go("#learn/kebori") },
-  { name: "学ぶ人が聞く", run: () => askLearner("毛彫りの線の幅と深さは？") },
+  { name: "学ぶ人が聞く", run: () => askLearner("毛彫りの深さは？") },
   { name: "帳面にない質問", run: () => askLearner(MIHON_UNKNOWN) },
   { name: "手の動きを開く", run: () => go("#learn/hands/kebori") },
   {

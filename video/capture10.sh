@@ -18,7 +18,8 @@ export DECO_USE=${DECO_USE:-5}
 # 最終案 13：断面を手で描くは sec13（何度も変える・赤 → 元に戻す）。ops12 は爪と留め方に使う。deco11 は ?nooffload で撮る（爪のつまみをゆっくり）
 # 最終案 14：残すは teach14（本物の「Claude に教える」。覚えた返事 _claude9/teach14/）、伝統の仕上げは finish14、作り方は make14（職人の決まりまで）、
 #   学ぶは learn11（9.3 mm の問い）。ops12（爪・留め方）と word10 は使わない。どの章も、印は止めない（a.drift。作者の声：止まるとラグに見える）
-CHAPTERS=(${@:-draw10 first9 teach14 sec13 finish14 deco11 make14 learn11 kebori9 hands9 moyou11})
+# 最終案 15：残すの本物の画面は teach15（話して直す所だけ）、伝統の仕上げ → 作り方は finish15
+CHAPTERS=(${@:-draw10 first9 teach15 sec13 finish15 deco11 make14 learn11 kebori9 hands9 moyou11})
 echo "今のアプリを組む → $WORK/dist-cap10"
 npx vite build --outDir "$WORK/dist-cap10" --emptyOutDir > /dev/null
 PIDS=()
