@@ -11,9 +11,10 @@ REPO=$PWD
 WORK=${TSUGU_VIDEO_WORK:-$REPO/video/work}
 # 言葉で頼む場面（deco11）は「アールデコな感じ」の、作者が選んだ回の本物の返事（覚えた返事。Claude は呼ばない）。
 #   2026-11-06 夕方：2 回目の試し（彫りの模様を足した後）の 5 回目＝ work/story/_claude9/deco11_t5/（000.json〜002.json）。
+#   2026-11-07（最終案 17〜）：作者が選んだ 9 回目＝ work/story/_claude9/deco11_t16/（000.json〜001.json）。これを既定にした
 #   形を替えるとき：選んだ回の返事（API の返事そのまま）を _claude9/deco11_t<番号>/ に置いて DECO_USE=<番号>、
 #   または DECO_REPLY_DIR=<返事の所> を付けて、zsh video/capture10.sh deco11 → python -I video/final9.py --plan 10
-export DECO_USE=${DECO_USE:-5}
+export DECO_USE=${DECO_USE:-16}
 # 最終案 12 で使う章（ops12＝手で操作する 3 つ。結は実写なので decoring11 は使わない）
 # 最終案 13：断面を手で描くは sec13（何度も変える・赤 → 元に戻す）。ops12 は爪と留め方に使う。deco11 は ?nooffload で撮る（爪のつまみをゆっくり）
 # 最終案 14：残すは teach14（本物の「Claude に教える」。覚えた返事 _claude9/teach14/）、伝統の仕上げは finish14、作り方は make14（職人の決まりまで）、

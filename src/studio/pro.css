@@ -720,7 +720,8 @@ dialog.sheet input:focus { border-color: var(--accent); }
 .sec-edit .se-stroke { fill: none; stroke: var(--accent); stroke-width: 0.05; stroke-linecap: round; stroke-linejoin: round; opacity: 0.85; pointer-events: none; }
 .sec-edit .se-stroke.after { stroke-width: 0.12; opacity: 0.32; }
 .sec-edit .se-h .hit { fill: transparent; }
-.sec-edit .se-h .dot { fill: #f2f2f4; stroke: var(--accent); stroke-width: 0.04; }
+/* 2026-11-07：点の丸（circle.dot）が、話すボタンの「聞いています」の .dot（点滅）を受けて、止まっている間 1 秒ごとに薄くなっていた。点は点滅させない */
+.sec-edit .se-h .dot { fill: #f2f2f4; stroke: var(--accent); stroke-width: 0.04; animation: none; }
 .sec-edit .se-h.end .dot { fill: #c8c8cc; }
 .sec-edit .se-h.ghost .dot { fill: none; stroke: rgba(255, 255, 255, 0.45); stroke-width: 0.025; stroke-dasharray: 0.05 0.04; }
 .sec-edit[data-mode="move"] .se-h { cursor: grab; }

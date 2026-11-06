@@ -3545,13 +3545,17 @@ const genChapter = (chName) => async (a) => {
     await a.press('.disp [data-disp="draw"]', { n: 20, after: 2 });
     await a.settle(1200);
     a.mark('draw'); await a.box('vp', '.vp', 0);
-    await a.drift(N(50), '.act-stl', { k: 0.35 });
+    // 最終案 17b（作者の声：図面と STL が速く、飛び飛び）：図面を見せる間は、印はほとんど動かさない（ゆっくり漂う）→
+    //   STL へ 1 つのなめらかな動き（ゆっくり漂ってから速く飛ぶ、のをやめた）→ 押す → 知らせが出たまま、印はゆっくり離れて留まる
+    await a.drift(N(30), { x: a.cur.x + 36, y: a.cur.y + 10 });
     await hideToast.evaluate((e) => e.remove());
-    await a.press('.act-stl', { n: 22, after: 2 });
+    await a.move('.act-stl', N(54));
+    a.mark('stl0');
+    await a.press('.act-stl', { n: 1, after: 2 });
     await a.settle(200);
     a.mark('stl'); await a.box('toast', '.toast', 6);
     console.log('deco11 STL', await p.evaluate(() => document.querySelector('.toast')?.innerText));
-    await a.drift(N(60), { x: 640, y: 420 }, { k: 0.25 });
+    await a.drift(N(80), { x: a.cur.x - 90, y: a.cur.y + 70 });
 };
 Object.assign(CH, { deco11: genChapter('deco11'), gen12: genChapter('gen12') });
 // 模様の試し（別の係が作った頁。#waza/rebuild/moyou?rec）：頁の全体 → 段が 1 つずつ出る → 最後の鐔の形の 3 枚（寄るのは組むとき）
@@ -3729,7 +3733,11 @@ Object.assign(CH, {
 });
 // 断面を手で描く（最終案 13。作者の声：1 点だけでなく、パッパッパと何度も変える。うち 1 回は引きすぎて赤 → 元に戻すと赤が消える。
 //   最終案 12 は、点は動くのにマウスの印が止まっていた → どの操作も a.drag・a.move で動かし、印が点をつまんで運ぶ）
-//   A：真ん中の上の点を上へ（山形）→ B：横の点を外へ（ふくらむ）→ C：上の角の点を外へ引きすぎる（赤：尖りすぎ）→ 元に戻す（赤が消える）
+// 最終案 17b（作者の声）：
+//   ・1 つの点を動かすと 2 つの点が動いて見えた → 左右対称（はじめから入っている）で、反対側の点もいっしょに動いていた（アプリの決まりどおり）。
+//     撮る前に左右対称を切り、動かした点だけが動くようにする（動いた点の数を、動かすたびに数えて残す）
+//   ・動き：点 1・点 2 をパッ・パッと動かす（形は作れるまま）→ 点 3 を引きすぎる（赤：尖りすぎ）→ 離さず、元に戻すも押さずに、
+//     つまんだまま作れる所へ戻す（その場で赤が消える）→ 離す。印はずっと点の上
 Object.assign(CH, {
   sec13: async (a) => {
     const { p } = a;
@@ -3740,59 +3748,99 @@ Object.assign(CH, {
     await fine(a, 200);
     await p.evaluate(() => { const d = document.querySelector('.ring-shape details.ring-draw'); if (d) d.open = true; });
     await a.settle(400);
+    // 左右対称を切る（撮らない）
+    await p.evaluate(() => { const b = document.querySelector('.ring-shape .se-sym'); if (b && b.getAttribute('aria-pressed') === 'true') b.click(); });
+    await a.settle(200);
+    console.log('sec13 左右対称', await p.evaluate(() => document.querySelector('.ring-shape .se-sym')?.getAttribute('aria-pressed')));
     await p.evaluate(() => { const e = document.querySelector('.ring-shape details.ring-draw .sec-edit svg'); const c = document.querySelector('.make-panel'); if (e && c) c.scrollTop += e.getBoundingClientRect().top - c.getBoundingClientRect().top - 150; });
     await a.settle(300);
-    await frame11(a, DIR11, 0.7, 170);
+    // 最終案 17b：指輪を少し小さく、少し下へ（組むとき、判定の札より下から切り抜くので、左上の見出しと小さな説明に石が重ならないように）
+    await frame11(a, DIR11, Number(process.env.SEC17_FRAC || 0.6), 170);
+    await p.evaluate(({ dx, ey }) => {
+      const v = window.__viewer; const w = v.host.clientWidth || 1; const h = v.host.clientHeight || 1;
+      const dy = h * (v.lift || 0) + ((v.insets?.bottom || 0) - (v.insets?.top || 0)) / 2 - ey;
+      for (const cam of [v.cams.persp, v.cams.ortho]) { cam.setViewOffset(w, h, -dx, dy, w, h); cam.updateProjectionMatrix(); }
+      v.dirty = true; v.draw?.();
+    }, { dx: 170, ey: Number(process.env.SEC17_EY || 45) });
+    await a.settle(300);
     a.mark('full'); await a.box('sec', '.ring-shape details.ring-draw .sec-edit', 4); await a.box('undo', '.ring-shape .se-undo', 4);
-    // 最終案 14：印を止めない（断面の欄へゆっくり）
-    await a.drift(N(16), '.ring-shape details.ring-draw .sec-edit', { k: 0.3, o: { turn: TURN9 } });
-    // 今の点（左右対称なので、右半分の点だけつまめる）
+    const T = { turn: TURN9 };
+    // 今の点（左右対称を切ったので、どの点もつまめる）。i：点の番号、x・y：ページの px、mx・my：断面の mm（SVG の位置）
     const handles = () => p.evaluate(() => {
       const svg = document.querySelector('.ring-shape details.ring-draw .sec-edit svg');
-      return [...svg.querySelectorAll('g.se-h:not(.ghost)')].map((g) => { const r = g.getBoundingClientRect(); return { i: +g.dataset.i, x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+      return [...svg.querySelectorAll('g.se-h:not(.ghost)')].map((g) => {
+        const r = g.getBoundingClientRect();
+        const m = /translate\(([-\d.]+)[ ,]+([-\d.]+)\)/.exec(g.getAttribute('transform') || '') || [0, 0, 0];
+        return { i: +g.dataset.i, x: r.x + r.width / 2, y: r.y + r.height / 2, mx: +m[1], my: +m[2] };
+      });
     });
     const state = () => p.evaluate(() => [document.querySelector('.ring-shape .sec-edit')?.classList.contains('spiky') ? '赤' : '—', document.querySelector('.verdict-chip')?.innerText, document.querySelector('.ring-shape .se-read')?.innerText.replace(/\s+/g, ' ').slice(0, 40)].join(' '));
-    const T = { turn: TURN9 };
+    const spiky = () => p.evaluate(() => !!document.querySelector('.ring-shape .sec-edit')?.classList.contains('spiky'));
+    /** 動かす前と後の点を比べて、動いた点の番号（左右対称を切ったので、つまんだ 1 つだけのはず） */
+    const movedOf = (H0, H1) => H1.filter((q) => { const o = H0.find((w) => w.i === q.i); return !o || Math.hypot(o.mx - q.mx, o.my - q.my) > 1e-4; }).map((q) => q.i);
     let H = await handles();
+    console.log('sec13 点', H.length, H.map((q) => `${q.i}:(${q.mx.toFixed(2)},${q.my.toFixed(2)})`).join(' '));
     const minY = Math.min(...H.map((q) => q.y));
     const maxY = Math.max(...H.map((q) => q.y));
-    // 真ん中の上の点：上の列のいちばん左（右半分の端は、真ん中の点）
-    const center = H.filter((q) => q.y < minY + 4).sort((q, w) => q.x - w.x)[0];
-    a.mark('a0');
-    await a.drag(center, { x: center.x, y: center.y - 14 }, { n: 12, pre: 12, o: T, hold: 1 });
-    a.mark('a1');
-    await fine(a, 150);
-    console.log('sec13 A 山形', await state());
-    await a.drift(N(5), { x: a.cur.x + 10, y: a.cur.y + 14 }, { o: T });
-    H = await handles();
-    // 最終案 15（作者の声：速すぎて追えない）：B（横の点を外へ）は既定で外す（SEC13_B=1 で入れる）。A → C（赤）→ 元に戻す
-    if (process.env.SEC13_B) {
-      // 横の点：上下の端でない、いちばん外の点（真ん中の高さに近い物）
-      const mid = (minY + maxY) / 2;
-      const side = H.filter((q) => q.y > minY + 20 && q.y < maxY - 20).sort((q, w) => Math.abs(q.y - mid) - Math.abs(w.y - mid))[0];
-      a.mark('b0');
-      await a.drag(side, { x: side.x + 12, y: side.y }, { n: 12, pre: 10, o: T, hold: 1 });
-      a.mark('b1');
-      await fine(a, 150);
-      console.log('sec13 B ふくらむ', await state());
-      await a.drift(N(5), { x: a.cur.x - 6, y: a.cur.y - 16 }, { o: T });
-    }
-    H = await handles();
-    // 上の角の点：上の列のいちばん右。外へ引きすぎる
-    const top2 = Math.min(...H.map((q) => q.y));
-    const corner = H.filter((q) => q.y < top2 + 26).sort((q, w) => w.x - q.x)[0];
+    const cx0 = (Math.min(...H.map((q) => q.x)) + Math.max(...H.map((q) => q.x))) / 2;
+    // 点 1：上の列の、真ん中にいちばん近い点 → 上へ（山形）
+    const P1 = H.filter((q) => q.y < minY + 4).sort((q, w) => Math.abs(q.x - cx0) - Math.abs(w.x - cx0))[0];
+    // 点 2：右の辺の、高さの真ん中に近い点 → 外へ（ふくらむ）
+    const mid = (minY + maxY) / 2;
+    const P2 = H.filter((q) => q.x > cx0 + 20 && q.y > minY + 20 && q.y < maxY - 20).sort((q, w) => Math.abs(q.y - mid) - Math.abs(w.y - mid))[0];
+    // 点 3：上の列のいちばん右（上の右の角）→ 外へ引きすぎる → つまんだまま戻す
+    const P3 = H.filter((q) => q.y < minY + 6).sort((q, w) => w.x - q.x)[0];
+    console.log('sec13 選んだ点', JSON.stringify({ P1, P2, P3 }));
+    // 頭：断面の欄へゆっくり（前の図との重ねと、全体から寄る間）
+    await a.drift(N(18), { x: P1.x + 30, y: P1.y + 70 }, { k: 0.75, o: T });
+    // 1 回のつまみ：n こまで to へ（印と点は同じ所）。動いた点の数を数える
+    const quick = async (name, P, dx, dy, { pre = 10, n = 8 } = {}) => {
+      const H0 = await handles();
+      a.mark(`${name}0`);
+      await a.drag({ x: P.x, y: P.y }, { x: P.x + dx, y: P.y + dy }, { n, pre, o: T, hold: 1 });
+      a.mark(`${name}1`);
+      const H1 = await handles();
+      console.log(`sec13 ${name} 動いた点`, JSON.stringify(movedOf(H0, H1)), await state());
+    };
+    await quick('a', P1, 0, -14, { pre: 12, n: 8 });
+    await quick('b', P2, 13, 0, { pre: 9, n: 8 });
+    // 点 3：押したまま 外へ（赤）→ 赤を見せる間も、ほんの少しずつ外へ（印は止めない。点は印の下）→ 離さずに戻す（赤が消える）→ 離す
+    const H0 = await handles();
     a.mark('c0');
-    await a.drag(corner, { x: corner.x + 46, y: corner.y - 6 }, { n: 14, pre: 10, o: T, hold: 2 });
-    a.mark('c1');
-    await fine(a, 150);
-    a.mark('red'); console.log('sec13 C 引きすぎ', await state(), JSON.stringify(await probsOf(p)));
-    // 最終案 15（作者の声：速すぎて追えない）：赤を 1 秒ほど見せる。印は元に戻すの方へゆっくり
-    await a.drift(N(34), '.ring-shape .se-undo', { k: 0.45, o: T });
-    // 元に戻す（赤が消える）
-    await a.press('.ring-shape .se-undo', { n: 12, after: 0, turn: TURN9 });
-    await fine(a, 150);
-    a.mark('back'); console.log('sec13 元に戻した', await state(), JSON.stringify(await probsOf(p)));
-    await a.drift(N(40), '.ring-shape details.ring-draw .sec-edit', { k: 0.35, o: T });
+    await a.move({ x: P3.x, y: P3.y }, 9, T);
+    await a.shot({ ...T, rip: 1 });
+    await p.mouse.down();
+    a.mark('down');
+    await a.shot({ ...T, rip: 0.8 });
+    const path = async (to, n, ez = ease, rip = 0.55) => {
+      const s0 = a.cur;
+      for (let k = 1; k <= n; k++) {
+        const e = ez(k / n);
+        await a.jump({ x: s0.x + (to.x - s0.x) * e, y: s0.y + (to.y - s0.y) * e });
+        await a.shot({ ...T, rip });
+        const red = await spiky();
+        if (red && !('red' in seen)) { seen.red = a.i - 1; a.mark('red'); }
+        if (!red && 'red' in seen && !('clear' in seen)) { seen.clear = a.i - 1; a.mark('clear'); }
+      }
+    };
+    const seen = {};
+    const far = { x: P3.x + Number(process.env.SEC17_FAR || 46), y: P3.y - 4 };
+    await path(far, 15);
+    console.log('sec13 引きすぎ', await state(), JSON.stringify(await probsOf(p)));
+    a.mark('far');
+    await path({ x: far.x + 4, y: far.y - 1 }, N(22), (u) => u);
+    a.mark('back0');
+    const back = { x: P3.x + Number(process.env.SEC17_BACK || 8), y: P3.y - 1 };
+    await path(back, 15);
+    a.mark('back1');
+    console.log('sec13 戻した（押したまま）', await state(), JSON.stringify(await probsOf(p)));
+    await path({ x: back.x - 1, y: back.y }, 3, (u) => u);
+    await p.mouse.up();
+    a.mark('up');
+    await a.shot({ ...T, rip: 0.3 });
+    const H1 = await handles();
+    console.log('sec13 c 動いた点', JSON.stringify(movedOf(H0, H1)), '赤が出た', seen.red, '消えた', seen.clear, await state());
+    await a.drift(N(40), { x: a.cur.x - 50, y: a.cur.y + 40 }, { o: T });
   },
 });
 // ================================================================ 最終案 14（2026-11-06 夜）

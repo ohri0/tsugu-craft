@@ -1736,18 +1736,56 @@ def flow10_row(a, t, k_row=1.0):
     return a
 
 
-# 戻りの弧は浅く低く（いちばん高い所が 880 − 143 ＝ 737。図面の下の端 642 より下）
-ARC10 = ((FLOW10_X[1] - 10, FLOW10_Y - 62), (FLOW10_X[1] - 150, FLOW10_Y - 170), (FLOW10_X[0] + 150, FLOW10_Y - 170), (FLOW10_X[0] + 10, FLOW10_Y - 66))
+# 戻りの弧は浅く低く（いちばん高い所が約 739。図面の下の端 642 より下、「作れない」の字の下）
+# 最終案 17b（作者の声：矢じりがない・ずれている、弧がデザイン・設計で終わっていない）：弧は「制作」の上から出て、「デザイン・設計」の字の上へ
+#   斜め下向きに入り、端に弧の向きに合わせた開いた矢じり（前へ進む矢印と同じ形：2 本の線、開きは約 27°）。線は太さ一定のなめらかな線
+ARC10 = ((FLOW10_X[1] - 6, FLOW10_Y - 60), (FLOW10_X[1] - 110, FLOW10_Y - 168), (FLOW10_X[0] + 140, FLOW10_Y - 168), (FLOW10_X[0] + 25, FLOW10_Y - 58))
+ARROW_SS = 4
+
+
+def arrow_barbs(tip, frm, length, half_deg=27.0):
+    """矢じり（開いた V）の 2 本の線の、もう一方の端。向きは frm → tip（弧の終わりの向き）"""
+    dx, dy = tip[0] - frm[0], tip[1] - frm[1]
+    n = math.hypot(dx, dy) or 1.0
+    ux, uy = -dx / n, -dy / n
+    out = []
+    for sgn in (-1, 1):
+        r = math.radians(half_deg) * sgn
+        out.append((tip[0] + (ux * math.cos(r) - uy * math.sin(r)) * length, tip[1] + (ux * math.sin(r) + uy * math.cos(r)) * length))
+    return out
+
+
+def clean_strokes(polys, w):
+    """太さ一定のなめらかな線（つなぎ目と端は丸く）。4 倍で描いて縮める。polys：点の列のリスト（画面の px）"""
+    xs = [q[0] for pl in polys for q in pl]
+    ys = [q[1] for pl in polys for q in pl]
+    x0, y0 = max(0, int(min(xs) - w - 6)), max(0, int(min(ys) - w - 6))
+    x1, y1 = min(W, int(max(xs) + w + 7)), min(H, int(max(ys) + w + 7))
+    K = ARROW_SS
+    im = Image.new("L", ((x1 - x0) * K, (y1 - y0) * K), 0)
+    d = ImageDraw.Draw(im)
+    r = w * K / 2
+    for pl in polys:
+        P = [((x - x0) * K, (y - y0) * K) for x, y in pl]
+        d.line(P, fill=255, width=max(1, int(round(w * K))), joint="curve")
+        for (x, y) in P:
+            d.ellipse([x - r, y - r, x + r, y + r], fill=255)
+    out = np.zeros((H, W), F32)
+    out[y0:y1, x0:x1] = np.asarray(im.resize((x1 - x0, y1 - y0), Image.LANCZOS), F32) / 255.0
+    return Mask(out, bbox_of(out))
+
+
+def bez_pts(P, n=90):
+    return [bez(*P, u) for u in np.linspace(0, 1, n)]
 
 
 @lru_cache(maxsize=2)
-def arc10_mask(w=2.8):
-    pen = L.Pen(7)
-    pen.stroke([bez(*ARC10, u) for u in np.linspace(0, 1, 18)], w=w)
-    e = ARC10[3]
-    pen.stroke([(e[0] - 22, e[1] - 40), (e[0], e[1])], w=w)
-    pen.stroke([(e[0] + 32, e[1] - 34), (e[0], e[1])], w=w)
-    return pen.end()
+def arc10_masks(w=2.8):
+    """作れない の戻りの弧（線）と、端の矢じり。矢じりは弧が届いてから出すので、別の板にする"""
+    pts = bez_pts(ARC10)
+    tip = ARC10[3]
+    b1, b2 = arrow_barbs(tip, bez(*ARC10, 0.97), 24)
+    return clean_strokes([pts], w), clean_strokes([[b1, tip], [b2, tip]], w)
 
 
 def mark_xy(px, py):
@@ -1836,12 +1874,19 @@ def flow10(s, t, f):
             x, y = bez(*ARC10, sm((rt - 0.6) / 0.7))
             a = dot(a, x, y, SHU)
     if t > t0 + 0.6:
-        u = sm((t - (t0 + 0.65)) / 0.7)
-        arc = arc10_mask()
+        # 1 回目：線は、弧に沿って戻る印のすぐ後ろまでのびる（印が線を引く）。印が端に着いたら矢じりを出す
+        u = sm((t - (t0 + 0.6)) / 0.7)
+        arc, head = arc10_masks()
+        kh = 1.0
         if u < 1:
-            xe = ARC10[0][0] - (ARC10[0][0] - ARC10[3][0] + 80) * u
-            arc = arc * L.ramp(xx(), xe - 16, xe + 16)
-        a = ink(a, arc, SHU, 0.75 if n_done < 2 else 0.9)
+            xd = bez(*ARC10, u)[0]
+            arc = arc * L.ramp(xx(), xd, xd + 10)
+            kh = 0.0
+        else:
+            kh = sm((t - (t0 + 1.3)) / 0.15)
+        op = 0.75 if n_done < 2 else 0.9
+        a = ink(a, arc, SHU, op)
+        a = ink(a, head, SHU, op * kh)
         # 「作れない」「N 回目」は、弧のいちばん高い所のすぐ上の、何もない所に（図面の下の端 642 と弧 737 の間）
         a = ink(a, Hz(W / 2 - 30, FLOW10_Y - 168, "作れない", "min", S, 0.04, "c"), SHU, fade(t, t0 + 1.1, 0.4))
     if n_done:
@@ -1894,31 +1939,48 @@ def flow10b(s, t, f):
     # 戻り：細く薄い点線（まばらな点）と、小さく「ごく少ない」
     kr = fade(t, 1.6, 0.8)
     if kr > 0:
-        a = ink(a, back10_dots(), SHU, 0.5 * kr)
-        a = ink(a, Hz(1180, FLOW10_Y - 222, "ごく少ない", "min", T, 0.06), SHU, 0.75 * kr)
+        a = ink(a, back10_dots(), SHU, 0.62 * kr)
+        tx, ty = back10_top()
+        a = ink(a, Hz(round(tx), round(ty) - 16, "ごく少ない", "min", T, 0.06, "c"), SHU, 0.75 * kr)
     rt = t - 1.4
     if 0 <= rt <= 1.6:
         a = dot(a, x1 + (FLOW10_X[1] - 90 - x1) * sm(rt / 1.6), FLOW10_Y - 21, INK)
     return a
 
 
-BACK10 = ((FLOW10_X[1] - 10, FLOW10_Y - 62), (FLOW10_X[1] - 140, FLOW10_Y - 205), (BOX10[2] + 120, FLOW10_Y - 215), (BOX10[2] + 8, BOX10[1] + 16))
+# 最終案 17b（作者の声：「ごく少ない」の戻りも、矢印に見えない）：点線は「制作」の上から出て、継ぐの箱の右の辺へ左向きに入る。
+#   細く薄いまま、点は弧の長さで等しい間に並べ、端には線の矢じり（前へ進む矢印と同じ開いた形）。字は弧のいちばん高い所のすぐ上
+BACK10 = ((FLOW10_X[1] - 6, FLOW10_Y - 60), (FLOW10_X[1] - 70, FLOW10_Y - 182), (BOX10[2] + 150, FLOW10_Y - 178), (BOX10[2] + 7, FLOW10_Y - 134))
+
+
+def back10_top():
+    """点線のいちばん高い所（字を置く所）"""
+    pts = bez_pts(BACK10, 200)
+    j = int(np.argmin([q[1] for q in pts]))
+    return pts[j]
 
 
 @lru_cache(maxsize=1)
 def back10_dots():
-    """制作から継ぐの箱へ戻る、細い点線（小さな点を間をあけて並べる）と、小さな矢じり"""
+    """制作から継ぐの箱へ戻る、細い点線（弧の長さで等しい間）と、線の矢じり"""
     out = np.zeros((H, W), F32)
     y, x = np.mgrid[0:H, 0:W].astype(F32)
-    pts = [bez(*BACK10, u) for u in np.linspace(0.0, 1.0, 34)]
-    for (px, py) in pts[::1]:
+    dense = np.array(bez_pts(BACK10, 600))
+    seg = np.hypot(np.diff(dense[:, 0]), np.diff(dense[:, 1]))
+    cum = np.concatenate([[0.0], np.cumsum(seg)])
+    total = cum[-1]
+    for sd in np.arange(4.0, total - 12.0, 12.5):
+        j = int(np.searchsorted(cum, sd))
+        px, py = dense[min(j, len(dense) - 1)]
         x0_, y0_ = int(px) - 4, int(py) - 4
         sub_y, sub_x = y[y0_:y0_ + 9, x0_:x0_ + 9], x[y0_:y0_ + 9, x0_:x0_ + 9]
         d = np.sqrt((sub_x - px) ** 2 + (sub_y - py) ** 2)
-        out[y0_:y0_ + 9, x0_:x0_ + 9] = np.maximum(out[y0_:y0_ + 9, x0_:x0_ + 9], np.clip(2.2 - d, 0, 1))
-    ex, ey = BACK10[3]
-    m = plate(("l", ex + 4, ey - 16, ex, ey, 0.8), ("l", ex + 18, ey - 4, ex, ey, 0.8))
-    return Mask(np.maximum(out, np.asarray(m)), bbox_of(np.maximum(out, np.asarray(m))))
+        out[y0_:y0_ + 9, x0_:x0_ + 9] = np.maximum(out[y0_:y0_ + 9, x0_:x0_ + 9], np.clip(2.3 - d, 0, 1))
+    tip = BACK10[3]
+    b1, b2 = arrow_barbs(tip, bez(*BACK10, 0.97), 19, 30)
+    head = np.asarray(clean_strokes([[b1, tip], [b2, tip]], 1.9))
+    m = np.maximum(out * 0.8, head)  # 点は前と同じ薄さ（0.5）、矢じりは少し濃く
+    return Mask(m, bbox_of(m))
 
 
 @lru_cache(maxsize=1)
@@ -2421,25 +2483,27 @@ def section12(s, t, f):
     return heading(a, "描くそばから、確かめる", t, 0.85)
 
 
+SEC17_Z = (840, 337, 880)  # 最終案 17b：断面の欄と指輪。上の判定の札（離すまでは前の形の「作れます」のまま）より下から
+
+
 @scene("sec13")
 def section13(s, t, f):
-    """最終案 13（作者の声）：断面をパッパッパと何度も変える。A 山形 → B ふくらむ → C 引きすぎて赤（尖りすぎ）→ 元に戻す → 赤が消える。
-    マウスの印は点をつまんで運ぶ（撮るときに a.drag で動かした）。点を運ぶ所は 1.4 倍ほどで、赤と戻した所は等倍で見せる"""
+    """最終案 17b（作者の声：1 つの点を動かすと 2 つ動いて見えた ＝ 左右対称で反対側の点もいっしょに動いていた）：
+    左右対称を切って撮った。点 1・点 2 をパッ・パッと動かす → 点 3 を引きすぎる（断面と 3D の腕に赤）→ 離さず、元に戻すも押さずに戻す
+    （その場で赤が消える）→ 離す。印はずっと点の上。撮ったこまをそのまま等倍で、寄った絵のまま（全体から寄る動きはなし）"""
     m = meta("sec13")["marks"]
     n = s["len"]
     nfr = meta("sec13")["frames"]
-    # 最終案 14：場面 4.6 → 3.95 秒。印は撮影で止めない（頭も漂う）。元に戻して赤が消えた所は 0.6 秒見せる
-    # 最終案 15（作者の声：速すぎて追えない）：赤を 1 秒ほど見せてから元に戻す。見出しの下に、赤の時だけ小さな説明
-    # 撮影は A（山形）→ C（引きすぎて赤）→ 元に戻す（B は外した）。A・C は 1.3 倍くらい、赤は 1 秒、戻した所は 0.45 秒
-    # 最終案 15（2 回目）：点へ動く所（a0 から 18 こま）と、元に戻すへ動く所（15 こま）は等倍。点を運ぶ所（ゆっくり）は 1.5 倍
-    t_mv = 0.75 + 19 / FPS
-    pts = [(0, 0), (0.45, 8), (0.75, m["a0"] - 1),            # 前の図との重ね（0.5 秒）→ 全体（押す所）
-           (t_mv, m["a0"] + 18), (2.5, m["red"]), (3.45, m["red"] + 34), (3.95, m["back"]),
-           (n, min(nfr - 1, m["back"] + int((n - 3.95) * FPS)))]
-    i = ramp_frame(pts, t)
-    a = blend_views(lambda: full_view("sec13", i), lambda: css_crop("sec13", i, *OPS_Z), t, 1.1, 0.4)
-    a = heading(a, "描くそばから、確かめる", t, 1.1)
-    return subheading(a, "尖りすぎ → 赤く光る → 戻すと消える", t, 2.45)
+    # 離す所を、次の場面へ重ねて替え始める少し前（n − 0.7 秒）に置く
+    f0 = max(0, m["up"] - int(round((n - 0.7) * FPS)))
+    i = min(nfr - 1, f0 + int(t * FPS + 1e-4))
+    a = css_crop("sec13", i, *SEC17_Z)
+    a = heading(a, "描くそばから、確かめる", t, 0.3)
+    t_red = (m["red"] - f0) / FPS
+    return subheading(a, SEC17_CAP, t, t_red - 0.15)
+
+
+SEC17_CAP = "引きすぎると赤く → 動かしたまま戻すと消える"
 
 
 PRONG12_Z = (530, 300, 820)    # 爪を押す：左の指輪と、爪の欄（指輪を大きめに）
@@ -2762,19 +2826,29 @@ def out11(s, t, f):
     m = meta(GEN_CH)["marks"]
     n = s["len"]
     # 最終案 13：見出しの下に、職人（作者）の言葉を 1 行（声はなし）。図面 → STL の間ずっと出す
-    # 最終案 15：図面に替わった所から（前の場面から重ねて替える）。印は STL へ 1 つの動きで（1.4 倍まで）→ 押す → 知らせ。1 本の線でつなぐ
-    t_stl = max(1.6, n - 0.9)
-    # 最終案 15（2 回目）：STL へ動く所（押す前の 42 こま）は等倍、その前のゆっくり漂う所は 2 倍（1.4 倍で組むと、こまが飛んでタタタに見えた）
-    t_mv = max(0.3, t_stl - 42 / FPS)
-    i_mv = m["stl"] - 2 - int(round((t_stl - t_mv) * FPS))
-    i = ramp_frame([(0, max(m["draw"], i_mv - int(round(t_mv * FPS * 2)))), (t_mv, i_mv), (t_stl, m["stl"] - 2), (t_stl + 0.2, m["stl"] + 2),
-                    (n, m["stl"] + 2 + int((n - t_stl - 0.2) * FPS))], t)
+    if "stl0" in m:
+        # 最終案 17b（作者の声：速くて飛び飛び）：撮ったこまをそのまま等倍で 1 本につなぐ。図面に替わる → 印は STL へ 1 つのなめらかな動き
+        #   → 押す → 知らせが出たまま、次の場面へ重ねて替え始めるまで 0.9 秒ほど留まる
+        t_press = n - OUT_HOLD
+        f0 = max(m["draw"], m["stl0"] + 1 - int(round(t_press * FPS)))
+        i = min(meta(GEN_CH)["frames"] - 1, f0 + int(t * FPS + 1e-4))
+    else:
+        # 最終案 15：図面に替わった所から（前の場面から重ねて替える）。印は STL へ 1 つの動きで（1.4 倍まで）→ 押す → 知らせ。1 本の線でつなぐ
+        t_stl = max(1.6, n - 0.9)
+        # 最終案 15（2 回目）：STL へ動く所（押す前の 42 こま）は等倍、その前のゆっくり漂う所は 2 倍（1.4 倍で組むと、こまが飛んでタタタに見えた）
+        t_mv = max(0.3, t_stl - 42 / FPS)
+        i_mv = m["stl"] - 2 - int(round((t_stl - t_mv) * FPS))
+        i = ramp_frame([(0, max(m["draw"], i_mv - int(round(t_mv * FPS * 2)))), (t_mv, i_mv), (t_stl, m["stl"] - 2), (t_stl + 0.2, m["stl"] + 2),
+                        (n, m["stl"] + 2 + int((n - t_stl - 0.2) * FPS))], t)
     # 見出しと言葉は、白い図面の上にかかるので、暗い札の上に置く（最終案 12 は見出しが図面の上で読みにくかった）
     a = full_view(GEN_CH, i)
     a = boxed(a, Hz(LEFT, 146, "図面と STL", "min", S + 6, 0.08), fade(t, 0.2, 0.5))
     # 言葉は見出しのすぐあとから最後まで（場面の終わりは次の章への黒なので、STL のあとからでは読む間が足りない）
     a = boxed(a, Hz(LEFT, 222, OUT_WORDS, "min", S - 6, 0.06), fade(t, 0.7, 0.5))
     return a
+
+
+OUT_HOLD = 1.5  # 最終案 17b：STL を押してから場面の終わりまで（うち 0.6 秒は次の場面との重ね）
 
 
 def boxed(a, m, k, pad=(24, 14), dark=0.88):
@@ -2788,7 +2862,7 @@ def boxed(a, m, k, pad=(24, 14), dark=0.88):
 
 
 OUT_STL = 1.6  # STL を押してから場面の終わりまで（最終案 14：場面 3.6 秒。図面を 1 秒あまり見せてから STL）
-OUT_WORDS = "この 3D データは、そのまま鋳造できます。あとは仕上げだけ。"
+OUT_WORDS = "この 3D データは、そのまま鋳造できます。"  # 最終案 17b（作者の声）：「あとは仕上げだけ。」は外した
 
 
 # ---- 章の扉：手元の映像（作者の映像）の上に、章の名前
@@ -2941,8 +3015,10 @@ def moyou11(s, t, f):
 
 
 # ---- 模様の試しの表を、順に出す（最終案 16）
-MOYOU_C0 = 0.9      # Claude の手順の行が出はじめる秒（場面の頭から）
-MOYOU_CSTEP = 0.45  # Claude の手順の段の間（5 つ）
+MOYOU_C0 = 0.55     # Claude の手順の行が出はじめる秒（場面の頭から。最終案 17b：Claude の手順を先に、声の前の間で出し終える）
+MOYOU_CSTEP = 0.45  # Claude の手順の段の間（5 つ。声の前の間に合わせて 0.4〜0.6 秒）
+MOYOU_ANS = 0.95    # 隠しておいた本当の手順を開きはじめる秒（n37 の頭から。「隠しておいた、」のあと）
+MOYOU_M0 = 1.65     # 本当の 11 の手順（○ △ ×）を出しはじめる秒（n37 の頭から。「本当の 11 の手順と比べると」）
 MOYOU_LSTEP = 0.2   # 本当の 11 の手順の行の間
 
 
@@ -2966,8 +3042,34 @@ def moyou_lines():
     return [(B[k], k.split("_", 1)[1]) for k in keys]
 
 
+@lru_cache(maxsize=1)
+def moyou_cards():
+    """本当の手順の 5 つの枠に重ねる、伏せた札（角の丸い板・ふちの線・「？」）。[(y0, y1, x0, x1, 板, ふち, ？)]（画面の px）"""
+    B = meta("moyou11")["boxes"]
+    out = []
+    for j in range(5):
+        b = B.get(f"ct{j + 1}")
+        if b is None:
+            continue
+        x0, y0, x1, y1 = moyou_rect(b)
+        x0, y0, x1, y1 = x0 + 5, y0 + 5, x1 - 5, y1 - 5
+        im = Image.new("L", ((x1 - x0) * 4, (y1 - y0) * 4), 0)
+        d = ImageDraw.Draw(im)
+        d.rounded_rectangle((0, 0, (x1 - x0) * 4 - 1, (y1 - y0) * 4 - 1), radius=40, fill=255)
+        fill = np.asarray(im.resize((x1 - x0, y1 - y0), Image.LANCZOS), F32) / 255.0
+        im2 = Image.new("L", im.size, 0)
+        ImageDraw.Draw(im2).rounded_rectangle((0, 0, im.size[0] - 1, im.size[1] - 1), radius=40, outline=255, width=6)
+        edge = np.asarray(im2.resize((x1 - x0, y1 - y0), Image.LANCZOS), F32) / 255.0
+        q = np.asarray(Hz((x0 + x1) / 2, (y0 + y1) / 2 + 20, "？", "min", 54, 0.0, "c"), F32)[y0:y1, x0:x1]
+        out.append((y0, y1, x0, x1, fill, edge, q))
+    return out
+
+
 def moyou_reveal(fr, t, a0):
-    """表（5 つの段がそろったこま）に、まだ出していない所を頁の地の色でかぶせる。出す所は 0.3 秒ほどでふわっと"""
+    """表（5 つの段がそろったこま）に、まだ出していない所を頁の地の色でかぶせる。出す所は 0.3〜0.45 秒ほどでふわっと。
+    最終案 17b（作者の声：語りの「隠しておいた、本当の 11 の手順と比べると」に合わせて、順を逆に）：
+    Claude の手順を段ごとに先に（声の前の間）→ 隠しておいた本当の手順を、答えとして左から開く（「隠しておいた、」のあと）
+    → 本当の 11 の手順を 1 行ずつ ○ △ × で数えて「11 のうち 9」（「比べると」から「9 に」まで）"""
     B = meta("moyou11")["boxes"]
     base = moyou_table(fr)
     a = base.copy()
@@ -2979,20 +3081,37 @@ def moyou_reveal(fr, t, a0):
         x0, y0, x1, y1 = moyou_rect(b, pad)
         a[y0:y1, x0:x1] = a[y0:y1, x0:x1] * k + bg * (1 - k)
 
-    # Claude の手順：行の名前 → 段ごと
+    # 1. Claude の手順：行の名前 → 段ごと。声（n37）の頭までに出し終える
     cover(B.get("rlC"), fade(t, MOYOU_C0, 0.4))
-    # 段の間：ふだん 0.45 秒。声の前の間が長いとき（FINISH=0）は、ゆっくり（0.6 秒まで）。下の行が出る前に出し終える
-    cstep = min(0.6, max(MOYOU_CSTEP, (a0 - 0.2) / 4))
+    c1 = MOYOU_C0 + 0.15
+    cstep = min(0.6, max(MOYOU_CSTEP, (a0 + 0.55 - c1 - 0.35) / 4))
     for j in range(5):
-        cover(B.get(f"cc{j + 1}"), fade(t, MOYOU_C0 + 0.15 + cstep * j, 0.35))
-    # 本当の工程と比べると：行の名前 → 11 の手順を 1 行ずつ（n37「本当の 11 の手順と比べると」のあたりから。仮声では 9 に数え終わって 0.4 秒ほどで「9 に」）
-    t_m0 = a0 + 1.25
+        cover(B.get(f"cc{j + 1}"), fade(t, c1 + cstep * j, 0.35))
+    # 2. 本当の手順（隠しておいた答え）：行の名前ははじめから。絵と言葉は伏せた札にしておき、n37「隠しておいた、」のあと、左から順に開く
+    t_ans = a0 + MOYOU_ANS
+    cards = moyou_cards()
+    for j in range(5):
+        b = B.get(f"ct{j + 1}")
+        k = fade(t, t_ans + 0.08 * j, 0.45)
+        if b is None or k >= 1:
+            continue
+        cover(b, k)
+        if j < len(cards):
+            y0, y1, x0, x1, fill, edge, q = cards[j]
+            v = (1 - k)
+            sub = a[y0:y1, x0:x1]
+            sub = sub * (1 - (fill * 0.55 * v)[..., None]) + (bg + 0.045) * (fill * 0.55 * v)[..., None]
+            sub = sub * (1 - (edge * 0.5 * v)[..., None]) + (bg + 0.10) * (edge * 0.5 * v)[..., None]
+            sub = sub * (1 - (q * 0.38 * v)[..., None]) + np.array(SHIRO, F32) * (q * 0.38 * v)[..., None]
+            a[y0:y1, x0:x1] = sub
+    # 3. 本当の工程と比べると：行の名前 → 11 の手順を 1 行ずつ（「本当の 11 の手順と比べると」から。仮声では 9 に数え終わって少しで「9 に」）
+    t_m0 = a0 + MOYOU_M0
     cover(B.get("rlM"), fade(t, t_m0, 0.35))
     lines = moyou_lines()
     for i, (b, v) in enumerate(lines):
-        cover(b, fade(t, t_m0 + 0.25 + MOYOU_LSTEP * i, 0.2), pad=2)
+        cover(b, fade(t, t_m0 + 0.2 + MOYOU_LSTEP * i, 0.2), pad=2)
     # 数える（一致と一部。たどり着けずは数えない）：表の右下の空いた所（③〜⑤ の行の下）から、表の下の地へ。入口のページの「11 のうち 9」と同じ言い方
-    got = sum(1 for i, (b, v) in enumerate(lines) if v in ("ok", "part") and t >= t_m0 + 0.25 + MOYOU_LSTEP * i + 0.1)
+    got = sum(1 for i, (b, v) in enumerate(lines) if v in ("ok", "part") and t >= t_m0 + 0.2 + MOYOU_LSTEP * i + 0.1)
     k = fade(t, t_m0 + 0.1, 0.4)
     if k > 0 and lines:
         mk = [B[f"mk{j}"] for j in (3, 4, 5) if f"mk{j}" in B]
@@ -3006,7 +3125,7 @@ def moyou_reveal(fr, t, a0):
         a = ink(a, Hz(cx - 62, yb, f"{n_all}", "thin", 96, 0.0, "r"), SHIRO, 0.9 * k)
         a = ink(a, Hz(cx, yb - 6, "のうち", "sans", 30, 0.08, "c"), SHIRO, 0.9 * k)
         a = ink(a, Hz(cx + 62, yb, f"{got}", "thin", 96, 0.0, "l"), SHIRO, k)
-        t_done = t_m0 + 0.25 + MOYOU_LSTEP * (n_all - 1) + 0.3
+        t_done = t_m0 + 0.2 + MOYOU_LSTEP * (n_all - 1) + 0.3
         ok = sum(1 for _, v in lines if v == "ok")
         part = sum(1 for _, v in lines if v == "part")
         a = ink(a, Hz(cx, yb + 52, f"にたどり着いた（一致 {ok}・一部 {part}）", "sans", T, 0.06, "c"), SHIRO, 0.9 * fade(t, t_done, 0.5))
