@@ -465,7 +465,6 @@ export function tensionNotes(s: Pick<SettingResult, "tension" | "corners">, wire
     return list;
   });
   if (thin.length) notes.push(`彫った所に残る地金が薄い所：${thin.join("、")}（${mm(t.thinLipMm)} より薄い。仮の目安）。職人が見て決めます`);
-  if (info.ends.some((e) => e.depthMm < t.weakGrooveMm + 1e-9)) notes.push(`溝が ${mm(t.weakGrooveMm)} くらいでは抜ける、と職人は言います`);
   if (wireMm < t.minWireMm) notes.push(`腕の太さ ${mm(wireMm)}：${mm(t.minWireMm)} より細いと弱い、という職人の声が資料にあります（掲示板の 1 人の声）`);
   return notes;
 }

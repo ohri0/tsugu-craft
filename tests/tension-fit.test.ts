@@ -252,16 +252,16 @@ describe("挟む向きを選べる", () => {
     expect(ringOf(tri(), 14, { tension: { grip: "short" } }).setting.tension!.mode).toBe("corner-edge");
   }, 120000);
 
-  it("三角の短い辺を溝に・反対の角をくぼみに（作者が実際に作った指輪）：角のくぼみ 0.4 mm・辺の溝 0.3 mm。角から辺までの長い所を挟み、閉じた形で石は地金に入らない", () => {
+  it("三角の短い辺を溝に・反対の角をくぼみに（作者が実際に作った指輪）：角のくぼみ 0.4 mm・辺の溝 0.4 mm。角から辺までの長い所を挟み、閉じた形で石は地金に入らない", () => {
     const stone = tri();
     const sv14 = { shank: { gou: 14, ...phi4, metal: "sv925" as const } };
     expect(GUIDES.tension.shortSidePitMm).toBe(0.4);
-    expect(GUIDES.tension.shortSideGrooveMm).toBe(0.3);
+    expect(GUIDES.tension.shortSideGrooveMm).toBe(0.4);
     const r = ringOf(stone, 14, { tension: { grip: "side" }, ...sv14 });
     const i = r.setting.tension!;
     expect(i.grip).toBe("side");
     expect(i.mode).toBe("corner-edge");
-    expect(i.ends.map((e) => [e.kind, e.depthMm])).toEqual([["pit", 0.4], ["groove", 0.3]]);
+    expect(i.ends.map((e) => [e.kind, e.depthMm])).toEqual([["pit", 0.4], ["groove", 0.4]]);
     expect(i.ends[1].straight).toBe(true);
     // 写真の輪郭の角：いちばん短い辺の反対の角が +y（くぼみ）に来る。その角は、いちばん長い辺の片はし
     const cs = findCorners(stone.outlineMm).map((c) => c.point);
@@ -279,7 +279,7 @@ describe("挟む向きを選べる", () => {
     // 挟む長さは、狭い幅を挟む向き（いちばん長い辺を溝に）より長い。腕の幅の外へ出る所は小さい
     const short = ringOf(stone, 14, { tension: { grip: "short" }, ...sv14 }).setting.tension!;
     expect(i.spanMm).toBeGreaterThan(short.spanMm + 0.5);
-    expect(i.gapMm).toBeCloseTo(i.spanMm - 0.7, 6);
+    expect(i.gapMm).toBeCloseTo(i.spanMm - 0.8, 6);
     expect(i.overhangMm).toBeLessThan(short.overhangMm);
     expect(checkRing(r)).toEqual([]);
     expect(topology(r.ringPositions.shank)).toMatchObject({ open: 0, flipped: 0, shells: 1, degenerate: 0 });
