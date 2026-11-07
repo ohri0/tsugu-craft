@@ -13,6 +13,7 @@
 "check-red":[2560,1600],
 "draw-views":[1460,660],
 "draw":[1944,1404],
+"finished-ring":[992,744],
 "fixpop-pop":[736,758],
 "fixpop":[1624,774],
 "h-goshinpo-gyokuhai":[1800,793],
@@ -38,4 +39,5 @@
 "ring-whole":[2000,2400],
 "rule-card":[896,672],
 "teach":[686,594],
+"tension-card":[594,1298],
 "turn-poster":[960,960]}

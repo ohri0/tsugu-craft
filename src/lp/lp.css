@@ -1,6 +1,8 @@
 /* 継ぐの入口のページ（2026-11-07 作り直し）。見た目は video/LOOK9.md：黒と紙、明朝、細い線、字に金を使わない。赤は「作れない」、朱は職人の直しだけ。
    作者の声「読みにくい」→ 本文は横書きの大きな字（17〜19 px・行の高さ 1.95）、1 行は 36 字くらいまで。縦書きは使わない。
-   絵の移り変わりは重ねるだけ（1.2 秒）。動かさない・寄らない。字は濃くなるだけ。 */
+   絵の移り変わりは重ねるだけ（1.2 秒）。動かさない・寄らない。字は濃くなるだけ。
+   2026-11-07 昼（職人の声「伝えたいことがバーンって出てくるやつ」「一個一個大事にしてる感じ」）：言いたいこと（はじめ・序の言葉・約 6 割・
+   20 年に一度・工房に・結）は、前の版（6878a61 の前）の見た目に戻す。縦書きの明朝で、1 つずつ画面いっぱいに。機能の説明は横書きのまま。 */
 @import "../studio/why.css";
 
 :root {
@@ -39,6 +41,8 @@ ul, ol { list-style: none; }
 .skip:focus { left: 8px; }
 br.sm { display: none; }
 
+/* 縦書き（言いたいことだけ）。字の頭を上にそろえ、右から読む */
+.v { writing-mode: vertical-rl; font-family: var(--mincho); font-weight: 400; letter-spacing: 0.14em; font-feature-settings: "vpal"; line-height: 1.75; white-space: nowrap; }
 h2, h3 { font-family: var(--mincho); font-weight: 400; letter-spacing: 0.04em; text-wrap: balance; line-break: strict; overflow-wrap: anywhere; }
 h2 { font-size: clamp(32px, 4vw, 56px); line-height: 1.4; }
 h3 { font-size: clamp(25px, 2.4vw, 36px); line-height: 1.55; }
@@ -68,17 +72,17 @@ figcaption { font-size: 15.5px; line-height: 1.75; margin-top: 12px; color: var(
 .btn.primary { background: var(--white); color: var(--black); }
 .btn.primary:hover { background: #fff; }
 
-/* ---- はじめ：題と、一回りする指輪 ---- */
-.hero { position: relative; min-height: 100svh; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items: center; gap: clamp(16px, 4vw, 64px); max-width: 1440px; margin: 0 auto; padding: 96px var(--gut) 64px; }
-.hero-t { display: grid; gap: 22px; align-content: center; }
-.hero-h { font: 400 clamp(84px, 10vw, 156px)/1 var(--mincho); letter-spacing: 0.16em; }
-.hero-s { font: 400 clamp(30px, 3.4vw, 50px)/1.5 var(--mincho); letter-spacing: 0.08em; }
+/* ---- はじめ：黒に指輪。右に縦の字（前の版の見た目） ---- */
+.hero { position: relative; min-height: 100svh; overflow: hidden; background: #000; }
+.hero-ring { position: absolute; inset: 0; }
+.hero-ring picture { display: block; width: 100%; height: 100%; }
+.hero-ring img { width: 100%; height: 100%; object-fit: cover; object-position: 38% 55%; }
+.hero-t { position: absolute; top: clamp(84px, 13vh, 130px); right: clamp(28px, 7vw, 120px); display: flex; flex-direction: row-reverse; gap: clamp(20px, 3vw, 44px); align-items: flex-start; }
+.hero-h { font-size: clamp(76px, 10vw, 148px); line-height: 1; letter-spacing: 0.1em; }
+.hero-s { font-size: clamp(24px, 2.6vw, 38px); padding-top: 0.2em; line-height: 2; }
+.hero::after { content: ""; position: absolute; inset: auto 0 0; height: 38%; background: linear-gradient(0deg, rgba(7, 6, 6, 0.94) 18%, transparent); pointer-events: none; }
+.hero-b { position: absolute; z-index: 1; left: var(--gut); bottom: clamp(28px, 6vh, 60px); max-width: 560px; display: grid; gap: 18px; }
 .hero-by { font-size: clamp(16.5px, 1.3vw, 19px); color: var(--white-2); }
-.hero-t .cta { margin-top: 10px; }
-.hero-ring { position: relative; justify-self: center; width: min(100%, 78svh, 820px); aspect-ratio: 1 / 1; }
-.hero-ring video { width: 100%; height: 100%; object-fit: cover; }
-/* 四隅を黒へ溶かす（動画の端の線を見せない） */
-.hero-ring::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: radial-gradient(closest-side, transparent 84%, var(--black) 100%); }
 
 /* ---- なぜ作ったか ---- */
 .reason { max-width: 980px; margin: 0 auto; padding: var(--sec) var(--gut); display: grid; gap: 28px; }
@@ -86,14 +90,40 @@ figcaption { font-size: 15.5px; line-height: 1.75; margin-top: 12px; color: var(
 .reason-q p::before { content: "「"; margin-left: -0.6em; }
 .reason-q p::after { content: "」"; }
 .reason-by { color: var(--white-2); font-size: 16px; }
-.reason-lines { display: grid; gap: 6px; margin-top: clamp(24px, 6vh, 56px); padding-top: 28px; border-top: 1px solid var(--hair); font: 400 clamp(19px, 1.7vw, 24px)/1.8 var(--mincho); letter-spacing: 0.04em; }
-.reason-lines .strong { color: var(--white); margin-top: 8px; }
-.reason-lines p:not(.strong) { color: var(--white-2); }
-.route { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 16px; border-top: 1px solid var(--hair); }
-.route li + li { border-left: 1px solid var(--hair); }
-.route a { display: grid; gap: 2px; padding: 16px 14px; min-height: 44px; text-decoration: none; font: 400 clamp(17px, 1.5vw, 21px)/1.5 var(--mincho); }
-.route a small { font: 400 14.5px/1.4 var(--sans); letter-spacing: 0.2em; color: var(--white-2); }
-.route a:hover { background: rgba(244, 241, 234, 0.05); }
+
+/* ---- 序の言葉：1 つずつ画面いっぱいに（前の版の序。動画の n2・n3 と同じ言葉）。字は少しずつ遅れて濃くなる ---- */
+.say-full { min-height: 100svh; display: flex; flex-direction: row-reverse; justify-content: center; align-items: center; gap: clamp(24px, 5vw, 76px); padding: clamp(72px, 12vh, 120px) var(--gut); background: var(--black); overflow: hidden; }
+.say-full.s3 { background: var(--char); }
+.sf-l { font-size: clamp(26px, 2.9vw, 42px); line-height: 2; }
+.sf-m { font-size: clamp(32px, 3.8vw, 56px); line-height: 1.9; }
+.sf-k { font-size: clamp(52px, 6.4vw, 96px); line-height: 1.1; letter-spacing: 0.12em; }
+.sf-big { font-size: clamp(84px, min(13vw, 18vh), 190px); line-height: 1; letter-spacing: 0.12em; background: linear-gradient(180deg, var(--white) 30%, rgba(244, 241, 234, 0.08) 96%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.say-full .rv { transition-duration: 1.4s; }
+.say-full .rv:nth-child(2) { transition-delay: 0.7s; }
+.say-full .rv:nth-child(3) { transition-delay: 1.5s; transition-duration: 1.8s; }
+
+/* ---- しくみ：4 つの段（1 画面）。詳しくは下の節へ ---- */
+.how { min-height: 100svh; display: flex; align-items: center; padding: var(--sec) 0; border-top: 1px solid var(--hair); }
+.how-head { display: grid; gap: 14px; max-width: 900px; }
+.how-head h2 { font-size: clamp(28px, 3.2vw, 46px); }
+.how-map { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.5fr); gap: clamp(16px, 2.4vw, 36px); margin: clamp(32px, 6vh, 56px) 0 28px; }
+.how-map > li { position: relative; }
+.how-map > li:not(:last-child)::after { content: "→"; position: absolute; top: 34%; right: calc(clamp(16px, 2.4vw, 36px) * -0.5); transform: translate(50%, -50%); color: var(--white-2); font-size: 18px; }
+.how-map > li > a { display: grid; gap: 8px; align-content: start; text-decoration: none; height: 100%; }
+.how-map > li > a:hover b { text-decoration: underline; }
+.hm-n { font: 400 18px/1 var(--mincho); color: var(--shu); }
+.hm-f { aspect-ratio: 4 / 3; display: grid; place-items: center; overflow: hidden; padding: 8px; background: #1a1816; border: 1px solid var(--hair); border-radius: 6px; }
+.hm-f img { width: 100%; height: 100%; object-fit: contain; }
+.hm-book { background: var(--paper); color: var(--ink); align-content: center; gap: 6px; text-align: center; }
+.hm-book i { font: normal 400 clamp(26px, 2.4vw, 36px)/1.2 var(--mincho); letter-spacing: 0.3em; padding-left: 0.3em; border-bottom: 1px solid var(--shu); }
+.hm-book span { font-size: 13.5px; color: var(--ink-2); }
+.how-map b { font: 400 clamp(18px, 1.5vw, 21px)/1.5 var(--mincho); letter-spacing: 0.03em; }
+.how-map small { font-size: 15px; line-height: 1.6; color: var(--white-2); }
+.hm-use { display: grid; gap: 8px; align-content: start; }
+.hm-use ul { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.hm-use ul a { display: grid; gap: 4px; text-decoration: none; font-size: 14.5px; line-height: 1.5; }
+.hm-use ul a:hover span { text-decoration: underline; }
+.hm-use ul img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; object-position: 50% 30%; border: 1px solid var(--hair); border-radius: 4px; background: #1a1816; }
 
 /* ---- 残す（紙の地：職人の言葉） ---- */
 .paper { background: var(--paper); color: var(--ink); }
@@ -111,8 +141,14 @@ figcaption { font-size: 15.5px; line-height: 1.75; margin-top: 12px; color: var(
 .steps p { font-size: clamp(16.5px, 1.2vw, 18px); line-height: 1.85; }
 .steps strong { display: block; font: 400 clamp(19px, 1.6vw, 22px)/1.6 var(--mincho); letter-spacing: 0.03em; margin-bottom: 2px; }
 .keep-shots { display: grid; gap: 16px; position: sticky; top: 88px; }
-.book { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: clamp(28px, 5vw, 80px); align-items: center; margin-top: clamp(72px, 12vh, 140px); padding-top: clamp(40px, 6vh, 64px); border-top: 1px solid var(--hair-ink); }
-.book-t { display: grid; gap: 16px; }
+/* 工房ごと：2 つの帳面の指輪を並べる（前の版の見せ方） */
+.book { padding: var(--sec) var(--gut); background: var(--black); display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: clamp(24px, 4vw, 64px); align-items: start; }
+.book-h { grid-column: 2; grid-row: 1; font-size: clamp(27px, 2.8vw, 40px); line-height: 2; }
+.book-two { grid-column: 1; grid-row: 1; display: grid; grid-template-columns: 1fr 1fr; }
+.book-two figure + figure { border-left: 1px solid var(--hair); }
+.book-two figcaption { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; align-items: baseline; margin-top: 4px; font-size: clamp(16px, 1.3vw, 18px); color: var(--white); }
+.book-two b { font: 400 1.1em/1.6 var(--mincho); }
+.book-n { grid-column: 1; max-width: 40em; margin: 8px auto 0; color: var(--white-2); }
 
 /* ---- 移り変わる絵 ---- */
 .xf { display: grid; gap: 12px; }
@@ -133,6 +169,8 @@ figcaption { font-size: 15.5px; line-height: 1.75; margin-top: 12px; color: var(
 .xf-screen .xf-stage { border: 1px solid var(--hair); border-radius: 6px; background: #1c1c1e; }
 .xf-tall .xf-stage { aspect-ratio: 5 / 6; }
 .xf-wide .xf-i img { object-fit: contain; }
+/* ゆっくり移る（テンション：職人の声「頑張って遅くして」） */
+.xf-slow .xf-i { transition-duration: 2.8s; }
 
 /* ---- 章の頭 ---- */
 .chap { max-width: var(--max); margin: 0 auto; padding: var(--sec) var(--gut) clamp(32px, 6vh, 64px); display: grid; gap: 18px; }
@@ -160,14 +198,31 @@ figcaption { font-size: 15.5px; line-height: 1.75; margin-top: 12px; color: var(
 .phone-fig img { border-radius: 14px; border: 1px solid var(--hair); }
 .hands-fig { justify-self: center; max-width: 680px; }
 .hands-fig video { width: 100%; border-radius: 6px; background: #1c1c1e; }
+/* 作れない所を押したところを、大きく（職人の声：ちっちゃくて見えない） */
+.zoom { padding-bottom: clamp(56px, 10vh, 112px); }
+.zoom-f { max-width: 1060px; margin: 0 auto; }
+.zoom-f img { width: 100%; border: 1px solid var(--hair); border-radius: 8px; }
 .make-live { background: var(--paper); color: var(--ink); padding: clamp(18px, 2.4vw, 32px); border-radius: 4px; }
 
-/* テンションの表 */
-.ten-t { width: 100%; max-width: 480px; border-collapse: collapse; font-size: clamp(16px, 1.25vw, 18px); }
-.ten-t caption { text-align: left; padding-bottom: 10px; font: 400 18px/1.6 var(--mincho); letter-spacing: 0.04em; }
-.ten-t th, .ten-t td { padding: 11px 8px 11px 0; border-top: 1px solid var(--hair); text-align: left; font-weight: 400; vertical-align: baseline; }
-.ten-t thead th { border-top: 0; padding-top: 0; font-size: 15px; color: var(--white-2); }
+/* ---- テンション（デザインする人へ の中の、別の節） ---- */
+.tension { background: #000; padding: var(--sec) 0; border-top: 1px solid var(--hair); }
+.ten-top { max-width: var(--max); margin: 0 auto; padding: 0 var(--gut); display: flex; flex-direction: row-reverse; justify-content: space-between; gap: clamp(28px, 5vw, 80px); align-items: flex-start; }
+.ten-v { font-size: clamp(48px, 6.4vw, 96px); line-height: 1; letter-spacing: 0.2em; }
+.ten-intro { max-width: 40em; display: grid; gap: 20px; }
+.ten-intro h3 { font-size: clamp(30px, 3.4vw, 48px); }
+.ten-what li { padding: 14px 0; border-top: 1px solid var(--hair); }
+.ten-what b { display: block; font: 400 clamp(19px, 1.6vw, 22px)/1.6 var(--mincho); letter-spacing: 0.03em; }
+.ten-body { max-width: var(--max); margin: clamp(48px, 8vh, 88px) auto 0; padding: 0 var(--gut); display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: clamp(28px, 5vw, 88px); align-items: start; }
+.ten-card img { width: 100%; border: 1px solid var(--hair); border-radius: 10px; }
+.ten-side { display: grid; gap: 18px; }
+.ten-t { width: 100%; border-collapse: collapse; font-size: clamp(16px, 1.25vw, 18px); }
+.ten-t caption { text-align: left; padding-bottom: 10px; font: 400 19px/1.6 var(--mincho); letter-spacing: 0.04em; }
+.ten-t th, .ten-t td { padding: 12px 10px 12px 0; border-top: 1px solid var(--hair); text-align: left; font-weight: 400; vertical-align: baseline; }
+.ten-t thead th { border-top: 0; padding-top: 0; font-size: 15px; line-height: 1.5; color: var(--white-2); vertical-align: bottom; }
 .ten-t .num, .ten-t tbody th { white-space: nowrap; }
+.ten-t td.short { font-size: 15.5px; line-height: 1.7; color: var(--white-2); }
+.ten-t tr.mine th::after { content: "職人の指輪"; display: block; font-size: 13px; line-height: 1.4; color: var(--white-2); }
+.ten-real { max-width: 980px; margin: clamp(56px, 10vh, 112px) auto 0; padding: 0 var(--gut); }
 
 /* ---- 作り方の札（紙の上。設計の画面の「手順」と同じ中身） ---- */
 .mk-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 24px; padding-bottom: 14px; border-bottom: 1px solid var(--ink); }
@@ -201,16 +256,22 @@ figcaption { font-size: 15.5px; line-height: 1.75; margin-top: 12px; color: var(
 .term-def ol { margin: 6px 0 0; padding-left: 1.4em; list-style: decimal; }
 .mk-loading { padding: 28px 0; font-size: 16px; }
 
-/* ---- 次の時代へ ---- */
-.stat { display: grid; justify-items: center; text-align: center; gap: 6px; padding-block: clamp(40px, 8vh, 96px) clamp(64px, 12vh, 128px); }
-.stat h3 { font-size: clamp(22px, 2.2vw, 32px); }
-.stat-n { font: 400 clamp(96px, 15vw, 210px)/1.1 var(--mincho); letter-spacing: 0.02em; }
-.stat-n .num { font-size: 1.1em; }
-.stat-e { font: 400 clamp(24px, 2.4vw, 34px)/1.5 var(--mincho); }
-.stat-t { margin-top: 18px; max-width: 30em; }
-.naiku { display: grid; grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); gap: clamp(28px, 5vw, 80px); align-items: start; padding-block: clamp(48px, 9vh, 96px); border-top: 1px solid var(--hair); }
-.naiku-t { display: grid; gap: 18px; }
-.naiku-zu { margin-top: 12px; }
+/* ---- 次の時代へ：約 6 割と 20 年に一度は、それぞれ画面いっぱいに（前の版の見た目） ---- */
+.stat { min-height: 100svh; display: grid; align-content: center; justify-items: center; text-align: center; gap: 6px; padding: var(--sec) var(--gut); background: #000; }
+.stat h3 { font-size: clamp(25px, 3vw, 40px); line-height: 1.6; }
+.stat-n { font: 400 clamp(96px, 18vw, 260px)/1.15 var(--mincho); letter-spacing: 0.02em; }
+.stat-e { font: 400 clamp(25px, 3vw, 40px)/1.6 var(--mincho); }
+.stat-line { position: relative; width: 100%; height: 1px; max-width: 760px; margin: clamp(32px, 6vh, 56px) auto; background: var(--hair); }
+.stat-line i { position: absolute; left: 0; top: -0.5px; height: 2px; width: 42%; background: var(--white); }
+.stat-t { max-width: 30em; }
+.naiku { position: relative; background: #000; }
+.naiku-full { position: relative; }
+.naiku-ph img { width: 100%; height: min(100svh, 66vw); min-height: 460px; object-fit: cover; }
+.naiku-full::after { content: ""; position: absolute; inset: 0 0 0 auto; width: min(60%, 620px); background: linear-gradient(270deg, rgba(0, 0, 0, 0.82) 15%, transparent); pointer-events: none; }
+.naiku-h { position: absolute; z-index: 1; top: clamp(56px, 9vh, 96px); right: clamp(28px, 6vw, 96px); font-size: clamp(27px, 3.2vw, 46px); line-height: 2; text-shadow: 0 0 18px rgba(0, 0, 0, 0.6); }
+.naiku-t { max-width: 800px; display: grid; gap: 18px; padding-block: 40px clamp(64px, 12vh, 128px); }
+.naiku-t > p:first-child { font-size: clamp(18px, 1.5vw, 20px); }
+.naiku-zu { margin-top: 18px; }
 .craft { display: grid; gap: clamp(28px, 5vh, 48px); padding-block: clamp(48px, 9vh, 96px); border-top: 1px solid var(--hair); }
 .craft-t { display: grid; gap: 16px; max-width: 760px; }
 
@@ -243,15 +304,22 @@ figcaption { font-size: 15.5px; line-height: 1.75; margin-top: 12px; color: var(
 .own { display: grid; grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); gap: clamp(28px, 5vw, 80px); align-items: center; margin-top: clamp(72px, 12vh, 128px); }
 .own-t { display: grid; gap: 18px; }
 .own-f img { border-radius: 8px; border: 1px solid var(--hair); }
-.ifever { margin-top: clamp(72px, 12vh, 128px); text-align: center; font: 400 clamp(24px, 2.6vw, 38px)/1.6 var(--mincho); letter-spacing: 0.06em; }
+/* 工房に：罫の紙に縦の字（前の版）。罫は字の列と同じ間隔で、字の列の右の端から引く（両わきにも 4 本ずつ） */
+.ifever { --ifs: clamp(27px, 3.6vw, 52px); --rule: calc(var(--ifs) * 2); display: flex; justify-content: center; padding: clamp(84px, 14vh, 144px) var(--gut); overflow: hidden; background: var(--paper); color: var(--ink); }
+.ifever-v { font-size: var(--ifs); line-height: 2; padding: clamp(84px, 14vh, 144px) calc(var(--rule) * 4); margin: calc(clamp(84px, 14vh, 144px) * -1) 0; background-image: linear-gradient(to right, rgba(190, 50, 30, 0.22) 0 1px, transparent 1px); background-size: var(--rule) 100%; background-repeat: repeat-x; background-position: right calc(var(--rule) * 4) top; }
 
-/* ---- 結 ---- */
-.end { display: grid; justify-items: center; text-align: center; gap: 20px; padding: calc(var(--sec) * 1.2) var(--gut) var(--sec); }
-.end-h { font-size: clamp(36px, 4.6vw, 64px); line-height: 1.5; letter-spacing: 0.1em; }
-.end-t { font: 400 clamp(56px, 7vw, 96px)/1.2 var(--mincho); letter-spacing: 0.2em; margin-top: 8px; }
-.end-made { font: 400 clamp(19px, 1.8vw, 25px)/1.7 var(--mincho); letter-spacing: 0.04em; margin-top: 12px; }
-.end-stance { color: var(--white-2); max-width: 32em; }
-.end .cta { justify-content: center; margin-top: 16px; }
+/* ---- Claude の立ち位置 ---- */
+.stance { max-width: 1000px; margin: 0 auto; padding: var(--sec) var(--gut) 0; display: grid; gap: 22px; }
+.stance h2 { font-size: clamp(32px, 5vw, 68px); line-height: 1.4; }
+.stance > p { max-width: 34em; font-size: clamp(18px, 1.5vw, 20px); }
+
+/* ---- 結：画面いっぱいに、縦の字と大きな「継ぐ」（前の版） ---- */
+.end { min-height: 100svh; display: grid; justify-items: center; align-content: center; text-align: center; gap: 32px; padding: var(--sec) var(--gut); }
+.end-v { display: grid; justify-items: center; gap: clamp(28px, 5vh, 56px); }
+.end-h { font-size: clamp(30px, 3.6vw, 50px); line-height: 2; }
+.end-t { font-size: clamp(96px, 12vw, 176px); line-height: 1; letter-spacing: 0.1em; }
+.end-made { font: 400 clamp(19px, 1.8vw, 25px)/1.7 var(--mincho); letter-spacing: 0.04em; }
+.end .cta { justify-content: center; }
 .end-n { max-width: 32em; }
 
 /* ---- 下 ---- */
@@ -268,6 +336,7 @@ figcaption { font-size: 15.5px; line-height: 1.75; margin-top: 12px; color: var(
   html { scroll-behavior: auto; }
   .rv { opacity: 1; transition: none; }
   .xf-i { transition: none; }
+  .say-full .rv { transition: none; }
 }
 
 /* ---- 幅 ---- */
@@ -275,16 +344,40 @@ figcaption { font-size: 15.5px; line-height: 1.75; margin-top: 12px; color: var(
   .hide-sm { display: none !important; }
 }
 @media (max-width: 900px) {
-  .hero { grid-template-columns: 1fr; min-height: auto; padding-top: 88px; gap: 8px; }
-  .hero-ring { order: -1; width: min(100%, 560px); }
-  .hero-t { justify-items: start; }
-  .keep-grid, .book, .feat, .feat.flip, .naiku, .restore-head, .own, .flows { grid-template-columns: 1fr; }
+  .keep-grid, .feat, .feat.flip, .restore-head, .own, .flows, .ten-body { grid-template-columns: 1fr; }
   .feat.flip .feat-t { order: 0; }
   .feat-m { order: 2; }
   .keep-shots { position: static; }
-  .route { grid-template-columns: 1fr 1fr; }
-  .route li:nth-child(3) { border-left: 0; }
-  .route li:nth-child(n + 3) { border-top: 1px solid var(--hair); }
+  .how-map { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .how-map > li:nth-child(3)::after { display: none; }
+  .hm-use { grid-column: 1 / -1; }
+  .hm-use ul { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .ten-card { max-width: 340px; justify-self: center; }
+}
+@media (max-width: 760px) {
+  .hero-ring img { object-fit: contain; object-position: 40% 66%; }
+  .hero-t { top: 76px; right: 20px; }
+  .hero-b { right: var(--gut); max-width: none; }
+  .hero::after { height: 26%; }
+  .book { display: flex; flex-direction: column; }
+  .book-h { align-self: flex-end; }
+  .book-two { grid-template-columns: 1fr; width: 100%; }
+  .book-two figure + figure { border-left: 0; border-top: 1px solid var(--hair); }
+  .naiku-ph img { height: 74svh; }
+  .naiku-full::after { width: 100%; }
+  .how { min-height: 0; }
+  .how-map { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .how-map > li:not(:last-child)::after { content: "↓"; top: auto; bottom: -12px; right: auto; left: 52px; transform: translate(-50%, 50%); font-size: 15px; }
+  .how-map > li > a { grid-template-columns: 104px minmax(0, 1fr); grid-template-areas: "f n" "f b" "f s"; gap: 2px 14px; align-items: start; padding-bottom: 14px; }
+  .how-map > li > a .hm-f { grid-area: f; }
+  .how-map > li > a .hm-n { grid-area: n; padding-top: 4px; }
+  .how-map > li > a b { grid-area: b; }
+  .how-map > li > a small { grid-area: s; }
+  .hm-book i { font-size: 22px; }
+  .hm-book span { display: none; }
+  .hm-use ul { grid-template-columns: 1fr 1fr; }
+  .ten-top { flex-direction: column; align-items: flex-end; }
+  .ten-intro { max-width: none; }
 }
 @media (max-width: 560px) {
   br.sm { display: inline; }
@@ -293,6 +386,12 @@ figcaption { font-size: 15.5px; line-height: 1.75; margin-top: 12px; color: var(
   .nav { gap: 14px; font-size: 15px; }
   .nav .go { padding: 0 14px; }
   .reason-q p::before { margin-left: -0.5em; }
+  .say-full { gap: 22px; padding-inline: 16px; }
+  .sf-l { font-size: 26px; }
+  .sf-m { font-size: 31px; }
+  .sf-k { font-size: 54px; }
+  .ten-t { font-size: 15.5px; }
+  .ten-t th, .ten-t td { padding-right: 8px; }
   .xf-bar { flex-direction: column; align-items: flex-start; gap: 0; }
   .mk-rows, .mk-watch, .mk-flow, .mk-tools { margin-left: 0; }
   .mk-cards { max-height: 480px; }
