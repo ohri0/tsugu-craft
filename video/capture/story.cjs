@@ -2552,11 +2552,15 @@ const builtNow9 = async (a) => {
   await p.evaluate(() => { window.__viewer = window.__studio.viewer; });
 };
 /** 方眼と寸法を消して、レンダーの黒い地に */
+// 2026-11-08（作者が最終案 17d の 1:13 で見つけた）：前は 3D だけをレンダーにしていて、表示のボタンは「シェード」のままだった
+//   （アプリは「確かめる」「作り方」に入ると、人が表示を選んでいなければシェードにする。ボタンも 3D もいっしょに）。
+//   人と同じに「レンダー」のボタンを押す（ボタンの見た目・3D・人が選んだ印がそろう）。図面を出している間は押さない（図面が消える）
 const blackVp9 = async (a) => {
   const { p } = a;
   await p.evaluate(() => {
     const v = window.__viewer;
     document.querySelector('.t-dims[aria-pressed="true"]')?.click(); document.querySelector('.t-grid[aria-pressed="true"]')?.click();
+    if (!document.querySelector('.pro.drawing-on')) document.querySelector('.disp [data-disp="render"]')?.click();
     v.setDisplayMode('render'); v.setPresenting(true); v.setAutoRotate(false); v.keepCamera = true;
   });
   await p.addStyleTag({ content: '.dims,.stone-tags{display:none!important} .vp{background:#000!important}' });

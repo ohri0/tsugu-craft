@@ -1635,7 +1635,9 @@ def teach14(s, t, f):
 # ---- 残す（最終案 15。作者の声：前の字の札の方が、見ていて入ってきた。推測を強く言わない）：
 #   字の札 職人の言葉 →（Claude）→ 決まり（8 mm は職人の 0.70、ほかの大きさは帳面をもとに計算した数字。推測の印は出さない）
 #   →「これでいい」→ 帳面に残る → 設計の確かめに使う（n5〜n7）。そのあと本物の画面を短く（teach15。n8）
-RULE15_ROWS = (("5 mm", "0.45 mm", False), ("8 mm", "0.70 mm", True), ("12 mm", "0.97 mm", False), ("18 mm", "1.40 mm", False))
+# 2026-11-08（作者＝職人の言葉）：5 mm の石の爪の最低は 0.60 mm（前は計算の 0.45 mm）。職人の言葉なので、8 mm と同じく「職人」の印をつけ、
+#   8 mm といっしょに先に出す。12 mm・18 mm は、近い職人の点（8 mm）から計算した数字なので、そのまま
+RULE15_ROWS = (("5 mm", "0.60 mm", True), ("8 mm", "0.70 mm", True), ("12 mm", "0.97 mm", False), ("18 mm", "1.40 mm", False))
 
 
 @scene()
@@ -1658,9 +1660,10 @@ def rule15(s, t, f):
     a = ink(a, Hz(1340, 368, "石の大きさ", "sans", T - 2, 0.06, "r"), SHIRO, 0.6 * k2)
     a = ink(a, Hz(1560, 368, "爪の最低", "sans", T - 2, 0.06, "r"), SHIRO, 0.6 * k2)
     t_more = a1 + d1 * 0.45
+    calc = [j for j, r in enumerate(RULE15_ROWS) if not r[2]]  # 計算した行（職人の行のあとに、上から 1 行ずつ）
     for j, (stone, val, craft) in enumerate(RULE15_ROWS):
         y = 440 + j * 72
-        kj = fade(t, a1 + 0.5, 0.8) if craft else fade(t, t_more + 0.28 * (j if j < 1 else j - 1), 0.6)
+        kj = fade(t, a1 + 0.5, 0.8) if craft else fade(t, t_more + 0.28 * calc.index(j), 0.6)
         if kj <= 0:
             continue
         op = 1.0 if craft else 0.86

@@ -310,7 +310,8 @@ def main():
     commits = subprocess.run(["git", "-C", REPO, "rev-list", "--count", "HEAD"], capture_output=True, text=True).stdout.strip()
     first_day = subprocess.run(["git", "-C", REPO, "log", "--reverse", "--format=%ad", "--date=short"], capture_output=True, text=True).stdout.split("\n")[0].strip()
     # 最終案 17e：くらべる案なので、終わりのコミットの数も 17d の台本（final10.json）と同じにする（ちがうのは足した所だけ）
-    if TAG and os.path.exists(os.path.join(HERE, "final10.json")):
+    # 2026-11-08（最終案 17f・17g：表示のボタンだけの直し）：GIT_KEEP=1 なら、17d の台本のコミットの数のままにする（直した所のほかは変えない）
+    if (TAG or os.environ.get("GIT_KEEP") == "1") and os.path.exists(os.path.join(HERE, "final10.json")):
         with open(os.path.join(HERE, "final10.json"), encoding="utf8") as f:
             g17d = json.load(f).get("git") or {}
         commits, first_day = g17d.get("commits", commits), g17d.get("first_day", first_day)
