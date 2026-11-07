@@ -69,7 +69,7 @@ app.innerHTML = `
     <p class="eyebrow">継ぐ</p>
     <h3>職人の判断と手を、次の人へ。</h3>
     ${INTRO}
-    <div class="sheet-actions">${FLOW && !isMihon() ? `<a class="ghost btnlike" href="app.html?mihon#waza/kebori">作り話の例で見る</a>` : ""}<button value="ok" class="primary">始める</button></div>
+    <div class="sheet-actions">${FLOW && !isMihon() ? `<a class="ghost btnlike" href="app.html?mihon#waza/kebori">作り話の例で見る</a>` : ""}<button value="ok" class="primary" autofocus>始める</button></div>
   </form>
 </dialog>`;
 
