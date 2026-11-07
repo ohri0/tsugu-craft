@@ -23,6 +23,7 @@
 
 /* 出来上がり：この案・前の案・断面 */
 .pv .pv-final { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.4fr); gap: 18px; margin: 18px 0 0; padding-top: 18px; border-top: 1px solid var(--mo-line); align-items: start; }
+.pv .pv-final.no-prev { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); }
 .pv .pv-big { margin: 0; opacity: 0; transform: translateY(8px); transition: opacity 0.9s ease, transform 0.9s ease; }
 .pv .pv-prev { transition-delay: 0.35s; }
 .pv .pv-secbig { transition-delay: 0.6s; }
@@ -60,6 +61,7 @@
 @media (max-width: 760px) {
   .pv .pv-stages { grid-template-columns: 1fr 1fr; }
   .pv .pv-final { grid-template-columns: 1fr 1fr; }
+  .pv .pv-final.no-prev { grid-template-columns: 1fr; }
   .pv .pv-secbig { grid-column: 1 / -1; }
 }
 

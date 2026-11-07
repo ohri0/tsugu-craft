@@ -170,7 +170,7 @@ export function mountPatternView(root: HTMLElement, project: RestoreProject, ver
         )
         .join("")}</ol>
       <div class="mo-ctrl"><button type="button" class="ghost pv-replay">はじめから見る</button><span class="mo-count pv-count"></span></div>
-      <div class="pv-final">
+      <div class="pv-final${prev ? "" : " no-prev"}">
         <figure class="mo-big pv-big"><canvas class="pv-top" aria-label="上から見た面"></canvas>
           <figcaption><b>${n} 回目の案の手順で</b><span>上から見た面（最後の色）</span></figcaption></figure>
         ${
