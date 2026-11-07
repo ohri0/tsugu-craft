@@ -1,0 +1,134 @@
+[
+  {
+    "version": 1,
+    "tag": "",
+    "prediction": {
+      "applicable": true,
+      "reason": "赤銅と銀を重ねた層の模様なので、重ねる、つなぐ、棒にしてねじる、割って並べる、つなぐ、のばす、削る、色、の順に置きかえた。",
+      "ops": [
+        {
+          "op": "stack",
+          "step": 1,
+          "why": "赤銅と銀の板を交互に重ねるので",
+          "assumed": "枚数は分からないので、絵のために仮に10枚、同じ厚さ、赤銅を上にした",
+          "metals": [
+            "shakudo",
+            "silver"
+          ],
+          "amount": 10,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "-"
+        },
+        {
+          "op": "bond",
+          "step": 2,
+          "why": "重ね沸かしで層をつなぐので",
+          "assumed": "温度は分からないので、よくつながったとして描く",
+          "metals": [],
+          "amount": 0,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "good"
+        },
+        {
+          "op": "twist",
+          "step": 4,
+          "why": "角の棒にしてねじる工程。角の棒にする工程もここにまとめた。並べる本数もここで決める",
+          "assumed": "ねじる回数は仮に3回、並べる棒は仮に4本",
+          "metals": [],
+          "amount": 3,
+          "size": 0,
+          "across": 4,
+          "count": 0,
+          "thickness": [],
+          "choice": "-"
+        },
+        {
+          "op": "grind",
+          "step": 5,
+          "why": "縦に割ると棒の真ん中の面が出るので、厚みの半分まで削ったとして描く",
+          "assumed": "ちょうど半分に割ったと仮に決めた",
+          "metals": [],
+          "amount": 0.5,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "-"
+        },
+        {
+          "op": "rearrange",
+          "step": 6,
+          "why": "割った棒の向きを交互に変えて、炎を向かい合わせる推し量りを表す",
+          "assumed": "切る数は棒の本数に合わせて仮に4。計算の切り目は棒のさかいと少しずれるかもしれない",
+          "metals": [],
+          "amount": 4,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "strips"
+        },
+        {
+          "op": "bond",
+          "step": 7,
+          "why": "並べた棒をもう一度沸かしてつなぐので",
+          "assumed": "よくつながったとして描く",
+          "metals": [],
+          "amount": 0,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "good"
+        },
+        {
+          "op": "forge_thin",
+          "step": 8,
+          "why": "打ち延べて板にするので",
+          "assumed": "仮に厚みを2分の1、長さの向きにのばした",
+          "metals": [],
+          "amount": 2,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "length"
+        },
+        {
+          "op": "grind",
+          "step": 9,
+          "why": "卸すを、表を浅く削ることと見た",
+          "assumed": "深さは仮に厚みの0.1",
+          "metals": [],
+          "amount": 0.1,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "-"
+        },
+        {
+          "op": "color",
+          "step": 11,
+          "why": "煮色で赤銅を黒く、銀を白く見せるので",
+          "assumed": "",
+          "metals": [],
+          "amount": 0,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "patina"
+        }
+      ],
+      "cannot_show": "鐔の形に切り出すことと穴、縁の仕上げ。沸かしの温度と、熱しすぎて模様がぼやけること。棒を割る道具のちがい。割った棒をきちんとつなぎ目どおりに裏返して並べる細かい形は、計算では近い形でしか描けない。",
+      "summary": "黒い地に、斜めにかたむいた白い線の束が、細い帯ごとに向きを変えて並び、炎が向かい合うような形になるかもしれない、という見込みです。"
+    }
+  }
+]

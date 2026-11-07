@@ -1,0 +1,161 @@
+[
+  {
+    "version": 1,
+    "tag": "",
+    "prediction": {
+      "applicable": true,
+      "reason": "赤銅・銀・金を重ねてつなぐ技なので、重ねた層の模様として置きかえました。",
+      "ops": [
+        {
+          "op": "stack",
+          "step": 1,
+          "why": "赤銅・銀・金の三つの地金を重ねる",
+          "assumed": "順番は書いていないので、上から赤銅・銀・金とした。枚数も分からないので、3 種を 3 回くり返して 9 枚、同じ厚さにした",
+          "metals": [
+            "shakudo",
+            "silver",
+            "gold"
+          ],
+          "amount": 9,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "-"
+        },
+        {
+          "op": "bond",
+          "step": 2,
+          "why": "重ね沸かしで一つの塊につなぐ",
+          "assumed": "熱の具合は分からないので、よくつながるとした",
+          "metals": [],
+          "amount": 0,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "good"
+        },
+        {
+          "op": "forge_thin",
+          "step": 3,
+          "why": "鏨で打つ前に、叩いて板にのばす",
+          "assumed": "どこまで薄くするか分からないので、厚みを半分にした",
+          "metals": [],
+          "amount": 2,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "both"
+        },
+        {
+          "op": "punch",
+          "step": 4,
+          "why": "裏から葉鏨で打ち、表に葉の形のふくらみを出す",
+          "assumed": "深さ・大きさ・数は分からないので、深さ 0.5、半径 0.06、板全体で 12 ほどとした",
+          "metals": [],
+          "amount": 0.5,
+          "size": 0.06,
+          "across": 0,
+          "count": 12,
+          "thickness": [],
+          "choice": "leaves"
+        },
+        {
+          "op": "grind",
+          "step": 5,
+          "why": "表を卸して、ふくらみを削り平らにする",
+          "assumed": "削る深さは分からないので、層の真ん中で止まる 0.5 とした",
+          "metals": [],
+          "amount": 0.5,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "-"
+        },
+        {
+          "op": "rearrange",
+          "step": 6,
+          "why": "碁盤に切り、一つおきに回す",
+          "assumed": "目の数と回し方は分からないので、4 つに切って、一つおきに横に回すとした",
+          "metals": [],
+          "amount": 4,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "tiles"
+        },
+        {
+          "op": "bond",
+          "step": 7,
+          "why": "並べ直した四角をもう一度沸かしてつなぐ",
+          "assumed": "よくつながるとした",
+          "metals": [],
+          "amount": 0,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "good"
+        },
+        {
+          "op": "twist",
+          "step": 8,
+          "why": "二筋に捩じる。二本の棒をねじって横に並べてつなぐと読んだ",
+          "assumed": "二筋の意味は分からないので、2 本を並べるとした。ねじる回数は 2 回とした",
+          "metals": [],
+          "amount": 2,
+          "size": 0,
+          "across": 2,
+          "count": 0,
+          "thickness": [],
+          "choice": "-"
+        },
+        {
+          "op": "forge_thin",
+          "step": 9,
+          "why": "ねじった物を打ち延べて板にする",
+          "assumed": "叩く向きと薄さは分からないので、長さの向きに 3 分の 1 にした",
+          "metals": [],
+          "amount": 3,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "length"
+        },
+        {
+          "op": "grind",
+          "step": 9,
+          "why": "打ち延べた表を卸す",
+          "assumed": "削る深さは分からないので、0.25 とした",
+          "metals": [],
+          "amount": 0.25,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "-"
+        },
+        {
+          "op": "color",
+          "step": 10,
+          "why": "煮色で金・黒・白の差を出す",
+          "assumed": "液は分からないので、煮色のような薬の色とした",
+          "metals": [],
+          "amount": 0,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "patina"
+        }
+      ],
+      "cannot_show": "簪の板の形に切ること、熱の具合や冷まし方、葉鏨の本当の形、碁盤の回し方（横か裏返しか）、二筋の本当の意味は描けません。",
+      "summary": "葉の形の輪が碁盤の目ごとに向きを変え、それがねじりで二つの渦の中心へ吸いこまれるような、黒・白・金の模様になりそうです。あくまで仮の値での見込みです。"
+    }
+  }
+]

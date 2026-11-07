@@ -1,0 +1,121 @@
+[
+  {
+    "version": 1,
+    "tag": "",
+    "prediction": {
+      "applicable": true,
+      "reason": "赤銅と銀を重ねてつなぎ、短冊を横に倒し、二本の棒にしてねじり、のばして削る、重ねた層の模様として置きかえました。",
+      "ops": [
+        {
+          "op": "stack",
+          "step": 1,
+          "why": "赤銅と銀の板をかわるがわる重ねる工程なので、重ねる操作にした。",
+          "assumed": "枚数は書かれていないので、絵のために仮に10枚、同じ厚さ、赤銅を上にした。",
+          "metals": [
+            "shakudo",
+            "silver"
+          ],
+          "amount": 10,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "-"
+        },
+        {
+          "op": "bond",
+          "step": 3,
+          "why": "沸かして一つにする工程。板の面をきれいにする工程も、よくつながる元として入れた。",
+          "assumed": "面をきれいにしてから沸かすので、よくつながるとした。",
+          "metals": [],
+          "amount": 0,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "good"
+        },
+        {
+          "op": "rearrange",
+          "step": 5,
+          "why": "短冊に切って横に倒し、層のふちを立てて並べる工程なので、横にして並べかえる操作にした。",
+          "assumed": "短冊の数は分からないので、仮に4本とした。縞は10枚×4で40本ほどになる。",
+          "metals": [],
+          "amount": 4,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "edge_up"
+        },
+        {
+          "op": "bond",
+          "step": 6,
+          "why": "並べた短冊をまた沸かしてつなぐ工程。",
+          "assumed": "一度目と同じく、よくつながるとした。",
+          "metals": [],
+          "amount": 0,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "good"
+        },
+        {
+          "op": "twist",
+          "step": 9,
+          "why": "二本の棒にしてねじり、横に並べてつなぐ工程なので、二本並べるねじりにした。棒にする工程と二本をくっつける工程もここにまとめた。",
+          "assumed": "ねじる回数は書かれていないので、仮に板の長さの中で2回とした。",
+          "metals": [],
+          "amount": 2,
+          "size": 0,
+          "across": 2,
+          "count": 0,
+          "thickness": [],
+          "choice": "-"
+        },
+        {
+          "op": "forge_thin",
+          "step": 11,
+          "why": "叩いて平たくのばす工程。",
+          "assumed": "どこまで薄くするか分からないので、仮に厚みを3分の1にし、長さの向きにのばすとした。",
+          "metals": [],
+          "amount": 3,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "length"
+        },
+        {
+          "op": "grind",
+          "step": 12,
+          "why": "鑢で表を削り平らにして模様を出す工程。",
+          "assumed": "削る深さは分からないので、仮に厚みの0.25とした。",
+          "metals": [],
+          "amount": 0.25,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "-"
+        },
+        {
+          "op": "color",
+          "step": 14,
+          "why": "煮色で赤銅を黒く、銀を白く見せる工程。",
+          "assumed": "",
+          "metals": [],
+          "amount": 0,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "patina"
+        }
+      ],
+      "cannot_show": "二本を逆の向きにねじること（この絵では二本とも同じ向きにねじる）、焼きなましとゆっくり冷ますこと、沸かす熱と時間、帯留めの形に切って金具を付けること、煮色の液の本当の色あい。",
+      "summary": "二本の棒のつなぎ目の両側に、黒と白の細い線が星や羽のように開く模様が出るかもしれない、という見込みです。左右が鏡のように開く蝶の形になるかは、ねじる向きが描けないので、この絵では確かめられません。"
+    }
+  }
+]

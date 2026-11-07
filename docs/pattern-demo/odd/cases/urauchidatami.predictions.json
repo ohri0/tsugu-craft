@@ -1,0 +1,148 @@
+[
+  {
+    "version": 1,
+    "tag": "",
+    "prediction": {
+      "applicable": true,
+      "reason": "赤銅・銀・銅を重ねて、花の形に打ち出して削り、のばして重ね直す、重ねた層の模様として置きかえました。",
+      "ops": [
+        {
+          "op": "stack",
+          "step": 1,
+          "why": "赤銅・銀・銅の板を重ねる工程だから",
+          "assumed": "順番は書かれた順の赤銅・銀・銅、同じ厚さとし、3 種を 3 回くり返して 9 枚と仮に決めた",
+          "metals": [
+            "shakudo",
+            "silver",
+            "copper"
+          ],
+          "amount": 9,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "-"
+        },
+        {
+          "op": "bond",
+          "step": 2,
+          "why": "重ねた板を沸かして 1 つにつなぐ工程だから",
+          "assumed": "よくつながったとして描く",
+          "metals": [],
+          "amount": 0,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "good"
+        },
+        {
+          "op": "punch",
+          "step": 4,
+          "why": "裏から花鏨で打ち出し、表に花のふくらみを出す工程だから",
+          "assumed": "花は板全体で 10 ほど、大きさは板の幅の 0.06、高さは厚みの 0.35 と仮に決めた。下の層が何色も輪になって出るように、3 枚分ほど届く高さにした",
+          "metals": [],
+          "amount": 0.35,
+          "size": 0.06,
+          "across": 0,
+          "count": 10,
+          "thickness": [],
+          "choice": "petals"
+        },
+        {
+          "op": "grind",
+          "step": 5,
+          "why": "表を卸して、ふくらみを削り平らにする工程だから",
+          "assumed": "打ち出した高さと同じ深さだけ削ると仮に決めた",
+          "metals": [],
+          "amount": 0.35,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "-"
+        },
+        {
+          "op": "forge_thin",
+          "step": 6,
+          "why": "花の模様の出た板を叩いてのばす工程だから",
+          "assumed": "長さの向きに 2 分の 1 の厚さにのばすと仮に決めた",
+          "metals": [],
+          "amount": 2,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "length"
+        },
+        {
+          "op": "fold",
+          "step": 7,
+          "why": "切って重ね直す工程。二度を、2 回くり返すと読んだ",
+          "assumed": "二度を 2 回の重ね直しと仮に読み、向きはそろえて重ねるとした",
+          "metals": [],
+          "amount": 2,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "-"
+        },
+        {
+          "op": "bond",
+          "step": 7,
+          "why": "重ねた板をまた沸かしてつなぐ工程だから",
+          "assumed": "よくつながったとして描く",
+          "metals": [],
+          "amount": 0,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "good"
+        },
+        {
+          "op": "forge_thin",
+          "step": 8,
+          "why": "重ねた塊を打ち延べる工程だから",
+          "assumed": "長さの向きに 3 分の 1 の厚さにのばすと仮に決めた",
+          "metals": [],
+          "amount": 3,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "length"
+        },
+        {
+          "op": "grind",
+          "step": 8,
+          "why": "もう一度表を卸して模様を出す工程だから",
+          "assumed": "厚みの 0.25 を削ると仮に決めた",
+          "metals": [],
+          "amount": 0.25,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "-"
+        },
+        {
+          "op": "color",
+          "step": 10,
+          "why": "煮色で金属ごとの色の差を出す工程だから",
+          "assumed": "",
+          "metals": [],
+          "amount": 0,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "patina"
+        }
+      ],
+      "cannot_show": "焼きなましとゆっくり冷ますこと、沸かす温度と熱し方、皿の形にすること、斜めに流れる向きが削る角度から来る場合の形、本当の花鏨の形は描けません。",
+      "summary": "花の形の輪が、のばした向きに引きのばされ、重ね直しで細かくなって、黒・白・赤の筋やまだらが流れる模様になりそうです。虎の毛並みのように見えるかは、仮の値しだいの見込みです。"
+    }
+  }
+]
