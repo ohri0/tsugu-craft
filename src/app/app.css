@@ -319,6 +319,10 @@ a.primary.btnlike { color: #fff; }
 .ex b { font-size: 13px; font-weight: 600; }
 .ex small { font-size: 11px; color: var(--fg-3); font-variant-numeric: tabular-nums; }
 .ex[aria-pressed="true"] { background: var(--accent-weak); border-color: rgba(10, 132, 255, 0.45); }
+/* よくない例：手本の一覧の下に、赤みの縁で（比べる手本にはしない） */
+.ex-bad-h { margin: 8px 0 4px; color: var(--fg-2); }
+.ex.bad { border-color: rgba(224, 65, 43, 0.45); }
+.ex.bad[aria-pressed="true"] { background: rgba(224, 65, 43, 0.12); border-color: rgba(224, 65, 43, 0.7); }
 .stage { margin-top: 12px; }
 .frame { position: relative; border-radius: var(--radius); overflow: hidden; background: #111113; border: 1px solid var(--line); max-height: 72vh; display: flex; justify-content: center; }
 .frame video { display: block; max-width: 100%; max-height: 72vh; }
@@ -474,7 +478,7 @@ input[type="range"]::-moz-range-thumb { width: 13px; height: 13px; border-radius
 .role-check { border-color: var(--accent, #0a84ff); }
 .role-model { border-color: var(--master); }
 .role-btn:hover { background: rgba(255, 255, 255, 0.04); }
-.role-cancel { justify-self: start; font-size: 13px; }
+.role-cancel, .role-bad { justify-self: start; font-size: 13px; }
 .asked { display: grid; gap: 4px; padding: 14px 16px; border: 1px solid var(--line-2); border-radius: var(--radius); }
 .asked p { margin: 0; }
 .mreq { display: grid; gap: 8px; padding: 12px 14px; margin: 0 0 12px; border: 1px solid var(--master); border-radius: var(--radius); }

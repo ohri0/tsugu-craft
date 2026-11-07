@@ -22,6 +22,8 @@ interface IndexItem {
   durationS: number;
   tempoPerMin: number | null;
   technique?: string;
+  /** よくない例（手本の数に入れない） */
+  bad?: true;
 }
 
 function loadIndex(): IndexItem[] {
@@ -52,13 +54,13 @@ export function savedRecords(): SkillRecord[] {
 
 /** その技の手本の数（中身を読まずに数える。技の印のない前の記録は指輪の石留めのもの） */
 export function recordCount(technique: string): number {
-  return loadIndex().filter((x) => (x.technique ?? "ring") === technique).length;
+  return loadIndex().filter((x) => (x.technique ?? "ring") === technique && !x.bad).length;
 }
 
 /** 残す。入りきらないときは false */
 export function storeRecord(r: SkillRecord): boolean {
   const main = r.metrics.mainHand === null ? null : r.metrics.hands[r.metrics.mainHand];
-  const item: IndexItem = { id: r.id, title: r.title, craftsman: r.craftsman, date: r.date, durationS: r.durationS, tempoPerMin: main?.tempoPerMin ?? null, ...(r.technique ? { technique: r.technique } : {}) };
+  const item: IndexItem = { id: r.id, title: r.title, craftsman: r.craftsman, date: r.date, durationS: r.durationS, tempoPerMin: main?.tempoPerMin ?? null, ...(r.technique ? { technique: r.technique } : {}), ...(r.bad ? { bad: true as const } : {}) };
   try {
     localStorage.setItem(RECORD_STORE + r.id, exportRecord(r));
     const idx = loadIndex().filter((x) => x.id !== r.id);

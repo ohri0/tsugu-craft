@@ -61,15 +61,17 @@ export const freeTechKey = (name: string) => `${FREE_TECH}${cleanTechName(name)}
 export const isFreeTech = (technique: string | undefined) => !!technique?.startsWith(FREE_TECH);
 
 /** 入れた動画が何か（2026-11-07 職人（石川）の声：自分の例を添削してほしいのか、職人がいい例として入れてるのかを、簡単に選べるように） */
-export type VideoRole = "check" | "model";
+export type VideoRole = "check" | "model" | "bad";
 
 /**
  * 入れた動画を、どう扱うか：
  *   自分の手を見てほしい（check）… 手本があれば比べる。なければ、その動画をつけて職人に手本を頼む
  *   職人の手本（model）       … その技の手本として残す（すぐ比べられる）
+ *   よくない例（bad）         … 手本にはせず、その技の手本の横に「よくない例」として残す（小さなリンクで選ぶ）
  */
-export function videoRoute(role: VideoRole, hasModel: boolean): "compare" | "request" | "save-model" {
+export function videoRoute(role: VideoRole, hasModel: boolean): "compare" | "request" | "save-model" | "save-bad" {
   if (role === "model") return "save-model";
+  if (role === "bad") return "save-bad";
   return hasModel ? "compare" : "request";
 }
 
