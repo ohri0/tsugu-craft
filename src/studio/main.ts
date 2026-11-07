@@ -75,6 +75,7 @@ import type { TensionGrip } from "../geometry/tension";
 import { presentHtml, STONE_SIZES, type PresentGroup } from "./present";
 import { MAX_SECONDS, playVoice, putVoice, startRecording, voiceIds } from "./voice-notes";
 import { clearDesign, introSeen, loadDesign, loadImportedPhotoUrl, loadPhotoUrl, markIntroSeen, saveDesign, saveImportedPhoto, savePhoto, tabBox, type KeptStone } from "./keep-design";
+import { mainNavHtml } from "../ui/main-nav";
 
 type Mode = "make" | "refine" | "hand" | "works";
 const MODES: { id: Mode; word: string; key: string; sub: string }[] = [
@@ -140,14 +141,18 @@ let session: RingSession | null = null;
 
 // 字・押す所・色の直し（pro.css の html.fit）。撮影では付けない（動画の絵を前のままにする）
 document.documentElement.classList.toggle("fit", !filming());
+// 継ぐの場所の切り替え（帳面・設計・学ぶ・技・途切れた技。帳面などの画面と同じ部品 src/ui/main-nav.ts）。撮影では前の上の帯のまま
+document.documentElement.classList.toggle("gnav-on", !filming());
+const BRAND = `<a class="brand" href="./" aria-label="継ぐ（始めの画面へ）" title="始めの画面へ"><span class="logo">継</span>継ぐ</a>`;
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
+${filming() ? "" : `<header class="gbar">${BRAND}${mainNavHtml("design", "other")}<div class="gbar-r"><span class="gbar-note">指輪を形にして、職人の決まりで「作れるか」を確かめる所です</span></div></header>`}
 <div class="pro" data-mode="make">
   <header class="tb">
-    <div class="tb-l"><a class="brand" href="./"><span class="logo">継</span>継ぐ</a><span class="doc"><span class="word-name">新しい作品</span></span>${filming() ? "" : `<div class="undo-redo" role="group" aria-label="戻す・進む"><button type="button" class="btn quiet act-undo" disabled aria-label="戻す" title="戻す（${UNDO_KEYS.undo}）">${ICON.undo}<span class="ur-word">戻す</span></button><button type="button" class="btn quiet act-redo" disabled aria-label="進む" title="進む（${UNDO_KEYS.redo}）">${ICON.redo}<span class="ur-word">進む</span></button></div>`}</div>
+    <div class="tb-l">${filming() ? `<a class="brand" href="./"><span class="logo">継</span>継ぐ</a>` : ""}<span class="doc"><span class="word-name">新しい作品</span></span>${filming() ? "" : `<div class="undo-redo" role="group" aria-label="戻す・進む"><button type="button" class="btn quiet act-undo" disabled aria-label="戻す" title="戻す（${UNDO_KEYS.undo}）">${ICON.undo}<span class="ur-word">戻す</span></button><button type="button" class="btn quiet act-redo" disabled aria-label="進む" title="進む（${UNDO_KEYS.redo}）">${ICON.redo}<span class="ur-word">進む</span></button></div>`}</div>
     <nav class="tabs" aria-label="場面">${MODES.map((m) => `<button type="button" data-mode="${m.id}" title="${m.sub}（${m.key}）">${m.word}<span class="k">${m.key}</span></button>`).join("")}</nav>
-    <div class="tb-r"><nav class="places hide-sm" aria-label="ほかの場所"><a href="app.html#ledger" title="職人の決まりと、Claude からの質問">帳面</a><a href="app.html#learn" title="次の人が、職人の決まりに聞いて学ぶ">学ぶ</a><a href="app.html#waza" title="彫金・金工の技と、途切れた技を組み立て直す">技</a></nav><button type="button" class="btn quiet act-present">見せる</button><button type="button" class="btn quiet act-why">なぜ継ぐ</button><button type="button" class="btn act-sheet hide-sm">図面・指示書</button><button type="button" class="btn primary act-stl">STL</button>${filming() ? "" : `<button type="button" class="btn quiet act-more" aria-label="ほかの場所" aria-expanded="false">≡</button><nav class="more-menu" hidden aria-label="ほかの場所"><a href="app.html#ledger">帳面</a><a href="app.html#learn">学ぶ</a><a href="app.html#waza">技</a><button type="button" class="more-sheet">図面・指示書を印刷</button></nav>`}</div>
+    <div class="tb-r">${filming() ? `<nav class="places hide-sm" aria-label="ほかの場所"><a href="app.html#ledger" title="職人の決まりと、Claude からの質問">帳面</a><a href="app.html#learn" title="次の人が、職人の決まりに聞いて学ぶ">学ぶ</a><a href="app.html#waza" title="彫金・金工の技と、途切れた技を組み立て直す">技</a></nav>` : ""}<button type="button" class="btn quiet act-present">見せる</button><button type="button" class="btn quiet act-why">なぜ継ぐ</button><button type="button" class="btn act-sheet hide-sm">図面・指示書</button><button type="button" class="btn primary act-stl">STL</button>${filming() ? "" : `<button type="button" class="btn quiet act-more" aria-label="そのほか" aria-expanded="false">≡</button><div class="more-menu" hidden><button type="button" class="more-sheet">図面・指示書を印刷</button></div>`}</div>
   </header>
   <nav class="tools" aria-label="見る">
     ${(["angle", "top", "side", "front"] as const).map((v) => `<button type="button" class="tool view-btn" data-view="${v}" data-tip="${{ angle: "斜め", top: "上", side: "横", front: "正面" }[v]}" aria-label="${{ angle: "斜め", top: "上", side: "横", front: "正面" }[v]}">${ICON[v]}</button>`).join("")}
@@ -1422,7 +1427,7 @@ document.addEventListener("keydown", (e) => {
 // 上のボタンは、場面を変えずに書き出す（押すと「手順」へ移っていた）
 $(".act-sheet").addEventListener("click", () => printSheet());
 $(".act-stl").addEventListener("click", () => exportStl());
-// スマホの上の帯のメニュー（帳面・学ぶ・技へ。図面・指示書も）
+// スマホの上の帯のメニュー（図面・指示書。ほかの場所へは、いちばん上の場所の切り替えから）
 {
   const more = document.querySelector<HTMLButtonElement>(".act-more");
   const menu = document.querySelector<HTMLElement>(".more-menu");
@@ -4857,7 +4862,7 @@ function renderWorks() {
         (w) => `<li><img alt="" src="${w.image}"><details class="w-more"><summary>${esc(w.title)}</summary><small>${esc(w.date)}${w.maker ? ` ・ ${esc(w.maker)}` : ""} ・ ${esc(w.methodLabel)}</small>${w.note ? `<p>「${esc(w.note)}」</p>` : ""}${(w.revisions ?? []).map((r) => `<p class="rev">${esc(r.by)}の決まりで直した：${esc(r.change)}</p>`).join("")}<span class="${w.problems.length ? "ng" : "ok"}">${w.problems.length ? "作れない所あり" : "作れる形"}</span></details>${w.design || w.bandDesign ? `<button type="button" class="ghost-d w-open" data-id="${esc(w.id)}">開く</button>` : "<span></span>"}<button type="button" class="w-del" data-id="${esc(w.id)}" aria-label="この記録を消す">×</button></li>`,
       )
       .join("")}</ul><button type="button" class="ghost-d w-print">記録の帳面を印刷</button>` : ""}
-    <nav class="places-sm" aria-label="ほかの場所"><small>ほかの場所</small><a href="app.html#ledger">帳面<span>職人の決まりと、Claude からの質問</span></a><a href="app.html#learn">学ぶ<span>次の人が、職人の決まりに聞く</span></a><a href="app.html#waza">技<span>彫金・金工の技と、途切れた技を組み立て直す</span></a></nav>`;
+    ${filming() ? `<nav class="places-sm" aria-label="ほかの場所"><small>ほかの場所</small><a href="app.html#ledger">帳面<span>職人の決まりと、Claude からの質問</span></a><a href="app.html#learn">学ぶ<span>次の人が、職人の決まりに聞く</span></a><a href="app.html#waza">技<span>彫金・金工の技と、途切れた技を組み立て直す</span></a></nav>` : ""}`;
   box.querySelector(".w-print")?.addEventListener("click", () => openPrint(worksBookHtml(fillDrawings(loadWorks()), today())));
   // 残す欄は「手順」の下にある。そこまで連れて行って、欄を開く
   box.querySelector(".w-keep")!.addEventListener("click", () => {

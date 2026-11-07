@@ -12,6 +12,7 @@
 import "./lp.css";
 import { bindFlowMotion, flowAfterSvg, flowBeforeSvg, HAKUSHO_URL, whyHtml } from "../studio/why";
 import SIZES from "./shots.json";
+import { PLACES, placeHref } from "../ui/places";
 
 const STUDIO = "studio.html";
 const LEARN = "app.html#learn";
@@ -138,9 +139,18 @@ const html = `
     <a href="#design" class="hide-sm">デザインする人へ</a>
     <a href="#learn" class="hide-sm">学ぶ人へ</a>
     <a href="#next" class="hide-sm">次の時代へ</a>
-    <a href="#why" class="open-why">なぜ継ぐ</a>
+    <a href="#why" class="open-why hide-xs">なぜ継ぐ</a>
+    <button type="button" class="open-app" aria-expanded="false" aria-controls="app-menu"><span class="oa-pc">アプリを開く</span><span class="oa-sm">メニュー</span><i aria-hidden="true"></i></button>
     <a class="go" href="${STUDIO}">設計する</a>
   </nav>
+  <div class="app-menu" id="app-menu" hidden>
+    <p class="am-h">アプリの中（5 つの場所）</p>
+    <ul class="am-list">${PLACES.map((p) => `<li><a href="${placeHref(p, "other")}"><b>${p.label}</b><small>${p.sub}</small></a></li>`).join("")}</ul>
+    <div class="am-page">
+      <p class="am-h">このページの中</p>
+      <p class="am-links"><a href="#keep">残す</a><a href="#design">デザインする人へ</a><a href="#learn">学ぶ人へ</a><a href="#next">次の時代へ</a><a href="#why" class="open-why">なぜ継ぐ</a></p>
+    </div>
+  </div>
 </header>
 
 <main id="main">
@@ -717,6 +727,33 @@ if (mk && canWatch) {
 
 // 上の帯：少し下にスクロールしたら、背景を濃くする
 const hd = root.querySelector<HTMLElement>(".hd")!;
+
+// 上の帯の「アプリを開く」（スマホは「メニュー」）：帳面・設計・学ぶ・技・途切れた技へ（2026-11-08 作者：動線を分かりやすく）
+{
+  const btn = hd.querySelector<HTMLButtonElement>(".open-app")!;
+  const menu = hd.querySelector<HTMLElement>(".app-menu")!;
+  const set = (open: boolean) => {
+    menu.hidden = !open;
+    btn.setAttribute("aria-expanded", String(open));
+    hd.classList.toggle("menu-open", open);
+  };
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    set(Boolean(menu.hidden));
+  });
+  menu.addEventListener("click", (e) => {
+    if ((e.target as HTMLElement).closest("a")) set(false);
+  });
+  addEventListener("click", (e) => {
+    if (!menu.hidden && !menu.contains(e.target as Node)) set(false);
+  });
+  addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !menu.hidden) {
+      set(false);
+      btn.focus();
+    }
+  });
+}
 const onScroll = () => hd.classList.toggle("solid", scrollY > 24);
 addEventListener("scroll", onScroll, { passive: true });
 onScroll();

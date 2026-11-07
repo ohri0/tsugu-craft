@@ -14,7 +14,7 @@ export interface ShapeName {
 
 /** 画面に出すときの石の名前。「ノンカリブレ」に、やさしい言いかえを添える（2026-11-08 作者） */
 export function glossShapeName(name: string): string {
-  return name.replace("（ノンカリブレ）", "（ノンカリブレ＝決まった寸法にそろえていない石）");
+  return name.replace("（ノンカリブレ）", "（ノンカリブレ＝決まった寸法でない石）");
 }
 
 export function nameShape(outline: readonly Point[], corners: readonly Corner[], opts = DETECTION.shape): ShapeName {

@@ -298,3 +298,7 @@ html.fit .mihon-bar a { display: inline-flex; align-items: center; min-height: 3
 html.fit .tp-howto-more > summary { padding: 0 14px; min-height: 44px; font-size: 14px; }
 html.fit .tp-more > summary, html.fit .tp-gaps > summary { min-height: 44px; padding: 0 14px; font-size: 14px; }
 html.fit .tp-more > summary small { margin-left: 8px; font-weight: 400; font-size: 12px; color: var(--fg-3); }
+/* 技を選ぶ：はじめにやること（2026-11-08 作者：動線を分かりやすく） */
+.waza-first { margin: 12px 0 2px; font-size: 13px; line-height: 1.7; color: var(--fg-2); }
+.waza-first b { display: inline-block; margin-right: 8px; padding: 0 7px; border-radius: 4px; background: var(--accent-weak); color: var(--accent-2); font-size: 12px; font-weight: 700; }
+.waza-sec-lead { margin: -4px 0 10px; font-size: 13px; line-height: 1.7; color: var(--fg-2); }
