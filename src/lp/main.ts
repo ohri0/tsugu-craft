@@ -495,7 +495,7 @@ const html = `
       <a class="btn" href="${LEARN}">学ぶ</a>
       <a class="btn" href="${WAZA}">技</a>
     </div>
-    <p class="end-n note rv">公開の版は、開くときに合言葉を聞きます。</p>
+    <p class="end-n note rv">合言葉なしでも使えます。Claude が考えて答える所だけ、合言葉が要ります。</p>
     <p class="note rv"><a href="${GITHUB}#readme" rel="noopener">このアプリの作り方（GitHub）</a></p>
   </section>
 </main>

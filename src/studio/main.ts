@@ -13,7 +13,7 @@ import "./pro.css";
 import { findCorners } from "../geometry/corners";
 import { measureOutline, type StoneOutline } from "../geometry/measure";
 import { outlineIndexAtT, type JoinStyle, type ProngTip, type SettingResult } from "../geometry/setting";
-import { nameShape } from "../geometry/shape";
+import { glossShapeName, nameShape } from "../geometry/shape";
 import { runClaude, type LogEntry } from "../claude/loop";
 import { cannotFrom, hasJapanese, heardFrom, heardWords, offlineWhy, plainWords, ruleTitles, toolLogLine, withoutCannot, type RuleTitles, type StoneWords } from "../claude/words";
 import { STONE_FREE_NOTE, STONE_KEEP_NOTE, correctPrompt, designPrompt, gouNote } from "../claude/prompt";
@@ -452,7 +452,7 @@ async function loadStone(img: ImageData, label: string, longMm: number, depthMm:
   renderStoneButtons();
   $<HTMLInputElement>(".in-long").value = String(longMm);
   $<HTMLInputElement>(".in-depth").value = String(depthMm);
-  $(".stone-sub").textContent = `${stone.shapeName}・${measured.longMm.toFixed(2)} × ${measured.widthMm.toFixed(2)} mm`;
+  $(".stone-sub").textContent = `${glossShapeName(stone.shapeName)}・${measured.longMm.toFixed(2)} × ${measured.widthMm.toFixed(2)} mm`;
   drawThumb();
   // 手で決めた設計は、新しい石へ引き継ぐ（前は毎回 はじめの設計に戻っていた。2026-11-05 点検）
   const prev = session?.snapshot();
@@ -598,7 +598,7 @@ async function restoreDesign(): Promise<boolean> {
   } else imported = null;
   $<HTMLInputElement>(".in-long").value = String(Number(k.measured.longMm.toFixed(2)));
   $<HTMLInputElement>(".in-depth").value = String(Number(k.depthMm.toFixed(2)));
-  $(".stone-sub").textContent = `${k.shapeName}・${k.measured.longMm.toFixed(2)} × ${k.measured.widthMm.toFixed(2)} mm`;
+  $(".stone-sub").textContent = `${glossShapeName(k.shapeName)}・${k.measured.longMm.toFixed(2)} × ${k.measured.widthMm.toFixed(2)} mm`;
   drawThumb();
   renderStoneButtons();
   session = newSession(k.measured, k.depthMm);
@@ -1165,7 +1165,7 @@ function onBuilt(b: Built, _why: string, refined = false) {
   const s = session!.state;
   const st = r.setting;
   const rows: [string, string][] = [
-    ["石", `${stone.shapeName} ・ ${stone.measured.longMm.toFixed(2)} × ${stone.measured.widthMm.toFixed(2)} × ${stone.depthMm.toFixed(2)} mm`],
+    ["石", `${glossShapeName(stone.shapeName)} ・ ${stone.measured.longMm.toFixed(2)} × ${stone.measured.widthMm.toFixed(2)} × ${stone.depthMm.toFixed(2)} mm`],
     ...(r.stones.length > 1 ? ([["石の並び", `${layoutName()} ・ ${r.stones.length} 石（${r.stones.map((x) => x.params.longMm.toFixed(1)).join(" ・ ")} mm）`]] as [string, string][]) : []),
     ["留め方", st.tension ? tensionWord(st) : st.style === "bezel" ? `覆輪 ・ 壁 ${st.bezel?.wallMm.toFixed(2)} mm` : `爪 ${st.prongs.length}${st.prongs.some((p) => p.isV) ? `（V 字 ${st.prongs.filter((p) => p.isV).length}）` : ""} ・ ${prongDiaWord(st)}${st.prongTip === "oni" ? ` ・ ${PRONG_TIP_LABEL.oni}` : ""}`],
     ["号 ・ 腕", `${s.gou} 号 ・ ${ringSectionWord(s, r.shank.widthMm, r.shank.thicknessMm)} ${shankSizeWords(r.shank)}`],
@@ -1738,7 +1738,7 @@ function applyDesign(s: DesignSnap) {
   keptImportedPhoto = null;
   $<HTMLInputElement>(".in-long").value = String(Number(stone.longMm.toFixed(2)));
   $<HTMLInputElement>(".in-depth").value = String(Number(stone.depthMm.toFixed(2)));
-  $(".stone-sub").textContent = `${stone.shapeName}・${stone.measured.longMm.toFixed(2)} × ${stone.measured.widthMm.toFixed(2)} mm`;
+  $(".stone-sub").textContent = `${glossShapeName(stone.shapeName)}・${stone.measured.longMm.toFixed(2)} × ${stone.measured.widthMm.toFixed(2)} mm`;
   drawThumb();
   renderStoneButtons();
   if (!session || session.stone !== s.params) {
@@ -1946,7 +1946,7 @@ function workshopBasicsHtml(): string {
   const tip: ProngTip = store.ledger().basics?.prongTip ?? "round";
   const now = session?.built?.ring.setting;
   const std = now?.style === "prong" ? now.standardProngMm : undefined;
-  return `<div class="ws-basics"><p class="ws-b-h"><b>この工房のベーシック</b><small>いつもの雰囲気の既定。あとで直せます</small></p>
+  return `<div class="ws-basics"><p class="ws-b-h"><b>この工房のベーシック（いつもの基本の形）</b><small>この工房で、いつも最初に使う爪の形と太さ。あとで直せます</small></p>
     <div class="seg ws-tip" role="group" aria-label="爪の形（工房の既定）">${(["round", "oni"] as const).map((v) => `<button type="button" data-tip="${v}" aria-pressed="${v === tip}">${PRONG_TIP_LABEL[v]}</button>`).join("")}</div>
     ${w ? `<label class="ws-b-mm"><span>爪の太さ（大きな石の標準）</span><span class="in"><input class="ws-mm" type="number" inputmode="decimal" min="0.5" max="2" step="0.05" value="${(prongBasicMm(store.ledger()) ?? std ?? GUIDES.prong.sampleWorkshop.prongMm).toFixed(2)}"><i>mm</i></span></label>` : std !== undefined ? `<p class="hint">爪の太さは帳面の決まりから（この石で標準 ø ${std.toFixed(2)} mm）。</p>` : ""}
     ${w?.sample ? `<p class="hint ws-sample">${esc(w.name)}${/[A-Za-z0-9]$/.test(w.name) ? " " : ""}は見本の工房です。爪の太さと形は雰囲気の例で、本当の工房の値ではありません。目安・最後は職人が決めます。</p>` : ""}</div>`;
@@ -2281,7 +2281,7 @@ function resizeStone(longMm: number, final: boolean) {
   stone.depthMm = session.stone.depthMm;
   $<HTMLInputElement>(".in-long").value = stone.longMm.toFixed(2);
   $<HTMLInputElement>(".in-depth").value = stone.depthMm.toFixed(2);
-  $(".stone-sub").textContent = `${stone.shapeName}・${stone.measured.longMm.toFixed(2)} × ${stone.measured.widthMm.toFixed(2)} mm`;
+  $(".stone-sub").textContent = `${glossShapeName(stone.shapeName)}・${stone.measured.longMm.toFixed(2)} × ${stone.measured.widthMm.toFixed(2)} mm`;
   session.state.prongMm = undefined;
   // 1 本ずつ決めた爪の太さは、前の石の大きさのもの
   session.state.prongEdits = session.state.prongEdits?.map((e) => {
@@ -4833,7 +4833,7 @@ function openWork(w: WorkRecord) {
     renderStoneButtons();
     $<HTMLInputElement>(".in-long").value = String(Number(st.longMm.toFixed(2)));
     $<HTMLInputElement>(".in-depth").value = String(Number(st.depthMm.toFixed(2)));
-    $(".stone-sub").textContent = `${stone.shapeName}・${st.longMm.toFixed(2)} × ${st.widthMm.toFixed(2)} mm`;
+    $(".stone-sub").textContent = `${glossShapeName(stone.shapeName)}・${st.longMm.toFixed(2)} × ${st.widthMm.toFixed(2)} mm`;
     drawThumb();
     session = newSession(measured, st.depthMm);
     session.state = structuredClone(w.design.state);

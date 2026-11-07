@@ -36,10 +36,10 @@ describe("入口のページ", () => {
     expect(src).not.toContain("石を並べる");
   });
 
-  it("公開の版の合言葉の説明が今の仕様どおり（入口はだれでも見られる。開くときに聞く）", () => {
-    expect(src).not.toContain("合言葉がなくても");
+  it("公開の版の合言葉の説明が今の仕様どおり（なしでも使える。Claude の所だけ要る。2026-11-08）", () => {
     expect(src).not.toContain("合言葉なしで全部使えます");
-    expect(src).toContain("開くときに合言葉を聞きます");
+    expect(src).not.toContain("開くときに合言葉を聞きます");
+    expect(src).toContain("Claude が考えて答える所だけ、合言葉が要ります");
   });
 
   it("決まりの数を出さない（職人の言葉の数が弱く見える。2026-11-05 作者）", () => {
