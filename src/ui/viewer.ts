@@ -115,6 +115,8 @@ const WARN = 0xe0342b;
 /** 背景のうっすらとした明るさの変化（真ん中 → 外） */
 const BACKDROP = { center: "#f8f6f2", edge: "#e2ddd4" };
 /** 置いた所の影：どの高さまでの部分が影を落とすか（mm）・濃さ・ぼかし（回数） */
+/** テンションのはじめの寄り：石と輪の上から、高さのこの割合に合わせる（絵を見て決めた。2026-11-08） */
+const TENSION_FOCUS_TOP = 0.55;
 const SHADOW = { reachMm: 7, darkness: 0.85, opacity: 0.55, blurPasses: 3, size: 256 };
 
 /**
@@ -778,6 +780,7 @@ export class Viewer {
     this.syncTrace();
     this.applyMode();
     // はじめの向き：輪の穴と、上の面の断面の形が両方見える斜め（穴をよく見せるため、指の軸の向きから見る割合を多くした）
+    this.focusTop = null;
     this.frame(kind, new THREE.Vector3(1.05, -0.9, 0.62));
     this.updateShadow();
   }
@@ -787,6 +790,7 @@ export class Viewer {
     this.clear();
     this.addStone(mesh.positions, undefined, look, -mesh.heights.culetZ, mesh.heights.tableZ - mesh.heights.culetZ);
     this.applyMode();
+    this.focusTop = null;
     this.frame("stone", new THREE.Vector3(0.25, -0.75, 1));
     this.updateShadow();
   }
@@ -870,7 +874,11 @@ export class Viewer {
     marks.forEach((m) => this.content.add(m));
     this.live = { shank, marks, lift, warn };
     this.applyMode();
-    if (!this.keepCamera) this.frame("ring", new THREE.Vector3(0.9, -1.1, 0.75));
+    // テンション：石は輪のいちばん上の、腕の切れ目に挟まる。輪の全体に合わせると、石が上の端に小さく押しこまれて見えなかった
+    // （2026-11-08 画面の見どころ）。はじめは石と輪の上の半分に寄り、少し上から見る（形と数字は変えない。見る所だけ）
+    const tension = ring.params.setting.style === "tension";
+    this.focusTop = tension && this.polishFrame ? TENSION_FOCUS_TOP : null;
+    if (!this.keepCamera) this.frame(tension ? "ring-tension" : "ring", tension ? new THREE.Vector3(0.95, -1.05, 1.05) : new THREE.Vector3(0.9, -1.1, 0.75));
     this.alignGrid(this.gridView);
     this.updateShadow();
   }
@@ -963,9 +971,56 @@ export class Viewer {
     this.dirty = true;
   }
 
+  /** 寄る所：中身の高さの上から、この割合だけに合わせる（null は全体。テンションの石を大きく見せるため） */
+  private focusTop: number | null = null;
+  /**
+   * はじめの寄りを、画面に映った形の真ん中に合わせる・テンションは石に寄る（2026-11-08 画面の見どころ）。
+   * 撮影（?rec・?nointro）の絵は前のままにするため、設計の画面が撮影でないときだけ true にする
+   */
+  polishFrame = false;
+
+  /** 画面に映った中身の形（点を間引いて写す）の真ん中を、上下のボタンの間の真ん中へ動かす（斜めの図だけ） */
+  private centerProjected(minZ: number) {
+    if (this.cams.flat) return;
+    const cam = this.camera as THREE.PerspectiveCamera;
+    cam.updateMatrixWorld();
+    const v = new THREE.Vector3();
+    let [x0, x1, y0, y1] = [Infinity, -Infinity, Infinity, -Infinity];
+    this.content.updateMatrixWorld(true);
+    this.content.traverse((o) => {
+      if (!(o instanceof THREE.Mesh) || !o.visible) return;
+      const pos = o.geometry.getAttribute("position");
+      if (!pos) return;
+      const step = Math.max(1, Math.floor(pos.count / 3000));
+      for (let i = 0; i < pos.count; i += step) {
+        v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld);
+        if (v.z < minZ) continue;
+        v.project(cam);
+        x0 = Math.min(x0, v.x);
+        x1 = Math.max(x1, v.x);
+        y0 = Math.min(y0, v.y);
+        y1 = Math.max(y1, v.y);
+      }
+    });
+    if (!Number.isFinite(x0)) return;
+    // 見ている所での、画面の半分の高さ・幅（世界の mm）
+    const d = cam.position.distanceTo(this.controls.target);
+    const halfH = d * Math.tan((cam.fov * Math.PI) / 360);
+    const halfW = halfH * cam.aspect;
+    const right = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 0);
+    const up = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 1);
+    // 上下のボタンの分のずらし（resize の setViewOffset）は写す行列に入っているので、その分だけ下を目指す
+    const y0Want = cam.view?.enabled ? (2 * cam.view.offsetY) / cam.view.fullHeight : 0;
+    const shift = right.multiplyScalar(((x0 + x1) / 2) * halfW).add(up.multiplyScalar(((y0 + y1) / 2 - y0Want) * halfH));
+    cam.position.add(shift);
+    this.controls.target.add(shift);
+    this.controls.update();
+  }
+
   /** 中身に合わせてカメラを寄せる。同じ種類の表示が続くときは、人が回した向きを保つ */
   private frame(kind: string, firstDir: THREE.Vector3) {
     const box = new THREE.Box3().setFromObject(this.content);
+    if (this.focusTop !== null && !box.isEmpty()) box.min.z = box.max.z - (box.max.z - box.min.z) * this.focusTop;
     const sphere = box.getBoundingSphere(new THREE.Sphere());
     const dir = this.framedFor === kind ? this.cams.angleDir(this.controls.target) : firstDir.clone().normalize();
     this.framedFor = kind;
@@ -978,6 +1033,7 @@ export class Viewer {
     // 平らな図の間は、平らな図の大きさを合わせ、戻ったときの斜めの視点も寄せ直す
     this.cams.frame(sphere.center, sphere.radius, fit, dir);
     this.controls.update();
+    if (this.polishFrame && !box.isEmpty()) this.centerProjected(box.min.z - 1e-6);
     this.dirty = true;
   }
 
