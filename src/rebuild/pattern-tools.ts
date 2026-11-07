@@ -64,9 +64,11 @@ const MODES: RearrangeMode[] = ["edge_up", "strips", "tiles"];
 const KINDS: ColorKind[] = ["none", "etch", "patina"];
 const QUALITIES = ["good", "partial", "poor"] as const;
 const DIRECTIONS = ["length", "both"] as const;
+/** ingot のむらの形（2026-11-08 回 2）。"-" は前のまま（cells） */
+const INGOT_FORMS = ["cells", "dendrite"] as const;
 /** choice に入れてよい言葉（使わない操作では "-"） */
 const CHOICES = [
-  ...new Set(["-", ...QUALITIES, ...DIRECTIONS, ...SHAPES, ...MODES, ...KINDS, ...ENGRAVE_PATHS, ...NANAKO, ...HAMMER, ...PIERCE, ...REPOUSSE, ...INLAY, ...GRAINS, ...CELLS] as const),
+  ...new Set(["-", ...QUALITIES, ...DIRECTIONS, ...INGOT_FORMS, ...SHAPES, ...MODES, ...KINDS, ...ENGRAVE_PATHS, ...NANAKO, ...HAMMER, ...PIERCE, ...REPOUSSE, ...INLAY, ...GRAINS, ...CELLS] as const),
 ] as readonly string[];
 type Choice = string;
 
@@ -230,11 +232,13 @@ export const PREDICT_PATTERN: ClaudeTool = {
               description:
                 `操作の主な数。stack：枚数（${range("count")}）。ingot：塊の幅の中の、むらの網目の数（${range("cells")}）。fold：回数（${range("times")}。1 回で層が 2 倍）。forge_thin：厚みを何分の 1 にするか（${range("ratio")}）。` +
                 `twist：板の長さの中でねじる回数（${range("turns")}）。carve・punch：深さ（板の厚みに対して ${range("depth")}）。grind：削る深さ（厚みに対して ${range("grind")}）。rearrange：切る数（${range("pieces")}。edge_up では、切った数だけ、すべての層の縞がくり返す：縞の数＝重ねた枚数×切る数）。` +
-                `kebori・keribori・katakiri：彫る深さ（厚みに対して ${range("depth")}）。tsuchime：跡の深さ（${range("depth")}）。uchidashi：盛り上げる高さ（厚みに対して ${range("depth")}）。ほかは 0`,
+                `kebori・keribori・katakiri：彫る深さ（厚みに対して ${range("depth")}）。tsuchime：跡の深さ（${range("depth")}）。uchidashi：盛り上げる高さ（厚みに対して ${range("depth")}）。` +
+                `color：濃淡（${range("graded")}。0＝2 色。ingot の dendrite のときだけ：酸で出る明るさがむらの濃さのとおりに、間の色が続く）。ほかは 0`,
             },
             size: {
               type: "number",
-              description: `carve・punch：穴の半径・溝の半分の幅。彫る線・zogan：線の半分の幅（zogan の dots・pits は丸の半径）。nanako・ishime・granulate：輪・点・粒の半径。tsuchime：跡の半径。sukashi：抜く形の半径。uchidashi：ふくらみの半径。shippo：使わず 0 でよい。どれも板の幅に対して ${range("size")}。ほかは 0`,
+              description: `carve・punch：穴の半径・溝の半分の幅。彫る線・zogan：線の半分の幅（zogan の dots・pits は丸の半径）。nanako・ishime・granulate：輪・点・粒の半径。tsuchime：跡の半径。sukashi：抜く形の半径。uchidashi：ふくらみの半径。shippo：使わず 0 でよい。どれも板の幅に対して ${range("size")}。` +
+                `forge_thin：打ちむら（槌は板を同じには押さないので、層が上下にずれ、あとで削ると木目のような輪・うねりになる。厚みに対して ${range("uneven")}。0＝むらなし）。grind：削る面のうねり（深さの変わる大きさ。厚みに対して ${range("grindWave")}。0＝平ら）。ほかは 0`,
             },
             across: {
               type: "integer",
@@ -255,7 +259,7 @@ export const PREDICT_PATTERN: ClaudeTool = {
               type: "string",
               enum: [...CHOICES],
               description:
-                "bond：good（よくつながる）・partial（ところどころつながらない）・poor（つながらない所が多い）。forge_thin：length（長さの向きにのばす）・both（縦横に広げる）。" +
+                "bond：good（よくつながる）・partial（ところどころつながらない）・poor（つながらない所が多い）。ingot：cells（粒のさかいの網目）・dendrite（結晶の枝のすき間に濃くなる、切れ目のないむら）。forge_thin：length（長さの向きにのばす）・both（縦横に広げる）。" +
                 "carve・punch：dots（決まった間の丸い穴）・pits（ばらばらの丸いくぼみ）・lines（幅の向きのまっすぐな溝）・waves（波打つ溝）・leaves（葉の形の鏨を、ばらばらの向きで）・petals（5 枚の花びらの形の鏨）。" +
                 "rearrange：edge_up（横にして層のふちを表に出す）・strips（細く切って 1 本おきに向きを変える）・tiles（四角に切って 1 つおきに回す）。color：none・etch（酸などで地を出す）・patina（煮色のように薬で色を出す）。" +
                 "kebori・keribori・katakiri・zogan の線の道すじ：straight（横にまっすぐ）・wave（波）・spiral（真ん中から 1 つの渦）・scatter（草のような短い線を散らす）・border（ふちにそった枠）・scroll（唐草：波打つつるが渦を巻き、葉が出る）・coils（小さな渦をたくさん並べる）。kebori・keribori・katakiri はほかに outline（前に打ち出した帯・ふくらみのふちにそった線）。zogan はほかに dots（丸を並べてはめる）・pits（丸をばらばらにはめる）。" +
@@ -345,6 +349,12 @@ function readOp(o: Record<string, unknown>, op: ToolOp, where: string, warnings:
       out.across = n;
     }
   }
+  // 2026-11-08 回 2：省ける値（0・無い・- なら前のまま）。ingot のむらの形、forge_thin の打ちむら、grind の面のうねり、color の濃淡
+  if (op === "ingot" && o.choice === "dendrite") out.choice = "dendrite";
+  if ((op === "forge_thin" || op === "grind") && typeof o.size === "number" && Number.isFinite(o.size) && o.size > 0) {
+    out.size = num(o.size, op === "forge_thin" ? PATTERN_LIMITS.uneven : PATTERN_LIMITS.grindWave, false, where, warnings)!;
+  }
+  if (op === "color" && typeof o.amount === "number" && Number.isFinite(o.amount) && o.amount > 0) out.amount = num(o.amount, PATTERN_LIMITS.graded, false, where, warnings)!;
   // 層の厚さの割合（stack・plate だけ。同じ厚さなら空にそろえる）
   const tv = o.thickness;
   if (Array.isArray(tv) && tv.length) {
@@ -428,13 +438,13 @@ export function toPatternOp(o: PredictedOp): PatternOp {
     case "stack":
       return { op: "stack", metals: o.metals, count: o.amount, ...(o.thickness?.length ? { thickness: o.thickness } : {}) };
     case "ingot":
-      return { op: "ingot", metals: o.metals, cells: o.amount };
+      return { op: "ingot", metals: o.metals, cells: o.amount, ...(o.choice === "dendrite" ? { form: "dendrite" as const } : {}) };
     case "bond":
       return { op: "bond", quality: o.choice as (typeof QUALITIES)[number] };
     case "fold":
       return { op: "fold", times: o.amount };
     case "forge_thin":
-      return { op: "forge_thin", ratio: o.amount, direction: o.choice as (typeof DIRECTIONS)[number] };
+      return { op: "forge_thin", ratio: o.amount, direction: o.choice as (typeof DIRECTIONS)[number], ...(o.size > 0 ? { uneven: o.size } : {}) };
     case "twist":
       return { op: "twist", turns: o.amount, ...(o.across > 1 ? { bars: o.across } : {}) };
     case "carve":
@@ -443,11 +453,11 @@ export function toPatternOp(o: PredictedOp): PatternOp {
     case "flatten":
       return { op: "flatten" };
     case "grind":
-      return { op: "grind", depth: o.amount };
+      return { op: "grind", depth: o.amount, ...(o.size > 0 ? { wave: o.size } : {}) };
     case "rearrange":
       return { op: "rearrange", mode: o.choice as RearrangeMode, pieces: o.amount };
     case "color":
-      return { op: "color", kind: o.choice as ColorKind };
+      return { op: "color", kind: o.choice as ColorKind, ...(o.amount > 0 ? { graded: o.amount } : {}) };
     default:
       throw new Error(`${o.op} は 1 枚の板の飾りの操作です（重ねた層の計算では使えません）`);
   }
@@ -540,13 +550,15 @@ export function opWords(o: PredictedOp): string {
     case "stack":
       return `${o.metals.map((m) => PATTERN_METALS[m].name.replace(/（.*）/, "")).join("・")}を ${o.amount} 枚、順に重ねる${thickWords(o)}`;
     case "ingot":
-      return `${o.metals.map(metalName).join("・")}の、1 つの鋳た塊（中のむら：${metalName(o.metals[0])}の網目。幅の中に ${o.amount}）`;
+      return o.choice === "dendrite"
+        ? `${o.metals.map(metalName).join("・")}の、1 つの鋳た塊（中のむら：${metalName(o.metals[0])}が結晶の枝のすき間に濃くなる。幅の中に枝の間 ${o.amount}）`
+        : `${o.metals.map(metalName).join("・")}の、1 つの鋳た塊（中のむら：${metalName(o.metals[0])}の網目。幅の中に ${o.amount}）`;
     case "bond":
       return `熱してつなぐ（${QUALITY_WORD[o.choice as (typeof QUALITIES)[number]]}）`;
     case "fold":
       return `のばして切り、重ねる（${o.amount} 回。層が ${2 ** o.amount} 倍）`;
     case "forge_thin":
-      return `叩いて厚みを 1/${o.amount} に（${o.choice === "length" ? "長さの向きにのばす" : "縦横に広げる"}）`;
+      return `叩いて厚みを 1/${o.amount} に（${o.choice === "length" ? "長さの向きにのばす" : "縦横に広げる"}${o.size > 0 ? `。打ちむらで層が厚みの ${pct(o.size)} ほど上下にずれる` : ""}）`;
     case "twist":
       return o.across > 1 ? `ねじる（${o.amount} 回）。${o.across} 本を横に並べてつなぐ` : `ねじる（${o.amount} 回）`;
     case "carve":
@@ -556,7 +568,7 @@ export function opWords(o: PredictedOp): string {
     case "flatten":
       return "叩いて平らにする";
     case "grind":
-      return `表を削る（厚みの ${pct(o.amount)}）`;
+      return `表を削る（厚みの ${pct(o.amount)}${o.size > 0 ? `。面がうねり、深さが厚みの ${pct(o.size)} ほど変わる` : ""}）`;
     case "rearrange":
       return `切って並べかえる：${MODE_WORD[o.choice as RearrangeMode]}`;
     case "plate":
@@ -639,6 +651,7 @@ export function patternPrompt(): string {
 - punch：裏から打ち出す（表を削らないと模様にならない。打ち出して削ると、ふくらみの真ん中ほど深い所の層が出て、輪は外から内へ、上の層から下の層の順に並ぶ。地は削ったあとの表の層で、いちばん外の輪もその層なので、地と見分けられる輪は、その 1 つ下の層から。地を X、輪を外から Y・Z にしたいなら、上から X・Y・Z の順に重ねる）
 - flatten：叩いて平らにする
 - grind：表を平らに削る（削った深さが層のさかいに近いと、地が 2 色のまだらになる。地を 1 色にしたいなら、層の真ん中で止まる深さに）
+- 流れる模様の値（省ける。0 なら前のまま）：ingot の choice dendrite＝むらが結晶の枝のすき間に切れ目なく濃くなる（cells は粒のさかいの網目で、のばすと格子に近い）。forge_thin の size＝打ちむら（層が上下にずれる）。grind の size＝面のうねり。color の amount＝濃淡（dendrite のときだけ）。手がかりや帳面が「木目のように流れる」「うねる」「縞が細かく途切れない」と言うとき、手で何度も叩く工程のときに使う。どれも仮の値
 - rearrange：切って並べかえる（横にして層のふちを表に出す・細く切って向きを変える・四角に切って回す）
 - color：最後に色を出す（酸で地を出す・薬で色を出す・しない）。材料ごとの絵の色が、下の材料の一覧の色に変わるだけで、ほかの材料の色にはならない（銀は薬で色を出しても白いまま）
 
