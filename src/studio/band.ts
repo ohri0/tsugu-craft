@@ -554,7 +554,7 @@ export const MAKE_BAND: ClaudeTool = {
       metal: { type: "string", enum: [...METALS], description: "地金" },
       reason: { type: "string", description: "そう決めた理由（1〜2 文、やさしい日本語）" },
       cannot_do: { type: "string", description: "希望のうち、この道具では表せないこと（模様・彫り・石 など）。正直に短く。すべて表せたときは空の文字" },
-      heard: { type: "string", description: "希望の言葉を、どんな形に受け取ったか。40 字ほどの 1 行（例：かわいく → 細めの幅・丸い断面・ピンクの金）。希望がなければ空の文字" },
+      heard: { type: "string", description: "希望の言葉を、どんな形に受け取ったか。40 字ほどの 1 行（例：力強く → 太めの幅・平らな面・角の立つ断面）。希望がなければ空の文字" },
     },
     required: ["section", "bottom_section", "top_width_mm", "top_thickness_mm", "bottom_width_mm", "bottom_thickness_mm", "inner_mm", "gou", "metal", "reason", "cannot_do", "heard"],
     additionalProperties: false,
