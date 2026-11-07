@@ -645,10 +645,16 @@ export const TOOLS: ClaudeTool[] = [
       "石座（石を留める部分）を変える。書いた項目だけが変わり、省いた項目は今のまま。" +
       "変えたあとの留め方と、石の留まり（標準の 4 本爪 ＝ 1.0× とした目安の比べ。強度計算の代わりではない）を返す。" +
       "変えたら check で確かめ直すこと。",
-    strict: true,
+    // strict にしない（腕の道具と同じ。入力は parseToolCall が確かめる）。
+    // strict のときは項目が定義の順に並び、reason が最後だったので、Claude が reason から書き始めると、ほかの項目を書けずに閉じていた。
+    // 「理由だけ」の呼び出しが 5 回続いて石座が変わらなかった（2026-11-07 の試し「とにかくミニマルに」）。reason も先頭に置く
     input_schema: {
       type: "object",
       properties: {
+        reason: {
+          type: "string",
+          description: "なぜこう変えるか。お客さまの希望と確かめ結果から、短く書く（作業の記録と指示書に残る）",
+        },
         style: {
           type: "string",
           enum: ["prong", "bezel", "tension"],
@@ -701,10 +707,6 @@ export const TOOLS: ClaudeTool[] = [
           enum: ["on", "between"],
           description:
             "石座と腕の付け方（爪留めのときだけ）。on＝腕の上にのせる（腕の上に溝を入れて石座をのせ、ロウ付け）、between＝腕の間に挟む（腕のいちばん上を切り、腕の両端の間に、板を丸めた下の輪をはさんでロウ付け。職人の言う基本の作り方）",
-        },
-        reason: {
-          type: "string",
-          description: "なぜこう変えるか。お客さまの希望と確かめ結果から、短く書く（作業の記録と指示書に残る）",
         },
       },
       required: ["reason"],

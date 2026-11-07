@@ -6,7 +6,8 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { initLedgerFile, readLedger } from "../mcp/ledger-file";
 import { presetOutline, readyStone } from "../mcp/stone-input";
-import { checkRingTool, ledgerAsText, listRules, patternSvgTool, proposeRule, type ToolContext } from "../mcp/tools";
+import { checkRingShape, checkRingTool, ledgerAsText, listRules, patternSvgTool, proposeRule, type ToolContext } from "../mcp/tools";
+import { z } from "zod";
 import { centroid } from "../src/geometry/polygon";
 import { seedLedger } from "../src/rules/ledger";
 
@@ -179,5 +180,18 @@ describe("石の入力", () => {
     const s = readyStone({ outline_mm: [{ x: 10, y: 10 }, { x: 13, y: 10 }, { x: 11.5, y: 12.5 }], long_mm: 6, depth_mm: 3.5 });
     expect(s.params.longMm).toBeCloseTo(6, 6);
     expect(s.corners).toHaveLength(3);
+  });
+});
+
+describe("MCP の入力の形（2026-11-07 の試し）", () => {
+  it("指輪の石として大きすぎる石は、MCP の入口で断る（40 mm の石でも「作れる」と返していた）", () => {
+    const shape = z.object(checkRingShape);
+    expect(shape.safeParse({ stone: { preset: "round", long_mm: 40, depth_mm: 3 } }).success).toBe(false);
+    expect(shape.safeParse({ stone: { preset: "round", long_mm: 8, depth_mm: 30 } }).success).toBe(false);
+    expect(shape.safeParse({ stone: { preset: "round", long_mm: 8, depth_mm: 4.8 } }).success).toBe(true);
+    // マイナスの深さは、日本語の理由で断る（前は英語の決まり文句だった）
+    const bad = shape.safeParse({ stone: { preset: "round", long_mm: 8, depth_mm: -4 } });
+    expect(bad.success).toBe(false);
+    expect(bad.error!.issues[0].message).toBe("深さは 0 より大きい数にしてください");
   });
 });

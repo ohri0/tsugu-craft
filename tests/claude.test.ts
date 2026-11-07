@@ -2,7 +2,8 @@
 import { describe, expect, it } from "vitest";
 import { createHandler, MODEL, type CreateMessage } from "../api/claude";
 import { LOOP_LIMITS, runClaude } from "../src/claude/loop";
-import { JEWELER_GUIDES, skillBody, SYSTEM_PROMPT } from "../src/claude/prompt";
+import { JEWELER_GUIDES, keepPrompt, skillBody, SYSTEM_PROMPT } from "../src/claude/prompt";
+import { seedLedger } from "../src/rules/ledger";
 import { parseToolCall, TOOL_NAMES, TOOLS, type SettingState, type ToolHost } from "../src/claude/tools";
 import { PASSWORD_HEADER, REMAINING_HEADER, type ClaudeMessage, type ClaudeMessageParam } from "../src/claude/wire";
 import { GUIDE_NOTE } from "../src/rules/guides";
@@ -399,12 +400,12 @@ describe("Claude との作業の繰り返し", () => {
 // ---- 道具の定義 ----
 
 describe("道具の定義", () => {
-  it("仕様書の 4 つの道具と、聞き取りの propose_rule、教える ask_teacher、石を並べる set_stones、石を選ぶ choose_stone が、理由を求める。strict は set_shank のほか全部（上限のため。tests/strict-limits.test.ts）", () => {
+  it("仕様書の 4 つの道具と、聞き取りの propose_rule、教える ask_teacher、石を並べる set_stones、石を選ぶ choose_stone が、理由を求める。strict は石座と腕の道具のほか全部（上限のためと、石座の項目が書けずに閉じるのを防ぐため。tests/strict-limits.test.ts）", () => {
     expect(TOOLS.map((t) => t.name)).toEqual(["set_setting", "set_shank", "check", "look", "propose_rule", "ask_teacher", "set_stones", "choose_stone"]);
     expect(TOOLS[5].input_schema.required).toEqual(["question", "why_unanswered"]);
     expect(TOOLS[4].input_schema.required).toEqual(["title", "text", "reason"]);
     for (const t of TOOLS) {
-      expect(t.strict).toBe(t.name === "set_shank" ? undefined : true);
+      expect(t.strict).toBe(t.name === "set_shank" || t.name === "set_setting" ? undefined : true);
       expect(t.description).toBeTruthy();
       expect((t.input_schema as { additionalProperties?: boolean }).additionalProperties).toBe(false);
     }
@@ -421,6 +422,21 @@ describe("道具の定義", () => {
     expect(parseToolCall("propose_rule", { ...base, value: 0.7 }).ok).toBe(false);
     expect(parseToolCall("propose_rule", { ...base, param: "shank.widthMm", value: 2 }).ok).toBe(false);
     expect(parseToolCall("propose_rule", { ...base, param: "prong.cornerReachMm", value: 500 }).ok).toBe(false);
+  });
+
+  it("決まりの案の工程（steps）は工程の名前の並びで受ける（前は番号の並びと見て、いつも断っていた。2026-11-07 の試し）", () => {
+    const base = { title: "爪を倒す前に", text: "爪を少し削ってから倒す", reason: "割れないように" };
+    expect(parseToolCall("propose_rule", { ...base, steps: ["head", "prong"] }).ok).toBe(true);
+    expect(parseToolCall("propose_rule", { ...base, steps: [] }).ok).toBe(true);
+    expect(parseToolCall("propose_rule", { ...base, steps: ["paint"] }).ok).toBe(false);
+    expect(parseToolCall("propose_rule", { ...base, steps: [3] }).ok).toBe(false);
+    // 石座の道具は strict でないので、知らない項目と型の違いは parseToolCall が断る。reason は先頭（理由から書き始めても、ほかの項目を書ける）
+    expect(Object.keys((TOOLS[0].input_schema as { properties: object }).properties)[0]).toBe("reason");
+    expect(parseToolCall("set_setting", { reason: "x", prongs: 3 }).ok).toBe(false);
+    expect(parseToolCall("set_setting", { reason: "x", prong_mm: "0.8" }).ok).toBe(false);
+    expect(parseToolCall("set_setting", { reason: "x", style: "claw" }).ok).toBe(false);
+    // 番号の並びは今までどおり番号で見る
+    expect(parseToolCall("set_setting", { prong_positions: ["a"], reason: "x" }).ok).toBe(false);
   });
 
   it("入力を型と範囲で確かめる", () => {
@@ -549,5 +565,20 @@ describe("api/claude の関数", () => {
     const err = (await res.json()) as { error: { code: string; message: string } };
     expect(err.error.code).toBe("claude_unreachable");
     expect(err.error.message).toContain("つながりません");
+  });
+});
+
+describe("話して残す（keepPrompt）：本物の Claude での試し（2026-11-07）から足した約束", () => {
+  const p = keepPrompt(seedLedger(), "石川");
+  it("あいまいな話・雑談は案にせず、聞きたいことを書く", () => {
+    expect(p).toContain("あいまいすぎて決まりにできない話");
+    expect(p).toContain("propose_rule を呼びません");
+  });
+  it("今の決まりとの食い違いを、案の中に書く。条件つきの値には param を付けない", () => {
+    expect(p).toContain("食い違う");
+    expect(p).toContain("条件が付く値には付けず");
+  });
+  it("話にいくつも決まりがあれば、1 つずつ（多くて 3 つ）", () => {
+    expect(p).toContain("多くて 3 つ");
   });
 });

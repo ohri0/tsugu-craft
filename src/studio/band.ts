@@ -607,12 +607,19 @@ export function applyDraft(b: Band, d: BandDraft): Band {
   return { ...b, kind: d.kind, curve: undefined, top, bottom, split, bottomKind: split ? d.bottomKind : undefined, bottomCurve: undefined, gou: d.gou, dimsSet: true };
 }
 
-export function bandPrompt(): string {
+/**
+ * guides は今の帳面の目安（職人の決まりをふくむ）。前は資料の目安だけを渡していて、
+ * 職人が「腕の厚みは 1.8 mm 以上」と決めても、Claude は 1.6 mm の案を出していた（2026-11-07 の試し）
+ */
+export function bandPrompt(guides: Guides = GUIDES): string {
+  const g = guides.band;
+  const own = g.minThicknessMm !== GUIDES.band.minThicknessMm || g.minWidthMm !== GUIDES.band.minWidthMm;
   return `あなたは「継ぐ」の中で、言葉の希望から、地金のみの指輪を決める係です。make_band を 1 回だけ呼びます。
 - 希望に書かれたこと（太さ・形・地金・使い方）を先に守り、書かれていないことは、ふつうの値にします（幅 3〜5 mm、厚み 1.5〜1.8 mm、K18 イエロー）。
 - 号は人が欄で選びます。頼みの文に書いた号を gou にそのまま書きます。希望に別の号が書かれていても変えず、cannot_do に書きます。
 - 華奢・細め・存在感・太め・手のひら側を細く、のような言い方は、幅と厚み、上と下の太さの差で表します。着け心地を言われたら、内甲丸（inner_mm）を考えます。
 - この道具で変えられるのは、断面の形（上と下で変えられる）と、上と下の幅・厚み、内甲丸の丸み、地金だけです。模様・彫り・石・ねじり などは表せないので、cannot_do に正直に書きます。表せなかったのに「ご希望どおり」とは書きません。
-- 厚みや幅が細すぎて作りにくい値は選びません（いちばん厚い所 ${GUIDES.band.minThicknessMm} mm 以上が目安）。幅は職人の決まりで、${GUIDES.band.widthYellowMm} mm 以下は黄色の注意、${GUIDES.band.widthOrangeMm} mm より細いとオレンジの注意（どちらも作れる）、${GUIDES.band.minWidthMm} mm 以下は赤です。細い希望でなければ、${GUIDES.band.widthYellowMm} mm より太くします。
+- 厚みが薄すぎて作りにくい値は選びません（上も下も、厚み ${g.minThicknessMm} mm 以上が${own ? "この工房の決まり" : "目安"}）。それより薄く頼まれたら、この値まで厚くして、cannot_do にそう書きます。幅は職人の決まりで、${g.widthYellowMm} mm 以下は黄色の注意、${g.widthOrangeMm} mm より細いとオレンジの注意（どちらも作れる）、${g.minWidthMm} mm 以下は赤です。細い希望でなければ、${g.widthYellowMm} mm より太くします。
+- 石のない指輪です。希望に石のこと（石を大きく見せる・ダイヤを入れる など）があれば、石があるつもりの理由は書かず、cannot_do に「石のある指輪は、一粒石の指輪で作れます」と書きます。
 - reason はやさしい日本語で 1〜2 文。Markdown の記号は使いません。`;
 }

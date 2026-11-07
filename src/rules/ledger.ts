@@ -333,6 +333,22 @@ export function ledgerCounts(ledger: { rules: Pick<Rule, "id" | "replaces" | "so
   return { total: rules.length, craftsman, others: rules.length - craftsman };
 }
 
+/**
+ * 決まりの案を入れたときに置きかわる、今の決まり（同じ値に結びついた決まり）と、その言葉。なければ null。
+ * 職人が「これでいい」を押す前に見せる。前は黙って置きかわり、石の大きさで変わる爪の決まりが、
+ * 「プラチナなら 0.9 mm」のような 1 つの値に替わっていた（2026-11-07 の試し）
+ */
+export function replaceNote(ledger: Ledger, param: ParamId | undefined, value: number | undefined): string | null {
+  if (!param) return null;
+  const current = activeRules(ledger).find((r) => r.param === param);
+  if (!current) return null;
+  const unit = PARAMS[param]?.unit ? ` ${PARAMS[param].unit}` : "";
+  const now = current.bySize?.length ? "石の大きさで変わる値" : current.value !== undefined ? `${current.value}${unit}` : "";
+  const by = current.source.kind === "craftsman" ? `職人：${current.source.name}` : sourceLabel(current.source);
+  const same = !current.bySize?.length && current.value !== undefined && value !== undefined && current.value === value;
+  return `入れると、今の決まり「${current.title}」（${now ? `${now}・` : ""}${by}）に置きかわります${same ? "（値は同じ）" : ""}。石や地金の種類を問わず、この値で確かめます。`;
+}
+
 /** 決まりを足す。同じ値に結びついた今の決まりがあれば、それを置き換える（古い決まりは履歴に残る） */
 export function addRule<P extends string = ParamId>(ledger: Ledger<P>, rule: Omit<Rule<P>, "id" | "replaces"> & { id?: string; replaces?: string }): Ledger<P> {
   const current = rule.param ? activeRules(ledger).find((r) => r.param === rule.param) : undefined;

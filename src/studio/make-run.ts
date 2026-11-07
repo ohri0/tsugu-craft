@@ -36,6 +36,30 @@ export function makeHost(current: () => RingSession, opts: { gou: number; choose
   };
 }
 
+// ---- 石の選び方：今の石を使う / 石もおまかせ / 石なし（地金だけの指輪） ----
+
+export type StonePick = "keep" | "free" | "none";
+
+/**
+ * 希望の言葉が、はっきり石のない指輪を求めているか。「石もおまかせ」でこう書かれたら、地金だけの指輪にする。
+ * 迷う言い方（結婚指輪・シンプル など）は石があることもあるので、ここでは拾わない（Claude にまかせる）
+ */
+export function wantsNoStone(wish: string): boolean {
+  const t = wish.normalize("NFKC").toLowerCase();
+  if (/石\s*(?:なし|無し|ナシ)(?!\s*(?:じゃ|では|で\s*は)(?:なく|ない))/.test(t)) return true;
+  if (/石(?:を|は)?\s*(?:入れ|いれ|つけ|付け|付|使わ|のせ|載せ)(?:ない|ず|なくて)/.test(t)) return true;
+  if (/石(?:は|も)?\s*(?:いら|要ら)(?:ない|ず)/.test(t)) return true;
+  if (/地金\s*(?:だけ|のみ)/.test(t)) return true;
+  return /\b(?:no|without(?: a| any)?) (?:stones?|gems?|gemstones?)\b|\bplain band\b/.test(t);
+}
+
+/** 生成の進み先：石なしを選んだとき、または石もおまかせで石なしを頼まれたときは、地金だけの指輪へ */
+export function generationRoute(pick: StonePick, wish: string): "solitaire" | "band" {
+  if (pick === "none") return "band";
+  if (pick === "free" && wantsNoStone(wish)) return "band";
+  return "solitaire";
+}
+
 /** 地金のみの指輪の案の号を、人が欄で決めた号にする */
 export function keepGou<D extends { gou: number }>(draft: D, gou: number): D {
   return { ...draft, gou };

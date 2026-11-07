@@ -23,5 +23,7 @@ export function parseAskAnswer(text: string, knownIds: readonly string[]): AskAn
   if (!short) short = t.split(/\n/)[0]?.trim() ?? "";
   const known = new Set(knownIds);
   const ids = [...(ruleLine || t).matchAll(/\[([A-Za-z0-9._-]+)\]/g)].map((m) => m[1]).filter((id) => known.has(id));
+  // 「決まり：」の行に [ ] を付けずに id だけを書くこともある（2026-11-07 の試し）。帳面にある id だけ拾う
+  if (ruleLine) for (const m of ruleLine.matchAll(/[A-Za-z0-9._-]+/g)) if (known.has(m[0])) ids.push(m[0]);
   return { short, why, ruleIds: [...new Set(ids)] };
 }
