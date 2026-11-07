@@ -67,21 +67,24 @@ function rebuildCards(hasRun: boolean): string {
   if (filming() && !flowUI()) return `<h3 class="pub-sec-h">途切れた技</h3>
       <ul class="big-techs">${trial("組み立て直す（木目金）", "作り方の残っていない技を、残った品物の手がかりから Claude が組み立て、本当の作り方と比べる")}</ul>`;
   const mine = listProjects().length;
-  return `<h3 class="pub-sec-h waza-sec">途切れた技を、組み立て直す</h3>
+  // 2026-11-08 作者：動線を分かりやすく。撮影（?rec&mihon などの流れの撮影）の絵は前のまま
+  const film = filming();
+  return `<h3 class="pub-sec-h waza-sec" id="waza-restore-h">途切れた技を、組み立て直す</h3>
+      ${film ? "" : `<p class="waza-sec-lead">作り方の残っていない技は、こちら。はじめは「途切れた技の頁へ」から。作り話の例も、そこで開けます。</p>`}
       <ul class="big-techs rs-cards"><li><a class="big-tech rs-waza-card" href="#waza/restore">
         <span class="bt-mark" aria-hidden="true">再</span>
-        <span class="bt-body"><b>途切れた技を入れる</b><small>分かることを入れると、Claude が作り方の案を出します</small>${mine ? `<span class="bt-meta">入れた技 ${mine}</span>` : ""}</span>
+        <span class="bt-body"><b>${film ? "途切れた技を入れる" : "途切れた技の頁へ"}</b><small>${film ? "分かることを入れると、Claude が作り方の案を出します" : "残った品物や古い記録の手がかりを入れると、Claude が作り方の案を出します"}</small>${mine ? `<span class="bt-meta">入れた技 ${mine}</span>` : ""}</span>
         <span class="bt-go" aria-hidden="true">›</span>
       </a></li>
       ${trial("答えの分かっている技で試す", "木目金で、Claude がどこまで当てられるかを見ます", " rs-waza-card")}
       <li><a class="big-tech rs-waza-card" href="#waza/rebuild/moyou">
         <span class="bt-mark mo-mark" aria-hidden="true">模</span>
-        <span class="bt-body"><b>模様の試し</b><small>本当の手順と Claude の手順で作ったら、どんな模様になるかを絵で比べます</small></span>
+        <span class="bt-body"><b>${film ? "模様の試し" : "模様の試し（木目金）"}</b><small>本当の手順と Claude の手順で作ったら、どんな模様になるかを絵で比べます</small></span>
         <span class="bt-go" aria-hidden="true">›</span>
       </a></li>
       <li><a class="big-tech rs-waza-card" href="#waza/restore/${MOYOU_SAMPLE_ID}/moyou">
         <span class="bt-mark mo-mark" aria-hidden="true">復</span>
-        <span class="bt-body"><b>復元：手順から模様を試す</b><small>答えのない技でも、Claude が組み立てた手順のとおりに作るとどんな模様になるかを描きます（作り話の技の例）</small></span>
+        <span class="bt-body"><b>${film ? "復元：手順から模様を試す" : "作り話の技で、手順から模様を描いた例"}</b><small>答えのない技でも、Claude が組み立てた手順のとおりに作るとどんな模様になるかを描きます${film ? "（作り話の技の例）" : ""}</small></span>
         <span class="bt-go" aria-hidden="true">›</span>
       </a></li></ul>`;
 }
@@ -101,9 +104,15 @@ export function mountWaza(root: HTMLElement): { refresh(): void; route(sub: stri
     <section class="view waza">
       <header class="view-head waza-head">
         <h2>技を選ぶ</h2>
-        <p class="lead">職人の言葉と手本を残し、学ぶ人へ渡します。どの技も同じ流れです。</p>
+        ${
+          filming()
+            ? `<p class="lead">職人の言葉と手本を残し、学ぶ人へ渡します。どの技も同じ流れです。</p>`
+            : `<p class="lead">技ごとに、職人の言葉と手本を残し、学ぶ人へ渡す所です。どの技も同じ流れです。</p>`
+        }
         <p class="flow-line" aria-label="流れ"><span class="master">職人が答える</span><i aria-hidden="true">→</i><span class="master">手本を残す</span><i aria-hidden="true">→</i><span class="learner">学ぶ人が聞く</span><i aria-hidden="true">→</i><span class="learner">手を比べる</span></p>
+        ${filming() ? "" : `<p class="waza-first"><b>まず</b>下から技を 1 つ選びます。札の「次：…」が、その技でいまやることです。</p>`}
         ${isMihon() ? "" : `<p class="mihon-link-line">はじめての方は <a class="mihon-link" href="app.html?mihon#waza/kebori">作り話の例で流れを見る <span aria-hidden="true">›</span></a></p>`}
+        ${filming() ? "" : `<p class="mihon-link-line">作り方の残っていない技は <a class="mihon-link" href="#waza/restore">途切れた技へ <span aria-hidden="true">›</span></a></p>`}
       </header>
       <h3 class="pub-sec-h waza-sec">職人の技</h3>
       <ul class="big-techs">${WAZA_ORDER.map(flowCard).join("")}</ul>

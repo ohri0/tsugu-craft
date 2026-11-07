@@ -900,3 +900,29 @@ html.fit .tp-toc a { font-size: 12px; }
   .nav .to-design:first-child { border-left: 0; border-right: 1px solid var(--line-2); }
   .nav .to-design:last-child, .nav .to-design:first-child { margin: 0; }
 }
+
+/* ---- 場所の切り替え（帳面・設計・学ぶ・技・途切れた技。src/ui/main-nav.ts と main-nav.css。2026-11-08） ----
+   PC：上の帯のまん中に、名前と「だれの場所か」の 2 行。帯を少し高くする。
+   スマホ：下の帯に 5 つ（印と名前）。撮影（?rec・?nointro）は html.gnav-on がないので、前のタブのまま。 */
+@media (min-width: 721px) {
+  html.gnav-on { --bar-h: 58px; }
+}
+html.gnav-on .bar { border-bottom-color: var(--line-2); }
+@media (max-width: 720px) {
+  html.gnav-on .gnav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; height: calc(var(--tab-h) + env(safe-area-inset-bottom)); padding: 0 2px env(safe-area-inset-bottom); gap: 0; border: 0; border-top: 1px solid var(--line-2); border-radius: 0; background: var(--panel); }
+  html.gnav-on .gnav a { flex: 1 1 0; min-width: 0; padding: 0; gap: 2px; border-radius: 0; }
+  html.gnav-on .gnav a svg { display: block; color: var(--fg-2); }
+  html.gnav-on .gnav .gn-l { font-size: 12px; font-weight: 500; color: var(--fg-2); opacity: 1; }
+  html.gnav-on .gnav .gn-s { display: none; }
+  html.gnav-on .gnav a[aria-current="page"] { background: transparent; box-shadow: inset 0 2px 0 var(--accent-2); }
+  html.gnav-on .gnav a[aria-current="page"] svg, html.gnav-on .gnav a[aria-current="page"] .gn-l { color: var(--accent-2); font-weight: 600; }
+  html.gnav-on .gnav .badge { top: 4px; right: calc(50% - 24px); }
+}
+/* 頁の頭の 1 行：何をする所か、と次の場所へのリンク */
+.place-line { margin: 0 0 14px; font-size: 13px; line-height: 1.7; color: var(--fg-2); }
+.place-next { display: inline-block; margin-left: 4px; color: var(--accent-2); text-decoration: none; white-space: nowrap; }
+.place-line a, .lead .place-next { color: var(--accent-2); text-decoration: none; }
+.place-line a:hover, .place-next:hover { text-decoration: underline; }
+@media (pointer: coarse), (max-width: 720px) {
+  html.fit :is(.place-line a, .place-next) { display: inline-flex; align-items: center; min-height: 44px; }
+}

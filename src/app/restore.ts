@@ -50,7 +50,7 @@ import { PHOTO_SEND, photosToSend, restoreContent, restorePrompt, ruleRequest, t
 import { parseRestoration, PROPOSE_RESTORATION } from "../rebuild/restore-tools";
 import { callTool } from "../rebuild/run";
 import { drawThumb, makePattern, mountPatternView, patternBusy, patternHash } from "./pattern-view";
-import { askConfirm } from "./confirm";
+import { askConfirm, filming } from "./confirm";
 import { flash } from "./interview";
 import { masterName } from "./master";
 import { askPassword, resetPassword } from "./password";
@@ -193,13 +193,32 @@ function wireImport(input: HTMLInputElement, say: (t: string) => void) {
 
 // ---- 一覧 ----
 
+/**
+ * 一覧の例（どれも作り話の技）。言葉は、開くと何が見えるかを書く（2026-11-08 作者：「例を見る」などでは分からない）。
+ * 霜目の小箱：手がかり → 案 1 → 試した結果 → 案 2 の流れが最後まである。模様の見込みはない。
+ * 雨垂れ銀：赤銅・銀・銅を重ねる技（木目金のなかま）。手順から模様の見込みを描いた。
+ * 輪打ち金筋：1 枚の板に、溝を彫って金をはめ、輪の鏨で打つ技（重ねない）。手順から模様の見込みを描いた。
+ */
+const SAMPLE_CARDS: { id: string; title: string; sub: string }[] = [
+  { id: "rmw3fsef87cep", title: "作り話の例で、流れを最後まで見る", sub: "手がかり → Claude の案 → 試した結果 → 直した案（霜目の小箱）" },
+  { id: MOYOU_SAMPLE_ID, title: "手順から模様を描いた例（重ねる技・木目金のなかま）", sub: "Claude の手順のとおりに作ると、どんな模様になるか（雨垂れ銀）" },
+  { id: MOYOU_SURFACE_SAMPLE_ID, title: "彫る・打つ技で、模様を描いた例", sub: "1 枚の板に溝を彫って金をはめ、鏨で打つ（輪打ち金筋）" },
+];
+
 function mountList(root: HTMLElement, opts: { onBack: () => void }) {
   const projects = listProjects();
+  // 撮影（?rec・?nointro）の絵は前のまま
+  const film = filming();
   root.innerHTML = `
   <section class="view rs">
-    <button type="button" class="rs-back">← 技の一覧</button>
+    <button type="button" class="rs-back">${film ? "← 技の一覧" : "← 技の一覧へ戻る"}</button>
     <h2 class="rs-title">途切れた技</h2>
-    <p class="rs-lead">分かることを入れると、Claude が作り方の案を出します。</p>
+    ${
+      film
+        ? `<p class="rs-lead">分かることを入れると、Claude が作り方の案を出します。</p>`
+        : `<p class="rs-lead">作り方の残っていない技を、残った品物や古い記録の手がかりから、Claude と組み立て直す所です。</p>
+    <ol class="rs-how" aria-label="流れ">${FLOW.map((f) => `<li><span aria-hidden="true">${f.n}</span>${f.label}</li>`).join("")}</ol>`
+    }
     <div class="rs-start">
       <button type="button" class="primary rs-big rs-new-open">途切れた技を入れる</button>
       <form class="rs-new" hidden>
@@ -221,7 +240,14 @@ function mountList(root: HTMLElement, opts: { onBack: () => void }) {
             .join("")}</ul>`
         : ""
     }
-    <div class="rs-quiet"><button type="button" class="linklike rs-sample" data-sample="rmw3fsef87cep">例を見る</button><button type="button" class="linklike rs-sample" data-sample="${MOYOU_SAMPLE_ID}">模様の見込みつきの例を見る</button><button type="button" class="linklike rs-sample" data-sample="${MOYOU_SURFACE_SAMPLE_ID}">重ねない技の例を見る</button></div>
+    ${
+      film
+        ? `<div class="rs-quiet"><button type="button" class="linklike rs-sample" data-sample="rmw3fsef87cep">例を見る</button><button type="button" class="linklike rs-sample" data-sample="${MOYOU_SAMPLE_ID}">模様の見込みつきの例を見る</button><button type="button" class="linklike rs-sample" data-sample="${MOYOU_SURFACE_SAMPLE_ID}">重ねない技の例を見る</button></div>`
+        : `<section class="rs-examples" aria-labelledby="rs-ex-h">
+      <h3 id="rs-ex-h">はじめての方は、例を 1 つ開いてみてください <small>どれも作り話の技です</small></h3>
+      <ul>${SAMPLE_CARDS.map((c) => `<li><button type="button" class="rs-sample rs-ex" data-sample="${c.id}"><b>${c.title}</b><small>${c.sub}</small><span class="rs-go-mark" aria-hidden="true">›</span></button></li>`).join("")}</ul>
+    </section>`
+    }
     ${
       projects.length
         ? `<details class="rs-fold"><summary>記録</summary><div class="rs-fold-body"><div class="rs-file-acts"><label class="ghost btnlike rs-import">ファイルを読み込む<input type="file" accept=".json,application/json" hidden></label></div></div></details>`

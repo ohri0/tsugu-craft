@@ -61,7 +61,7 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
   <section class="view keep">
     <header class="view-head">
       <div class="keep-name"><h2 class="keep-title"></h2><button type="button" class="linklike rename">名前を変える</button><label class="ws-switch" hidden><span>帳面を切り替える</span><select aria-label="使う帳面"></select></label></div>
-      <p class="lead">${clear ? "職人の決まりを残す所です。設計の確かめと、学ぶ人への答えに使います。" : "工房の決まり。設計の確かめと、学ぶ人への答えに使います。"}</p>
+      <p class="lead">${clear ? "職人の決まりを残す所です。設計の確かめと、学ぶ人への答えに使います。" : "工房の決まり。設計の確かめと、学ぶ人への答えに使います。"}${filming() ? "" : `<a class="place-next" href="studio.html">この決まりで、設計を確かめる ›</a>`}</p>
       <div class="keep-basics"><span>この工房のベーシック（いつもの基本の形）：爪の形</span><div class="seg-b" role="group" aria-label="爪の形（工房の既定）"><button type="button" data-tip="round">丸い爪</button><button type="button" data-tip="oni">尖り爪</button></div><small class="keep-basics-n"></small></div>
     </header>
     <div class="block ask-card iv-card" hidden></div>

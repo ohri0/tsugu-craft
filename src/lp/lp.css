@@ -414,3 +414,32 @@ figcaption { font-size: 15.5px; line-height: 1.75; margin-top: 12px; color: var(
   .steps li { grid-template-columns: 34px minmax(0, 1fr); }
 }
 .restore-head h2 { font-size: clamp(30px, 3.4vw, 46px); }
+
+/* ---- 上の帯の「アプリを開く」（スマホは「メニュー」）：アプリの 5 つの場所へ（2026-11-08） ---- */
+.open-app { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px; border: 1px solid var(--hair); background: transparent; color: var(--white); font: inherit; letter-spacing: 0.04em; cursor: pointer; }
+.open-app:hover, .open-app[aria-expanded="true"] { border-color: var(--white-2); }
+.open-app i { width: 7px; height: 7px; margin-top: -4px; border-right: 1px solid currentColor; border-bottom: 1px solid currentColor; transform: rotate(45deg); transition: transform 0.2s; }
+.open-app[aria-expanded="true"] i { margin-top: 3px; transform: rotate(225deg); }
+.open-app .oa-sm { display: none; }
+.hd.menu-open { background: rgba(7, 6, 6, 0.94); }
+.app-menu { position: absolute; top: 60px; right: var(--gut); width: min(380px, calc(100vw - 2 * var(--gut))); max-height: calc(100svh - 72px); overflow-y: auto; padding: 18px 22px 20px; background: rgba(7, 6, 6, 0.97); border: 1px solid var(--hair); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px); }
+.app-menu[hidden] { display: none; }
+.am-h { font-size: 13.5px; letter-spacing: 0.16em; color: var(--white-2); margin-bottom: 6px; }
+.am-list li + li { border-top: 1px solid rgba(244, 241, 234, 0.1); }
+.am-list a { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; min-height: 54px; padding: 10px 0; text-decoration: none; }
+.am-list b { font: 400 21px/1.4 var(--mincho); letter-spacing: 0.08em; }
+.am-list small { font-size: 14.5px; color: var(--white-2); white-space: nowrap; }
+.am-list a:hover b { text-decoration: underline; text-underline-offset: 0.22em; text-decoration-thickness: 1px; }
+.am-page { display: none; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--hair); }
+.am-links { display: flex; flex-wrap: wrap; gap: 0 20px; }
+.am-links a { display: inline-flex; align-items: center; min-height: 44px; font-size: 15.5px; text-decoration: none; }
+@media (max-width: 1080px) {
+  .am-page { display: block; }
+}
+@media (max-width: 560px) {
+  .hide-xs { display: none !important; }
+  .open-app { padding: 0 12px; }
+  .open-app .oa-pc { display: none; }
+  .open-app .oa-sm { display: inline; }
+  .app-menu { left: 0; right: 0; width: auto; border-left: 0; border-right: 0; padding: 14px var(--gut) 20px; }
+}
