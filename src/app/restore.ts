@@ -101,9 +101,12 @@ let releasePhotos: () => void = () => undefined;
 
 /** 作り話の例（一覧の「例を見る」）。id → 読み込み。模様の見込みつきの例は、技の一覧からも直接開く */
 export const MOYOU_SAMPLE_ID = "demo-amadare";
+/** 重ねない技（1 枚の板の表の飾り）の見込みつきの例 */
+export const MOYOU_SURFACE_SAMPLE_ID = "demo-wauchi";
 const SAMPLES: Record<string, () => Promise<unknown>> = {
   rmw3fsef87cep: async () => (await import("../../research/restore/sample.json")).default,
   [MOYOU_SAMPLE_ID]: async () => (await import("../../research/restore/sample-moyou.json")).default,
+  [MOYOU_SURFACE_SAMPLE_ID]: async () => (await import("../../research/restore/sample-moyou-surface.json")).default,
 };
 
 export function mountRestore(root: HTMLElement, sub: string, opts: { onBack: () => void }): void {
@@ -218,7 +221,7 @@ function mountList(root: HTMLElement, opts: { onBack: () => void }) {
             .join("")}</ul>`
         : ""
     }
-    <div class="rs-quiet"><button type="button" class="linklike rs-sample" data-sample="rmw3fsef87cep">例を見る</button><button type="button" class="linklike rs-sample" data-sample="${MOYOU_SAMPLE_ID}">模様の見込みつきの例を見る</button></div>
+    <div class="rs-quiet"><button type="button" class="linklike rs-sample" data-sample="rmw3fsef87cep">例を見る</button><button type="button" class="linklike rs-sample" data-sample="${MOYOU_SAMPLE_ID}">模様の見込みつきの例を見る</button><button type="button" class="linklike rs-sample" data-sample="${MOYOU_SURFACE_SAMPLE_ID}">重ねない技の例を見る</button></div>
     ${
       projects.length
         ? `<details class="rs-fold"><summary>記録</summary><div class="rs-fold-body"><div class="rs-file-acts"><label class="ghost btnlike rs-import">ファイルを読み込む<input type="file" accept=".json,application/json" hidden></label></div></div></details>`
