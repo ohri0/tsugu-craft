@@ -461,7 +461,7 @@ const html = `
         <p class="rv">答えのない技でも、手がかりを入れると、Claude が手順を推し量り、その手順で作ったときの見込みを描きます。重ねる技も、彫る・打つ・透かすなど表を変える技も。この世にない技でも試せます。</p>
         <ul class="pt-grid rv">${PATTERNS.map((t) => `<li><figure>${img(`pt-${t.id}`, `架空の技「${t.name}」の模様の見込み。${t.alt}`, "(max-width: 560px) 44vw, (max-width: 900px) 28vw, 170px")}<figcaption><b>${t.name}</b><span class="pt-fam">${t.fam}</span><small>${t.how}</small></figcaption></figure></li>`).join("")}</ul>
         <figure class="pt-stages rv">${img("pt-stages", "架空の技「輪打ち金筋」の見込みの画面。左から、赤銅の板、金を波の線ではめる、魚々子の輪を打つ、の 3 段。段ごとに、横から見た切り口と上から見た面", "(max-width: 760px) 92vw, 760px")}<figcaption>架空の技「輪打ち金筋」。Claude の案の手順を、1 段ずつ描きます（赤銅の板 → 金をはめる → 輪を打つ）。手順に書かれていない数には「仮」の印がつきます。</figcaption></figure>
-        <p class="src rv">どれも作り話の技に、本物の Claude が出した手順で描いた、形だけの見込みです。金属の本当の流れや熱は計算しません。どちらの描き方にも合わない技は、描かずにそう言います。本当にどうなるかは試して確かめ、最後に決めるのは職人です。<a href="${RESTORE}">途切れた技の画面で例を見る</a></p>
+        <p class="src rv">どれも作り話の技に、本物の Claude が出した手順で描いた、形だけの見込みです。金属の本当の流れや熱は計算しません。どちらの描き方にも合わない技は、描かずにそう言います。本当にどうなるかは試して確かめ、最後に決めるのは職人です。<a href="${RESTORE}/demo-wauchi/moyou">この例（輪打ち金筋）を画面で見る</a></p>
       </div>
       <div class="own">
         <div class="own-t">
