@@ -12,7 +12,7 @@
 1. 作者が最終案 17c を見た直し。
 2. 作者の声の録音を入れる（`video/work/voice/n<番号>.wav`。口の音・雑音を減らし、曲の揺れを整える）。
 3. 11/8 朝：本物の Safari で確かめ（`scripts/open-check.cjs --browsers=safari`）→ main へ 1 回（`git push origin claude/new-session-abjjnu:main` の早送り）→ 作者のスマホで公開の版を見る → 直しがあれば夕方にもう 1 回。
-4. README・`docs/SUMMARY.md` を 11/7 の機能に合わせる（伝統の仕上げは書かない）。提出の文に合言葉（作者が手で）。
+4. ~~README・`docs/SUMMARY.md` を 11/7 の機能に合わせる~~（済。伝統の仕上げは書いていない）。提出の文に合言葉（作者が手で）。
 
 ---
 
