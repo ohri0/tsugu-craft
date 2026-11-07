@@ -8,25 +8,33 @@
 // 座標：x＝板の幅の向き、y＝板の長さの向き（その時の板の大きさで。重ねたときの幅を 1 とする）、u＝表からの深さ（0＝表、1＝裏）。
 import { rng } from "./sim";
 import { PATTERN_COLORS, PATTERN_LIMITS, PATTERN_LOOK, PATTERN_METALS, PATTERN_VALUES, type MetalId } from "./pattern-values";
+import { eachSpotNear, flowerBump, layerCoordOf, layerEdges, leafBump, spotsFor } from "./pattern-spots";
 
-export type CarveShape = "dots" | "pits" | "lines" | "waves";
+/** leaves＝葉の形、petals＝5 枚の花びらの形（2026-11-08：葉の鏨で打った所が、丸いくぼみでしか描けなかったため） */
+export type CarveShape = "dots" | "pits" | "lines" | "waves" | "leaves" | "petals";
 export type BondQuality = "good" | "partial" | "poor";
 export type RearrangeMode = "edge_up" | "strips" | "tiles";
 export type ColorKind = "none" | "etch" | "patina";
 
 export type PatternOp =
-  /** 色のちがう材料を重ねる（metals をくり返して count 枚） */
-  | { op: "stack"; metals: MetalId[]; count: number }
+  /** 色のちがう材料を重ねる（metals をくり返して count 枚）。thickness＝材料ごとの厚さの割合（metals と同じ順。無ければ同じ厚さ） */
+  | { op: "stack"; metals: MetalId[]; count: number; thickness?: number[] }
   /** 熱して層をつなぐ（つながりの良さ） */
   | { op: "bond"; quality: BondQuality }
   /** のばして半分に切り、重ねる（times 回。層の数は 2 倍ずつ） */
   | { op: "fold"; times: number }
   /** 叩いて薄くのばす（厚みが 1/ratio。length＝長さの向きだけ、both＝縦横に） */
   | { op: "forge_thin"; ratio: number; direction: "length" | "both" }
-  /** 棒にしてねじる（板の長さの中で turns 回まわす） */
-  | { op: "twist"; turns: number }
-  /** 表から彫る・穴をあける（top）か、裏から打ち出す（back）。depth は板の厚みに対して、size は板の幅に対して、across は幅の中の数 */
-  | { op: "carve"; side: "top" | "back"; shape: CarveShape; depth: number; size: number; across: number }
+  /**
+   * 棒にしてねじる（板の長さの中で turns 回まわす）。bars＝ねじった棒を何本、横に並べてつなぐか（無ければ 1 本）。
+   * 星の先は棒のふちに出るので、1 本では板のふちで半分に切れる。2 本以上なら、つなぎ目に星が丸ごと出る（2026-11-08）
+   */
+  | { op: "twist"; turns: number; bars?: number }
+  /**
+   * 表から彫る・穴をあける（top）か、裏から打ち出す（back）。depth は板の厚みに対して、size は板の幅に対して、across は幅の中の数。
+   * count＝丸・くぼみ・葉・花を、その時の板の全体でちょうどこの数にする（無いか 0 なら、幅の中に across）
+   */
+  | { op: "carve"; side: "top" | "back"; shape: CarveShape; depth: number; size: number; across: number; count?: number }
   /** 叩いて平らにする */
   | { op: "flatten" }
   /** 表を平らに削る（depth は板の厚みに対して） */
@@ -123,6 +131,8 @@ export interface Sim {
   metals: MetalId[];
   /** 重ねた枚数 */
   count: number;
+  /** 層の厚さを変えたときの、はじめの板の層のさかいの深さ（0 から 1 まで、枚数 + 1 個）。同じ厚さなら無い */
+  edges?: number[];
   /** 最後の層の数（重ねる回数で増える） */
   layersFinal: number;
   stages: Stage[];
@@ -161,6 +171,9 @@ export function buildSim(ops: readonly PatternOp[], seed = 7, opts: { bond?: Bon
   const metals = first.metals.length ? first.metals : (["light", "dark"] as MetalId[]);
   const count = Math.round(clampTo(first.count, PATTERN_LIMITS.count));
   const notes: string[] = [];
+  const thick = first.thickness?.slice(0, metals.length).map((v) => clampTo(v, PATTERN_LIMITS.thickness));
+  const edges = thick && thick.length === metals.length ? layerEdges(thick, count) : undefined;
+  if (edges) notes.push(`層の厚さは、${metals.map((m, k) => `${PATTERN_METALS[m].name.replace(/（.*）/, "")} ${Math.round(thick![k] * 100) / 100}`).join("・")} の割合（仮）として描きました。`);
   let W = 1;
   let H = 1;
   let layers = count;
@@ -255,6 +268,7 @@ export function buildSim(ops: readonly PatternOp[], seed = 7, opts: { bond?: Bon
     ops: [...ops],
     metals,
     count,
+    ...(edges ? { edges } : {}),
     layersFinal: layers,
     stages,
     unbonded,
@@ -268,8 +282,11 @@ export function buildSim(ops: readonly PatternOp[], seed = 7, opts: { bond?: Bon
   };
 }
 
-/** 彫った（打ち出した）深さ（その時の板の厚みに対して 0〜1）。qx, qy はその時の板の幅を 1 とした位置 */
-export function carveDepth(op: Extract<PatternOp, { op: "carve" }>, qx: number, qy: number, seed: number): number {
+/**
+ * 彫った（打ち出した）深さ（その時の板の厚みに対して 0〜1）。qx, qy はその時の板の幅を 1 とした位置。aspect はその時の板の長さ ÷ 幅
+ * （count で板全体に置くときに、板の大きさを知るため）
+ */
+export function carveDepth(op: Extract<PatternOp, { op: "carve" }>, qx: number, qy: number, seed: number, aspect = 1): number {
   const across = clampTo(op.across, PATTERN_LIMITS.across);
   const a = 1 / across;
   const depth = clampTo(op.depth, PATTERN_LIMITS.depth);
@@ -291,34 +308,56 @@ export function carveDepth(op: Extract<PatternOp, { op: "carve" }>, qx: number, 
     }
     return Math.min(0.98, d);
   }
+  let d = 0;
+  /** 1 つの穴・くぼみ（i, j はばらつきの番号、(dx, dy) は中心からの位置）の深さ */
+  const one = (i: number, j: number, dx: number, dy: number) => {
+    if (op.shape === "leaves") {
+      // 葉の鏨：先がとがり根元が丸い葉の形。向きは 1 つずつちがう。真ん中の葉脈が少し浅い
+      const L = size * (0.85 + 0.3 * hash(i, j, 3, seed));
+      const dd = depth * (0.8 + 0.2 * hash(i, j, 4, seed));
+      d = Math.max(d, dd * Math.min(1, leafBump(dx, dy, L, 2 * Math.PI * hash(i, j, 10, seed))));
+      return;
+    }
+    if (op.shape === "petals") {
+      // 花の鏨：5 枚の花びら
+      const R = size * (0.85 + 0.3 * hash(i, j, 3, seed));
+      const dd = depth * (0.8 + 0.2 * hash(i, j, 4, seed));
+      d = Math.max(d, dd * Math.min(1, flowerBump(dx, dy, R, 2 * Math.PI * hash(i, j, 10, seed))));
+      return;
+    }
+    let r: number, dd: number;
+    let e = 1;
+    let ang = 0;
+    if (op.shape === "dots") {
+      // 錐で手であけるので、大きさ・深さが少しずれ、わずかに楕円になる
+      r = size * (1 + J.size * jit(i, j, 7));
+      dd = depth * (1 + J.depth * jit(i, j, 8));
+      e = 1 + J.ellipse * jit(i, j, 9);
+      ang = Math.PI * hash(i, j, 10, seed);
+    } else {
+      r = size * (0.55 + 0.9 * hash(i, j, 3, seed));
+      dd = depth * (0.55 + 0.45 * hash(i, j, 4, seed));
+    }
+    const c = Math.cos(ang);
+    const s = Math.sin(ang);
+    const dist = Math.hypot((dx * c + dy * s) * e, (-dx * s + dy * c) / e) / r;
+    if (dist < 1) d = Math.max(d, dd * profile(dist));
+  };
+  const count = op.count ? clampTo(op.count, PATTERN_LIMITS.items) : 0;
+  if (count >= 1) {
+    // 板全体でちょうど count 個（手がかりの「10 ほど」が、そのまま 10 になる。2026-11-08）。dots は列に、ほかはばらばらに
+    const sp = spotsFor(op, count, 1, aspect, seed, op.shape === "dots" ? { arrange: "rows", jitter: J.pos, stagger: true } : { arrange: "scatter", margin: Math.min(0.45, size * 1.2) });
+    eachSpotNear(sp, qx, qy, (k, dx, dy) => one(k, 0, dx, dy));
+    return Math.min(0.98, d);
+  }
   const i0 = Math.floor(qx / a);
   const j0 = Math.floor(qy / a);
-  let d = 0;
   for (let j = j0 - 1; j <= j0 + 1; j++) {
     for (let i = i0 - 1; i <= i0 + 1; i++) {
-      let cx: number, cy: number, r: number, dd: number;
-      let e = 1;
-      let ang = 0;
-      if (op.shape === "dots") {
-        // 決まった間かくの丸い穴（1 列おきに半分ずらす）。錐で手であけるので、位置・大きさ・深さが少しずれ、わずかに楕円になる
-        cx = (i + 0.5 + (j % 2 === 0 ? 0 : 0.5) + J.pos * jit(i, j, 5)) * a;
-        cy = (j + 0.5 + J.pos * jit(i, j, 6)) * a;
-        r = size * (1 + J.size * jit(i, j, 7));
-        dd = depth * (1 + J.depth * jit(i, j, 8));
-        e = 1 + J.ellipse * jit(i, j, 9);
-        ang = Math.PI * hash(i, j, 10, seed);
-      } else {
-        cx = (i + 0.15 + 0.7 * hash(i, j, 1, seed)) * a;
-        cy = (j + 0.15 + 0.7 * hash(i, j, 2, seed)) * a;
-        r = size * (0.55 + 0.9 * hash(i, j, 3, seed));
-        dd = depth * (0.55 + 0.45 * hash(i, j, 4, seed));
-      }
-      const dx = qx - cx;
-      const dy = qy - cy;
-      const c = Math.cos(ang);
-      const s = Math.sin(ang);
-      const dist = Math.hypot((dx * c + dy * s) * e, (-dx * s + dy * c) / e) / r;
-      if (dist < 1) d = Math.max(d, dd * profile(dist));
+      // dots：決まった間かくの丸い穴（1 列おきに半分ずらす。手であけるので、位置が少しずれる）。ほか：ばらばらの所
+      const cx = op.shape === "dots" ? (i + 0.5 + (j % 2 === 0 ? 0 : 0.5) + J.pos * jit(i, j, 5)) * a : (i + 0.15 + 0.7 * hash(i, j, 1, seed)) * a;
+      const cy = op.shape === "dots" ? (j + 0.5 + J.pos * jit(i, j, 6)) * a : (j + 0.15 + 0.7 * hash(i, j, 2, seed)) * a;
+      one(i, j, qx - cx, qy - cy);
     }
   }
   return Math.min(0.98, d);
@@ -469,15 +508,19 @@ export function trace(sim: Sim, x: number, y: number, u: number): Trace {
         // それを untwist（回すだけの見方と、上下から押しもどす見方の間）で近づける。角を折り返すと木の目のように、
         // 回すだけだと入れ子の山形だけになった（2026-11-07）。押しもどすと、角が棒のふちに来る所で層が集まり、星の先になる
         const bar = PATTERN_VALUES.twistBar;
-        const [ox, ou] = untwist(2 * (px / W) - 1, 2 * uu - 1, (2 * Math.PI * turns * py) / (H * bar));
-        px = clamp((ox + 1) / 2, 0, 0.999999) * W;
+        // 何本かの棒を横に並べてつないだときは、棒ごとに、その棒の幅の中でもどす（星の先が、となりの棒とのつなぎ目で丸ごとになる）
+        const nb = Math.round(clampTo(op.bars ?? 1, PATTERN_LIMITS.bars));
+        const xb = nb > 1 ? clamp(px / W, 0, 0.999999) * nb : px / W;
+        const ib = nb > 1 ? Math.floor(xb) : 0;
+        const [ox, ou] = untwist(2 * (xb - ib) - 1, 2 * uu - 1, (2 * Math.PI * turns * py) / (H * bar));
+        px = ((ib + clamp((ox + 1) / 2, 0, 0.999999)) / nb) * W;
         uu = clamp((ou + 1) / 2, 0, 0.999999);
         py /= bar;
         break;
       }
       case "carve": {
         if (!st.flattened && op.side === "back") break;
-        const e = carveDepth(op, px / W, py / W, st.seed);
+        const e = carveDepth(op, px / W, py / W, st.seed, H / W);
         uu = e + uu * (1 - e);
         break;
       }
@@ -523,9 +566,12 @@ export function trace(sim: Sim, x: number, y: number, u: number): Trace {
   return { u0: uu, x0: px, y0: py };
 }
 
+/** はじめに重ねた板の深さ u0 が、何番の層の中のどこか（層の番号 + 層の中の割合）。同じ厚さなら u0 × 枚数 */
+export const layerCoord = (sim: Sim, u0: number): number => layerCoordOf(sim.edges, sim.count, u0);
+
 /** はじめに重ねた板の、上から k 番の層（0 から） */
 export function layerOf(sim: Sim, u0: number): number {
-  return Math.min(sim.count - 1, Math.max(0, Math.floor(u0 * sim.count)));
+  return Math.min(sim.count - 1, Math.max(0, Math.floor(layerCoord(sim, u0))));
 }
 
 /** k 番の層の材料 */
@@ -571,7 +617,7 @@ export function surfaceRows(sim: Sim, out: Surface, j0: number, j1: number): voi
   for (let j = j0; j < Math.min(n, j1); j++) {
     for (let i = 0; i < n; i++) {
       const t = trace(sim, x0 + ((i + 0.5) / n) * size, y0 + ((j + 0.5) / n) * size, 0);
-      const s = t.u0 * sim.count;
+      const s = layerCoord(sim, t.u0);
       out.s[j * n + i] = s;
       layer[j * n + i] = layerOf(sim, t.u0);
       const k = Math.ceil(s);
@@ -633,12 +679,12 @@ export function section(sim: Sim, w: number, h: number, row = 0.5): Section {
   for (let i = 0; i < w; i++) {
     const x = x0 + ((i + 0.5) / w) * size;
     let top = 0;
-    for (const st of open) if (st.op.op === "carve") top = Math.max(top, carveDepth(st.op, x / st.W, y / st.W, st.seed));
+    for (const st of open) if (st.op.op === "carve") top = Math.max(top, carveDepth(st.op, x / st.W, y / st.W, st.seed, st.H / st.W));
     for (let j = 0; j < h; j++) {
       const u = (j + 0.5) / h;
       if (u < top) continue;
       const t = trace(sim, x, y, u);
-      const s = t.u0 * sim.count;
+      const s = layerCoord(sim, t.u0);
       const k = Math.round(s);
       const gap = Math.abs(s - k) < 0.12 && unbondedAt(sim, k, t.x0, t.y0);
       cells[j * w + i] = gap ? GAP : layerOf(sim, t.u0);

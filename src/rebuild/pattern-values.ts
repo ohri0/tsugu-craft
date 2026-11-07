@@ -103,6 +103,12 @@ export const PATTERN_LIMITS = {
   size: [0.005, 0.25],
   across: [1, 40],
   pieces: [2, 12],
+  /** 並べる・散らす物の、板全体（品物 1 つ）の数（count。2026-11-08） */
+  items: [1, 600],
+  /** 層の厚さの割合（thickness。いちばん薄い層と厚い層の差は、この中で。2026-11-08） */
+  thickness: [0.1, 10],
+  /** ねじった棒を並べてつなぐ本数（twist の across。2026-11-08） */
+  bars: [1, 6],
 } as const satisfies Record<string, readonly [number, number]>;
 
 /** 道具が受け取る操作の数の範囲 */
@@ -166,4 +172,9 @@ export const RELIEF_VALUES = {
   /** 七宝：区切りの線の太さ（板の幅に対して）・ガラスの深さ（厚みに対して） */
   wire: 0.006,
   enamelDepth: 0.35,
+  /** 打ち出しのふちにそう線（outline）：高さの傾きを取る間（板の幅に対して）と、ふちと見なさない平らさ（高さを打ち出しの高さで割った値の、板の幅あたりの傾きがこれより小さい所） */
+  outlineStep: 0.002,
+  outlineFlat: 1.5,
+  /** ふちにそう線を引かない、板のふちの幅（打ち出しは、ふち 0.08 の内で平らにもどる） */
+  outlineInset: 0.05,
 } as const;

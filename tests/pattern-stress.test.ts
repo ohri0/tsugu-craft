@@ -2,11 +2,13 @@
 // 重ねた板の表を彫る・地を抜いたより線の透かし・粒を詰めたより線・小さな渦の道すじ・丸い象嵌の大きさ・打ち出しの波・七宝の線の金属・
 // 表から彫っただけで平らにしないときの知らせ。
 import { describe, expect, it } from "vitest";
+import { modelOf } from "../src/rebuild/pattern-model";
 import { buildRelief, layerAt, pathHit, pointAt, reliefSectionImage, topMat, type ReliefOp } from "../src/rebuild/pattern-relief";
-import { buildSim } from "../src/rebuild/pattern-sim";
-import { opWords, parsePattern, patternPrompt, toReliefOps } from "../src/rebuild/pattern-tools";
+import { buildSim, carveDepth, layerOf, metalOf, section, surface, trace, type CarveShape, type PatternOp } from "../src/rebuild/pattern-sim";
+import { layerEdges } from "../src/rebuild/pattern-spots";
+import { opWords, parsePattern, patternPrompt, PREDICT_PATTERN, toPatternOps, toReliefOps } from "../src/rebuild/pattern-tools";
 
-const P = (o: Partial<{ op: string; metals: string[]; amount: number; size: number; across: number; choice: string }> & { op: string }) => ({
+const P = (o: Partial<{ op: string; metals: string[]; amount: number; size: number; across: number; count: number; thickness: number[]; choice: string }> & { op: string }) => ({
   step: 1,
   why: "",
   assumed: "",
@@ -229,5 +231,271 @@ describe("重ねた層の模様の知らせ", () => {
     expect(s).toContain("B の plate に重ねた金属");
     expect(s).toContain("ground");
     expect(s).toContain("より線");
+  });
+});
+
+// ---- 2026-11-08：まだ弱かった所（数の意味・葉の鏨・層の厚さ・打ち出しのふちの線・ねじった棒の星の先）を直した所 ----
+
+/** 板を n × n に見て、条件に合うこまのかたまりの数（となり 4 つでつながる） */
+function blobs(n: number, test: (x: number, y: number) => boolean): number {
+  const on = new Uint8Array(n * n);
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) on[j * n + i] = test((i + 0.5) / n, (j + 0.5) / n) ? 1 : 0;
+  let count = 0;
+  const stack: number[] = [];
+  for (let k = 0; k < n * n; k++) {
+    if (on[k] !== 1) continue;
+    count++;
+    on[k] = 2;
+    stack.push(k);
+    while (stack.length) {
+      const q = stack.pop()!;
+      const i = q % n;
+      const j = (q - i) / n;
+      for (const [di, dj] of [
+        [1, 0],
+        [-1, 0],
+        [0, 1],
+        [0, -1],
+      ]) {
+        const a = i + di;
+        const b = j + dj;
+        if (a < 0 || b < 0 || a >= n || b >= n || on[b * n + a] !== 1) continue;
+        on[b * n + a] = 2;
+        stack.push(b * n + a);
+      }
+    }
+  }
+  return count;
+}
+
+const pred = (ops: ReturnType<typeof P>[]) => ({ applicable: true, reason: "r", cannot_show: "", summary: "s", ops });
+
+describe("数の意味：count は品物 1 つ（板全体）の数", () => {
+  it("「10 ほど」の丸い象嵌は、count 10 で、ちょうど 10 の丸になる（前は幅の中に 8 で、板全体に 60 ほど）", () => {
+    const ok = parsePattern(pred([P({ op: "plate", metals: ["dark"] }), P({ op: "zogan", metals: ["light"], size: 0.03, count: 10, choice: "pits" })]), { steps: 2 });
+    expect(ok.ok).toBe(true);
+    if (!ok.ok) return;
+    expect(ok.value.ops[1]).toMatchObject({ count: 10, across: 0 });
+    expect(ok.warnings).toBeUndefined();
+    const ops = toReliefOps(ok.value);
+    expect(ops[1]).toMatchObject({ op: "zogan", count: 10 });
+    expect(opWords(ok.value.ops[1])).toContain("板全体に 10");
+    const r = buildRelief(ops, 7);
+    expect(blobs(200, (x, y) => pointAt(r, x, y).fill > 0)).toBe(10);
+    // 幅の中の数（across）は前と同じ意味：幅の中に 8 なら、板全体では 50 をこえる
+    const old = buildRelief([{ op: "plate", metal: "dark" }, { op: "zogan", metal: "light", path: "pits", size: 0.03, across: 8 }], 7);
+    expect(blobs(200, (x, y) => pointAt(old, x, y).fill > 0)).toBeGreaterThan(50);
+  });
+  it("並べる操作（象嵌の dots・打ち出しのふくらみ・透かし・七宝）も、count のとおりの数", () => {
+    const cases: [ReliefOp, (p: ReturnType<typeof pointAt>) => boolean][] = [
+      [{ op: "zogan", metal: "gold", path: "dots", size: 0.03, across: 0, count: 7 }, (p) => p.fill > 0],
+      [{ op: "uchidashi", shape: "bumps", height: 0.3, size: 0.03, across: 0, count: 5 }, (p) => p.bend > 0.3],
+      [{ op: "sukashi", shape: "circles", size: 0.05, across: 0, count: 6 }, (p) => p.hole],
+      [{ op: "shippo", colors: ["enamel_blue"], cells: "round", size: 0.01, across: 0, count: 9 }, (p) => p.glass],
+    ];
+    for (const [op, test] of cases) {
+      const r = buildRelief([{ op: "plate", metal: "silver" }, op], 3);
+      expect(blobs(320, (x, y) => test(pointAt(r, x, y)))).toBe((op as { count: number }).count);
+    }
+  });
+  it("重ねた板を裏から打つ・表から彫るときも、count はその時の板の全体の数", () => {
+    const sim = buildSim([
+      { op: "stack", metals: ["copper", "silver"], count: 6 },
+      { op: "bond", quality: "good" },
+      { op: "carve", side: "top", shape: "pits", depth: 0.5, size: 0.03, across: 0, count: 12 },
+    ]);
+    const st = sim.stages.find((s) => s.op.op === "carve")!;
+    expect(blobs(200, (x, y) => carveDepth(st.op as Parameters<typeof carveDepth>[0], x, y, st.seed) > 0.02)).toBe(12);
+  });
+  it("count を使わない操作で count が来たら使わずに知らせ、count が無い古い記録は前と同じ（count を添えない）", () => {
+    const bad = parsePattern(pred([P({ op: "plate", metals: ["silver"] }), P({ op: "kebori", amount: 0.2, size: 0.005, across: 3, count: 10, choice: "wave" })]), { steps: 2 });
+    expect(bad.ok && bad.value.ops[1].count).toBe(0);
+    expect(bad.ok && bad.warnings?.join("")).toContain("count");
+    const old = {
+      applicable: true,
+      reason: "r",
+      cannot_show: "",
+      summary: "s",
+      ops: [
+        { op: "plate", step: 1, why: "", assumed: "", metals: ["silver"], amount: 0, size: 0, across: 0, choice: "-" },
+        { op: "zogan", step: 1, why: "", assumed: "", metals: ["gold"], amount: 0, size: 0.02, across: 6, choice: "pits" },
+      ],
+    };
+    const r = parsePattern(old, { steps: 1 });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.warnings).toBeUndefined();
+    expect(r.value.ops[1]).toMatchObject({ across: 6, count: 0, thickness: [] });
+    expect(toReliefOps(r.value)[1]).not.toHaveProperty("count");
+  });
+});
+
+/** 深さのある所の広がり（長い向きの長さ ÷ 短い向きの長さ） */
+function elongation(f: (x: number, y: number) => number): number {
+  const pts: [number, number][] = [];
+  for (let y = 0; y < 1; y += 0.003) for (let x = 0; x < 1; x += 0.003) if (f(x, y) > 0.02) pts.push([x, y]);
+  const n = pts.length;
+  const mx = pts.reduce((a, p) => a + p[0], 0) / n;
+  const my = pts.reduce((a, p) => a + p[1], 0) / n;
+  let sxx = 0;
+  let syy = 0;
+  let sxy = 0;
+  for (const [x, y] of pts) {
+    sxx += (x - mx) ** 2;
+    syy += (y - my) ** 2;
+    sxy += (x - mx) * (y - my);
+  }
+  const tr = (sxx + syy) / n;
+  const det = (sxx * syy - sxy * sxy) / (n * n);
+  const r = Math.sqrt(Math.max(0, (tr * tr) / 4 - det));
+  return Math.sqrt((tr / 2 + r) / Math.max(1e-12, tr / 2 - r));
+}
+
+describe("鏨の形：葉・花の形で打つ（前は丸いくぼみだけ）", () => {
+  const one = (shape: CarveShape) => {
+    const op = { op: "carve", side: "back", shape, depth: 0.5, size: 0.12, across: 0, count: 1 } as const;
+    return (x: number, y: number) => carveDepth(op, x, y, 11);
+  };
+  it("葉は細長く、丸は丸い。花は、花びらの先までの円をうめない（花びらの間があく）", () => {
+    expect(elongation(one("leaves"))).toBeGreaterThan(2);
+    expect(elongation(one("pits"))).toBeLessThan(1.3);
+    const flower = one("petals");
+    let hit = 0;
+    for (let y = 0; y < 1; y += 0.003) for (let x = 0; x < 1; x += 0.003) if (flower(x, y) > 0.02) hit++;
+    const disc = (Math.PI * 0.12 ** 2) / 0.003 ** 2;
+    expect(hit / disc).toBeLessThan(0.6);
+    expect(hit / disc).toBeGreaterThan(0.1);
+  });
+  it("裏から葉の鏨で打って削ると、表に葉の形の輪が出る（道具の選びと言い方も葉）", () => {
+    const ok = parsePattern(
+      pred([
+        P({ op: "stack", metals: ["copper", "silver"], amount: 10 }),
+        P({ op: "bond", choice: "good" }),
+        P({ op: "punch", amount: 0.45, size: 0.09, count: 16, choice: "leaves" }),
+        P({ op: "grind", amount: 0.05 }),
+      ]),
+      { steps: 4 },
+    );
+    expect(ok.ok).toBe(true);
+    if (!ok.ok) return;
+    expect(opWords(ok.value.ops[2])).toContain("葉の形");
+    expect(modelOf(ok.value, 7).notes.join("")).not.toContain("模様を出す手順");
+    const s = surface(buildSim(toPatternOps(ok.value)), 120);
+    // 地（いちばん上の銅）のほかに、輪の銀と、真ん中の銅が出る
+    expect(new Set(Array.from(s.layer)).size).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe("層の厚さを、層ごとに変えられる（前は同じ厚さだけ）", () => {
+  it("厚さの割合から、層のさかいを作る。同じ厚さなら作らない（前と同じ計算）", () => {
+    const e = layerEdges([2, 1], 4)!;
+    [0, 1 / 3, 0.5, 5 / 6, 1].forEach((v, k) => expect(e[k]).toBeCloseTo(v, 12));
+    expect(layerEdges([1, 1], 4)).toBeUndefined();
+    expect(layerEdges([], 4)).toBeUndefined();
+  });
+  it("重ねた層：銀 3・赤銅 1 なら、断面の 4 分の 3 ほどが銀", () => {
+    const share = (thickness?: number[]) => {
+      const sim = buildSim([{ op: "stack", metals: ["silver", "shakudo"], count: 8, ...(thickness ? { thickness } : {}) }, { op: "bond", quality: "good" }]);
+      const sec = section(sim, 10, 400);
+      let silver = 0;
+      let all = 0;
+      for (const v of sec.cells) {
+        if (v < 0) continue;
+        all++;
+        if (metalOf(sim, v) === "silver") silver++;
+      }
+      return { s: silver / all, notes: sim.notes.join("") };
+    };
+    expect(share().s).toBeCloseTo(0.5, 1);
+    const t = share([3, 1]);
+    expect(t.s).toBeGreaterThan(0.7);
+    expect(t.s).toBeLessThan(0.8);
+    expect(t.notes).toContain("厚さ");
+  });
+  it("重ねた板の表を彫る：赤銅を薄めにすると、その深さで下の銅が出る", () => {
+    const r = buildRelief([{ op: "plate", metal: "silver", under: ["shakudo", "copper"], thickness: [1, 0.4, 1] }], 3);
+    expect(r.edges).toBeDefined();
+    expect(layerAt(r.layers, 0.45, r.edges)).toBe(1);
+    expect(layerAt(r.layers, 0.6, r.edges)).toBe(2);
+    // 同じ厚さなら 0.6 はまだ赤銅
+    expect(layerAt(r.layers, 0.6)).toBe(1);
+    expect(r.notes.join("")).toContain("1:0.4:1");
+  });
+  it("道具：stack・plate の thickness は metals と同じ数。同じ厚さは空に、数がちがえば使わずに知らせる", () => {
+    const ok = parsePattern(pred([P({ op: "stack", metals: ["silver", "shakudo"], amount: 8, thickness: [3, 1] }), P({ op: "bond", choice: "good" })]), { steps: 2 });
+    expect(ok.ok && ok.value.ops[0].thickness).toEqual([3, 1]);
+    expect(ok.ok && toPatternOps(ok.value)[0]).toMatchObject({ op: "stack", thickness: [3, 1] });
+    expect(ok.ok && opWords(ok.value.ops[0])).toContain("厚さの割合 3:1");
+    const same = parsePattern(pred([P({ op: "stack", metals: ["silver", "shakudo"], amount: 8, thickness: [2, 2] })]), { steps: 1 });
+    expect(same.ok && same.value.ops[0].thickness).toEqual([]);
+    const wrong = parsePattern(pred([P({ op: "stack", metals: ["silver", "shakudo"], amount: 8, thickness: [1, 2, 3] })]), { steps: 1 });
+    expect(wrong.ok && wrong.value.ops[0].thickness).toEqual([]);
+    expect(wrong.ok && wrong.warnings?.join("")).toContain("thickness");
+    const plate = parsePattern(pred([P({ op: "plate", metals: ["silver", "shakudo", "copper"], thickness: [1, 0.4, 1] })]), { steps: 1 });
+    expect(plate.ok && toReliefOps(plate.value)[0]).toEqual({ op: "plate", metal: "silver", under: ["shakudo", "copper"], thickness: [1, 0.4, 1] });
+  });
+});
+
+describe("打ち出しのふちにそった線（outline）と、ねじった棒を並べてつなぐ", () => {
+  it("線は、前に打ち出したふくらみの高さが半分ほどの所を通り、平らに残したふちには引かない", () => {
+    const r = buildRelief(
+      [
+        { op: "plate", metal: "copper" },
+        { op: "uchidashi", shape: "wave", height: 0.3, size: 0.05, across: 3 },
+        { op: "engrave", style: "kebori", path: "outline", depth: 0.1, size: 0.006, across: 1 },
+      ],
+      4,
+    );
+    const H = 0.3 * 3;
+    let line = 0;
+    let onEdge = 0;
+    for (let y = 0.1; y < 0.9; y += 0.003) {
+      for (let x = 0.1; x < 0.9; x += 0.003) {
+        const p = pointAt(r, x, y);
+        if (p.cut < 0.02) continue;
+        line++;
+        const f = pointAt(r, x, y, 2).bend / H;
+        if (f > 0.25 && f < 0.75) onEdge++;
+      }
+    }
+    expect(line).toBeGreaterThan(200);
+    expect(onEdge / line).toBeGreaterThan(0.8);
+    for (let t = 0; t < 1; t += 0.01) expect(pointAt(r, 0.02, t).cut).toBe(0);
+    // 打ち出しが無ければ彫らずに知らせる
+    const none = buildRelief([{ op: "plate", metal: "copper" }, { op: "engrave", style: "kebori", path: "outline", depth: 0.1, size: 0.006, across: 1 }], 4);
+    expect(none.notes.join("")).toContain("打ち出す手順が無い");
+    expect(share(none, (p) => p.cut > 0, 0.01)).toBe(0);
+    const ok = parsePattern(pred([P({ op: "plate", metals: ["copper"] }), P({ op: "kebori", amount: 0.1, size: 0.006, across: 1, choice: "outline" })]), { steps: 2 });
+    expect(ok.ok && opWords(ok.value.ops[1])).toContain("ふちにそった線");
+  });
+  it("ねじった棒を 2 本並べると、つなぎ目の両側に棒のふち（星の先）が来る。1 本のときと同じ層の並び", () => {
+    const stack: PatternOp = { op: "stack", metals: ["iron", "light"], count: 16 };
+    const bond: PatternOp = { op: "bond", quality: "good" };
+    const one = buildSim([stack, bond, { op: "twist", turns: 3 }, { op: "grind", depth: 0.3 }]);
+    const two = buildSim([stack, bond, { op: "twist", turns: 3, bars: 2 }, { op: "grind", depth: 0.3 }]);
+    const at = (sim: typeof one, x: number, y: number) => layerOf(sim, trace(sim, x, y, 0).u0);
+    const e = 0.004;
+    let same = 0;
+    let all = 0;
+    for (let y = two.view.y0; y < two.view.y0 + two.view.size; y += 0.005) {
+      all += 2;
+      // 2 本の左の棒のふち（つなぎ目の左）＝ 1 本の右のふち。右の棒の左のふち ＝ 1 本の左のふち
+      if (at(two, 0.5 - e, y) === at(one, 1 - 2 * e, y)) same++;
+      if (at(two, 0.5 + e, y) === at(one, 2 * e, y)) same++;
+    }
+    expect(same / all).toBeGreaterThan(0.95);
+    // 古い記録（across 0）は 1 本。2 本は言い方にも出る
+    const old = parsePattern(pred([P({ op: "stack", metals: ["iron", "light"], amount: 16 }), P({ op: "twist", amount: 3, across: 0 })]), { steps: 2 });
+    expect(old.ok && toPatternOps(old.value)[1]).toEqual({ op: "twist", turns: 3 });
+    expect(old.ok && old.warnings).toBeUndefined();
+    const bars = parsePattern(pred([P({ op: "stack", metals: ["iron", "light"], amount: 16 }), P({ op: "twist", amount: 3, across: 2 })]), { steps: 2 });
+    expect(bars.ok && toPatternOps(bars.value)[1]).toEqual({ op: "twist", turns: 3, bars: 2 });
+    expect(bars.ok && opWords(bars.value.ops[1])).toContain("2 本");
+  });
+  it("指示に、count・thickness・葉の鏨・ふちの線・棒を並べることを書く。道具の項目は全部が必ず書く項目のまま", () => {
+    const s = patternPrompt();
+    for (const w of ["count", "thickness", "leaves", "outline", "並べてつなぐ"]) expect(s).toContain(w);
+    const items = (PREDICT_PATTERN.input_schema as { properties: { ops: { items: { properties: Record<string, unknown>; required: string[] } } } }).properties.ops.items;
+    expect([...items.required].sort()).toEqual(Object.keys(items.properties).sort());
   });
 });

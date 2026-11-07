@@ -8,37 +8,44 @@
 import { hexRgb, type Rgba } from "./pattern-sim";
 import type { ColorKind } from "./pattern-sim";
 import { PATTERN_COLORS, PATTERN_LIMITS, PATTERN_LOOK, PATTERN_METALS, RELIEF_VALUES, type MetalId } from "./pattern-values";
+import { flowerBump, layerCoordOf, layerEdges, leafBump, nearestSpot, spotsFor, type SpotOpts } from "./pattern-spots";
 
 export type ReliefPath = "straight" | "wave" | "spiral" | "scatter" | "border" | "scroll" | "coils";
+/** 彫る線だけの道すじ：outline＝前に打ち出した帯・ふくらみのふち（高さの半分の所）にそった線（2026-11-08：打ち出した波のふちを線鏨で締める技のため） */
+export type EngravePath = ReliefPath | "outline";
 export type EngraveStyle = "kebori" | "keribori" | "katakiri";
 
 export type ReliefOp =
   /**
    * 1 枚の板（地の金属）。最初に 1 回だけ。under があれば、色のちがう金属を重ねてつないだ板（metal が表の層、under はその下の層を上から順に。
-   * どの層も同じ厚さとして描く）。彫った・打った深さで、下の層の色が出る（2026-11-07 夜：重ねた板の表を彫る技のため）
+   * thickness が無ければ、どの層も同じ厚さとして描く）。彫った・打った深さで、下の層の色が出る（2026-11-07 夜：重ねた板の表を彫る技のため）。
+   * thickness＝層の厚さの割合（表の層から順に。2026-11-08：赤銅を薄めにする案のように、層ごとの厚さを変えるため）
    */
-  | { op: "plate"; metal: MetalId; under?: MetalId[] }
+  | { op: "plate"; metal: MetalId; under?: MetalId[]; thickness?: number[] }
   /** 線を彫る。kebori＝細い V の線、keribori＝くさび形を連ねた線、katakiri＝片方だけ斜めに削いだ線 */
-  | { op: "engrave"; style: EngraveStyle; path: ReliefPath; depth: number; size: number; across: number }
+  | { op: "engrave"; style: EngraveStyle; path: EngravePath; depth: number; size: number; across: number }
   /** 魚々子（ななこ）：小さな輪の鏨を打ち並べる */
   | { op: "nanako"; arrange: "rows" | "scatter"; size: number; across: number }
   /** 石目：細かな点をばらばらに打つ */
   | { op: "ishime"; size: number; across: number }
   /** 槌目：金槌の面の跡 */
   | { op: "tsuchime"; shape: "round" | "long"; depth: number; size: number }
-  /** 透かし：形を切り抜く（後ろが見える）。ground＝地を全部抜き、のせた線・粒・七宝と、ふちの枠だけを残す（より線の透かし細工など。手順の順によらず、最後に抜く） */
-  | { op: "sukashi"; shape: "circles" | "petals" | "lattice" | "wave" | "ground"; size: number; across: number }
+  /**
+   * 透かし：形を切り抜く（後ろが見える）。ground＝地を全部抜き、のせた線・粒・七宝と、ふちの枠だけを残す（より線の透かし細工など。手順の順によらず、最後に抜く）。
+   * count（このあとの count も同じ）＝並べる・散らす物を、板全体でちょうどこの数にする（無いか 0 なら、幅の中に across の格子。板全体では across の 2 乗）
+   */
+  | { op: "sukashi"; shape: "circles" | "petals" | "lattice" | "wave" | "ground"; size: number; across: number; count?: number }
   /** 打ち出し：裏から叩いて盛り上げる */
-  | { op: "uchidashi"; shape: "bumps" | "ridges" | "wave" | "petals" | "leaves"; height: number; size: number; across: number }
+  | { op: "uchidashi"; shape: "bumps" | "ridges" | "wave" | "petals" | "leaves"; height: number; size: number; across: number; count?: number }
   /** 象嵌：溝やくぼみを彫り、別の金属をはめて平らに */
-  | { op: "zogan"; metal: MetalId; path: ReliefPath | "dots" | "pits"; size: number; across: number }
+  | { op: "zogan"; metal: MetalId; path: ReliefPath | "dots" | "pits"; size: number; across: number; count?: number }
   /**
    * 粒金：小さな粒をろう付けする。wave・spiral・scroll・coils は、線の道すじにそって粒を詰めて並べ、より線（細い線を 2 本よったもの）のように描く
    * （上から見たより線は、斜めに並んだ粒の列に見える。線金・より線の細工のため）
    */
-  | { op: "granulate"; metal: MetalId; arrange: "cluster" | "line" | "border" | "scatter" | "wave" | "spiral" | "scroll" | "coils"; size: number; across: number }
+  | { op: "granulate"; metal: MetalId; arrange: "cluster" | "line" | "border" | "scatter" | "wave" | "spiral" | "scroll" | "coils"; size: number; across: number; count?: number }
   /** 七宝：線で区切った中に、色のガラスを入れて焼く。wire は区切りの線の金属（なければ地の金属） */
-  | { op: "shippo"; colors: MetalId[]; cells: "round" | "petal" | "hex"; size: number; across: number; wire?: MetalId }
+  | { op: "shippo"; colors: MetalId[]; cells: "round" | "petal" | "hex"; size: number; across: number; wire?: MetalId; count?: number }
   /** 最後に色を出す */
   | { op: "color"; kind: ColorKind };
 
@@ -69,6 +76,8 @@ export interface Relief {
   materials: MetalId[];
   /** 重ねた板の層の材料の番号（上から。1 枚の金属なら [0]） */
   layers: number[];
+  /** 層の厚さを変えたときの、層のさかいの深さ（0 から 1 まで、層の数 + 1 個）。同じ厚さなら無い */
+  edges?: number[];
   color: ColorKind;
   notes: string[];
   facts: string;
@@ -106,6 +115,7 @@ export function buildRelief(ops: readonly ReliefOp[], seed = 7): Relief {
     return materials.indexOf(m);
   };
   const layers = [0, ...(first.under ?? []).slice(0, PATTERN_LIMITS.metals[1] - 1).map(add)];
+  const edges = layerEdges(first.thickness, layers.length);
   let color: ColorKind = "none";
   const notes: string[] = [];
   for (const op of ops.slice(1)) {
@@ -120,13 +130,22 @@ export function buildRelief(ops: readonly ReliefOp[], seed = 7): Relief {
   const names = ops.slice(1).filter((o) => o.op !== "color");
   if (!names.length) notes.push("飾りの手順が無いので、平らな板のままです。");
   if (ops.some((o) => o.op === "sukashi")) notes.push("透かした所は、後ろの暗い地が見えるとして描きました。");
-  if (layers.length > 1) notes.push(`重ねた板の ${layers.length} つの層は、同じ厚さ（仮）として描きました。彫った深さで下の層の色が出ます。`);
+  if (layers.length > 1)
+    notes.push(
+      edges
+        ? `重ねた板の ${layers.length} つの層は、厚さの割合 ${first.thickness!.slice(0, layers.length).map(fmt).join(":")}（仮）として描きました。彫った深さで下の層の色が出ます。`
+        : `重ねた板の ${layers.length} つの層は、同じ厚さ（仮）として描きました。彫った深さで下の層の色が出ます。`,
+    );
+  ops.forEach((o, i) => {
+    if (o.op === "engrave" && o.path === "outline" && !ops.slice(1, i).some((q) => q.op === "uchidashi"))
+      notes.push("打ち出しのふちにそう線は、その前に打ち出す手順が無いので、彫らずに描きました。");
+  });
   if (ops.some((o) => o.op === "shippo")) notes.push("七宝の色は、絵のための色（仮）です。");
   if (ops.some((o) => o.op === "granulate" && clampTo(o.size, PATTERN_LIMITS.size) * RELIEF_VALUES.grainScale > ropeMax(o.arrange, clampTo(o.across, PATTERN_LIMITS.across))))
     notes.push("線にそってつけた粒（より線）が太く、となりの線と重なるので、線の間にすき間が残る太さまで細くして描きました。");
   if (color === "none" && (first.metal === "shakudo" || first.metal === "shibuichi")) notes.push("最後に色を出す手順が無いので、地の金属は磨いたままの色で描きました。");
   const plateName = layers.map((k) => PATTERN_METALS[materials[k]].name.replace(/（.*）/, "")).join("・");
-  return { ops: [...ops], materials, layers, color, notes, facts: `${layers.length > 1 ? `重ねた板（上から${plateName}）` : `1 枚の板（${plateName}）`}に、${names.length} つの手順`, seed };
+  return { ops: [...ops], materials, layers, ...(edges ? { edges } : {}), color, notes, facts: `${layers.length > 1 ? `重ねた板（上から${plateName}）` : `1 枚の板（${plateName}）`}に、${names.length} つの手順`, seed };
 }
 
 // ---- 線の道すじ ----
@@ -364,6 +383,32 @@ function nearestGrid(x: number, y: number, n: number, jitter: number, seed: numb
 /** 板のふちからの近さ（透かしを、ふちの近くに開けない） */
 const rim = (x: number, y: number) => Math.min(x, y, 1 - x, 1 - y);
 
+/** 数の短い書き方（2・1.5） */
+const fmt = (v: number) => String(Math.round(v * 100) / 100);
+
+/**
+ * 並べる・散らす物の、いちばん近い中心と、ならした「幅の中の数」n。
+ * count（板全体の数）があれば、ちょうどその数を板の上に置く（spots）。無ければ、前と同じ幅の中に n の格子（板全体では n の 2 乗）
+ */
+function nearestItem(
+  op: object & { count?: number },
+  x: number,
+  y: number,
+  n: number,
+  jitter: number,
+  seed: number,
+  k: number,
+  stagger: boolean,
+  arrange: SpotOpts["arrange"],
+  margin?: (a: number) => number,
+): { d: number; dx: number; dy: number; i: number; j: number; n: number } {
+  const c = op.count ? clampTo(op.count, PATTERN_LIMITS.items) : 0;
+  if (c < 1) return { ...nearestGrid(x, y, n, jitter, seed, k, stagger), n };
+  const a = Math.sqrt(1 / Math.round(c));
+  const s = spotsFor(op, c, 1, 1, seed + k, { arrange, jitter, stagger, ...(margin ? { margin: margin(a) } : {}) });
+  return { ...nearestSpot(s, x, y), n: 1 / s.a };
+}
+
 /** 左上からの光（面の向きと、片切彫りの面を光へ向けるのに使う） */
 const LIGHT = [-0.55, -0.6, 0.58] as const;
 
@@ -440,7 +485,7 @@ export function pointAt(r: Relief, x: number, y: number, upto = r.ops.length): P
         // 散らす草と唐草は、枠の内に（ふちの枠を彫る技と、ぶつからないように）
         if (p.hole || ((op.path === "scatter" || op.path === "scroll") && rim(x, y) < V.borderInset + 0.035)) break;
         const n = clampTo(op.across, PATTERN_LIMITS.across);
-        const h = op.path === "scatter" ? grassHit(r, idx, n, w, x, y, seed) : pathHit(op.path, n, x, y, seed);
+        const h = op.path === "scatter" ? grassHit(r, idx, n, w, x, y, seed) : op.path === "outline" ? outlineHit(r, idx, x, y) : pathHit(op.path, n, x, y, seed);
         if (h.d === Infinity) break;
         const ww = w * h.wf;
         let c = 0;
@@ -525,87 +570,33 @@ export function pointAt(r: Relief, x: number, y: number, upto = r.ops.length): P
           const cy = (k + 0.5) * gap + 0.25 * gap * Math.sin(2 * Math.PI * (2 * x + hash(k, 0, 2, seed)));
           hole = Math.abs(y - cy) < Math.min(R, gap * 0.3) && rim(x, y) > V.pierceRim + 0.04;
         } else {
-          const g = nearestGrid(X, Y, n, 0.04, seed, 7, false);
-          // 割り付けた n × n の中の形だけ（外の形が、ふちの残しにかからないように）
-          if (g.i < 0 || g.j < 0 || g.i >= n || g.j >= n) break;
+          const g = nearestItem(op, X, Y, n, 0.04, seed, 7, false, "rows");
+          // 割り付けた n × n の中の形だけ（外の形が、ふちの残しにかからないように）。板全体の数で置いたときは、どれも内にある
+          if (!op.count && (g.i < 0 || g.j < 0 || g.i >= n || g.j >= n)) break;
           const a = Math.atan2(g.dy, g.dx) + hash(g.i, g.j, 8, seed);
-          const rmax = Math.min(R, (0.45 * sc) / n);
+          const rmax = Math.min(R, (0.45 * sc) / g.n);
           const rr = op.shape === "petals" ? rmax * (0.45 + 0.55 * Math.abs(Math.cos(2.5 * a))) : rmax;
           hole = g.d * sc < rr;
         }
         if (hole) p.hole = true;
         break;
       }
-      case "uchidashi": {
-        const n = clampTo(op.across, PATTERN_LIMITS.across);
-        const H = clampTo(op.height, PATTERN_LIMITS.depth) * V.reliefHeight;
-        const s = clampTo(op.size, PATTERN_LIMITS.size);
-        let b = 0;
-        if (op.shape === "bumps") {
-          // 手で打ち出すので、ふくらみごとに大きさと形が少しちがう（わずかに楕円・かたより）
-          const g = nearestGrid(x, y, n, 0.12, seed, 11);
-          const a = Math.PI * hash(g.i, g.j, 12, seed);
-          const e = 1 + 0.18 * jit(g.i, g.j, 13, seed);
-          const ss = s * (1 + 0.15 * jit(g.i, g.j, 14, seed));
-          const u = (g.dx * Math.cos(a) + g.dy * Math.sin(a)) * e;
-          const v = (-g.dx * Math.sin(a) + g.dy * Math.cos(a)) / e;
-          b = Math.exp(-((Math.hypot(u, v) / ss) ** 2)) * (1 + 0.25 * Math.tanh(u / ss) * hash(g.i, g.j, 15, seed));
-        } else if (op.shape === "petals") {
-          // 花：真ん中の小さな丸と、まわりの 5 枚の花びら。花びらは根元が細く先が丸い、すじが少しくぼむ
-          const g = nearestGrid(x, y, n, 0.06, seed, 11);
-          const a0 = 2 * Math.PI * hash(g.i, g.j, 12, seed);
-          const R = Math.min(s * 2.2, 0.46 / n);
-          b = 0.75 * Math.exp(-((g.d / (0.2 * R)) ** 2));
-          for (let k = 0; k < 5; k++) {
-            const a = a0 + (2 * Math.PI * k) / 5;
-            const l = g.dx * Math.cos(a) + g.dy * Math.sin(a);
-            const w = -g.dx * Math.sin(a) + g.dy * Math.cos(a);
-            const t = l / R;
-            if (t <= 0.05 || t >= 1.05) continue;
-            const half = 0.3 * R * Math.sqrt(Math.max(0, Math.sin(Math.PI * Math.min(1, t) * 0.92)));
-            const q = Math.abs(w) / Math.max(1e-6, half);
-            if (q >= 1) continue;
-            const crease = 1 - 0.18 * Math.exp(-((w / (0.05 * R)) ** 2));
-            b = Math.max(b, (1 - q * q) ** 0.6 * Math.sin(Math.PI * Math.min(1, t)) ** 0.5 * crease);
-          }
-        } else if (op.shape === "leaves") {
-          // 葉：根元から先へ細くなる葉の形のふくらみ。真ん中の葉脈と、斜めの細い葉脈が少しくぼむ
-          const g = nearestGrid(x, y, n, 0.1, seed, 11);
-          const a = -Math.PI / 4 + 0.5 * jit(g.i, g.j, 12, seed);
-          const L = Math.min(s * 2.4, 0.48 / n);
-          const l = (g.dx * Math.cos(a) + g.dy * Math.sin(a)) / L;
-          const w = (-g.dx * Math.sin(a) + g.dy * Math.cos(a)) / L;
-          if (l > -1 && l < 1) {
-            // 根元（l = -1）寄りが太い
-            const half = 0.36 * Math.sqrt(1 - l * l) * (1 - 0.3 * l);
-            const bendW = w - 0.12 * (1 - l * l);
-            const q = Math.abs(bendW) / half;
-            if (q < 1) {
-              const ph = (l - 2.2 * Math.abs(bendW)) * 3.4;
-              const lateral = Math.exp(-((ph - Math.floor(ph) - 0.5) ** 2) / 0.01);
-              const vein = 1 - 0.22 * Math.exp(-((bendW / 0.03) ** 2)) - (q > 0.15 ? 0.07 * lateral : 0);
-              b = (1 - q * q) ** 0.7 * Math.sqrt(1 - l * l) * vein;
-            }
-          }
-        } else if (op.shape === "ridges") {
-          const t = (y * n) % 1;
-          b = Math.exp(-(((t - 0.5) / (s * n)) ** 2));
-        } else {
-          // 波：波の線（彫る線の wave と同じ道すじ）にそって盛り上がる帯が n 本。前は板いっぱいのゆるい波で、低いと見えなかった（2026-11-07 夜）。
-          // 同じ板に wave の線を彫る・はめる手順があれば、その線と同じ所に盛り上げる（波のふちや背に線を入れる技のため）
-          b = rowHits("wave", n, x, y, waveSeed(r, seed)).reduce((a, h) => a + Math.exp(-((h.d / s) ** 2)), 0);
-        }
-        // ふちは平らに残す
-        p.bend += H * b * Math.min(1, rim(x, y) / 0.08);
+      case "uchidashi":
+        p.bend += uchidashiBend(op, x, y, seed, waveSeed(r, seed));
         break;
-      }
       case "zogan": {
         const w = clampTo(op.size, PATTERN_LIMITS.size) * V.lineScale;
         const n = clampTo(op.across, PATTERN_LIMITS.across);
         let inside = false;
         // 丸くはめる：size は丸の半径。dots＝並べる、pits＝ばらばらに散らす（前は半径に 2.2 をかけていて、丸がふくらみ、となりと触れた）
-        if (op.path === "dots") inside = nearestGrid(x, y, n, 0.08, seed, 13).d < Math.min(w, 0.45 / n);
-        else if (op.path === "pits") inside = nearestGrid(x, y, n, 0.25, seed, 13, false).d < Math.min(w, 0.24 / n);
+        // count があれば、板全体でその数（手がかりの「10 ほど」が、そのまま 10 の丸になる。2026-11-08）
+        if (op.path === "dots") {
+          const g = nearestItem(op, x, y, n, 0.08, seed, 13, true, "rows");
+          inside = g.d < Math.min(w, 0.45 / g.n);
+        } else if (op.path === "pits") {
+          const g = nearestItem(op, x, y, n, 0.25, seed, 13, false, "scatter", (a) => Math.min(0.24 * a, w) + 0.04);
+          inside = g.d < Math.min(w, 0.24 / g.n);
+        }
         else inside = pathHit(op.path, n, x, y, seed).d < w;
         if (inside && !p.hole) {
           p.fillMat = r.materials.indexOf(op.metal);
@@ -621,14 +612,14 @@ export function pointAt(r: Relief, x: number, y: number, upto = r.ops.length): P
         let d = Infinity;
         if (op.arrange === "cluster") {
           // 7 つの粒を寄せた房を、格子に
-          const g = nearestGrid(x, y, n, 0.1, seed, 15);
+          const g = nearestItem(op, x, y, n, 0.1, seed, 15, true, "rows");
           for (let k = -1; k < 6; k++) {
             const a = (k * Math.PI) / 3;
             const ox = k < 0 ? 0 : 2 * R * Math.cos(a);
             const oy = k < 0 ? 0 : 2 * R * Math.sin(a);
             d = Math.min(d, Math.hypot(g.dx - ox, g.dy - oy));
           }
-        } else if (op.arrange === "scatter") d = nearestGrid(x, y, n, 0.4, seed, 17, false).d;
+        } else if (op.arrange === "scatter") d = nearestItem(op, x, y, n, 0.4, seed, 17, false, "scatter", () => R + 0.04).d;
         else if (op.arrange !== "line" && op.arrange !== "border") {
           // より線：道すじにそって、粒を詰めて並べる
           const h = pathHit(op.arrange, n, x, y, seed);
@@ -651,8 +642,9 @@ export function pointAt(r: Relief, x: number, y: number, upto = r.ops.length): P
       }
       case "shippo": {
         const n = clampTo(op.across, PATTERN_LIMITS.across);
-        const g = nearestGrid(x, y, n, op.cells === "hex" ? 0 : 0.05, seed, 19);
-        const a = 1 / n;
+        // 板全体の数で置くときは、ずらさない（区切りの線が、となりの区切りとの間に必ず残るように）
+        const g = nearestItem(op, x, y, n, op.cells === "hex" || op.count ? 0 : 0.05, seed, 19, true, "rows");
+        const a = 1 / g.n;
         let e: number;
         if (op.cells === "petal") {
           const ang = Math.atan2(g.dy, g.dx);
@@ -695,6 +687,81 @@ export function pointAt(r: Relief, x: number, y: number, upto = r.ops.length): P
   return p;
 }
 
+type Uchidashi = Extract<ReliefOp, { op: "uchidashi" }>;
+
+/** 打ち出し 1 回で、点 (x, y) が盛り上がる高さ（板の厚みを 1）。wseed は波の道すじのたね。edge＝ふちを平らに残す（ふちの線を探すときは残さない） */
+function uchidashiBend(op: Uchidashi, x: number, y: number, seed: number, wseed: number, edge = true): number {
+  const n = clampTo(op.across, PATTERN_LIMITS.across);
+  const H = clampTo(op.height, PATTERN_LIMITS.depth) * RELIEF_VALUES.reliefHeight;
+  const s = clampTo(op.size, PATTERN_LIMITS.size);
+  let b = 0;
+  if (op.shape === "bumps") {
+    // 手で打ち出すので、ふくらみごとに大きさと形が少しちがう（わずかに楕円・かたより）
+    const g = nearestItem(op, x, y, n, 0.12, seed, 11, true, "rows");
+    const a = Math.PI * hash(g.i, g.j, 12, seed);
+    const e = 1 + 0.18 * jit(g.i, g.j, 13, seed);
+    const ss = s * (1 + 0.15 * jit(g.i, g.j, 14, seed));
+    const u = (g.dx * Math.cos(a) + g.dy * Math.sin(a)) * e;
+    const v = (-g.dx * Math.sin(a) + g.dy * Math.cos(a)) / e;
+    b = Math.exp(-((Math.hypot(u, v) / ss) ** 2)) * (1 + 0.25 * Math.tanh(u / ss) * hash(g.i, g.j, 15, seed));
+  } else if (op.shape === "petals") {
+    // 花：真ん中の小さな丸と、まわりの 5 枚の花びら
+    const g = nearestItem(op, x, y, n, 0.06, seed, 11, true, "rows");
+    b = flowerBump(g.dx, g.dy, Math.min(s * 2.2, 0.46 / g.n), 2 * Math.PI * hash(g.i, g.j, 12, seed));
+  } else if (op.shape === "leaves") {
+    // 葉：根元から先へ細くなる葉の形のふくらみ
+    const g = nearestItem(op, x, y, n, 0.1, seed, 11, true, "rows");
+    b = leafBump(g.dx, g.dy, Math.min(s * 2.4, 0.48 / g.n), -Math.PI / 4 + 0.5 * jit(g.i, g.j, 12, seed));
+  } else if (op.shape === "ridges") {
+    const t = (y * n) % 1;
+    b = Math.exp(-(((t - 0.5) / (s * n)) ** 2));
+  } else {
+    // 波：波の線（彫る線の wave と同じ道すじ）にそって盛り上がる帯が n 本。前は板いっぱいのゆるい波で、低いと見えなかった（2026-11-07 夜）。
+    // 同じ板に wave の線を彫る・はめる手順があれば、その線と同じ所に盛り上げる（波のふちや背に線を入れる技のため）
+    b = rowHits("wave", n, x, y, wseed).reduce((a, h) => a + Math.exp(-((h.d / s) ** 2)), 0);
+  }
+  // ふちは平らに残す
+  return H * b * (edge ? Math.min(1, rim(x, y) / 0.08) : 1);
+}
+
+/** upto の手前までの打ち出しで盛り上がった高さと、打ち出しの高さの和（ふちを平らに残す分は入れない。ふちに、にせの線が出ないように） */
+function bendBefore(r: Relief, x: number, y: number, upto: number): { b: number; H: number } {
+  let b = 0;
+  let H = 0;
+  for (const [idx, op] of r.ops.entries()) {
+    if (idx >= upto) break;
+    if (op.op !== "uchidashi") continue;
+    const seed = r.seed + 7919 * (idx + 1);
+    b += uchidashiBend(op, x, y, seed, waveSeed(r, seed), false);
+    H += clampTo(op.height, PATTERN_LIMITS.depth) * RELIEF_VALUES.reliefHeight;
+  }
+  return { b, H };
+}
+
+/**
+ * 前に打ち出した帯・ふくらみのふち（高さが半分の所）までの距離。高さの傾きで割って、距離に直す。
+ * side が＋＝ふくらみの内側。前は線を帯の背か、等しい間にしか引けず、「波のふちに線」が描けなかった（2026-11-08）
+ */
+function outlineHit(r: Relief, idx: number, x: number, y: number): PathHit {
+  // 平らに残したふちには、線を引かない
+  if (rim(x, y) < RELIEF_VALUES.outlineInset) return MISS;
+  const f = (X: number, Y: number) => {
+    const { b, H } = bendBefore(r, X, Y, idx);
+    return H > 0 ? b / H - 0.5 : NaN;
+  };
+  const f0 = f(x, y);
+  if (!Number.isFinite(f0)) return MISS;
+  const e = RELIEF_VALUES.outlineStep;
+  const gx = (f(x + e, y) - f(x - e, y)) / (2 * e);
+  const gy = (f(x, y + e) - f(x, y - e)) / (2 * e);
+  const g = Math.hypot(gx, gy);
+  // ほぼ平らな所（ふくらみの外や頂）には、ふちは無い
+  if (g < RELIEF_VALUES.outlineFlat) return MISS;
+  const nx = gx / g;
+  const ny = gy / g;
+  return { d: Math.abs(f0) / g, along: -ny * x + nx * y, side: Math.sign(f0) || 1, nx, ny, wf: 1 };
+}
+
 /**
  * 線にそって粒を詰める（より線）ときの、粒の半径の上限。となりの線（渦のとなりの巻き・となりの列）との間の 3 割まで。
  * 太すぎると、渦が線の見えない円盤になった（2026-11-07 夜）。房・散らす・列・ふちは上限なし
@@ -714,14 +781,14 @@ function waveSeed(r: Relief, own: number): number {
 /** 表の高さ（板の厚みを 1。もとの表が 0） */
 export const heightOf = (p: Pt) => p.bend - p.cut + p.add;
 
-/** 重ねた板で、表からの深さ d（板の厚みを 1）にある層の材料の番号 */
-export function layerAt(layers: readonly number[] | undefined, d: number): number {
+/** 重ねた板で、表からの深さ d（板の厚みを 1）にある層の材料の番号。edges は層の厚さを変えたときの、層のさかいの深さ */
+export function layerAt(layers: readonly number[] | undefined, d: number, edges?: readonly number[]): number {
   if (!layers || layers.length < 2) return layers?.[0] ?? 0;
-  return layers[Math.min(layers.length - 1, Math.max(0, Math.floor(d * layers.length)))];
+  return layers[Math.min(layers.length - 1, Math.max(0, Math.floor(layerCoordOf(edges, layers.length, d))))];
 }
 
 /** 表に見える材料の番号。重ねた板なら、彫った深さの層 */
-export const topMat = (p: Pt, layers?: readonly number[]) => (p.add > 0.001 ? p.addMat : p.fill > 0 ? p.fillMat : layerAt(layers, p.cut));
+export const topMat = (p: Pt, layers?: readonly number[], edges?: readonly number[]) => (p.add > 0.001 ? p.addMat : p.fill > 0 ? p.fillMat : layerAt(layers, p.cut, edges));
 
 /** 材料ごとの色（r, g, b） */
 export function reliefColors(r: Relief): [number, number, number][] {
@@ -749,7 +816,7 @@ export function reliefSectionRow(r: Relief): number {
     for (let i = 0; i < 120; i++) {
       const p = pointAt(r, (i + 0.5) / 120, row);
       // 材料のさかい（はめた金属・粒・七宝）と透かしを重く数える（細かな打ち跡だけの行を選ばないように）
-      if (last && (topMat(p, r.layers) !== topMat(last, r.layers) || p.hole !== last.hole)) score += 4;
+      if (last && (topMat(p, r.layers, r.edges) !== topMat(last, r.layers, r.edges) || p.hole !== last.hole)) score += 4;
       else if (last && Math.abs(heightOf(p) - heightOf(last)) > 0.02) score++;
       last = p;
     }
@@ -789,7 +856,7 @@ export async function reliefTopAsync(
       const p = pointAt(r, (I + 0.5) / N, (J + 0.5) / N);
       const o = (J - J0) * N + I;
       H[o] = heightOf(p);
-      M[o] = p.hole ? HOLE : topMat(p, r.layers);
+      M[o] = p.hole ? HOLE : topMat(p, r.layers, r.edges);
       G[o] = p.glass && p.add > 0.001 ? 1 : 0;
     }
     if ((J - J0) % chunk === chunk - 1) {
@@ -894,7 +961,7 @@ export function reliefSectionImage(r: Relief, w: number, h: number, row = 0.5, s
       let rimLight = 1;
       if (p.add > 0.001 && yc >= top - T * p.add && yc < top) m = p.addMat;
       else if (yc >= top && yc < bottom) {
-        m = p.fill > 0 && yc < surf + T * p.fill ? p.fillMat : layerAt(r.layers, (yc - surf) / T);
+        m = p.fill > 0 && yc < surf + T * p.fill ? p.fillMat : layerAt(r.layers, (yc - surf) / T, r.edges);
         if (yc < top + 1.5 * ss) rimLight = 1.2;
       }
       if (m < 0) continue;

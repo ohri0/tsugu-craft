@@ -35,6 +35,8 @@ const opShape = z
     amount: z.number().optional().describe(said("amount")),
     size: z.number().optional().describe(said("size")),
     across: z.number().optional().describe(said("across")),
+    count: z.number().optional().describe(said("count")),
+    thickness: z.array(z.number()).optional().describe(said("thickness")),
     choice: z.string().optional().describe(said("choice")),
   })
   .describe("1 つの操作（predict_pattern の ops の 1 つと同じ形。使わない値は省いてよい）");
@@ -160,6 +162,8 @@ export function listPatternOps() {
       amount: said("amount"),
       size: said("size"),
       across: said("across"),
+      count: said("count"),
+      thickness: said("thickness"),
       choice: said("choice"),
       choice_words: ITEM_PROPS.choice?.enum ?? [],
       out_of_range: "範囲の外の数は範囲におさめ、そのことを返事で知らせる。知らない操作・足りない値は断る",

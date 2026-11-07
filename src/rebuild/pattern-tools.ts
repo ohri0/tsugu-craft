@@ -7,7 +7,7 @@
 // そこで、どの操作も同じ 5 つの値（metals・amount・size・across・choice）を持ち、使わない値は空や 0 にする。
 import { JA_ANSWER, type ClaudeTool } from "../claude/wire";
 import type { CarveShape, ColorKind, PatternOp, RearrangeMode } from "./pattern-sim";
-import type { ReliefOp, ReliefPath } from "./pattern-relief";
+import type { EngravePath, ReliefOp, ReliefPath } from "./pattern-relief";
 import { METAL_IDS, OP_RANGE, PATTERN_LIMITS, PATTERN_METALS, RELIEF_VALUES, type MetalId } from "./pattern-values";
 import type { RestorePlan, RestoreProject } from "./restore";
 import { isRecord, type Parsed } from "./tools";
@@ -48,6 +48,8 @@ export const TOOL_OP_LABEL: Record<ToolOp, string> = {
 };
 
 const PATHS: ReliefPath[] = ["straight", "wave", "spiral", "scatter", "border", "scroll", "coils"];
+/** 彫る線だけ：outline＝前に打ち出した帯・ふくらみのふちにそった線 */
+const ENGRAVE_PATHS: EngravePath[] = [...PATHS, "outline"];
 const NANAKO = ["rows", "scatter"] as const;
 const HAMMER = ["round", "long"] as const;
 const PIERCE = ["circles", "petals", "lattice", "wave", "ground"] as const;
@@ -56,34 +58,34 @@ const INLAY = [...PATHS, "dots", "pits"] as const;
 const GRAINS = ["cluster", "line", "border", "scatter", "wave", "spiral", "scroll", "coils"] as const;
 const CELLS = ["round", "petal", "hex"] as const;
 
-const SHAPES: CarveShape[] = ["dots", "pits", "lines", "waves"];
+const SHAPES: CarveShape[] = ["dots", "pits", "lines", "waves", "leaves", "petals"];
 const MODES: RearrangeMode[] = ["edge_up", "strips", "tiles"];
 const KINDS: ColorKind[] = ["none", "etch", "patina"];
 const QUALITIES = ["good", "partial", "poor"] as const;
 const DIRECTIONS = ["length", "both"] as const;
 /** choice に入れてよい言葉（使わない操作では "-"） */
 const CHOICES = [
-  ...new Set(["-", ...QUALITIES, ...DIRECTIONS, ...SHAPES, ...MODES, ...KINDS, ...PATHS, ...NANAKO, ...HAMMER, ...PIERCE, ...REPOUSSE, ...INLAY, ...GRAINS, ...CELLS] as const),
+  ...new Set(["-", ...QUALITIES, ...DIRECTIONS, ...SHAPES, ...MODES, ...KINDS, ...ENGRAVE_PATHS, ...NANAKO, ...HAMMER, ...PIERCE, ...REPOUSSE, ...INLAY, ...GRAINS, ...CELLS] as const),
 ] as readonly string[];
 type Choice = string;
 
 type Lim = readonly [number, number];
-/** 操作ごとに使う値。amount の意味と範囲、choice の言葉 */
-const USE: Record<ToolOp, { metals?: true; amount?: { lim: Lim; int: boolean }; size?: true; across?: true; choice?: readonly Choice[] }> = {
+/** 操作ごとに使う値。amount の意味と範囲、across の範囲（true なら PATTERN_LIMITS.across）、choice の言葉 */
+const USE: Record<ToolOp, { metals?: true; amount?: { lim: Lim; int: boolean }; size?: true; across?: true | Lim; choice?: readonly Choice[] }> = {
   stack: { metals: true, amount: { lim: PATTERN_LIMITS.count, int: true } },
   bond: { choice: QUALITIES },
   fold: { amount: { lim: PATTERN_LIMITS.times, int: true } },
   forge_thin: { amount: { lim: PATTERN_LIMITS.ratio, int: false }, choice: DIRECTIONS },
-  twist: { amount: { lim: PATTERN_LIMITS.turns, int: false } },
+  twist: { amount: { lim: PATTERN_LIMITS.turns, int: false }, across: PATTERN_LIMITS.bars },
   carve: { amount: { lim: PATTERN_LIMITS.depth, int: false }, size: true, across: true, choice: SHAPES },
   punch: { amount: { lim: PATTERN_LIMITS.depth, int: false }, size: true, across: true, choice: SHAPES },
   flatten: {},
   grind: { amount: { lim: PATTERN_LIMITS.grind, int: false } },
   rearrange: { amount: { lim: PATTERN_LIMITS.pieces, int: true }, choice: MODES },
   plate: { metals: true },
-  kebori: { amount: { lim: PATTERN_LIMITS.depth, int: false }, size: true, across: true, choice: PATHS },
-  keribori: { amount: { lim: PATTERN_LIMITS.depth, int: false }, size: true, across: true, choice: PATHS },
-  katakiri: { amount: { lim: PATTERN_LIMITS.depth, int: false }, size: true, across: true, choice: PATHS },
+  kebori: { amount: { lim: PATTERN_LIMITS.depth, int: false }, size: true, across: true, choice: ENGRAVE_PATHS },
+  keribori: { amount: { lim: PATTERN_LIMITS.depth, int: false }, size: true, across: true, choice: ENGRAVE_PATHS },
+  katakiri: { amount: { lim: PATTERN_LIMITS.depth, int: false }, size: true, across: true, choice: ENGRAVE_PATHS },
   nanako: { size: true, across: true, choice: NANAKO },
   ishime: { size: true, across: true },
   tsuchime: { amount: { lim: PATTERN_LIMITS.depth, int: false }, size: true, choice: HAMMER },
@@ -94,6 +96,22 @@ const USE: Record<ToolOp, { metals?: true; amount?: { lim: Lim; int: boolean }; 
   shippo: { metals: true, size: true, across: true, choice: CELLS },
   color: { choice: KINDS },
 };
+
+/**
+ * 板全体（品物 1 つ）の数 count で置ける、操作と選び。前は幅の中の数 across だけで、板全体ではその 2 乗になり、
+ * 手がかりの「10 ほど」が 60 ほどの丸になった（2026-11-07 夜）。count があれば、ちょうどその数を置く（2026-11-08）
+ */
+const COUNTABLE: Partial<Record<ToolOp, readonly string[]>> = {
+  carve: ["dots", "pits", "leaves", "petals"],
+  punch: ["dots", "pits", "leaves", "petals"],
+  zogan: ["dots", "pits"],
+  uchidashi: ["bumps", "petals", "leaves"],
+  sukashi: ["circles", "petals"],
+  granulate: ["cluster", "scatter"],
+  shippo: CELLS,
+};
+const countable = (op: ToolOp, choice: string) => COUNTABLE[op]?.includes(choice) ?? false;
+const COUNT_USE = (Object.entries(COUNTABLE) as [ToolOp, readonly string[]][]).map(([op, cs]) => `${op} の ${cs.join("・")}`).join("、");
 
 export interface PredictedOp {
   op: ToolOp;
@@ -109,8 +127,12 @@ export interface PredictedOp {
   amount: number;
   /** carve・punch：穴の半径・溝の半分の幅（ほかは 0） */
   size: number;
-  /** carve・punch：幅の中に並ぶ数（ほかは 0） */
+  /** carve・punch・板の飾り：幅の中に並ぶ数・線の本数。twist：並べてつなぐ棒の数（ほかと、count を使うときは 0） */
   across: number;
+  /** 並べる・散らす物の、板全体（品物 1 つ）の数（使わなければ 0。古い記録には無い） */
+  count: number;
+  /** stack・plate：metals と同じ順の、層の厚さの割合（同じ厚さなら空。古い記録には無い） */
+  thickness: number[];
   /** 操作の選び（使わなければ "-"） */
   choice: Choice;
 }
@@ -178,20 +200,34 @@ export const PREDICT_PATTERN: ClaudeTool = {
               type: "number",
               description: `carve・punch：穴の半径・溝の半分の幅。彫る線・zogan：線の半分の幅（zogan の dots・pits は丸の半径）。nanako・ishime・granulate：輪・点・粒の半径。tsuchime：跡の半径。sukashi：抜く形の半径。uchidashi：ふくらみの半径。shippo：使わず 0 でよい。どれも板の幅に対して ${range("size")}。ほかは 0`,
             },
-            across: { type: "integer", description: `carve・punch・板の飾り（tsuchime と plate をのぞく）：板の幅の中に並ぶ数・線の本数（${range("across")}。nanako・ishime も、幅の中に並ぶ輪・点の数で、0 にしない。点や丸を板一面に並べる・散らす操作では、板全体の数は、およそその 2 乗）。ほかは 0` },
+            across: {
+              type: "integer",
+              description:
+                `carve・punch・板の飾り（tsuchime と plate をのぞく）：板の幅の中に並ぶ数・線の本数（${range("across")}。nanako・ishime も、幅の中に並ぶ輪・点の数で、0 にしない。幅の中の数なので、点や丸を並べる・散らすと、板全体ではおよそその 2 乗。板全体の数が分かっているときは count を使い、across は 0）。` +
+                `twist：横に並べてつなぐ棒の数（${range("bars")}。星の先は棒のふちに出るので、1 本では板のふちで半分に切れ、2 本以上ならつなぎ目に丸ごと出る）。ほかは 0`,
+            },
+            count: {
+              type: "integer",
+              description: `並べる・散らす物を、品物 1 つ（板全体）でいくつにするか（${range("items")}）。手がかりの「10 ほど」なら 10。使える操作と選び：${COUNT_USE}。幅の中の数（across）で並べるときと、ほかの操作では 0`,
+            },
+            thickness: {
+              type: "array",
+              items: { type: "number" },
+              description: `stack・plate：metals と同じ順の、層の厚さの割合（例 [1, 0.5, 1]＝2 番目の材料が半分の厚さ。${range("thickness")}）。同じ厚さなら空。ほかの操作では空`,
+            },
             choice: {
               type: "string",
               enum: [...CHOICES],
               description:
                 "bond：good（よくつながる）・partial（ところどころつながらない）・poor（つながらない所が多い）。forge_thin：length（長さの向きにのばす）・both（縦横に広げる）。" +
-                "carve・punch：dots（決まった間の丸い穴）・pits（ばらばらの丸いくぼみ）・lines（幅の向きのまっすぐな溝）・waves（波打つ溝）。" +
+                "carve・punch：dots（決まった間の丸い穴）・pits（ばらばらの丸いくぼみ）・lines（幅の向きのまっすぐな溝）・waves（波打つ溝）・leaves（葉の形の鏨を、ばらばらの向きで）・petals（5 枚の花びらの形の鏨）。" +
                 "rearrange：edge_up（横にして層のふちを表に出す）・strips（細く切って 1 本おきに向きを変える）・tiles（四角に切って 1 つおきに回す）。color：none・etch（酸などで地を出す）・patina（煮色のように薬で色を出す）。" +
-                "kebori・keribori・katakiri・zogan の線の道すじ：straight（横にまっすぐ）・wave（波）・spiral（真ん中から 1 つの渦）・scatter（草のような短い線を散らす）・border（ふちにそった枠）・scroll（唐草：波打つつるが渦を巻き、葉が出る）・coils（小さな渦をたくさん並べる）。zogan はほかに dots（丸を並べてはめる）・pits（丸をばらばらにはめる）。" +
+                "kebori・keribori・katakiri・zogan の線の道すじ：straight（横にまっすぐ）・wave（波）・spiral（真ん中から 1 つの渦）・scatter（草のような短い線を散らす）・border（ふちにそった枠）・scroll（唐草：波打つつるが渦を巻き、葉が出る）・coils（小さな渦をたくさん並べる）。kebori・keribori・katakiri はほかに outline（前に打ち出した帯・ふくらみのふちにそった線）。zogan はほかに dots（丸を並べてはめる）・pits（丸をばらばらにはめる）。" +
                 "nanako：rows（列に並べる）・scatter（ばらばら）。tsuchime：round（丸い跡）・long（細長い跡）。sukashi：circles・petals（花びら）・lattice（格子）・wave（波の切り抜き）・ground（地を全部抜き、のせた線・粒・七宝と、ふちの枠だけを残す）。" +
                 "uchidashi：bumps（丸いふくらみ）・ridges（すじ）・wave（波の線にそった帯）・petals（花びらの花）・leaves（葉）。granulate：cluster（房）・line（列）・border（ふち）・scatter（散らす）、wave・spiral・scroll・coils（その道すじに粒を詰めて、より線のように）。shippo：round・petal・hex（区切りの形）。ほかの操作は -",
             },
           },
-          required: ["op", "step", "why", "assumed", "metals", "amount", "size", "across", "choice"],
+          required: ["op", "step", "why", "assumed", "metals", "amount", "size", "across", "count", "thickness", "choice"],
           additionalProperties: false,
         },
       },
@@ -219,12 +255,14 @@ function num(v: unknown, lim: Lim, int: boolean, where: string, warnings: string
 /** 1 つの操作を確かめる。使わない値は空や 0 にそろえる */
 function readOp(o: Record<string, unknown>, op: ToolOp, where: string, warnings: string[]): Omit<PredictedOp, "op" | "step" | "why" | "assumed"> | { error: string } {
   const use = USE[op];
-  const out = { metals: [] as MetalId[], amount: 0, size: 0, across: 0, choice: "-" as Choice };
+  const out = { metals: [] as MetalId[], amount: 0, size: 0, across: 0, count: 0, thickness: [] as number[], choice: "-" as Choice };
+  let given = 0;
   if (use.metals) {
     const v = o.metals;
     if (!Array.isArray(v) || v.length < PATTERN_LIMITS.metals[0]) return { error: `${where}（${op}）の metals に、重ねる材料を書いてください` };
     const ids = v.filter((x): x is MetalId => typeof x === "string" && (METAL_IDS as string[]).includes(x));
     if (ids.length !== v.length) return { error: `${where}：metals に一覧にない材料があります（使えるのは ${METAL_IDS.join("・")}）` };
+    given = ids.length;
     if (ids.length > PATTERN_LIMITS.metals[1]) {
       warnings.push(`${where}：材料が多いので、はじめの ${PATTERN_LIMITS.metals[1]} つにしました`);
       ids.length = PATTERN_LIMITS.metals[1];
@@ -234,6 +272,10 @@ function readOp(o: Record<string, unknown>, op: ToolOp, where: string, warnings:
       ids.length = 1;
     }
     out.metals = ids;
+  }
+  if (use.choice) {
+    if (typeof o.choice !== "string" || !use.choice.includes(o.choice as Choice)) return { error: `${where}（${op}）の choice は ${use.choice.join("・")} のどれかです` };
+    out.choice = o.choice as Choice;
   }
   if (use.amount) {
     const a = num(o.amount, use.amount.lim, use.amount.int, where, warnings);
@@ -245,20 +287,38 @@ function readOp(o: Record<string, unknown>, op: ToolOp, where: string, warnings:
     if (s === null) return { error: `${where}（${op}）の size が無いか、正しくありません` };
     out.size = s;
   }
-  if (use.across) {
+  // 板全体の数（無い・0 なら使わない。古い記録には無い）
+  if (typeof o.count === "number" && Number.isFinite(o.count) && o.count > 0) {
+    if (countable(op, out.choice)) out.count = num(o.count, PATTERN_LIMITS.items, true, where, warnings)!;
+    else warnings.push(`${where}：${op}${out.choice !== "-" ? `（${out.choice}）` : ""} では count（板全体の数）は使わないので、使いませんでした`);
+  }
+  if (out.count > 0) {
+    // 板全体の数で置くので、幅の中の数は使わない
+  } else if (op === "twist") {
+    // ねじった棒を並べてつなぐ本数。無い・0（古い記録）は 1 本
+    out.across = typeof o.across === "number" && o.across > 0 ? num(o.across, PATTERN_LIMITS.bars, true, where, warnings)! : 1;
+  } else if (use.across) {
+    const lim = use.across === true ? PATTERN_LIMITS.across : use.across;
     // 魚々子・石目で数が 0 なら、輪・点の大きさから決める（0 を 1 にすると、点がほとんど無い板になった。2026-11-07 夜）
     if (o.across === 0 && (op === "nanako" || op === "ishime") && out.size > 0) {
-      out.across = Math.round(Math.min(PATTERN_LIMITS.across[1], Math.max(PATTERN_LIMITS.across[0], RELIEF_VALUES.dotsFromSize / out.size)));
+      out.across = Math.round(Math.min(lim[1], Math.max(lim[0], RELIEF_VALUES.dotsFromSize / out.size)));
       warnings.push(`${where}：${op} の数が 0 だったので、輪・点の大きさから、幅の中に ${out.across} にしました`);
     } else {
-      const n = num(o.across, PATTERN_LIMITS.across, true, where, warnings);
+      const n = num(o.across, lim, true, where, warnings);
       if (n === null) return { error: `${where}（${op}）の across が無いか、正しくありません` };
       out.across = n;
     }
   }
-  if (use.choice) {
-    if (typeof o.choice !== "string" || !use.choice.includes(o.choice as Choice)) return { error: `${where}（${op}）の choice は ${use.choice.join("・")} のどれかです` };
-    out.choice = o.choice as Choice;
+  // 層の厚さの割合（stack・plate だけ。同じ厚さなら空にそろえる）
+  const tv = o.thickness;
+  if (Array.isArray(tv) && tv.length) {
+    if (op !== "stack" && op !== "plate") warnings.push(`${where}：${op} では thickness（層の厚さ）は使わないので、使いませんでした`);
+    else if (!tv.every((v) => typeof v === "number" && Number.isFinite(v) && v > 0)) warnings.push(`${where}：thickness は 0 より大きい数で書くので、同じ厚さにしました`);
+    else if (tv.length !== out.metals.length && tv.length !== given) warnings.push(`${where}：thickness は metals と同じ数（${out.metals.length}）で書くので、同じ厚さにしました`);
+    else {
+      const t = (tv as number[]).slice(0, out.metals.length).map((v) => num(v, PATTERN_LIMITS.thickness, false, where, warnings)!);
+      out.thickness = t.every((v) => v === t[0]) ? [] : t;
+    }
   }
   return out;
 }
@@ -312,7 +372,7 @@ export function parsePattern(input: unknown, ctx: { steps: number }): Parsed<Pat
 export function toPatternOp(o: PredictedOp): PatternOp {
   switch (o.op) {
     case "stack":
-      return { op: "stack", metals: o.metals, count: o.amount };
+      return { op: "stack", metals: o.metals, count: o.amount, ...(o.thickness?.length ? { thickness: o.thickness } : {}) };
     case "bond":
       return { op: "bond", quality: o.choice as (typeof QUALITIES)[number] };
     case "fold":
@@ -320,10 +380,10 @@ export function toPatternOp(o: PredictedOp): PatternOp {
     case "forge_thin":
       return { op: "forge_thin", ratio: o.amount, direction: o.choice as (typeof DIRECTIONS)[number] };
     case "twist":
-      return { op: "twist", turns: o.amount };
+      return { op: "twist", turns: o.amount, ...(o.across > 1 ? { bars: o.across } : {}) };
     case "carve":
     case "punch":
-      return { op: "carve", side: o.op === "carve" ? "top" : "back", shape: o.choice as CarveShape, depth: o.amount, size: o.size, across: o.across };
+      return { op: "carve", side: o.op === "carve" ? "top" : "back", shape: o.choice as CarveShape, depth: o.amount, size: o.size, across: o.across, ...cnt(o) };
     case "flatten":
       return { op: "flatten" };
     case "grind":
@@ -340,6 +400,9 @@ export function toPatternOp(o: PredictedOp): PatternOp {
 /** 確かめた答えを、計算の操作の並びにする（重ねた層の模様。最初が stack のとき） */
 export const toPatternOps = (p: PatternPrediction): PatternOp[] => p.ops.filter((o) => !(SURFACE_OPS as readonly string[]).includes(o.op)).map(toPatternOp);
 
+/** 板全体の数（count）があれば、計算の操作に添える（無ければ何も足さない。前の記録は前と同じ絵） */
+const cnt = (o: PredictedOp) => (o.count > 0 ? { count: o.count } : {});
+
 /** 確かめた答えを、1 枚の板の飾りの計算の操作の並びにする（最初が plate のとき） */
 export function toReliefOps(p: PatternPrediction): ReliefOp[] {
   const out: ReliefOp[] = [];
@@ -347,12 +410,12 @@ export function toReliefOps(p: PatternPrediction): ReliefOp[] {
     const m = o.metals[0] ?? "silver";
     switch (o.op) {
       case "plate":
-        out.push({ op: "plate", metal: m, ...(o.metals.length > 1 ? { under: o.metals.slice(1) } : {}) });
+        out.push({ op: "plate", metal: m, ...(o.metals.length > 1 ? { under: o.metals.slice(1) } : {}), ...(o.metals.length > 1 && o.thickness?.length ? { thickness: o.thickness } : {}) });
         break;
       case "kebori":
       case "keribori":
       case "katakiri":
-        out.push({ op: "engrave", style: o.op, path: o.choice as ReliefPath, depth: o.amount, size: o.size, across: o.across });
+        out.push({ op: "engrave", style: o.op, path: o.choice as EngravePath, depth: o.amount, size: o.size, across: o.across });
         break;
       case "nanako":
         out.push({ op: "nanako", arrange: o.choice as (typeof NANAKO)[number], size: o.size, across: o.across });
@@ -364,21 +427,21 @@ export function toReliefOps(p: PatternPrediction): ReliefOp[] {
         out.push({ op: "tsuchime", shape: o.choice as (typeof HAMMER)[number], depth: o.amount, size: o.size });
         break;
       case "sukashi":
-        out.push({ op: "sukashi", shape: o.choice as (typeof PIERCE)[number], size: o.size, across: o.across });
+        out.push({ op: "sukashi", shape: o.choice as (typeof PIERCE)[number], size: o.size, across: o.across, ...cnt(o) });
         break;
       case "uchidashi":
-        out.push({ op: "uchidashi", shape: o.choice as (typeof REPOUSSE)[number], height: o.amount, size: o.size, across: o.across });
+        out.push({ op: "uchidashi", shape: o.choice as (typeof REPOUSSE)[number], height: o.amount, size: o.size, across: o.across, ...cnt(o) });
         break;
       case "zogan":
-        out.push({ op: "zogan", metal: m, path: o.choice as (typeof INLAY)[number], size: o.size, across: o.across });
+        out.push({ op: "zogan", metal: m, path: o.choice as (typeof INLAY)[number], size: o.size, across: o.across, ...cnt(o) });
         break;
       case "granulate":
-        out.push({ op: "granulate", metal: m, arrange: o.choice as (typeof GRAINS)[number], size: o.size, across: o.across });
+        out.push({ op: "granulate", metal: m, arrange: o.choice as (typeof GRAINS)[number], size: o.size, across: o.across, ...cnt(o) });
         break;
       case "shippo": {
         // ガラスの色は enamel_ のもの。ほかの金属が 1 つあれば、区切りの線の金属
         const wire = o.metals.find((x) => !isEnamel(x));
-        out.push({ op: "shippo", colors: o.metals.filter(isEnamel), cells: o.choice as (typeof CELLS)[number], size: o.size, across: o.across, ...(wire ? { wire } : {}) });
+        out.push({ op: "shippo", colors: o.metals.filter(isEnamel), cells: o.choice as (typeof CELLS)[number], size: o.size, across: o.across, ...(wire ? { wire } : {}), ...cnt(o) });
         break;
       }
       case "color":
@@ -402,17 +465,21 @@ export function readPatternRecord(raw: unknown, steps: number): PatternRecord | 
 
 // ---- 画面の言葉 ----
 
-const SHAPE_WORD: Record<CarveShape, string> = { dots: "決まった間の丸い穴", pits: "ばらばらのくぼみ", lines: "まっすぐな溝", waves: "波打つ溝" };
+const SHAPE_WORD: Record<CarveShape, string> = { dots: "決まった間の丸い穴", pits: "ばらばらのくぼみ", lines: "まっすぐな溝", waves: "波打つ溝", leaves: "葉の形", petals: "花びらの形" };
 const MODE_WORD: Record<RearrangeMode, string> = { edge_up: "横にして層のふちを表に", strips: "細く切って 1 本おきに向きを変える", tiles: "四角に切って 1 つおきに回す" };
 const KIND_WORD: Record<ColorKind, string> = { none: "出さない", etch: "酸などで地を出す", patina: "薬で色を出す（煮色のように）" };
 const QUALITY_WORD: Record<(typeof QUALITIES)[number], string> = { good: "よくつながる", partial: "ところどころつながらない", poor: "つながらない所が多い" };
 const pct = (v: number) => `${Math.round(v * 100)}%`;
+/** 板全体の数の言い方（count が無ければ空） */
+const allOf = (o: PredictedOp) => (o.count > 0 ? `板全体に ${o.count}・` : "");
+/** 層の厚さの割合の言い方（同じ厚さなら空） */
+const thickWords = (o: PredictedOp) => (o.thickness?.length ? `（厚さの割合 ${o.thickness.map((v) => Math.round(v * 100) / 100).join(":")}）` : "");
 
 /** 画面に出す、操作の短い言い方。数は絵のための仮の値 */
 export function opWords(o: PredictedOp): string {
   switch (o.op) {
     case "stack":
-      return `${o.metals.map((m) => PATTERN_METALS[m].name.replace(/（.*）/, "")).join("・")}を ${o.amount} 枚、順に重ねる`;
+      return `${o.metals.map((m) => PATTERN_METALS[m].name.replace(/（.*）/, "")).join("・")}を ${o.amount} 枚、順に重ねる${thickWords(o)}`;
     case "bond":
       return `熱してつなぐ（${QUALITY_WORD[o.choice as (typeof QUALITIES)[number]]}）`;
     case "fold":
@@ -420,11 +487,11 @@ export function opWords(o: PredictedOp): string {
     case "forge_thin":
       return `叩いて厚みを 1/${o.amount} に（${o.choice === "length" ? "長さの向きにのばす" : "縦横に広げる"}）`;
     case "twist":
-      return `ねじる（${o.amount} 回）`;
+      return o.across > 1 ? `ねじる（${o.amount} 回）。${o.across} 本を横に並べてつなぐ` : `ねじる（${o.amount} 回）`;
     case "carve":
-      return `表から彫る：${SHAPE_WORD[o.choice as CarveShape]}（深さは厚みの ${pct(o.amount)}）`;
+      return `表から彫る：${SHAPE_WORD[o.choice as CarveShape]}（${allOf(o)}深さは厚みの ${pct(o.amount)}）`;
     case "punch":
-      return `裏から打ち出す：${SHAPE_WORD[o.choice as CarveShape]}（高さは厚みの ${pct(o.amount)}）`;
+      return `裏から打ち出す：${SHAPE_WORD[o.choice as CarveShape]}（${allOf(o)}高さは厚みの ${pct(o.amount)}）`;
     case "flatten":
       return "叩いて平らにする";
     case "grind":
@@ -432,11 +499,11 @@ export function opWords(o: PredictedOp): string {
     case "rearrange":
       return `切って並べかえる：${MODE_WORD[o.choice as RearrangeMode]}`;
     case "plate":
-      return o.metals.length > 1 ? `${o.metals.map(metalName).join("・")}を上から重ねてつないだ板を用意する` : `${metalName(o.metals[0])}の板を 1 枚用意する`;
+      return o.metals.length > 1 ? `${o.metals.map(metalName).join("・")}を上から重ねてつないだ板を用意する${thickWords(o)}` : `${metalName(o.metals[0])}の板を 1 枚用意する`;
     case "kebori":
     case "keribori":
     case "katakiri":
-      return `${TOOL_OP_LABEL[o.op].replace(/（.*）/, "")}で、${PATH_WORD[o.choice] ?? ""}を彫る（${o.across} 本・深さは厚みの ${pct(o.amount)}）`;
+      return `${TOOL_OP_LABEL[o.op].replace(/（.*）/, "")}で、${PATH_WORD[o.choice] ?? ""}を彫る（${o.choice === "outline" ? "" : `${o.across} 本・`}深さは厚みの ${pct(o.amount)}）`;
     case "nanako":
       return `魚々子の輪を${o.choice === "rows" ? "列に" : "ばらばらに"}打つ（幅の中に ${o.across}）`;
     case "ishime":
@@ -444,23 +511,32 @@ export function opWords(o: PredictedOp): string {
     case "tsuchime":
       return `金槌の${o.choice === "long" ? "細長い" : "丸い"}跡をつける`;
     case "sukashi":
-      return o.choice === "ground" ? "地を抜き、のせた線と粒、ふちの枠だけを残す" : `${PIERCE_WORD[o.choice] ?? ""}の形を切り抜く（幅の中に ${o.across}）`;
+      return o.choice === "ground" ? "地を抜き、のせた線と粒、ふちの枠だけを残す" : `${PIERCE_WORD[o.choice] ?? ""}の形を切り抜く（${o.count > 0 ? `板全体に ${o.count}` : `幅の中に ${o.across}`}）`;
     case "uchidashi":
-      return `裏から叩いて、${REPOUSSE_WORD[o.choice] ?? ""}を盛り上げる（高さは厚みの ${pct(o.amount)}）`;
+      return `裏から叩いて、${REPOUSSE_WORD[o.choice] ?? ""}を盛り上げる（${allOf(o)}高さは厚みの ${pct(o.amount)}）`;
     case "zogan":
-      return `${metalName(o.metals[0])}を${o.choice === "dots" ? "丸く" : o.choice === "pits" ? "丸く、ばらばらに" : `${PATH_WORD[o.choice] ?? ""}で`}はめる（象嵌）`;
+      return `${metalName(o.metals[0])}を${o.choice === "dots" ? "丸く" : o.choice === "pits" ? "丸く、ばらばらに" : `${PATH_WORD[o.choice] ?? ""}で`}はめる（象嵌${o.count > 0 ? `。板全体に ${o.count}` : ""}）`;
     case "granulate":
-      return `${metalName(o.metals[0])}の粒を${GRAIN_WORD[o.choice] ?? ""}つける`;
+      return `${metalName(o.metals[0])}の粒を${GRAIN_WORD[o.choice] ?? ""}つける${o.count > 0 ? `（板全体に ${o.count}）` : ""}`;
     case "shippo": {
       const wire = o.metals.find((x) => !isEnamel(x));
-      return `${CELL_WORD[o.choice] ?? ""}の区切り${wire ? `（${metalName(wire)}の線）` : ""}に、${o.metals.filter(isEnamel).map(metalName).join("・")}を入れて焼く`;
+      return `${CELL_WORD[o.choice] ?? ""}の区切り${wire ? `（${metalName(wire)}の線）` : ""}に、${o.metals.filter(isEnamel).map(metalName).join("・")}を入れて焼く${o.count > 0 ? `（板全体に ${o.count}）` : ""}`;
     }
     case "color":
       return `色を出す：${KIND_WORD[o.choice as ColorKind]}`;
   }
 }
 
-const PATH_WORD: Record<string, string> = { straight: "まっすぐな線", wave: "波の線", spiral: "渦", scatter: "散らした短い線", border: "ふちにそった枠", scroll: "唐草（渦を巻くつると葉）", coils: "並べた小さな渦" };
+const PATH_WORD: Record<string, string> = {
+  straight: "まっすぐな線",
+  wave: "波の線",
+  spiral: "渦",
+  scatter: "散らした短い線",
+  border: "ふちにそった枠",
+  scroll: "唐草（渦を巻くつると葉）",
+  coils: "並べた小さな渦",
+  outline: "打ち出したふくらみのふちにそった線",
+};
 const metalName = (m: MetalId | undefined) => (m ? PATTERN_METALS[m].name.replace(/（.*）/, "") : "");
 const PIERCE_WORD: Record<string, string> = { circles: "丸", petals: "花びら", lattice: "格子", wave: "波" };
 const REPOUSSE_WORD: Record<string, string> = { bumps: "丸いふくらみ", ridges: "すじ", wave: "波", petals: "花びらの花", leaves: "葉" };
@@ -490,12 +566,12 @@ export function patternPrompt(): string {
 ### A. 重ねた層の模様（最初の操作が stack）
 
 色のちがう材料を重ねた板（または棒）を、次の操作で変えていき、最後の表と断面の色を描きます。
-- stack：材料を重ねる（最初に 1 回だけ）
+- stack：材料を重ねる（最初に 1 回だけ。材料ごとに厚さを変えるなら thickness に割合）
 - bond：熱して層をつなぐ（つなぐ手順が無ければ、層がはがれやすいとして描かれる）
 - fold：のばして半分に切り、重ねる（層が 2 倍ずつ）
 - forge_thin：叩いて薄くのばす（あとで彫ったり、前に彫った形がのびる）
-- twist：棒にしてねじる
-- carve：表から彫る・穴をあける（彫った底には、その深さの層が出る）
+- twist：棒にしてねじる（星の先は棒のふちに出る。何本か並べてつなぐ技なら、across にその本数）
+- carve：表から彫る・穴をあける（彫った底には、その深さの層が出る。葉や花の形の鏨なら leaves・petals）
 - punch：裏から打ち出す（表を削らないと模様にならない。打ち出して削ると、ふくらみの真ん中ほど深い所の層が出て、輪は外から内へ、上の層から下の層の順に並ぶ）
 - flatten：叩いて平らにする
 - grind：表を平らに削る（削った深さが層のさかいに近いと、地が 2 色のまだらになる。地を 1 色にしたいなら、層の真ん中で止まる深さに）
@@ -505,8 +581,8 @@ export function patternPrompt(): string {
 ### B. 1 枚の板の表の飾り（最初の操作が plate）
 
 重ねない技です。1 枚の板の表を、彫る・打つ・透かす・はめる・粒をつける・七宝を入れる で変えていき、凹凸を光の当たり方で、材料を色で描きます。
-- plate：地の金属の板を 1 枚（最初に 1 回だけ。metals に 1 つ）。色のちがう金属を重ねてつないだ板の表を彫る・打つ技なら、metals に上の層から 2〜4 つ（同じ厚さとして描き、彫った深さで下の層の色が出る）
-- kebori：毛彫り。細い V の線を彫る
+- plate：地の金属の板を 1 枚（最初に 1 回だけ。metals に 1 つ）。色のちがう金属を重ねてつないだ板の表を彫る・打つ技なら、metals に上の層から 2〜4 つ（彫った深さで下の層の色が出る。層の厚さを変えるなら thickness に割合、空なら同じ厚さ）
+- kebori：毛彫り。細い V の線を彫る（彫る線は、outline を選ぶと、前に打ち出した帯・ふくらみのふちにそう）
 - keribori：蹴彫り。くさび形を連ねた線を彫る
 - katakiri：片切彫り。片方は立ち、片方は斜めに浅くなる線を彫る
 - nanako：魚々子。小さな輪の鏨を打ち並べる
@@ -529,6 +605,7 @@ ${JA_ANSWER}
 - どの操作も metals・amount・size・across・choice を持ちます。その操作で使わない値は、空・0・- にしてください。
 - 工程の順に、作る順で置きかえてください。1 つの工程が 2 つの操作になっても、2 つの工程が 1 つの操作になってもかまいません。
 - どの操作にも、元になった工程の番号を step に書いてください。工程に書かれていないが、絵を描くために要る操作（重ねる枚数を決める、など）は step を 0 にして、why にそう書いてください。
+- 手がかりの数（「10 ほど」「5 つ」）が品物 1 つの数なら、その数を count に書いてください（across は幅の中の数で、板全体ではその 2 乗になります）。
 - 工程に書かれていない数（枚数・回数・深さなど）は、絵のために仮に決めてかまいません。そのときは assumed に、何をどう仮に決めたかを書いてください。これは絵のための仮の値で、作り方の数字ではありません。作り方の数字として言わないでください。
 - 前の案の見込みが渡されたら、案で変わっていない所の仮の値（材料と重ねる順・枚数・穴や溝の大きさと数・回数など）は、前と同じにしてください。絵のちがいが、案の変わった所だけから出るようにするためです。前とちがう値にしたときは、assumed にそう書いてください。
 - 試した結果が渡されたら、絵がその結果と合うように仮の値を選んでください（例：「浅い穴では、ある色の層が出なかった」なら、浅い穴はその層に届かない深さと枚数で描く）。結果と食いちがう仮の値は選ばないでください。どう合わせたかを assumed に書いてください。
@@ -563,7 +640,7 @@ export function patternRequest(name: string, plan: RestorePlan, words: (s: strin
   const steps = plan.steps.map((s, i) => `${i + 1}. ${words(s.title)}\n${words(s.detail)}${s.uncertain ? `\nまだ分からないこと：${words(s.uncertain)}` : ""}`).join("\n\n");
   const prev = ctx.prev?.prediction.applicable
     ? `\n\n## 前の案（案 ${ctx.prev.version}）の見込みで使った操作と仮の値\n\n<prev>\n${ctx.prev.prediction.ops
-        .map((o, i) => `${i + 1}. ${o.op}：${opWords(o)}${o.size ? `（大きさ ${o.size}・幅の中に ${o.across}）` : ""}${o.assumed ? `\n仮：${words(o.assumed)}` : ""}`)
+        .map((o, i) => `${i + 1}. ${o.op}：${opWords(o)}${o.size ? `（大きさ ${o.size}・${o.count > 0 ? `板全体に ${o.count}` : `幅の中に ${o.across}`}）` : ""}${o.assumed ? `\n仮：${words(o.assumed)}` : ""}`)
         .join("\n")}\n</prev>`
     : "";
   const results = ctx.results?.length
