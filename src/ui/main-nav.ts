@@ -12,7 +12,7 @@ export { PLACES, placeHref, placeOf, type Place, type PlaceId } from "./places";
 export function mainNavHtml(current: PlaceId | null, from: "app" | "other"): string {
   return `<nav class="gnav" aria-label="継ぐの場所">${PLACES.map(
     (p) =>
-      `<a href="${placeHref(p, from)}" data-place="${p.id}"${p.id === current ? ` aria-current="page"` : ""}><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">${p.icon}</svg><span class="gn-l">${p.label}</span><span class="gn-s">${p.sub}</span><i class="badge" hidden></i></a>`,
+      `<a href="${placeHref(p, from)}" data-place="${p.id}"${p.id === current ? ` aria-current="page"` : ""}><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">${p.icon}</svg><span class="gn-l">${p.label}</span><i class="badge" hidden></i></a>`,
   ).join("")}</nav>`;
 }
 
