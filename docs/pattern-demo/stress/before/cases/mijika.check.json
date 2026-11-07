@@ -1,0 +1,60 @@
+{
+  "id": "mijika",
+  "calls": [
+    {
+      "tool": "propose_restoration",
+      "ms": 38114,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "predict_pattern",
+      "ms": 19409,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "propose_restoration",
+      "ms": 31481,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "predict_pattern",
+      "ms": 11700,
+      "rejected": [],
+      "warnings": []
+    }
+  ],
+  "predictions": [
+    {
+      "tag": "-first",
+      "applicable": true,
+      "ops": [
+        "plate",
+        "zogan",
+        "color"
+      ],
+      "noAssumed": [],
+      "spread": 44.5,
+      "renderMs": 452,
+      "notes": []
+    },
+    {
+      "tag": "-v2",
+      "applicable": true,
+      "ops": [
+        "plate",
+        "zogan",
+        "color"
+      ],
+      "noAssumed": [],
+      "spread": 35.5,
+      "renderMs": 505,
+      "notes": []
+    }
+  ],
+  "unsourced": [],
+  "planNotes": [],
+  "expect": "draw"
+}

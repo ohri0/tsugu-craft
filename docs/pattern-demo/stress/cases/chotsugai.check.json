@@ -1,0 +1,46 @@
+{
+  "id": "chotsugai",
+  "calls": [
+    {
+      "tool": "propose_restoration",
+      "ms": 49853,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "predict_pattern",
+      "ms": 5195,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "propose_restoration",
+      "ms": 43899,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "predict_pattern",
+      "ms": 5298,
+      "rejected": [],
+      "warnings": []
+    }
+  ],
+  "predictions": [
+    {
+      "tag": "-first",
+      "applicable": false,
+      "ops": [],
+      "noAssumed": []
+    },
+    {
+      "tag": "-v2",
+      "applicable": false,
+      "ops": [],
+      "noAssumed": []
+    }
+  ],
+  "unsourced": [],
+  "planNotes": [],
+  "expect": "decline"
+}

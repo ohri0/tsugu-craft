@@ -1,0 +1,60 @@
+{
+  "id": "machigai",
+  "calls": [
+    {
+      "tool": "propose_restoration",
+      "ms": 41633,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "predict_pattern",
+      "ms": 14128,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "propose_restoration",
+      "ms": 49369,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "predict_pattern",
+      "ms": 17015,
+      "rejected": [],
+      "warnings": []
+    }
+  ],
+  "predictions": [
+    {
+      "tag": "-first",
+      "applicable": true,
+      "ops": [
+        "plate",
+        "zogan",
+        "color"
+      ],
+      "noAssumed": [],
+      "spread": 44.4,
+      "renderMs": 1487,
+      "notes": []
+    },
+    {
+      "tag": "-v2",
+      "applicable": true,
+      "ops": [
+        "plate",
+        "zogan",
+        "color"
+      ],
+      "noAssumed": [],
+      "spread": 44.4,
+      "renderMs": 1659,
+      "notes": []
+    }
+  ],
+  "unsourced": [],
+  "planNotes": [],
+  "expect": "draw"
+}

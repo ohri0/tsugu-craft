@@ -1,0 +1,64 @@
+{
+  "id": "senshippo",
+  "calls": [
+    {
+      "tool": "propose_restoration",
+      "ms": 53920,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "predict_pattern",
+      "ms": 10086,
+      "rejected": [],
+      "warnings": [
+        "2 番目の操作：0 は範囲（0.005〜0.25）の外なので、0.005 にしました"
+      ]
+    },
+    {
+      "tool": "propose_restoration",
+      "ms": 45306,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "predict_pattern",
+      "ms": 13388,
+      "rejected": [],
+      "warnings": []
+    }
+  ],
+  "predictions": [
+    {
+      "tag": "-first",
+      "applicable": true,
+      "ops": [
+        "plate",
+        "shippo"
+      ],
+      "noAssumed": [],
+      "spread": 52,
+      "renderMs": 503,
+      "notes": [
+        "七宝の色は、絵のための色（仮）です。"
+      ]
+    },
+    {
+      "tag": "-v2",
+      "applicable": true,
+      "ops": [
+        "plate",
+        "shippo"
+      ],
+      "noAssumed": [],
+      "spread": 52,
+      "renderMs": 470,
+      "notes": [
+        "七宝の色は、絵のための色（仮）です。"
+      ]
+    }
+  ],
+  "unsourced": [],
+  "planNotes": [],
+  "expect": "draw"
+}

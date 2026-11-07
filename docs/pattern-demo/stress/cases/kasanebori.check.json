@@ -1,0 +1,67 @@
+{
+  "id": "kasanebori",
+  "calls": [
+    {
+      "tool": "propose_restoration",
+      "ms": 53595,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "predict_pattern",
+      "ms": 17815,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "propose_restoration",
+      "ms": 51746,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "predict_pattern",
+      "ms": 19651,
+      "rejected": [],
+      "warnings": []
+    }
+  ],
+  "predictions": [
+    {
+      "tag": "-first",
+      "applicable": true,
+      "ops": [
+        "plate",
+        "katakiri",
+        "nanako",
+        "color"
+      ],
+      "noAssumed": [],
+      "spread": 47.3,
+      "renderMs": 1081,
+      "notes": [
+        "重ねた板の 3 つの層は、同じ厚さ（仮）として描きました。彫った深さで下の層の色が出ます。"
+      ]
+    },
+    {
+      "tag": "-v2",
+      "applicable": true,
+      "ops": [
+        "plate",
+        "katakiri",
+        "katakiri",
+        "nanako",
+        "color"
+      ],
+      "noAssumed": [],
+      "spread": 51.1,
+      "renderMs": 1754,
+      "notes": [
+        "重ねた板の 3 つの層は、同じ厚さ（仮）として描きました。彫った深さで下の層の色が出ます。"
+      ]
+    }
+  ],
+  "unsourced": [],
+  "planNotes": [],
+  "expect": "partial"
+}

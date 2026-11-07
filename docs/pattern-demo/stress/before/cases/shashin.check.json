@@ -1,0 +1,62 @@
+{
+  "id": "shashin",
+  "calls": [
+    {
+      "tool": "propose_restoration",
+      "ms": 40036,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "predict_pattern",
+      "ms": 22018,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "propose_restoration",
+      "ms": 41998,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "predict_pattern",
+      "ms": 15106,
+      "rejected": [],
+      "warnings": []
+    }
+  ],
+  "predictions": [
+    {
+      "tag": "-first",
+      "applicable": true,
+      "ops": [
+        "plate",
+        "zogan",
+        "ishime",
+        "color"
+      ],
+      "noAssumed": [],
+      "spread": 35.2,
+      "renderMs": 616,
+      "notes": []
+    },
+    {
+      "tag": "-v2",
+      "applicable": true,
+      "ops": [
+        "plate",
+        "zogan",
+        "ishime",
+        "color"
+      ],
+      "noAssumed": [],
+      "spread": 35.2,
+      "renderMs": 713,
+      "notes": []
+    }
+  ],
+  "unsourced": [],
+  "planNotes": [],
+  "expect": "draw"
+}

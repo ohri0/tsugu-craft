@@ -1,0 +1,66 @@
+{
+  "id": "konoha",
+  "calls": [
+    {
+      "tool": "propose_restoration",
+      "ms": 44936,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "predict_pattern",
+      "ms": 14593,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "propose_restoration",
+      "ms": 46529,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "predict_pattern",
+      "ms": 38444,
+      "rejected": [],
+      "warnings": []
+    }
+  ],
+  "predictions": [
+    {
+      "tag": "-first",
+      "applicable": true,
+      "ops": [
+        "stack",
+        "bond",
+        "forge_thin",
+        "punch",
+        "grind",
+        "color"
+      ],
+      "noAssumed": [],
+      "spread": 53.8,
+      "renderMs": 2187,
+      "notes": []
+    },
+    {
+      "tag": "-v2",
+      "applicable": true,
+      "ops": [
+        "stack",
+        "bond",
+        "forge_thin",
+        "punch",
+        "grind",
+        "color"
+      ],
+      "noAssumed": [],
+      "spread": 20,
+      "renderMs": 3052,
+      "notes": []
+    }
+  ],
+  "unsourced": [],
+  "planNotes": [],
+  "expect": "draw"
+}

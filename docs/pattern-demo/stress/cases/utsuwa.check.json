@@ -1,0 +1,62 @@
+{
+  "id": "utsuwa",
+  "calls": [
+    {
+      "tool": "propose_restoration",
+      "ms": 44214,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "predict_pattern",
+      "ms": 14019,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "propose_restoration",
+      "ms": 32853,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "predict_pattern",
+      "ms": 12642,
+      "rejected": [],
+      "warnings": []
+    }
+  ],
+  "predictions": [
+    {
+      "tag": "-first",
+      "applicable": true,
+      "ops": [
+        "plate",
+        "uchidashi",
+        "kebori",
+        "color"
+      ],
+      "noAssumed": [],
+      "spread": 28.1,
+      "renderMs": 645,
+      "notes": []
+    },
+    {
+      "tag": "-v2",
+      "applicable": true,
+      "ops": [
+        "plate",
+        "uchidashi",
+        "kebori",
+        "color"
+      ],
+      "noAssumed": [],
+      "spread": 28.1,
+      "renderMs": 697,
+      "notes": []
+    }
+  ],
+  "unsourced": [],
+  "planNotes": [],
+  "expect": "partial"
+}

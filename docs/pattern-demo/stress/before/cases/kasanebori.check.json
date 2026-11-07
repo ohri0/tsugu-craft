@@ -1,0 +1,76 @@
+{
+  "id": "kasanebori",
+  "calls": [
+    {
+      "tool": "propose_restoration",
+      "ms": 50389,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "predict_pattern",
+      "ms": 23266,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "propose_restoration",
+      "ms": 52117,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "predict_pattern",
+      "ms": 21632,
+      "rejected": [],
+      "warnings": []
+    }
+  ],
+  "predictions": [
+    {
+      "tag": "-first",
+      "applicable": true,
+      "ops": [
+        "stack",
+        "bond",
+        "forge_thin",
+        "carve",
+        "carve",
+        "color"
+      ],
+      "noAssumed": [],
+      "spread": 62.9,
+      "renderMs": 2931,
+      "notes": [
+        "彫ったあと、平らにする手順がありません。表に凹凸が残ります（絵は、上から見たときの色です）。",
+        "彫ったあと、平らにする手順がありません。表に凹凸が残ります（絵は、上から見たときの色です）。",
+        "模様を出す手順（彫る・ねじる・削る・並べかえる）が無いので、表は、いちばん上の層の色だけになります。"
+      ]
+    },
+    {
+      "tag": "-v2",
+      "applicable": true,
+      "ops": [
+        "stack",
+        "bond",
+        "forge_thin",
+        "carve",
+        "carve",
+        "carve",
+        "color"
+      ],
+      "noAssumed": [],
+      "spread": 63.1,
+      "renderMs": 5174,
+      "notes": [
+        "彫ったあと、平らにする手順がありません。表に凹凸が残ります（絵は、上から見たときの色です）。",
+        "彫ったあと、平らにする手順がありません。表に凹凸が残ります（絵は、上から見たときの色です）。",
+        "彫ったあと、平らにする手順がありません。表に凹凸が残ります（絵は、上から見たときの色です）。",
+        "模様を出す手順（彫る・ねじる・削る・並べかえる）が無いので、表は、いちばん上の層の色だけになります。"
+      ]
+    }
+  ],
+  "unsourced": [],
+  "planNotes": [],
+  "expect": "partial"
+}

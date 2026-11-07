@@ -1,0 +1,70 @@
+{
+  "id": "yorisen",
+  "calls": [
+    {
+      "tool": "propose_restoration",
+      "ms": 64510,
+      "rejected": [
+        "next_checks（次に確かめること）を 1 つ以上書いてください"
+      ],
+      "warnings": []
+    },
+    {
+      "tool": "predict_pattern",
+      "ms": 18031,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "propose_restoration",
+      "ms": 40480,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "predict_pattern",
+      "ms": 16590,
+      "rejected": [],
+      "warnings": []
+    }
+  ],
+  "predictions": [
+    {
+      "tag": "-first",
+      "applicable": true,
+      "ops": [
+        "plate",
+        "granulate",
+        "granulate",
+        "sukashi",
+        "color"
+      ],
+      "noAssumed": [],
+      "spread": 90.3,
+      "renderMs": 745,
+      "notes": [
+        "透かした所は、後ろの暗い地が見えるとして描きました。"
+      ]
+    },
+    {
+      "tag": "-v2",
+      "applicable": true,
+      "ops": [
+        "plate",
+        "granulate",
+        "granulate",
+        "sukashi",
+        "color"
+      ],
+      "noAssumed": [],
+      "spread": 90.3,
+      "renderMs": 718,
+      "notes": [
+        "透かした所は、後ろの暗い地が見えるとして描きました。"
+      ]
+    }
+  ],
+  "unsourced": [],
+  "planNotes": [],
+  "expect": "draw"
+}

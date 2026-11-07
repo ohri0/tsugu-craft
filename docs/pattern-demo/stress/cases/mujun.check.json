@@ -1,0 +1,64 @@
+{
+  "id": "mujun",
+  "calls": [
+    {
+      "tool": "propose_restoration",
+      "ms": 54269,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "predict_pattern",
+      "ms": 16873,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "propose_restoration",
+      "ms": 42240,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "predict_pattern",
+      "ms": 20765,
+      "rejected": [],
+      "warnings": []
+    }
+  ],
+  "predictions": [
+    {
+      "tag": "-first",
+      "applicable": true,
+      "ops": [
+        "plate",
+        "zogan",
+        "color"
+      ],
+      "noAssumed": [],
+      "spread": 49,
+      "renderMs": 418,
+      "notes": []
+    },
+    {
+      "tag": "-v2",
+      "applicable": true,
+      "ops": [
+        "stack",
+        "bond",
+        "rearrange",
+        "grind",
+        "color"
+      ],
+      "noAssumed": [],
+      "spread": 69.5,
+      "renderMs": 609,
+      "notes": [
+        "最後に色を出す手順が無いので、材料そのものの色で描きました。色の差は小さく見えます。"
+      ]
+    }
+  ],
+  "unsourced": [],
+  "planNotes": [],
+  "expect": "draw"
+}

@@ -232,7 +232,8 @@ export function buildSim(ops: readonly PatternOp[], seed = 7, opts: { bond?: Bon
     }
   }
   const has = (o: OpName) => stages.some((s) => s.op.op === o);
-  const patterning = stages.some((s) => (s.op.op === "carve" && s.flattened !== false && (s.op.side === "top" || s.flattened)) || s.op.op === "twist" || s.op.op === "rearrange" || s.op.op === "grind");
+  // 表から彫れば、平らにしなくても、彫った底に下の層が出る（前は平らにしないと「模様を出す手順が無い」と、食いちがう知らせを出していた。2026-11-07 夜）
+  const patterning = stages.some((s) => (s.op.op === "carve" && (s.op.side === "top" || s.flattened)) || s.op.op === "twist" || s.op.op === "rearrange" || s.op.op === "grind");
   if (!patterning) notes.push("模様を出す手順（彫る・ねじる・削る・並べかえる）が無いので、表は、いちばん上の層の色だけになります。");
   if (!has("bond")) notes.push("層をつなぐ手順が見当たらないので、層の境に、つながらない所が多いとして描きました。");
   if (color === "none") notes.push("最後に色を出す手順が無いので、材料そのものの色で描きました。色の差は小さく見えます。");
