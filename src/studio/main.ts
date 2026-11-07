@@ -1325,6 +1325,8 @@ function drawingSheetHtml(): string {
   if (!session?.built) return "";
   return solitaireDrawing(session.built, grouped(session.built).map(({ p }) => SHORT[p.check] ?? p.where));
 }
+/** 図面の下に空ける高さ（px）。「大きく見る」のボタン（下から 12 px・高さ 44 px）が図面の右下の角に重なっていた。上は表示の欄の下から */
+const SHEET_BIG_ROOM = 64;
 function showSheet() {
   sheetOn = true;
   let el = document.querySelector<HTMLElement>(".sheet-view");
@@ -1341,7 +1343,7 @@ function showSheet() {
     .wrap{position:absolute;left:50%;top:50%;transform-origin:center}
     .dw{background:#fff;color:#111;box-shadow:0 20px 60px rgba(0,0,0,.5)}</style>
     <div class="wrap">${body}</div>
-    <script>const w=document.querySelector('.wrap');function fit(){const r=w.firstElementChild.getBoundingClientRect();const k=Math.min(innerWidth/(r.width/(w._k||1)),innerHeight/(r.height/(w._k||1)))*0.92;w._k=k;w.style.transform='translate(-50%,-50%) scale('+k+')'}addEventListener('resize',fit);requestAnimationFrame(fit);</script>`)}"></iframe>`;
+    <script>const w=document.querySelector('.wrap'),P=${filming() ? 0 : SHEET_BIG_ROOM};function T(){try{return Math.max(0,parent.document.querySelector('.vp-tl').getBoundingClientRect().bottom-frameElement.getBoundingClientRect().top+6)}catch(e){return 0}}function fit(){const r=w.firstElementChild.getBoundingClientRect(),rw=r.width/(w._k||1),rh=r.height/(w._k||1);let k;if(P){const t=T(),H=innerHeight-t-P;k=Math.min(innerWidth*0.92/rw,H*0.98/rh);w.style.top=(t+H/2)+'px'}else k=Math.min(innerWidth/rw,innerHeight/rh)*0.92;w._k=k;w.style.transform='translate(-50%,-50%) scale('+k+')'}addEventListener('resize',fit);requestAnimationFrame(fit);</script>`)}"></iframe>`;
   el.querySelector(".sheet-big")?.addEventListener("click", openSheetFull);
 }
 /** 図面を全画面で。＋ − で大きくして、指やマウスで動かして読む（スマホでは小さくて読めず、拡大もできなかった） */
