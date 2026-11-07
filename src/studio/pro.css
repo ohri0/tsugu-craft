@@ -1188,8 +1188,9 @@ html.fit .command { flex: 1 1 320px; min-width: 0; }
 .tn-verdict .tn-tip { font-size: 12px; color: var(--fg-2); line-height: 1.5; }
 .tn-verdict.hold { background: rgba(48, 209, 88, 0.08); border-color: rgba(48, 209, 88, 0.3); }
 .tn-verdict.hold b { color: #30d158; }
-.tn-verdict.tight { background: rgba(255, 214, 10, 0.08); border-color: rgba(255, 214, 10, 0.3); }
-.tn-verdict.tight b { color: #ffd60a; }
+/* tight の見出しは作り方そのもの（作者の声 2026-11-08）。注意の色にしない。余裕の少なさは下の「安全に留めるなら」が示す */
+.tn-verdict.tight { background: rgba(255, 255, 255, 0.03); }
+.tn-verdict.tight b { color: var(--fg); }
 .tn-verdict.short { background: rgba(255, 69, 58, 0.08); border-color: rgba(255, 69, 58, 0.3); }
 .tn-verdict.short b { color: #ff6961; }
 .tn-ideas { margin: 0; padding: 0 0 0 1.1em; display: grid; gap: 4px; font-size: 13px; color: var(--fg-2); }
