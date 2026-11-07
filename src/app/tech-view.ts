@@ -19,6 +19,7 @@ import { flash, mountInterview, type InterviewTarget } from "./interview";
 import { openRuleEditor, removedRulesHtml } from "./rule-editor";
 import { masterName, sourceName } from "./master";
 import { esc, store } from "./store";
+import { mountRequests } from "./model-requests";
 
 const RING = "指輪の石留め（一粒石の指輪）";
 
@@ -171,6 +172,7 @@ export function mountTech(root: HTMLElement, id: HowtoId, opts: { gapId?: string
         ? `${blocks.ask}
     <section class="tp-block fl-panel" id="tp-model" hidden>
       <h3><span class="fl-h-n">2</span>手本を残す <small class="model-n"></small></h3>
+      <div class="mreq-slot" hidden></div>
       <ul class="tp-models"></ul>
       <div class="model-root motion-root"></div>
       <div class="fl-next-slot" data-for="model"></div>
@@ -293,6 +295,8 @@ export function mountTech(root: HTMLElement, id: HowtoId, opts: { gapId?: string
       }),
     );
     const mine = savedRecords().filter((r) => (r.technique ?? "ring") === id);
+    // 学ぶ人から、この技の手本を頼まれていれば、ここに出す
+    mountRequests($(".mreq-slot"), id);
     $(".model-n").textContent = `残した手本 ${mine.length}`;
     $(".tp-models").innerHTML = mine.map((r) => `<li><b>${esc(r.title)}</b><small>${r.craftsman === MIHON_NAME ? "作り話の例" : esc(r.craftsman || "名前なし")} ・ ${esc(r.date)} ・ ${Math.round(r.durationS)} 秒</small></li>`).join("");
   }
