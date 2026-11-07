@@ -7,7 +7,7 @@
 //
 // 座標：x＝板の幅の向き、y＝板の長さの向き（その時の板の大きさで。重ねたときの幅を 1 とする）、u＝表からの深さ（0＝表、1＝裏）。
 import { rng } from "./sim";
-import { PATTERN_COLORS, PATTERN_LIMITS, PATTERN_METALS, PATTERN_VALUES, type MetalId } from "./pattern-values";
+import { PATTERN_COLORS, PATTERN_LIMITS, PATTERN_LOOK, PATTERN_METALS, PATTERN_VALUES, type MetalId } from "./pattern-values";
 
 export type CarveShape = "dots" | "pits" | "lines" | "waves";
 export type BondQuality = "good" | "partial" | "poor";
@@ -194,6 +194,10 @@ export function buildSim(ops: readonly PatternOp[], seed = 7, opts: { bond?: Bon
         }
         break;
       }
+      case "twist":
+        // 四角い棒にのばしてから、ねじる
+        H *= PATTERN_VALUES.twistBar;
+        break;
       case "color":
         color = op.kind;
         break;
@@ -256,11 +260,22 @@ export function carveDepth(op: Extract<PatternOp, { op: "carve" }>, qx: number, 
   const a = 1 / across;
   const depth = clampTo(op.depth, PATTERN_LIMITS.depth);
   const size = clampTo(op.size, PATTERN_LIMITS.size);
+  const J = PATTERN_VALUES.handJitter;
+  /** -1〜1 の決まった散らばり */
+  const jit = (i: number, j: number, k: number) => 2 * hash(i, j, k, seed) - 1;
   if (op.shape === "lines" || op.shape === "waves") {
-    // 幅の向きに走る溝を、長さの向きに a おきに（はしごの模様の溝）
+    // 幅の向きに走る溝を、長さの向きに a おきに（はしごの模様の溝）。鏨で手で刻むので、溝ごとに間・幅・深さが少しずれ、わずかにうねる
     const y = op.shape === "waves" ? qy + 0.35 * a * Math.sin(2 * Math.PI * qx * Math.max(1, across / 3)) : qy;
-    const t = y / a - Math.floor(y / a) - 0.5;
-    return depth * profile(Math.abs(t * a) / size);
+    const g0 = Math.floor(y / a);
+    let d = 0;
+    for (let g = g0 - 1; g <= g0 + 1; g++) {
+      const cy = (g + 0.5 + 0.5 * J.pos * jit(g, 0, 11)) * a + J.lineWander * size * Math.sin(2 * Math.PI * (qx * (1 + hash(g, 0, 12, seed)) + hash(g, 0, 13, seed)));
+      const w = size * (1 + J.size * jit(g, 0, 14));
+      const dd = depth * (1 + J.depth * jit(g, 0, 15));
+      const t = Math.abs(y - cy) / w;
+      if (t < 1) d = Math.max(d, dd * profile(t));
+    }
+    return Math.min(0.98, d);
   }
   const i0 = Math.floor(qx / a);
   const j0 = Math.floor(qy / a);
@@ -268,23 +283,65 @@ export function carveDepth(op: Extract<PatternOp, { op: "carve" }>, qx: number, 
   for (let j = j0 - 1; j <= j0 + 1; j++) {
     for (let i = i0 - 1; i <= i0 + 1; i++) {
       let cx: number, cy: number, r: number, dd: number;
+      let e = 1;
+      let ang = 0;
       if (op.shape === "dots") {
-        // 決まった間かくの丸い穴（1 列おきに半分ずらす）
-        cx = (i + 0.5 + (j % 2 === 0 ? 0 : 0.5)) * a;
-        cy = (j + 0.5) * a;
-        r = size;
-        dd = depth;
+        // 決まった間かくの丸い穴（1 列おきに半分ずらす）。錐で手であけるので、位置・大きさ・深さが少しずれ、わずかに楕円になる
+        cx = (i + 0.5 + (j % 2 === 0 ? 0 : 0.5) + J.pos * jit(i, j, 5)) * a;
+        cy = (j + 0.5 + J.pos * jit(i, j, 6)) * a;
+        r = size * (1 + J.size * jit(i, j, 7));
+        dd = depth * (1 + J.depth * jit(i, j, 8));
+        e = 1 + J.ellipse * jit(i, j, 9);
+        ang = Math.PI * hash(i, j, 10, seed);
       } else {
         cx = (i + 0.15 + 0.7 * hash(i, j, 1, seed)) * a;
         cy = (j + 0.15 + 0.7 * hash(i, j, 2, seed)) * a;
         r = size * (0.55 + 0.9 * hash(i, j, 3, seed));
         dd = depth * (0.55 + 0.45 * hash(i, j, 4, seed));
       }
-      const dist = Math.hypot(qx - cx, qy - cy) / r;
+      const dx = qx - cx;
+      const dy = qy - cy;
+      const c = Math.cos(ang);
+      const s = Math.sin(ang);
+      const dist = Math.hypot((dx * c + dy * s) * e, (-dx * s + dy * c) / e) / r;
       if (dist < 1) d = Math.max(d, dd * profile(dist));
     }
   }
-  return d;
+  return Math.min(0.98, d);
+}
+
+/** 四角（-1〜1）の点を円の中へ（ふちの四角が、ふちの円になる） */
+export function squareToDisk(x: number, y: number): [number, number] {
+  return [x * Math.sqrt(Math.max(0, 1 - (y * y) / 2)), y * Math.sqrt(Math.max(0, 1 - (x * x) / 2))];
+}
+
+/** squareToDisk のもどし */
+export function diskToSquare(u: number, v: number): [number, number] {
+  const r2 = 2 * Math.SQRT2;
+  const a = 2 + u * u - v * v;
+  const b = 2 - u * u + v * v;
+  const x = 0.5 * Math.sqrt(Math.max(0, a + r2 * u)) - 0.5 * Math.sqrt(Math.max(0, a - r2 * u));
+  const y = 0.5 * Math.sqrt(Math.max(0, b + r2 * v)) - 0.5 * Math.sqrt(Math.max(0, b - r2 * v));
+  return [clamp(x, -1, 1), clamp(y, -1, 1)];
+}
+
+/** ねじって四角に叩きもどした棒の切り口の点（-1〜1）が、ねじる前にどこにあったか。th はその所の回った角度 */
+export function untwist(x: number, u: number, th: number): [number, number] {
+  // なめらかな見方（四角 → 円 → 回す → 四角）
+  const [dx, du] = squareToDisk(x, u);
+  const c = Math.cos(th);
+  const s = Math.sin(th);
+  const D = diskToSquare(dx * c + du * s, -dx * s + du * c);
+  // 角を残す見方（真ん中からの向きはそのままに、回った四角のふちを、四角のふちへ）：回った角が面に押しこまれて、層が折れ曲がる
+  const r = Math.hypot(x, u);
+  if (r < 1e-9) return [0, 0];
+  const phi = Math.atan2(u, x);
+  const rho = r * Math.max(Math.abs(Math.cos(phi)), Math.abs(Math.sin(phi)));
+  const a = phi - th;
+  const q = rho / Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a)));
+  // 2 つの間を取る（角だけだと折れ目がぎざぎざに、円だけだと木の目のように見えた）
+  const m = PATTERN_VALUES.twistCorner;
+  return [clamp(D[0] * (1 - m) + q * Math.cos(a) * m, -1, 1), clamp(D[1] * (1 - m) + q * Math.sin(a) * m, -1, 1)];
 }
 
 export interface Trace {
@@ -300,7 +357,8 @@ export function trace(sim: Sim, x: number, y: number, u: number): Trace {
   let px = x;
   let py = y;
   let uu = u;
-  const A = PATTERN_VALUES.wobble;
+  const A = PATTERN_VALUES.wobble.forge;
+  const Af = PATTERN_VALUES.wobble.flatten;
   for (let s = sim.stages.length - 1; s >= 0; s--) {
     const st = sim.stages[s];
     const { W, H } = st;
@@ -309,13 +367,13 @@ export function trace(sim: Sim, x: number, y: number, u: number): Trace {
       case "forge_thin": {
         const f = clampTo(op.ratio, PATTERN_LIMITS.ratio);
         const ws = st.waves!;
-        // のばす前の板では、層が少し波打っていた
-        uu = reflect01(uu + PATTERN_VALUES.layerWave.forge * Math.sqrt(f) * waveAt(ws[2], px / (W * (op.direction === "both" ? Math.sqrt(f) : 1)), py / W));
         if (op.direction === "length") py /= f;
         else {
           px /= Math.sqrt(f);
           py /= Math.sqrt(f);
         }
+        // のばす前の板で、層が少し波打っていた。それがのばされるので、波は、のばした向きに長くなる（丸いまだらにならない）
+        uu = reflect01(uu + PATTERN_VALUES.layerWave.forge * Math.sqrt(f) * waveAt(ws[2], px / W, py / W));
         px += A * W * waveAt(ws[0], px / W, py / W);
         py += A * W * waveAt(ws[1], px / W, py / W);
         break;
@@ -323,8 +381,8 @@ export function trace(sim: Sim, x: number, y: number, u: number): Trace {
       case "flatten": {
         const ws = st.waves!;
         uu = reflect01(uu + PATTERN_VALUES.layerWave.flatten * waveAt(ws[2], px / W, py / W));
-        px += A * W * waveAt(ws[0], px / W, py / W);
-        py += A * W * waveAt(ws[1], px / W, py / W);
+        px += Af * W * waveAt(ws[0], px / W, py / W);
+        py += Af * W * waveAt(ws[1], px / W, py / W);
         break;
       }
       case "fold": {
@@ -344,13 +402,13 @@ export function trace(sim: Sim, x: number, y: number, u: number): Trace {
       }
       case "twist": {
         const turns = clampTo(op.turns, PATTERN_LIMITS.turns);
-        const th = (2 * Math.PI * turns * py) / H;
-        const cx = px / W - 0.5;
-        const cu = uu - 0.5;
-        const c = Math.cos(th);
-        const sn = Math.sin(th);
-        px = reflect01(cx * c + cu * sn + 0.5) * W;
-        uu = reflect01(-cx * sn + cu * c + 0.5);
+        // 四角い棒の切り口は、ねじると回る。そのあと四角に叩きもどすので、回った四角の角が内へ押しこまれる。
+        // それを「四角 → 円 → 回す → 四角」で近づける（角を折り返すと、木の目のような流れになってしまった。2026-11-07）
+        const bar = PATTERN_VALUES.twistBar;
+        const [ox, ou] = untwist(2 * (px / W) - 1, 2 * uu - 1, (2 * Math.PI * turns * py) / (H * bar));
+        px = clamp((ox + 1) / 2, 0, 0.999999) * W;
+        uu = clamp((ou + 1) / 2, 0, 0.999999);
+        py /= bar;
         break;
       }
       case "carve": {
@@ -367,9 +425,11 @@ export function trace(sim: Sim, x: number, y: number, u: number): Trace {
       case "rearrange": {
         const n = Math.round(clampTo(op.pieces, PATTERN_LIMITS.pieces));
         if (op.mode === "edge_up") {
-          const xn = clamp(px / W, 0, 0.999999);
-          px = uu * W;
-          uu = xn;
+          // 重ねた塊を n 本に切り、1 本ずつ横に倒して並べる：どの 1 本にも、すべての層が縞になって出る
+          const xn = clamp(px / W, 0, 0.999999) * n;
+          const i = Math.floor(xn);
+          px = ((i + uu) / n) * W;
+          uu = clamp(xn - i, 0, 0.999999);
         } else if (op.mode === "strips") {
           const i = Math.floor(clamp(px / W, 0, 0.999999) * n);
           if (i % 2 === 1) {
@@ -427,11 +487,15 @@ export interface Surface {
   layer: Uint16Array;
   /** こまごとの、層がはがれて口を開けた所（1） */
   defect: Uint8Array;
+  /** こまごとの、はじめの板の中の深さ × 枚数（層の番号の、切れ目のない値。細い層をなめらかに描くため） */
+  s: Float32Array;
 }
+
+const newSurface = (n: number): Surface => ({ n, layer: new Uint16Array(n * n), defect: new Uint8Array(n * n), s: new Float32Array(n * n) });
 
 /** 最後の板の見る所を、上から n × n のこまで見る */
 export function surface(sim: Sim, n: number): Surface {
-  const out: Surface = { n, layer: new Uint16Array(n * n), defect: new Uint8Array(n * n) };
+  const out = newSurface(n);
   surfaceRows(sim, out, 0, n);
   return out;
 }
@@ -444,6 +508,7 @@ export function surfaceRows(sim: Sim, out: Surface, j0: number, j1: number): voi
     for (let i = 0; i < n; i++) {
       const t = trace(sim, x0 + ((i + 0.5) / n) * size, y0 + ((j + 0.5) / n) * size, 0);
       const s = t.u0 * sim.count;
+      out.s[j * n + i] = s;
       layer[j * n + i] = layerOf(sim, t.u0);
       const k = Math.ceil(s);
       defect[j * n + i] = k - s < PATTERN_VALUES.openDepth && unbondedAt(sim, k, t.x0, t.y0) ? 1 : 0;
@@ -460,6 +525,8 @@ export interface Section {
   w: number;
   h: number;
   cells: Int16Array;
+  /** こまごとの、層の番号の切れ目のない値（空気とはがれは NaN） */
+  s: Float32Array;
 }
 
 /** 見る所の真ん中（または row：見る所の上から 0〜1）を、幅の向きに切った断面。上が表 */
@@ -494,6 +561,7 @@ export function sectionRow(sim: Sim): number {
 
 export function section(sim: Sim, w: number, h: number, row = 0.5): Section {
   const cells = new Int16Array(w * h).fill(AIR);
+  const sv = new Float32Array(w * h).fill(NaN);
   const { x0, y0, size } = sim.view;
   const y = y0 + row * size;
   // 平らにしていない最後の彫り（表に凹凸が残る）
@@ -508,10 +576,12 @@ export function section(sim: Sim, w: number, h: number, row = 0.5): Section {
       const t = trace(sim, x, y, u);
       const s = t.u0 * sim.count;
       const k = Math.round(s);
-      cells[j * w + i] = Math.abs(s - k) < 0.12 && unbondedAt(sim, k, t.x0, t.y0) ? GAP : layerOf(sim, t.u0);
+      const gap = Math.abs(s - k) < 0.12 && unbondedAt(sim, k, t.x0, t.y0);
+      cells[j * w + i] = gap ? GAP : layerOf(sim, t.u0);
+      if (!gap) sv[j * w + i] = s;
     }
   }
-  return { w, h, cells };
+  return { w, h, cells, s: sv };
 }
 
 // ---- 比べるための数 ----
@@ -543,13 +613,16 @@ export function defectShare(s: Surface): number {
 }
 
 // ---- 絵（画面とファイルで同じ） ----
+// 細い層が画素より細かいと、こまごとに 1 つの層の色を取るだけでは、ざらついた縞になる（霞刃の小刀で見えた。2026-11-07）。
+// そこで、となりのこまとの層の番号の差から「1 つの画素に何枚の層が入るか」を出し、その幅の層の色を平均する（なめらかな線と、中間の色になる）。
+// 四角を並べたさかいのように、層の番号が飛ぶ所は、差の小さい側を使って、さかいをぼかさない。
 
-function hexRgb(c: string): [number, number, number] {
+export function hexRgb(c: string): [number, number, number] {
   const v = parseInt(c.slice(1), 16);
   return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
 }
 
-/** 決まった細かいざらつき（金属の地の手ざわり） */
+/** 決まった細かいざらつき（金属の地の手ざわり。-1〜1） */
 function grain(i: number, j: number): number {
   let h = (i * 374761393 + j * 668265263) | 0;
   h = Math.imul(h ^ (h >>> 13), 1274126177);
@@ -563,34 +636,128 @@ export interface Rgba {
   data: Uint8ClampedArray;
 }
 
-/** 上から見た面の絵（n × n）。ss 倍の細かさで計算して平均する（細かい層が、ぎざぎざの縞にならないように） */
+/** 層ごとの色を、幅をもって平均できる形にしたもの */
+export interface LayerRamp {
+  n: number;
+  /** 層ごとの色（r, g, b の順） */
+  cols: Float32Array;
+  /** 0〜k-1 番の層の色の和（r, g, b の順。k = 0〜n） */
+  pre: Float64Array;
+}
+
+export function layerRamp(colors: readonly (readonly number[])[]): LayerRamp {
+  const n = colors.length;
+  const cols = new Float32Array(n * 3);
+  const pre = new Float64Array((n + 1) * 3);
+  for (let k = 0; k < n; k++) {
+    for (let c = 0; c < 3; c++) {
+      cols[k * 3 + c] = colors[k][c];
+      pre[(k + 1) * 3 + c] = pre[k * 3 + c] + colors[k][c];
+    }
+  }
+  return { n, cols, pre };
+}
+
+/** 層の番号の値 x までの色の和（板の外は、いちばん外の層の色が続くとする） */
+function rampSum(r: LayerRamp, x: number, c: number): number {
+  const n = r.n;
+  if (x <= 0) return x * r.cols[c];
+  if (x >= n) return r.pre[n * 3 + c] + (x - n) * r.cols[(n - 1) * 3 + c];
+  const k = Math.floor(x);
+  return r.pre[k * 3 + c] + (x - k) * r.cols[k * 3 + c];
+}
+
+/** 層の番号の値 s を真ん中に、幅 w（層の数）の色の平均。w がごく小さければ、その層の色。out に r, g, b */
+export function rampColor(r: LayerRamp, s: number, w: number, out: number[]): void {
+  if (!(w > 0.02)) {
+    const k = Math.min(r.n - 1, Math.max(0, Math.floor(s)));
+    out[0] = r.cols[k * 3];
+    out[1] = r.cols[k * 3 + 1];
+    out[2] = r.cols[k * 3 + 2];
+    return;
+  }
+  const lo = s - w / 2;
+  const hi = s + w / 2;
+  for (let c = 0; c < 3; c++) out[c] = (rampSum(r, hi, c) - rampSum(r, lo, c)) / w;
+}
+
+/**
+ * こま (i, j) の 1 つの中に入る層の幅（層の数）。となりのこまとの差を、左右（上下）の小さい方で取る
+ * （層の番号が飛ぶさかいでは、飛んだ側を使わないので、さかいがぼけない）。NaN（空気など）のこまは使わない。
+ */
+export function footprint(S: Float32Array, w: number, h: number, i: number, j: number): number {
+  const s = S[j * w + i];
+  if (!Number.isFinite(s)) return 0;
+  const side = (a: number, b: number) => {
+    const da = Number.isFinite(a) ? Math.abs(a - s) : Infinity;
+    const db = Number.isFinite(b) ? Math.abs(b - s) : Infinity;
+    const m = Math.min(da, db);
+    return m === Infinity ? 0 : m;
+  };
+  const gx = side(i > 0 ? S[j * w + i - 1] : NaN, i < w - 1 ? S[j * w + i + 1] : NaN);
+  const gy = side(j > 0 ? S[(j - 1) * w + i] : NaN, j < h - 1 ? S[(j + 1) * w + i] : NaN);
+  return Math.min(PATTERN_LOOK.maxSpan, gx + gy);
+}
+
+/** 層ごとの色（r, g, b）。1 枚ずつの板の、わずかな色のちがいも入れる（同じたねなら同じ） */
+export function layerTones(sim: Sim): [number, number, number][] {
+  return layerColors(sim).map((c, k) => {
+    const f = 1 + PATTERN_LOOK.layerTone * (2 * hash(k, 0, 21, sim.seed) - 1);
+    const [r, g, b] = hexRgb(c);
+    return [r * f, g * f, b * f];
+  });
+}
+
+/** 上から見た面の絵（n × n）。ss 倍の細かさで計算して平均する */
 export function surfaceImage(sim: Sim, n: number, ss = 1): Rgba {
   const surf = surface(sim, n * ss);
   return paintSurface(sim, surf, n, ss);
 }
 
-/** surfaceImage を、行ごとに pause をはさんで計算する（画面が固まらないように）。stop が true を返したら null */
-export async function surfaceImageAsync(sim: Sim, n: number, ss: number, pause: () => Promise<void>, stop: () => boolean = () => false): Promise<Rgba | null> {
+/** 上から見た面の帯（見る所の上から band[0]〜band[1] の行だけ）を描く範囲。n × n の絵の、j0〜j1 行 */
+export function bandRows(n: number, band: readonly [number, number] = [0, 1]): [number, number] {
+  const j0 = Math.max(0, Math.min(n - 1, Math.floor(band[0] * n)));
+  return [j0, Math.max(j0 + 1, Math.min(n, Math.ceil(band[1] * n)))];
+}
+
+/**
+ * surfaceImage を、行ごとに pause をはさんで計算する（画面が固まらないように）。stop が true を返したら null。
+ * band を渡すと、見る所の上から band[0]〜band[1] の帯だけを描く（幅 n、高さは帯の分。光の当たり方は n × n の絵と同じ）
+ */
+export async function surfaceImageAsync(
+  sim: Sim,
+  n: number,
+  ss: number,
+  pause: () => Promise<void>,
+  stop: () => boolean = () => false,
+  band: readonly [number, number] = [0, 1],
+): Promise<Rgba | null> {
   const N = n * ss;
-  const surf: Surface = { n: N, layer: new Uint16Array(N * N), defect: new Uint8Array(N * N) };
+  const surf = newSurface(N);
+  const [j0, j1] = bandRows(n, band);
+  // 帯の外の 1 行も計算する（層の幅を、となりのこまとの差で出すため）
+  const J0 = Math.max(0, j0 * ss - 1);
+  const J1 = Math.min(N, j1 * ss + 1);
   const chunk = Math.max(4, Math.round(24000 / N));
-  for (let j = 0; j < N; j += chunk) {
-    surfaceRows(sim, surf, j, j + chunk);
+  for (let j = J0; j < J1; j += chunk) {
+    surfaceRows(sim, surf, j, Math.min(J1, j + chunk));
     await pause();
     if (stop()) return null;
   }
-  return paintSurface(sim, surf, n, ss);
+  return paintSurface(sim, surf, n, ss, j0, j1);
 }
 
-function paintSurface(sim: Sim, surf: Surface, n: number, ss: number): Rgba {
+function paintSurface(sim: Sim, surf: Surface, n: number, ss: number, j0 = 0, j1 = n): Rgba {
   const N = surf.n;
-  const cols = layerColors(sim).map(hexRgb);
+  const rows = j1 - j0;
+  const ramp = layerRamp(layerTones(sim));
   const gap = hexRgb(PATTERN_COLORS.gap);
   const inside = hexRgb(PATTERN_COLORS.gapInside);
-  const data = new Uint8ClampedArray(n * n * 4);
+  const base = new Float32Array(n * rows * 3);
   const def = (i: number, j: number) => i >= 0 && j >= 0 && i < N && j < N && surf.defect[j * N + i] === 1;
   const k = ss * ss;
-  for (let j = 0; j < n; j++) {
+  const c = [0, 0, 0];
+  for (let j = j0; j < j1; j++) {
     for (let i = 0; i < n; i++) {
       let r = 0;
       let g = 0;
@@ -599,42 +766,104 @@ function paintSurface(sim: Sim, surf: Surface, n: number, ss: number): Rgba {
         for (let di = 0; di < ss; di++) {
           const I = i * ss + di;
           const J = j * ss + dj;
-          let c: readonly number[];
-          if (def(I, J)) c = !def(I - ss, J) || !def(I + ss, J) || !def(I, J - ss) || !def(I, J + ss) ? gap : inside;
-          else c = cols[surf.layer[J * N + I]];
+          if (def(I, J)) {
+            const e = !def(I - ss, J) || !def(I + ss, J) || !def(I, J - ss) || !def(I, J + ss) ? gap : inside;
+            c[0] = e[0];
+            c[1] = e[1];
+            c[2] = e[2];
+          } else rampColor(ramp, surf.s[J * N + I], footprint(surf.s, N, N, I, J), c);
           r += c[0];
           g += c[1];
           b += c[2];
         }
       }
-      const s = (1 + 0.045 * grain(i, j)) / k;
-      const o = 4 * (j * n + i);
-      data[o] = r * s;
-      data[o + 1] = g * s;
-      data[o + 2] = b * s;
-      data[o + 3] = 255;
+      const o = 3 * ((j - j0) * n + i);
+      base[o] = r / k;
+      base[o + 1] = g / k;
+      base[o + 2] = b / k;
     }
   }
-  return { w: n, h: n, data };
+  return lightSurface(base, n, sim.color, j0, j1);
 }
 
-/** 断面の絵（w × h）。空気は透明 */
-export function sectionImage(sim: Sim, w: number, h: number, row = 0.5): Rgba {
-  const sec = section(sim, w, h, row);
-  const cols = layerColors(sim).map(hexRgb);
+/**
+ * 磨いた金属の面に、光をのせる：左上からの光と右下の陰、やわらかな照り、地のざらつき。
+ * 酸で地を出したときは、明るい層がわずかに高く残るので、そのふちに陰と光をつける。
+ */
+function lightSurface(base: Float32Array, n: number, kind: ColorKind, j0: number, j1: number): Rgba {
+  const L = PATTERN_LOOK;
+  const rows = j1 - j0;
+  const data = new Uint8ClampedArray(n * rows * 4);
+  const lum = (i: number, j: number) => {
+    const o = 3 * (Math.min(rows - 1, Math.max(0, j)) * n + Math.min(n - 1, Math.max(0, i)));
+    return (0.299 * base[o] + 0.587 * base[o + 1] + 0.114 * base[o + 2]) / 255;
+  };
+  for (let j = 0; j < rows; j++) {
+    for (let i = 0; i < n; i++) {
+      const x = (i + 0.5) / n;
+      const y = (j0 + j + 0.5) / n;
+      const t = (x + y) / 2;
+      let f = t < 0.5 ? 1 + L.light * (1 - 2 * t) : 1 - L.shadow * (2 * t - 1);
+      if (kind === "etch") f += L.relief * 0.5 * (lum(i + 1, j) - lum(i - 1, j) + lum(i, j + 1) - lum(i, j - 1));
+      f *= 1 + L.grain * grain(i, j0 + j);
+      const add = 255 * L.sheen * Math.exp(-((x - 0.3) ** 2 + (y - 0.26) ** 2) / 0.08);
+      const o = 3 * (j * n + i);
+      const q = 4 * (j * n + i);
+      data[q] = base[o] * f + add;
+      data[q + 1] = base[o + 1] * f + add;
+      data[q + 2] = base[o + 2] * f + add * 0.96;
+      data[q + 3] = 255;
+    }
+  }
+  return { w: n, h: rows, data };
+}
+
+/** 断面の絵（w × h）。空気は透明。ss 倍の細かさで計算して平均する（彫った穴のふちが、ぎざぎざにならないように） */
+export function sectionImage(sim: Sim, w: number, h: number, row = 0.5, ss = 2): Rgba {
+  const W = w * ss;
+  const H = h * ss;
+  const sec = section(sim, W, H, row);
+  const ramp = layerRamp(layerTones(sim));
   const gap = hexRgb(PATTERN_COLORS.gap);
   const data = new Uint8ClampedArray(w * h * 4);
+  const c = [0, 0, 0];
   for (let j = 0; j < h; j++) {
     for (let i = 0; i < w; i++) {
-      const v = sec.cells[j * w + i];
-      if (v === AIR) continue;
+      let r = 0;
+      let g = 0;
+      let b = 0;
+      let m = 0;
+      for (let dj = 0; dj < ss; dj++) {
+        for (let di = 0; di < ss; di++) {
+          const I = i * ss + di;
+          const J = j * ss + dj;
+          const v = sec.cells[J * W + I];
+          if (v === AIR) continue;
+          if (v === GAP) {
+            c[0] = gap[0];
+            c[1] = gap[1];
+            c[2] = gap[2];
+          } else {
+            rampColor(ramp, sec.s[J * W + I], footprint(sec.s, W, H, I, J), c);
+            // 上の面（空気に接する所）に細い光
+            const rim = J === 0 || sec.cells[(J - 1) * W + I] === AIR ? 1.22 : 1;
+            c[0] *= rim;
+            c[1] *= rim;
+            c[2] *= rim;
+          }
+          r += c[0];
+          g += c[1];
+          b += c[2];
+          m++;
+        }
+      }
+      if (!m) continue;
       const o = 4 * (j * w + i);
-      const s = 1.04 - 0.08 * (j / h) + 0.035 * grain(i, j);
-      const c = v === GAP ? gap : cols[v].map((x) => x * s);
-      data[o] = c[0];
-      data[o + 1] = c[1];
-      data[o + 2] = c[2];
-      data[o + 3] = 255;
+      const f = (1.05 - 0.1 * (j / h)) * (1 + 0.03 * grain(i, j));
+      data[o] = (r / m) * f;
+      data[o + 1] = (g / m) * f;
+      data[o + 2] = (b / m) * f;
+      data[o + 3] = Math.round((255 * m) / (ss * ss));
     }
   }
   return { w, h, data };

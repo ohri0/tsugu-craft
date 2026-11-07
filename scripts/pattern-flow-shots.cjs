@@ -1,21 +1,21 @@
-// 途切れた技の流れを、架空の技「雨垂れ銀」で、はじめから撮る（docs/pattern-demo/flow-*.png）。
-// 空の一覧 → 名前を入れる → 手がかりを入れる → Claude の案（帳面から の印） → 模様の見込み（段が 1 つずつ） → 試した結果 → 案 2 → 見込み 2 と比べる。
-// Claude の返事は、scripts/pattern-demo.ts が本物の Claude から受け取って残したもの（docs/pattern-demo/cases/amadare.replies.json）を、同じ順で返す。
-// 開発用のサーバーを立てて（npx vite --port 5197）、node scripts/pattern-flow-shots.cjs [URL の頭]
+// 途切れた技の流れを、架空の技で、はじめから撮る。
+// 空の一覧 → 名前を入れる → 手がかりを入れる → Claude の案（帳面から の印） → 模様の見込み（段が 1 つずつ） → 出来上がり
+// 試した結果のある技（雨垂れ銀）は、さらに → 試した結果 → 結果を入れて見込み 1 を作り直す → 案 2 → 見込み 2 と比べる → 技の一覧。
+// Claude の返事は、scripts/pattern-demo.ts が本物の Claude から受け取って残したもの（docs/pattern-demo/cases/<id>.replies.json）を、同じ順で返す。
+// 手がかりと試した結果は、同じときに残した記録（cases/<id>.json）から読む（同じ順で入れると、返事の番号 C1〜 が合う）。
+// 開発用のサーバーを立てて（npx vite --port 5197）、node scripts/pattern-flow-shots.cjs [URL の頭] [技の id（はじめは amadare）]
+// 出すもの：雨垂れ銀は docs/pattern-demo/flow-*.png、ほかの技は docs/pattern-demo/<id>-flow-*.png
 const { chromium } = require('playwright');
 const fs = require('fs');
 
 const BASE = process.argv[2] || 'http://localhost:5197';
+const ID = process.argv[3] || 'amadare';
 const OUT = 'docs/pattern-demo';
-const replies = JSON.parse(fs.readFileSync(`${OUT}/cases/amadare.replies.json`, 'utf8'));
-// scripts/pattern-cases.ts の「雨垂れ銀」と同じ手がかり（同じ順で入れると、返事の番号 C1〜C4 が合う）
-const CLUES = [
-  { kind: 'object', title: '表の目', text: '【架空】小さな板の表に、雨のしずくが落ちたような丸い目が、ほぼ同じ間で並ぶ。目の中は、黒・白・赤の輪が重なって見える。', source: '架空の持ち主の話' },
-  { kind: 'object', title: '裏は平ら', text: '【架空】板の裏は平らで、打った跡も穴の跡もない。', source: '架空の持ち主の話' },
-  { kind: 'record', title: '古い覚え書き', text: '【架空】「赤銅、銀、銅を重ね、火にて一つとなし、錐にて浅く穴を穿ち、打ち平む。のち煮て色を揚ぐ」とある。穴の深さと間は書かれていない。', source: '架空の蔵の覚え書き' },
-  { kind: 'opinion', title: '輪の数の見立て', text: '【架空】穴の深さで、見える輪の数が変わるのではないか。', source: '職人の見立て（架空）' },
-];
-const TRIAL = '【架空】小さな切れ端で試した。浅い穴では、黒と白の輪しか出ず、赤い輪が出なかった。もう少し深くあけた所だけ、赤い輪が出た。';
+const PREFIX = ID === 'amadare' ? 'flow' : `${ID}-flow`;
+const replies = JSON.parse(fs.readFileSync(`${OUT}/cases/${ID}.replies.json`, 'utf8'));
+const saved = JSON.parse(fs.readFileSync(`${OUT}/cases/${ID}.json`, 'utf8')).project;
+const CLUES = saved.clues;
+const TRIAL = saved.results[0];
 
 (async () => {
   const b = await chromium.launch();
@@ -36,11 +36,16 @@ const TRIAL = '【架空】小さな切れ端で試した。浅い穴では、�
   let n = 0;
   const shot = async (name, full = true) => {
     n++;
-    const file = `${OUT}/flow-${String(n).padStart(2, '0')}.png`;
+    const file = `${OUT}/${PREFIX}-${String(n).padStart(2, '0')}.png`;
     // 頁全体を撮るときは、上の帯が途中に写らないよう、いちばん上から
     if (full) await p.evaluate(() => window.scrollTo(0, 0));
     await p.screenshot({ path: file, fullPage: full });
     console.log(file, name);
+  };
+  /** 模様の見込みの頁で、段が出そろい、出来上がりの絵が描けるまで待つ */
+  const finalReady = async () => {
+    await p.waitForSelector('.pv.on-final', { timeout: 60000 });
+    await p.waitForTimeout(2500);
   };
 
   await p.goto(`${BASE}/app.html#waza/restore`);
@@ -48,7 +53,7 @@ const TRIAL = '【架空】小さな切れ端で試した。浅い穴では、�
   await shot('空の一覧');
 
   await p.click('.rs-new-open');
-  await p.fill('.rs-new-name', '雨垂れ銀');
+  await p.fill('.rs-new-name', saved.name);
   await shot('技の名前を入れる', false);
   await p.click('.rs-new button[type=submit]');
   await p.waitForSelector('.rs-text');
@@ -63,7 +68,7 @@ const TRIAL = '【架空】小さな切れ端で試した。浅い穴では、�
     await p.click('.rs-add-go');
     await p.waitForFunction((k) => document.querySelectorAll('.rs-fact').length === k, i + 1);
   }
-  await shot('手がかりを 4 つ入れた');
+  await shot(`手がかりを ${CLUES.length} つ入れた`);
 
   await p.click('.rs-next-go');
   await p.waitForTimeout(500);
@@ -75,32 +80,46 @@ const TRIAL = '【架空】小さな切れ端で試した。浅い穴では、�
   await p.click('.rs-moyou-go');
   await p.waitForSelector('.pv-stage');
   await p.waitForSelector('.pv-stage:nth-child(3).on', { timeout: 30000 });
-  await shot('模様の見込み：段が 1 つずつ現れる', false);
-  await p.waitForSelector('.pv.on-final', { timeout: 30000 });
-  await p.waitForTimeout(1200);
-  await shot('模様の見込み 1：出来上がり');
-
-  await p.click('.pv-back');
-  await p.waitForSelector('.rs-flow');
-  await p.click('.rs-flow [data-view="3"]');
-  // 「穴」の手順（なければ最初）に「だめだった」と、職人の言葉を入れる
-  const holeIndex = await p.$$eval('.rs-try h4', (hs) => Math.max(0, hs.findIndex((h) => /穴/.test(h.textContent))));
-  await p.click(`.rs-try:nth-child(${holeIndex + 1}) [data-o="ng"]`);
-  const field = `.rs-try:nth-child(${holeIndex + 1}) .rs-note-field`;
-  await p.fill(field, TRIAL);
-  await p.$eval(field, (el) => el.blur());
-  await p.waitForTimeout(600);
-  await shot('試した結果を入れる');
-
-  await p.click('.rs-next-go');
-  await p.waitForSelector('.rs-pill.changed, .rs-pill.new', { timeout: 30000 });
   await p.waitForTimeout(800);
-  await shot('Claude の案 2（結果から変えた所）');
+  await shot('見込み：段が 1 つずつ現れる', false);
+  await finalReady();
+  await shot('見込み 1：出来上がり');
 
-  await p.click('.rs-moyou-go');
-  await p.waitForSelector('.pv.on-final', { timeout: 60000 });
-  await p.waitForTimeout(1500);
-  await shot('模様の見込み 2：前の案と並べる');
+  if (TRIAL) {
+    const projectHash = (await p.evaluate(() => location.hash)).replace(/\/moyou.*$/, '');
+    await p.click('.pv-back');
+    await p.waitForSelector('.rs-flow');
+    await p.click('.rs-flow [data-view="3"]');
+    // 試した手順（題の言葉で探す。なければ最初）に、結果と職人の言葉を入れる
+    const title = TRIAL.stepTitle;
+    const idx = await p.$$eval('.rs-try h4', (hs, t) => Math.max(0, hs.findIndex((h) => h.textContent.includes(t))), title);
+    await p.click(`.rs-try:nth-child(${idx + 1}) [data-o="${TRIAL.outcome}"]`);
+    const field = `.rs-try:nth-child(${idx + 1}) .rs-note-field`;
+    await p.fill(field, TRIAL.note);
+    await p.$eval(field, (el) => el.blur());
+    await p.waitForTimeout(600);
+    await shot('試した結果を入れる');
+
+    // 結果を入れて、案 1 の見込みを作り直す（絵が結果に合う）
+    await p.evaluate((h) => (location.hash = `${h}/moyou/1`), projectHash);
+    await p.waitForSelector('.pv-again');
+    await p.click('.pv-again');
+    await p.waitForSelector('.pv-again:not([disabled])', { timeout: 60000 });
+    await finalReady();
+    await shot('結果を入れて、見込み 1 を作り直した');
+
+    await p.click('.pv-back');
+    await p.waitForSelector('.rs-flow');
+    await p.click('.rs-flow [data-view="3"]');
+    await p.click('.rs-next-go');
+    await p.waitForSelector('.rs-pill.changed, .rs-pill.new', { timeout: 30000 });
+    await p.waitForTimeout(800);
+    await shot('Claude の案 2（結果から変えた所）');
+
+    await p.click('.rs-moyou-go');
+    await finalReady();
+    await shot('見込み 2：前の案と並べる');
+  }
 
   await p.goto(`${BASE}/app.html#waza`);
   await p.waitForTimeout(800);

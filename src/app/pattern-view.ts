@@ -1,12 +1,15 @@
-// 模様の見込み（#waza/restore/<記録の id>/moyou/<案の番号>）：途切れた技の案の手順のとおりに作ると、どんな模様になるか。
+// 模様の見込み（#waza/restore/<記録の id>/moyou/<案の番号>）：途切れた技の案の手順のとおりに作ると、どんな模様・見た目になるか。
 // 手順は、入れたことと職人の帳面から Claude が推し量った案。それを Claude が計算の操作に置きかえ（predict_pattern。src/rebuild/pattern-tools.ts）、
-// 計算（src/rebuild/pattern-sim.ts）が、重ねた層がどう動くかを形だけで描く。金属の本当の流れや熱は計算しない。
-// 見た目は、木目金の模様の試し（src/app/moyou-view.ts）にそろえる：段が 1 つずつ現れ（① 重ねる → … → 色を出す）、最後に表と断面。前の案の見込みがあれば並べる。
-// 重ねた層の模様の技でなければ、Claude はそう答え、絵は描かない。
+// 計算が形だけで描く。重ねる技は層の動き（src/rebuild/pattern-sim.ts）、重ねない技は 1 枚の板の表の凹凸と材料（src/rebuild/pattern-relief.ts）。
+// 見た目は、木目金の模様の試し（src/app/moyou-view.ts）にそろえる：段が 1 つずつ現れ（同じ間・同じ字）、どの段も「横から見た切り口」と「上から見た面」。
+// 最後に、出来上がりの面を大きく、前の案の見込みがあれば同じ大きさで並べ、断面も並べる。
+// →・スペースで 1 段ずつ、← で戻る、R ではじめから、P で順に見る。
+// 合う計算が無い技は、Claude がそう答え、絵は描かない。
 import "./moyou.css";
 import "./pattern.css";
-import { bondOf, buildSim, sectionImage, sectionRow, surfaceImage, surfaceImageAsync, type Rgba } from "../rebuild/pattern-sim";
-import { opWords, parsePattern, patternPrompt, patternRequest, PREDICT_PATTERN, toPatternOps, TOOL_OP_LABEL, type PatternPrediction, type PatternRecord } from "../rebuild/pattern-tools";
+import { modelOf, type PatternModel } from "../rebuild/pattern-model";
+import type { Rgba } from "../rebuild/pattern-sim";
+import { opWords, parsePattern, patternContext, patternPrompt, patternRequest, PREDICT_PATTERN, TOOL_OP_LABEL, type PatternPrediction, type PatternRecord } from "../rebuild/pattern-tools";
 import { namesOf, plainWords, setPattern, withoutMark, type RestorePlan, type RestoreProject } from "../rebuild/restore";
 import { callTool, type CallToolResult } from "../rebuild/run";
 import { askPassword, resetPassword } from "./password";
@@ -16,18 +19,21 @@ import { esc, store, today } from "./store";
 const CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳";
 /** 絵のたね（同じ技なら、案が変わっても同じ所に穴があく。ちがいが手順のちがいだけから出るように） */
 const SEED = 7;
+/** 段を見せる間（木目金の模様の試しと同じ） */
+const STEP_MS = 1900;
+const FINAL_MS = 2400;
 
 /** 頼んでいる最中の案（記録の id:案の番号） */
 const inFlight = new Set<string>();
 
 export const patternHash = (projectId: string, version: number) => `#waza/restore/${projectId}/moyou/${version}`;
 
-/** Claude に、案の手順を模様の操作に置きかえてもらう */
+/** Claude に、案の手順を模様の操作に置きかえてもらう。前の案の見込み（仮の値をそろえる）と、試した結果（絵を合わせる）も添える */
 export function predictFor(p: RestoreProject, plan: RestorePlan, password: string): Promise<CallToolResult<PatternPrediction>> {
   const names = namesOf(p, plan);
   return callTool({
     system: patternPrompt(),
-    user: patternRequest(p.name, plan, (s) => plainWords(s, names)),
+    user: patternRequest(p.name, plan, (s) => plainWords(s, names), patternContext(p, plan)),
     tool: PREDICT_PATTERN,
     parse: (x) => parsePattern(x, { steps: plan.steps.length }),
     password,
@@ -65,13 +71,85 @@ export function putImage(c: HTMLCanvasElement, img: Rgba) {
   c.getContext("2d")!.putImageData(new ImageData(img.data as unknown as Uint8ClampedArray<ArrayBuffer>, img.w, img.h), 0, 0);
 }
 
-/** 案の欄に出す小さな絵（すぐ描ける大きさ） */
+const pause = () => new Promise<void>((r) => setTimeout(r, 0));
+
+/** 案の欄に出す小さな絵 */
 export function drawThumb(c: HTMLCanvasElement, pred: PatternPrediction) {
   if (!pred.applicable) return;
-  putImage(c, surfaceImage(buildSim(toPatternOps(pred), SEED), 96, 1));
+  void modelOf(pred, SEED)
+    .top(96, 1, pause)
+    .then((img) => img && putImage(c, img));
 }
 
-const pause = () => new Promise<void>((r) => setTimeout(r, 0));
+function dpr(): number {
+  return Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+}
+
+/** canvas の画素を、見えている大きさ × 画面の細かさに合わせる */
+function fit(c: HTMLCanvasElement): { w: number; h: number; ctx: CanvasRenderingContext2D } {
+  const r = c.getBoundingClientRect();
+  const k = dpr();
+  const w = Math.max(40, Math.round(r.width * k));
+  const h = Math.max(20, Math.round(r.height * k));
+  if (c.width !== w) c.width = w;
+  if (c.height !== h) c.height = h;
+  return { w, h, ctx: c.getContext("2d")! };
+}
+
+function toCanvas(img: Rgba): HTMLCanvasElement {
+  const t = document.createElement("canvas");
+  t.width = img.w;
+  t.height = img.h;
+  t.getContext("2d")!.putImageData(new ImageData(img.data as unknown as Uint8ClampedArray<ArrayBuffer>, img.w, img.h), 0, 0);
+  return t;
+}
+
+/** 断面を、上下に少し余白をとって描く（板が帯に見えるように） */
+function drawSection(c: HTMLCanvasElement | null, m: PatternModel, row: number, fill: number) {
+  if (!c?.isConnected) return;
+  const { w, h, ctx } = fit(c);
+  const band = Math.max(8, Math.round(h * fill));
+  const img = m.section(w, band, row, dpr() >= 2 ? 1 : 2);
+  ctx.clearRect(0, 0, w, h);
+  ctx.drawImage(toCanvas(img), 0, Math.round((h - band) / 2));
+}
+
+/** 上から見た面（canvas の形に合わせて、断面の行のまわりの帯を切り出す）。断面を切った所に、細い印 */
+async function drawTop(c: HTMLCanvasElement | null, m: PatternModel, row: number, alive: () => boolean, mark: "line" | "ticks" | "none") {
+  if (!c?.isConnected) return;
+  const { w, h } = fit(c);
+  const n = w;
+  const span = h / w;
+  let b0 = row - span / 2;
+  b0 = Math.max(0, Math.min(1 - span, b0));
+  const ss = n > 500 || dpr() >= 2 ? 1 : 2;
+  const img = await m.top(n, ss, pause, () => !alive(), span >= 1 ? [0, 1] : [b0, b0 + span]);
+  if (!img || !alive()) return;
+  const ctx = c.getContext("2d")!;
+  ctx.clearRect(0, 0, w, h);
+  ctx.drawImage(toCanvas(img), 0, 0, w, Math.round((img.h * w) / img.w));
+  const y = Math.round((row - (span >= 1 ? 0 : b0)) * n) + 0.5;
+  ctx.save();
+  ctx.strokeStyle = "rgba(240, 217, 176, 0.75)";
+  ctx.lineWidth = Math.max(1, dpr());
+  if (mark === "line") {
+    ctx.setLineDash([4 * dpr(), 4 * dpr()]);
+    ctx.globalAlpha = 0.6;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(w, y);
+    ctx.stroke();
+  } else if (mark === "ticks") {
+    const t = Math.round(w * 0.025);
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(t, y);
+    ctx.moveTo(w - t, y);
+    ctx.lineTo(w, y);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
 
 /** 今開いている頁の番号と、前の頁の片付け（案を切りかえると頁を作り直すので、前の頁の描きかけを止める） */
 let mounted = 0;
@@ -86,15 +164,46 @@ export function mountPatternView(root: HTMLElement, project: RestoreProject, ver
   const html = document.documentElement;
   html.classList.add("mo-page");
   let gen = 0;
-  let timers: number[] = [];
-  const stopTimers = () => {
-    timers.forEach((t) => clearTimeout(t));
-    timers = [];
+  /** 頁を描き直した回（絵の描きかけの gen とは別。ボタンの答えが、古い頁に届かないように） */
+  let renders = 0;
+  let timer = 0;
+  let step = 0;
+  let last = 0;
+  let redraw: () => void = () => undefined;
+  const alive = (g: number) => () => g === gen && me === mounted;
+  const stopTimer = () => {
+    clearTimeout(timer);
+    timer = 0;
+  };
+  const onKey = (e: KeyboardEvent) => {
+    if (me !== mounted || !root.querySelector(".pv-stage")) return;
+    if (e.target instanceof HTMLElement && /^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(e.target.tagName) && e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    if (e.key === "ArrowRight" || e.key === " ") {
+      e.preventDefault();
+      stopTimer();
+      go(step + 1);
+    } else if (e.key === "ArrowLeft") {
+      stopTimer();
+      go(step - 1);
+    } else if (e.key === "r" || e.key === "R" || e.key === "Home") {
+      stopTimer();
+      go(0);
+    } else if (e.key === "p" || e.key === "P") play();
+  };
+  let resizeTimer = 0;
+  let lastWidth = window.innerWidth;
+  const onResize = () => {
+    if (window.innerWidth === lastWidth) return;
+    lastWidth = window.innerWidth;
+    clearTimeout(resizeTimer);
+    resizeTimer = window.setTimeout(() => redraw(), 250);
   };
   const cleanup = () => {
     gen++;
-    stopTimers();
+    stopTimer();
     window.removeEventListener("hashchange", onHash);
+    window.removeEventListener("keydown", onKey);
+    window.removeEventListener("resize", onResize);
   };
   const onHash = () => {
     if (/\/moyou/.test(location.hash)) return;
@@ -103,22 +212,59 @@ export function mountPatternView(root: HTMLElement, project: RestoreProject, ver
   };
   cleanupPrev = cleanup;
   window.addEventListener("hashchange", onHash);
+  window.addEventListener("keydown", onKey);
+  window.addEventListener("resize", onResize);
 
   const unmark = (s: string) => (p.sample ? withoutMark(s) : s);
   const says = (s: string, v: RestorePlan) => esc(plainWords(unmark(s), namesOf(p, v)));
 
-  function basisOf(v: RestorePlan, step: number): string {
-    const s = v.steps[step - 1];
+  function basisOf(v: RestorePlan, stepNo: number): string {
+    const s = v.steps[stepNo - 1];
     if (!s) return `<p class="pv-basis is-added">案にない操作（絵を描くために Claude が足した）</p>`;
     if (s.basis === "prior") return `<p class="pv-basis is-prior">もとにしたもの：Claude がもともと知っていること</p>`;
     const book = (s.book_ids ?? []).map((b) => v.book.find((x) => x.id === b)?.title).filter(Boolean);
     return `${book.length ? `<p class="pv-basis is-book"><span class="rs-pill book">職人の帳面から</span>${esc(book.join("・"))}</p>` : ""}${s.clue_ids.length ? `<p class="pv-basis">もとにしたもの：入れたこと（${esc(s.clue_ids.map((id) => unmark(namesOf(p).get(id) ?? "入れたこと")).join("・"))}）</p>` : ""}`;
   }
 
+  /** 見えている段に合わせて印をつける（絵は描き直さない） */
+  function show() {
+    const sec = root.querySelector<HTMLElement>(".pv");
+    if (!sec) return;
+    const stages = [...root.querySelectorAll<HTMLElement>(".pv-stage")];
+    stages.forEach((s, i) => s.classList.toggle("on", step > i));
+    sec.classList.toggle("on-final", step >= last);
+    const count = root.querySelector(".pv-count");
+    const names = stages.map((s) => s.dataset.name ?? "");
+    if (count) count.textContent = step >= last ? "出来上がり" : step === 0 ? "はじめ" : `${CIRCLED[step - 1] ?? step} ${names[step - 1]}`;
+    const next = root.querySelector<HTMLButtonElement>(".pv-next");
+    if (next) next.disabled = step >= last;
+    const prev = root.querySelector<HTMLButtonElement>(".pv-prev");
+    if (prev) prev.disabled = step <= 0;
+  }
+
+  function go(n: number) {
+    step = Math.max(0, Math.min(last, n));
+    show();
+  }
+
+  /** はじめから順に（木目金の模様の試しと同じ間） */
+  function play() {
+    stopTimer();
+    go(0);
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) return go(last);
+    const tick = () => {
+      if (me !== mounted || !root.isConnected) return;
+      go(step + 1);
+      if (step < last) timer = window.setTimeout(tick, step === last - 1 ? FINAL_MS : STEP_MS);
+    };
+    timer = window.setTimeout(tick, 700);
+  }
+
   function render() {
     gen++;
-    stopTimers();
-    const my = gen;
+    stopTimer();
+    const my = ++renders;
     if (!plan) {
       root.innerHTML = `<section class="view moyou pv"><button type="button" class="rs-back pv-back">← 案にもどる</button><p class="rs-empty">まだ案がありません。</p></section>`;
       root.querySelector(".pv-back")!.addEventListener("click", opts.onBack);
@@ -134,34 +280,41 @@ export function mountPatternView(root: HTMLElement, project: RestoreProject, ver
       .find((x) => x.pattern?.prediction.applicable);
     const tabs = withPattern();
     const busy = patternBusy(p.id, v.version);
+    const ops = pred?.applicable ? pred.ops : [];
+    last = ops.length + 1;
+    const cols = ops.length <= 5 ? ops.length : Math.min(5, Math.ceil(ops.length / 2));
+    const surface = ops[0]?.op === "plate";
     root.innerHTML = `
     <section class="view moyou pv">
       <button type="button" class="rs-back pv-back">← 案にもどる</button>
       <header class="mo-head">
-        <p class="mo-eyebrow">模様の見込み ・ 形だけの計算（仮）${p.sample ? `<span class="rs-example pv-example">これは作り話の例です</span>` : ""}</p>
+        <p class="mo-eyebrow">${surface ? "見た目の見込み" : "模様の見込み"} ・ 形だけの計算（仮）${p.sample ? `<span class="rs-example pv-example">これは作り話の例です</span>` : ""}</p>
         <h2>「${esc(p.name)}」を、${n} 回目の案の手順で作ると</h2>
-        <p class="mo-lead">手順は、入れたこと${v.bookOn ? "と職人の帳面" : ""}から Claude が推し量った案です。Claude がその手順を計算の操作に置きかえ、重ねた層がどう動くかを形だけで描きました。<b>金属の本当の流れや熱は計算しません。数はどれも絵のための仮の値です。最後に決めるのは職人です。</b></p>
+        <p class="mo-lead">手順は、入れたこと${v.bookOn ? "と職人の帳面" : ""}から Claude が推し量った案です。Claude がその手順を計算の操作に置きかえ、${surface ? "1 枚の板の表がどう変わるか" : "重ねた層がどう動くか"}を形だけで描きました。<b>金属の本当の流れや熱は計算しません。数はどれも絵のための仮の値です。最後に決めるのは職人です。</b></p>
         ${tabs.length > 1 ? `<div class="mo-runs" role="radiogroup" aria-label="どの案の見込みか">${tabs.map((x) => `<button type="button" role="radio" aria-checked="${x === v}" data-v="${x.version}">${p.plans.indexOf(x) + 1} 回目の案</button>`).join("")}</div>` : ""}
       </header>
       ${
         !pred
-          ? `<div class="pv-none"><p>この案の手順では、まだ模様の見込みを作っていません。</p>
+          ? `<div class="pv-none"><p>この案の手順では、まだ見込みを作っていません。</p>
              <button type="button" class="primary rs-big pv-make"${busy ? " disabled" : ""}>${busy ? "Claude が考えています…" : "この手順で作ると、どんな模様になるか見る"}</button>
              <p class="pv-st" role="status"></p></div>`
           : !pred.applicable
             ? `<div class="pv-decline">
-                <p class="pv-decline-h">この技は、重ねた層の模様の技ではなさそうです。だから絵は描きません。</p>
+                <p class="pv-decline-h">この技は、この計算で描ける技ではなさそうです。だから絵は描きません。</p>
                 <p>Claude の答え：${says(pred.reason, v)}</p>
                 ${pred.cannot_show ? `<p class="pv-sub">この計算で表せないこと：${says(pred.cannot_show, v)}</p>` : ""}
-                <p class="pv-sub">この計算は、色のちがう材料を重ねて模様を出す技だけを描きます。合わない技を、無理に模様にはしません。</p>
+                <p class="pv-sub">この計算は、色のちがう材料を重ねて模様を出す技と、1 枚の板の表を彫る・打つ・透かす・はめるなどで飾る技を描きます。合わない技を、無理に絵にはしません。</p>
               </div>`
             : `
       <p class="pv-sum">${says(pred.summary, v)}</p>
-      <ol class="pv-stages">${pred.ops
+      <ol class="pv-stages" style="--pv-cols:${cols}">${ops
         .map(
-          (o, i) => `<li class="pv-stage" data-i="${i}">
-          <div class="mo-sh"><span class="mo-n">${CIRCLED[i] ?? i + 1}</span><b>${TOOL_OP_LABEL[o.op]}</b></div>
-          <canvas class="pv-sec" aria-label="${i + 1} 段目の断面"></canvas>
+          (o, i) => `<li class="pv-stage" data-i="${i}" data-name="${esc(TOOL_OP_LABEL[o.op].replace(/（.*）/, ""))}">
+          <div class="mo-sh"><span class="mo-n">${CIRCLED[i] ?? i + 1}</span><b>${esc(TOOL_OP_LABEL[o.op])}</b></div>
+          <div class="pv-pics">
+            <figure class="pv-pic"><canvas class="pv-sec" aria-label="${i + 1} 段目の、横から見た切り口"></canvas><figcaption>横から見た切り口</figcaption></figure>
+            <figure class="pv-pic"><canvas class="pv-face" aria-label="${i + 1} 段目の、上から見た面"></canvas><figcaption>上から見た面</figcaption></figure>
+          </div>
           <p class="pv-op">${esc(opWords(o))}</p>
           ${o.step ? `<p class="pv-from">手順 ${o.step}：${says(v.steps[o.step - 1]?.title ?? "", v)}</p>` : ""}
           ${basisOf(v, o.step)}
@@ -169,19 +322,25 @@ export function mountPatternView(root: HTMLElement, project: RestoreProject, ver
         </li>`,
         )
         .join("")}</ol>
-      <div class="mo-ctrl"><button type="button" class="ghost pv-replay">はじめから見る</button><span class="mo-count pv-count"></span></div>
+      <div class="mo-ctrl">
+        <button type="button" class="ghost pv-prev" aria-label="前の段">‹</button>
+        <span class="mo-count pv-count" aria-live="polite"></span>
+        <button type="button" class="primary pv-next">次へ</button>
+        <button type="button" class="ghost pv-play">順に見る</button>
+      </div>
       <div class="pv-final${prev ? "" : " no-prev"}">
-        <figure class="mo-big pv-big"><canvas class="pv-top" aria-label="上から見た面"></canvas>
-          <figcaption><b>${n} 回目の案の手順で</b><span>上から見た面（最後の色）</span></figcaption></figure>
+        <figure class="pv-big pv-now"><div class="pv-frame"><canvas class="pv-top" aria-label="出来上がりの、上から見た面"></canvas></div>
+          <figcaption><b>${n} 回目の案の手順で</b><span><small class="mo-sim">※ 計算で描いたシミュレーション</small>上から見た面（出来上がりの色）。左右の印は、下の断面を切った所</span></figcaption></figure>
         ${
           prev
-            ? `<figure class="mo-big pv-big pv-prev"><canvas class="pv-top-prev" aria-label="前の案の、上から見た面"></canvas>
-          <figcaption><b>前の案（${p.plans.indexOf(prev) + 1} 回目）の手順で</b><span>同じ計算・同じ穴の並びで描いた</span></figcaption></figure>`
+            ? `<figure class="pv-big pv-prev"><div class="pv-frame"><canvas class="pv-top-prev" aria-label="前の案の、上から見た面"></canvas></div>
+          <figcaption><b>前の案（${p.plans.indexOf(prev) + 1} 回目）の手順で</b><span><small class="mo-sim">※ 計算で描いたシミュレーション</small>同じ計算・同じたねで描いた。ちがいは手順のちがいだけから出る</span></figcaption></figure>`
             : ""
         }
-        <figure class="mo-big pv-big pv-secbig"><canvas class="pv-sec-final" aria-label="断面"></canvas>
-          <figcaption><b>断面</b><span>見る所の真ん中を、横から切った面。上が表。黄はつながらない所</span></figcaption>
-          ${prev ? `<canvas class="pv-sec-prev" aria-label="前の案の断面"></canvas><figcaption><span>前の案の断面</span></figcaption>` : ""}
+        <figure class="pv-big pv-secbig">
+          <div class="pv-secrow"><span class="pv-tag now">この案</span><canvas class="pv-sec-final" aria-label="断面"></canvas></div>
+          ${prev ? `<div class="pv-secrow"><span class="pv-tag">前の案</span><canvas class="pv-sec-prev" aria-label="前の案の断面"></canvas></div>` : ""}
+          <figcaption><b>断面</b><span>上の面の印の所を、横から切った面。上が表。厚みは大きくして描いた${surface ? "" : "。黄はつながらない所"}</span></figcaption>
         </figure>
       </div>
       ${prev ? `<div class="pv-diff"><b>前の案とのちがい</b>${diffList(prev.pattern!.prediction, pred)}</div>` : ""}
@@ -204,7 +363,7 @@ export function mountPatternView(root: HTMLElement, project: RestoreProject, ver
         btn.disabled = true;
         btn.textContent = "Claude が考えています…（1 分ほど）";
         const r = await makePattern(p, v.version);
-        if (my !== gen || me !== mounted) return;
+        if (my !== renders || me !== mounted) return;
         if (!r.ok) {
           btn.disabled = false;
           btn.textContent = sel === ".pv-make" ? "この手順で作ると、どんな模様になるか見る" : "この案で、見込みを作り直す";
@@ -216,67 +375,59 @@ export function mountPatternView(root: HTMLElement, project: RestoreProject, ver
         render();
       });
     }
-    if (pred?.applicable) void draw(my, v, pred, prev?.pattern?.prediction);
+    $(".pv-next")?.addEventListener("click", () => {
+      stopTimer();
+      go(step + 1);
+    });
+    $(".pv-prev")?.addEventListener("click", () => {
+      stopTimer();
+      go(step - 1);
+    });
+    $(".pv-play")?.addEventListener("click", () => play());
+    if (pred?.applicable) {
+      const model = modelOf(pred, SEED);
+      const prevModel = prev ? modelOf(prev.pattern!.prediction, SEED) : undefined;
+      fillNotes(v, pred, model);
+      redraw = () => {
+        gen++;
+        void draw(alive(gen), model, prevModel);
+      };
+      gen++;
+      void draw(alive(gen), model, prevModel);
+      play();
+    } else redraw = () => undefined;
   }
 
-  async function draw(my: number, v: RestorePlan, pred: PatternPrediction, prevPred?: PatternPrediction) {
-    const ops = toPatternOps(pred);
-    const stages = [...root.querySelectorAll<HTMLElement>(".pv-stage")];
-    const count = root.querySelector(".pv-count")!;
-    const sim = buildSim(ops, SEED);
-    // 断面は、出来上がりの模様をいちばん多く横切る所で切る（段の絵も同じ所）
-    const row = sectionRow(sim);
-    const bond = bondOf(ops);
-    // 段の絵（その段までの操作で、断面）
-    for (const [i, li] of stages.entries()) {
-      putImage(li.querySelector("canvas")!, sectionImage(buildSim(ops.slice(0, i + 1), SEED, { bond }), 300, 125, row));
-      await pause();
-      if ((my !== gen || me !== mounted)) return;
-    }
-    putImage(root.querySelector<HTMLCanvasElement>(".pv-sec-final")!, sectionImage(sim, 560, 150, row));
-    const notes = root.querySelector(".pv-notes")!;
+  function fillNotes(v: RestorePlan, pred: PatternPrediction, model: PatternModel) {
+    const notes = root.querySelector(".pv-notes");
+    if (!notes) return;
     const kari = pred.ops.filter((o) => o.assumed).length;
     notes.innerHTML = [
-      sim.notes.length ? `<div><b>計算からの知らせ</b><ul>${sim.notes.map((t) => `<li>${esc(t)}</li>`).join("")}</ul></div>` : "",
+      model.notes.length ? `<div><b>計算からの知らせ</b><ul>${model.notes.map((t) => `<li>${esc(t)}</li>`).join("")}</ul></div>` : "",
       pred.cannot_show ? `<div><b>この絵では表せないこと</b><p>${says(pred.cannot_show, v)}</p></div>` : "",
-      `<div><b>層の数</b><p>はじめ ${sim.count} 枚 → 最後 ${sim.layersFinal} 層（仮）${kari ? `。「仮」の値が ${kari} か所あります` : ""}</p></div>`,
+      `<div><b>${model.family === "layers" ? "層の数" : "板と手順"}</b><p>${esc(model.facts)}${kari ? `。「仮」の値が ${kari} か所あります` : ""}</p></div>`,
     ].join("");
-    const top = await surfaceImageAsync(sim, 320, 2, pause, () => (my !== gen || me !== mounted));
-    if (!top) return;
-    putImage(root.querySelector<HTMLCanvasElement>(".pv-top")!, top);
-    if (prevPred) {
-      const ps = buildSim(toPatternOps(prevPred), SEED);
-      putImage(root.querySelector<HTMLCanvasElement>(".pv-sec-prev")!, sectionImage(ps, 560, 150, row));
-      const pt = await surfaceImageAsync(ps, 320, 2, pause, () => (my !== gen || me !== mounted));
-      if (!pt) return;
-      putImage(root.querySelector<HTMLCanvasElement>(".pv-top-prev")!, pt);
-    }
-    play(stages, count);
   }
 
-  /** 段を 1 つずつ見せる */
-  function play(stages: HTMLElement[], count: Element) {
-    stopTimers();
-    const view = root.querySelector(".pv")!;
-    view.classList.remove("on-final");
-    stages.forEach((s) => s.classList.remove("on"));
-    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-    const step = reduce ? 0 : 650;
-    stages.forEach((s, i) =>
-      timers.push(
-        window.setTimeout(() => {
-          s.classList.add("on");
-          count.textContent = `${i + 1} / ${stages.length} 段`;
-        }, step * i),
-      ),
-    );
-    timers.push(
-      window.setTimeout(() => {
-        view.classList.add("on-final");
-        count.textContent = "出来上がり";
-      }, step * stages.length),
-    );
-    root.querySelector(".pv-replay")?.addEventListener("click", () => play(stages, count), { once: true });
+  /** 絵を描く：段の絵を順に（見せるより先に）、そのあと出来上がり。重いので、間をあけて */
+  async function draw(ok: () => boolean, model: PatternModel, prevModel?: PatternModel) {
+    const row = model.row;
+    const stages = [...root.querySelectorAll<HTMLElement>(".pv-stage")];
+    for (const [i, li] of stages.entries()) {
+      const sm = model.stage(i);
+      drawSection(li.querySelector<HTMLCanvasElement>(".pv-sec"), sm, row, 0.62);
+      await pause();
+      if (!ok()) return;
+      await drawTop(li.querySelector<HTMLCanvasElement>(".pv-face"), sm, row, ok, "line");
+      if (!ok()) return;
+    }
+    if (!ok()) return;
+    drawSection(root.querySelector<HTMLCanvasElement>(".pv-sec-final"), model, row, 0.8);
+    if (prevModel) drawSection(root.querySelector<HTMLCanvasElement>(".pv-sec-prev"), prevModel, row, 0.8);
+    await pause();
+    if (!ok()) return;
+    await drawTop(root.querySelector<HTMLCanvasElement>(".pv-top"), model, row, ok, "ticks");
+    if (prevModel && ok()) await drawTop(root.querySelector<HTMLCanvasElement>(".pv-top-prev"), prevModel, row, ok, "ticks");
   }
 
   render();
