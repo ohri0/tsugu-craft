@@ -1,0 +1,46 @@
+{
+  "id": "urushi",
+  "calls": [
+    {
+      "tool": "propose_restoration",
+      "ms": 41961,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "predict_pattern",
+      "ms": 8883,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "propose_restoration",
+      "ms": 44277,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "predict_pattern",
+      "ms": 9046,
+      "rejected": [],
+      "warnings": []
+    }
+  ],
+  "predictions": [
+    {
+      "tag": "-first",
+      "applicable": false,
+      "ops": [],
+      "noAssumed": []
+    },
+    {
+      "tag": "-v2",
+      "applicable": false,
+      "ops": [],
+      "noAssumed": []
+    }
+  ],
+  "unsourced": [],
+  "planNotes": [],
+  "expect": "decline"
+}

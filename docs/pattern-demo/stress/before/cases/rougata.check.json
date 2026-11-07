@@ -1,0 +1,62 @@
+{
+  "id": "rougata",
+  "calls": [
+    {
+      "tool": "propose_restoration",
+      "ms": 51323,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "predict_pattern",
+      "ms": 17544,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "propose_restoration",
+      "ms": 48592,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "predict_pattern",
+      "ms": 20576,
+      "rejected": [],
+      "warnings": []
+    }
+  ],
+  "predictions": [
+    {
+      "tag": "-first",
+      "applicable": true,
+      "ops": [
+        "plate",
+        "kebori",
+        "ishime",
+        "color"
+      ],
+      "noAssumed": [],
+      "spread": 25.4,
+      "renderMs": 732,
+      "notes": []
+    },
+    {
+      "tag": "-v2",
+      "applicable": true,
+      "ops": [
+        "plate",
+        "kebori",
+        "ishime",
+        "color"
+      ],
+      "noAssumed": [],
+      "spread": 24.7,
+      "renderMs": 727,
+      "notes": []
+    }
+  ],
+  "unsourced": [],
+  "planNotes": [],
+  "expect": "partial"
+}

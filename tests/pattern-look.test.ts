@@ -178,7 +178,9 @@ describe("重ねない技：1 枚の板の表", () => {
     );
     expect(ok.ok).toBe(true);
     if (!ok.ok) return;
-    expect(ok.value.ops[0].metals).toEqual(["silver"]);
+    // 2 つ以上なら、重ねてつないだ板（上の層から）
+    expect(ok.value.ops[0].metals).toEqual(["silver", "gold"]);
+    expect(toReliefOps(ok.value)[0]).toEqual({ op: "plate", metal: "silver", under: ["gold"] });
     expect(toReliefOps(ok.value)[1]).toEqual({ op: "engrave", style: "kebori", path: "border", depth: 0.3, size: 0.005, across: 3 });
     const mixed = parsePattern({ applicable: true, reason: "r", cannot_show: "", summary: "s", ops: [P({ op: "plate", metals: ["silver"] }), P({ op: "fold", amount: 2 })] }, { steps: 3 });
     expect(mixed.ok).toBe(false);

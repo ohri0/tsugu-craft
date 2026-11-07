@@ -1,0 +1,46 @@
+{
+  "id": "yorisen",
+  "calls": [
+    {
+      "tool": "propose_restoration",
+      "ms": 40238,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "predict_pattern",
+      "ms": 13565,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "propose_restoration",
+      "ms": 47831,
+      "rejected": [],
+      "warnings": []
+    },
+    {
+      "tool": "predict_pattern",
+      "ms": 21168,
+      "rejected": [],
+      "warnings": []
+    }
+  ],
+  "predictions": [
+    {
+      "tag": "-first",
+      "applicable": false,
+      "ops": [],
+      "noAssumed": []
+    },
+    {
+      "tag": "-v2",
+      "applicable": false,
+      "ops": [],
+      "noAssumed": []
+    }
+  ],
+  "unsourced": [],
+  "planNotes": [],
+  "expect": "draw"
+}
