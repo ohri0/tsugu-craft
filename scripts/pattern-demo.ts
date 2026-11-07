@@ -3,7 +3,7 @@
 // 試した結果のある技は、結果を入れて案 1 の見込みを作り直し（絵を結果に合わせる）、案 2 と見込み 2 も（前の見込みの仮の値をそろえる）。
 // Claude は、画面と同じ api/claude.ts の関数を通して呼ぶ（キーは .env から。表に出さない）。
 // 使い方：npx tsx scripts/pattern-demo.ts <.env のある所> [技の id ...]
-//         npx tsx scripts/pattern-demo.ts --render   （Claude を呼ばず、残した記録から絵だけ描き直す）
+//         npx tsx scripts/pattern-demo.ts --render   （Claude を呼ばず、残した記録から絵だけ描き直す。見本の sample-*.png も）
 // 出すもの：docs/pattern-demo/<id>-*.png、docs/pattern-demo/cases/<id>.json（記録のファイル）と <id>.replies.json（Claude の返事。画面の撮影で使い回す）、
 //           <id>.predictions.json（見込みを頼んだ順の答え。作り直す前の見込みの絵も描き直せるように）
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -128,7 +128,24 @@ async function run(c: DemoCase) {
   console.log(log.join("\n"));
 }
 
+/**
+ * 重ねない技の、線の道すじと打ち出しの形の見本（Claude の答えではなく、ここで書いた操作）。
+ * 唐草（scroll）・花びらの花・葉のふくらみ を、絵だけで確かめるため。
+ */
+const SAMPLES: { id: string; ops: PatternPrediction["ops"] }[] = (() => {
+  const op = (o: string, choice: string, metals: string[] = [], amount = 0, size = 0, across = 0) => ({ op: o, step: 1, why: "見本", assumed: "見本のための値", metals, amount, size, across, choice });
+  return [
+    { id: "scroll", ops: [op("plate", "-", ["silver"]), op("kebori", "border", [], 0.2, 0.005, 2), op("katakiri", "scroll", [], 0.25, 0.007, 3), op("color", "none")] },
+    { id: "petals", ops: [op("plate", "-", ["copper"]), op("uchidashi", "petals", [], 0.2, 0.06, 3), op("color", "none")] },
+    { id: "leaves", ops: [op("plate", "-", ["silver"]), op("uchidashi", "leaves", [], 0.15, 0.06, 3), op("color", "none")] },
+  ] as unknown as { id: string; ops: PatternPrediction["ops"] }[];
+})();
+
 if (process.argv[2] === "--render") {
+  for (const s of SAMPLES) {
+    const pred = { applicable: true, reason: "見本", summary: "見本", cannot_show: "", ops: s.ops } as PatternPrediction;
+    await render(`sample-${s.id}`, "", pred);
+  }
   for (const c of DEMO_CASES) {
     const saved = `${OUT}/cases/${c.id}.predictions.json`;
     if (existsSync(saved)) {
