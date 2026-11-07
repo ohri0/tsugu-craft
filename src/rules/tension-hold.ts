@@ -37,16 +37,19 @@ import {
 export { dropWorkNmm, frictionFactor, holdWork, ringStiffnessNPerMm, type HoldWork };
 
 /**
- * 留まる見込み／ぎりぎり入れれば、留まる見込み／この地金・この太さでは足りない。
+ * 留まる見込み／留まる見込み（広げる量は安全な目安をこえる）／この地金・この太さでは足りない。
  * tight は前は「ぎりぎり・職人が確かめる」。作者の声（2026-11-08）：「結局職人が確かめてるんかい」。
- * 計算はもう、どうすれば留まるか（石より狭く作り、石がぎりぎり入るだけ広げて入れ、戻る力ではさむ）を知っているので、それを言う。
+ * 計算はもう、どうすれば留まるか（石より狭く作り、石が入るだけ広げて入れ、戻る力ではさむ）を知っているので、それを言う。
  * そのあと「限界まで広げて入れれば」も直した（作者の声 2026-11-08）：「限界いっぱい」ではなく、石がぎりぎり入るだけ広げる。広げすぎると戻らない。
+ * さらに「ぎりぎり入れれば、留まる見込み」という言い方も要らない（作者の声 2026-11-08）。札の見出しは、作り方そのもの
+ * （holdHeadline：「石より 0.76 mm 狭く作り、1.56 mm 広げて入れる」）。余裕が少ないことは、すぐ下の「安全に留めるなら」の案が示す。
+ * ここの言葉は、一覧や道具の答えに使う短い言い方。
  * 戻りきらない分の値は仮なので、それは小さな字と「式と前提」に書く（holdTightNote）
  */
 export type HoldVerdict = "hold" | "tight" | "short";
 export const HOLD_VERDICT_LABEL: Record<HoldVerdict, string> = {
   hold: "留まる見込み",
-  tight: "ぎりぎり入れれば、留まる見込み",
+  tight: "留まる見込み（広げる量は安全な目安をこえる）",
   short: "この地金・この太さでは足りない",
 };
 
@@ -92,7 +95,7 @@ export interface HoldResult {
   limitSqueezeMm: number;
   /**
    * 戻りきらない分を引いた、石を入れたあとに残せる締まりの最大：安全に（広げる量が safe まで）と、限界まで（広げる量が limit まで）。
-   * 要る量が safeEffectiveMm の内なら「留まる見込み」。超えても limitSqueezeMm（戻りきらない分を見ない前の計算）の内なら「ぎりぎり」
+   * 要る量が safeEffectiveMm の内なら「留まる見込み」。超えても limitSqueezeMm（戻りきらない分を見ない前の計算）の内なら tight（広げる量は安全な目安をこえる）
    */
   safeEffectiveMm: number;
   limitEffectiveMm: number;
@@ -296,12 +299,12 @@ export function setSummary(h: HoldResult): string {
 /** 広げられる限界（細い輪の式。mm）＝ 狭くできる限界 ＋ 深さの和 */
 const spreadLimitOf = (h: HoldResult) => h.limitSqueezeMm + h.depthSumMm;
 
-/** ぎりぎり入れるとき（tight）の、広げる量の添え書き（作者の声 2026-11-08：「限界いっぱい」ではなく、石がぎりぎり入るだけ。広げすぎると戻らない） */
+/** 広げる量が安全な目安をこえるとき（tight）の、広げる量の添え書き（作者の声 2026-11-08：「限界いっぱい」ではなく、石がぎりぎり入るだけ。広げすぎると戻らない） */
 export const HOLD_SPREAD_NOTE = "（石がぎりぎり入るだけ。広げすぎると戻らない）";
 
 /**
  * 作る手順の一行（作者の声 2026-11-08：本当の順に）。石より狭く作る → 広げて石を入れる → 戻る力で石をはさむ。
- * 足りないとき（short）は、留まる作り方がないので null。ぎりぎり入れるとき（tight）は、広げすぎないことを添える
+ * 足りないとき（short）は、留まる作り方がないので null。広げる量が安全な目安をこえるとき（tight）は、広げすぎないことを添える
  */
 export function holdSteps(h: HoldResult): string | null {
   if (h.verdict === "short") return null;
@@ -309,6 +312,16 @@ export function holdSteps(h: HoldResult): string | null {
   // 狭く作る量が 0 のときに「石より 0.00 mm 狭く作る」と出していた（2026-11-08 初めての人の試し）。言葉で言う
   const make = isNoSqueeze(h.squeezeMm) ? `図面の開きのまま作る（石より狭くしない。くぼみ・溝の深さで留める。開き ${h.makeGapMm.toFixed(2)} mm）` : `石より ${h.squeezeMm.toFixed(2)} mm 狭く作る（作る時の開き ${h.makeGapMm.toFixed(2)} mm）`;
   return `${make} → ${h.spreadMm.toFixed(2)} mm 広げて石を入れる${note} → 戻る力で石をはさむ`;
+}
+
+/**
+ * 札の見出し。tight は作り方そのもの（作者の声 2026-11-08：「ぎりぎり入れれば、留まる見込み」のような言い方は要らない）。
+ * 例：「石より 0.76 mm 狭く作り、1.56 mm 広げて入れる」。hold・short は HOLD_VERDICT_LABEL のまま
+ */
+export function holdHeadline(h: HoldResult): string {
+  if (h.verdict !== "tight") return HOLD_VERDICT_LABEL[h.verdict];
+  const make = isNoSqueeze(h.squeezeMm) ? "図面の開きのまま作り" : `石より ${h.squeezeMm.toFixed(2)} mm 狭く作り`;
+  return `${make}、${h.spreadMm.toFixed(2)} mm 広げて入れる`;
 }
 
 /** 狭く作る量が、画面の細かさ（0.01 mm）で 0 か */
@@ -336,11 +349,11 @@ export const HOLD_STRAIGHT_NOTE =
   "広げる量は、石をまっすぐ入れるとして、腕の両はしが石の長さいっぱいまで開く量で計算しています。角から斜めに入れると、もっと少なく広げて済むことがあります（斜めに入れる分は、まだ計算に入れていません）";
 
 /**
- * ぎりぎり入れるとき（tight）の小さな字：戻りきらない分の値は仮なので、見込んだときの倍をここに。ほかは null
+ * 広げる量が安全な目安をこえるとき（tight）の小さな字：戻りきらない分の値は仮なので、見込んだときの倍をここに。ほかは null
  */
 export function holdTightNote(h: HoldResult): string | null {
   if (h.verdict !== "tight") return null;
-  return `「${HOLD_VERDICT_LABEL.tight}」は、広げる量が安全な目安をこえ、限界 約 ${spreadLimitOf(h).toFixed(2)} mm の近くまで要る、という意味です。石がぎりぎり入るだけ広げ、それ以上は広げません。広げたあと戻りきらない分（仮）約 ${h.setMm.toFixed(2)} mm を見込むと、外れにくさは求める分の 約 ${h.margin.toFixed(2)} 倍。戻りきらない割合は仮の値です`;
+  return `この作り方は、広げる量が安全な目安をこえ、限界 約 ${spreadLimitOf(h).toFixed(2)} mm の近くまで要ります。石が入るだけ広げ、それ以上は広げません。広げたあと戻りきらない分（仮）約 ${h.setMm.toFixed(2)} mm を見込むと、外れにくさは求める分の 約 ${h.margin.toFixed(2)} 倍。戻りきらない割合は仮の値です`;
 }
 
 /** 深さのつまみの範囲と刻み（mm。形を作るための決まり。作者の頼み 2026-11-07「0.2〜0.8 mm くらい」） */
