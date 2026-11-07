@@ -1,7 +1,11 @@
 // 継ぐの入口のページ（2026-11-07 作り直し）。話は動画（docs/NARRATION-ad.md のいちばん上）と同じ：
-//   職人の判断を、次の人へ → なぜ作ったか → 残す → デザインする人へ → 学ぶ人へ → 次の時代へ → 途絶えた技の復元 → 結。
+//   職人の判断を、次の人へ → なぜ作ったか → 序の言葉（1 つずつ画面いっぱい）→ しくみ → 残す → デザインする人へ（テンションは別の節）
+//   → 学ぶ人へ → 次の時代へ → 途絶えた技の復元 → 結。
 // 作者の声：「読みにくい」「画像の移り変わりとかもない」「ウェブサイトもしっかり組み立てて」。
 //   → 横書きの大きな字を基本にし（縦書きは題と職人の言葉だけ）、本物の画面の絵を、同じ場所でゆっくり重ねて移り変わらせる（ズームなし）。
+// 2026-11-07 昼の職人の声：「元のやつも良かった」「伝えたいことがバーンって出てくるやつ」「一個一個大事にしてる感じ」
+//   → 機能の説明は今の版のまま（分かりやすい）。言いたいこと（はじめ・序の言葉・約 6 割・20 年に一度・工房に・結）は、
+//     前の版（6878a61 の前）のように、縦書きで 1 つずつ画面いっぱいに出す。「決まりは工房ごとに」は前の版の 2 つ並べに戻す。
 //   動く絵（指輪が一回りする・手の動画）は、音なし・くり返し・画面に入っている間だけ流す。動きを減らす設定では、止めた絵だけ。
 // 書いてあることは、どれも今のアプリでできること。数字は、撮った画面の数字か、出典・記録のあるものだけ。
 // 写真は public/lp/（scripts/lp-shots.cjs で撮る。大きさは src/lp/shots.json）。品物の写真は public/heritage/ の jpg を webp にした物（出どころは下）。3D は読み込まない。
@@ -81,12 +85,19 @@ const REBUILD: { t: string; d: string; v: "ok" | "part" | "miss" }[] = [
 ];
 const RV_LABEL = { ok: "一致", part: "一部", miss: "たどり着けず" } as const;
 
-/** テンションの比べ（三角の石 8.88 × 7.52 × 4.24 mm、設計の画面の札と同じ計算の値。決まった値ではない。作者：「この石の場合、という話」） */
-const TENSION_EXAMPLE: { metal: string; small?: string; open?: string }[] = [
-  { metal: "K18 イエロー", small: "0.36", open: "1.66" },
-  // Pt900：この腕のままでは開ききらない見込み（約 0.60 mm 曲がりが残る）。ほかの地金と同じ並びで「—」にし、注で一言だけ（2026-11-06 作者：ノイズになる）
-  { metal: "Pt900" },
-  { metal: "SV925", small: "0.12", open: "1.42" },
+/**
+ * テンションの比べ：設計の画面の「地金ごとの比べ（mm）」の表を、そのまま写した値（2026-11-07 撮影。scripts/lp-shots.cjs の tension）。
+ * 職人の指輪と同じ設定：三角の石 8.88 × 7.52 × 4.24 mm・挟む向き side（短い辺を溝に）・丸線 ø 4.0 mm・14 号・くぼみ 0.4 / 溝 0.4 mm・硬い状態。
+ * 決まった値ではない（作者：「この石の場合、という話」）。戻りきらない分の割合と、地金の値の多くは仮（src/rules/guides.ts の tension.spring）。
+ * Pt900 も値はある（Pt/Ir 900/100 の表の値。仮）。ヤング率が高く、戻れる範囲が狭いので、この腕では開ききらない見込みになる。
+ *   前は「—」だけにしていた（2026-11-06 作者：ノイズになる）が、2026-11-07 職人の声「プラチナのところもちゃんと数値入れてあげて」で、曲がりが残る量を書く。
+ */
+const TENSION_EXAMPLE: { metal: string; shrink?: string; spread?: string; set?: string; short?: string }[] = [
+  { metal: "K18 イエロー", shrink: "1.04", spread: "1.84", set: "0.09" },
+  { metal: "K18 ピンク", shrink: "1.15", spread: "1.95", set: "0.10" },
+  { metal: "K18 ホワイト", shrink: "0.77", spread: "1.57", set: "0.08" },
+  { metal: "Pt900", short: "0.03" },
+  { metal: "SV925", shrink: "0.54", spread: "1.34", set: "0.07" },
 ];
 
 const MET = "メトロポリタン美術館";
@@ -121,30 +132,61 @@ const html = `
 
 <main id="main">
   <section class="hero" aria-labelledby="hero-h">
+    <figure class="hero-ring">
+      <picture><source media="(max-width: 760px)" srcset="lp/ring-whole-sm.webp 1000w, lp/ring-whole.webp 2000w" sizes="100vw" width="1000" height="1200">
+      ${img("ring-macro", "継ぐで組んだ一粒石の指輪。三角の石を、金の爪 3 本が留めている", "100vw", true)}</picture>
+    </figure>
     <div class="hero-t">
-      <h1 id="hero-h" class="hero-h">継ぐ</h1>
-      <p class="hero-s">職人の判断を、<br>次の人へ。</p>
+      <h1 id="hero-h" class="v hero-h">継ぐ</h1>
+      <p class="v hero-s">職人の判断を、<br>次の人へ。</p>
+    </div>
+    <div class="hero-b">
       <p class="hero-by">宝飾の彫金職人が、Claude Code と作りました。</p>
       <div class="cta"><a class="btn primary" href="${STUDIO}">設計する</a><a class="btn open-why" href="#why">なぜ継ぐ</a></div>
     </div>
-    <figure class="hero-ring">${clip("turn", "継ぐで組んだ一粒石の指輪が、黒の上でゆっくり一回りする", "hero-clip")}</figure>
   </section>
 
   <section class="reason" aria-labelledby="reason-h">
     <h2 id="reason-h" class="kicker rv">なぜ作ったか</h2>
     <blockquote class="reason-q rv"><p>彫金・金工の職人の判断を残し、技を継承するため。<br>そして、迷う時間を、<br class="sm">つくる時間に変えるためです。</p></blockquote>
     <p class="reason-by rv">作者（宝飾の彫金職人）</p>
-    <div class="reason-lines">
-      <p class="rv">作れるかどうかの判断は、職人の頭の中にあります。</p>
-      <p class="rv">職人がいなくなれば、その判断も消えます。</p>
-      <p class="rv strong">継ぐは、その判断を残して、次の人へ渡します。</p>
+  </section>
+
+  <section class="say-full s1" aria-label="作れるかどうかの判断は、職人の頭の中にあります。">
+    <p class="v sf-l rv">作れるかどうかの<br>判断は、</p>
+    <p class="v sf-m rv">職人の頭の中に<br>あります。</p>
+  </section>
+  <section class="say-full s2" aria-label="職人がいなくなれば、その判断も消えます。">
+    <p class="v sf-l rv">職人が<br>いなくなれば、</p>
+    <p class="v sf-l rv">その判断も</p>
+    <p class="v sf-big rv">消えます。</p>
+  </section>
+  <section class="say-full s3" aria-label="継ぐは、その判断を残して、次の人へ渡します。">
+    <p class="v sf-k rv">継ぐは、</p>
+    <p class="v sf-m rv">その判断を残して、<br>次の人へ渡します。</p>
+  </section>
+
+  <section class="how" id="how" aria-labelledby="how-h">
+    <div class="wrap">
+      <header class="how-head">
+        <p class="kicker rv">しくみ</p>
+        <h2 id="how-h" class="rv">職人の言葉が、帳面になり、<br class="sm">次の人に使われるまで。</h2>
+      </header>
+      <ol class="how-map rv">
+        <li><a href="#keep"><span class="hm-n">1</span><figure class="hm-f">${img("teach", "設計の画面の「Claude に教える」。一行の欄と、話す ボタン", "(max-width: 760px) 40vw, 220px")}</figure><b>職人が話す</b><small>ふだんの言葉で。書いても。</small></a></li>
+        <li><a href="#keep"><span class="hm-n">2</span><figure class="hm-f">${img("rule-card", "帳面の決まりの札。職人の言葉、職人の名前と日付", "(max-width: 760px) 40vw, 220px")}</figure><b>Claude が決まりにする</b><small>数字のついた決まりの案に。</small></a></li>
+        <li><a href="#keep"><span class="hm-n">3</span><div class="hm-f hm-book" aria-hidden="true"><i>帳面</i><span>職人の言葉・名前・日付</span></div><b>職人が確かめて、帳面へ</b><small>「これでいい」を押した物だけ。</small></a></li>
+        <li class="hm-use"><span class="hm-n">4</span><b>帳面をもとに、使う</b>
+          <ul>
+            <li><a href="#design">${img("fixpop-pop", "作れない所の窓。職人の言葉と、直すボタン", "120px")}<span>デザインの確かめ</span></a></li>
+            <li><a href="#learn">${img("learn", "学ぶの画面。問いに、職人の言葉つきで答える", "120px")}<span>学ぶ人への答え</span></a></li>
+            <li><a href="#make">${img("draw", "継ぐが描いた図面", "120px")}<span>図面と作り方</span></a></li>
+            <li><a href="#restore">${img("restore-flow", "途切れた技の流れ", "120px")}<span>途絶えた技の復元</span></a></li>
+          </ul>
+        </li>
+      </ol>
+      <p class="note rv">Claude は、この工房の帳面を読んで確かめ、答え、案を出します（Claude API）。同じ帳面は、MCP の道具からも読めます。決めるのは職人です。</p>
     </div>
-    <ol class="route rv" aria-label="このページの流れ">
-      <li><a href="#keep"><small>まず</small>残す</a></li>
-      <li><a href="#design"><small>渡す 一</small>デザインする人へ</a></li>
-      <li><a href="#learn"><small>渡す 二</small>学ぶ人へ</a></li>
-      <li><a href="#next"><small>渡す 三</small>次の時代へ</a></li>
-    </ol>
   </section>
 
   <section class="keep paper" id="keep" aria-labelledby="keep-h">
@@ -178,23 +220,16 @@ const html = `
           <p class="note">数字は目安・最後は職人が決めます。公開の資料から入れた目安には出どころのリンクがつき、数字のない所は「仮」と書きます。<a href="${LEDGER}">帳面を見る</a></p>
         </div>
       </div>
-      <div class="book">
-        <div class="book-t">
-          <h3 class="rv">決まりは、工房ごとに。</h3>
-          <p class="rv">同じ石・同じ号でも、帳面が変われば指輪が変わります。工房のいつもの雰囲気（爪の形や太さ）も帳面に入ります。</p>
-          <p class="note rv">工房 B は見本の工房です。数字は例で、目安・最後は職人が決めます。</p>
-        </div>
-        <div class="book-x rv">${crossfade(
-          "bx",
-          [
-            { name: "book-a", alt: "石川工房の帳面で組んだ指輪。細い丸い爪で、シンプルに見える", cap: "石川工房　丸い爪 ø 0.80 mm" },
-            { name: "book-b", alt: "見本の工房 B の帳面で組んだ指輪。先が尖って石の上に少しかかる尖り爪", cap: "工房 B（見本）　尖り爪 ø 1.00 mm" },
-          ],
-          "(max-width: 760px) 92vw, 520px",
-          { cls: "xf-dark", every: 3600 },
-        )}</div>
-      </div>
     </div>
+  </section>
+
+  <section class="book" aria-labelledby="book-h">
+    <h2 id="book-h" class="v book-h rv">決まりは、<br>工房ごとに持てます。</h2>
+    <div class="book-two">
+      <figure class="rv">${img("book-a", "石川工房の帳面で組んだ指輪。細い丸い爪で、シンプルに見える", "(max-width: 760px) 92vw, 42vw")}<figcaption><b>石川工房</b><span>丸い爪 ø <span class="num">0.80</span> mm</span></figcaption></figure>
+      <figure class="rv">${img("book-b", "見本の工房 B の帳面で組んだ指輪。先が尖って石の上に少しかかる尖り爪で、シャープに見える", "(max-width: 760px) 92vw, 42vw")}<figcaption><b>工房 B（見本）</b><span>尖り爪 ø <span class="num">1.00</span> mm</span></figcaption></figure>
+    </div>
+    <p class="book-n rv">同じ石・同じ号で、帳面だけを変えて撮りました。帳面には、爪の形や太さといった、工房のいつもの雰囲気も入ります。工房 B は見本の工房で、尖り爪（先が尖り、石の上に少しかかる爪）と太さは例です。数字は目安・最後は職人が決めます。</p>
   </section>
 
   ${chapter("渡す 一", "design", "デザインする人へ", "作れない、と制作から何度も戻ってくることがあります。継ぐは、デザインの時点で、職人の判断で確かめます。")}
@@ -223,6 +258,11 @@ const html = `
     )}</div>
   </section>
 
+  <section class="zoom wrap" aria-label="作れない所を押したところ">
+    <figure class="zoom-f rv"><picture><source media="(max-width: 760px)" srcset="lp/fixpop-pop-sm.webp 368w, lp/fixpop-pop.webp 736w" sizes="92vw" width="368" height="379">${img("fixpop", "赤い印のついた爪の指輪と、作れない所の窓。爪が細い 0.60 mm → 0.70 mm 以上、職人の言葉「このサイズの石なら最低ライン 0.7 mm は欲しい感じ」、爪を太くするボタン、まとめて直す、Claude で直す", "(max-width: 760px) 92vw, 1060px")}</picture>
+      <figcaption>赤い爪を押すと、こう出ます。「　」の中は、この工房の職人の言葉です。数字は目安・最後は職人が決めます。</figcaption></figure>
+  </section>
+
   <section class="feat flip word wrap" aria-labelledby="word-h">
     <div class="feat-t">
       <p class="say-s rv">「アールデコな感じ」</p>
@@ -241,7 +281,7 @@ const html = `
     )}</div>
   </section>
 
-  <section class="feat make wrap" aria-labelledby="make-h">
+  <section class="feat make wrap" id="make" aria-labelledby="make-h">
     <div class="feat-t">
       <h3 id="make-h" class="rv">図面と STL まで、<br>その場で。</h3>
       <p class="rv">正面・横・上の図面と寸法、作り方の指示書を印刷でき、STL も出せます。</p>
@@ -253,15 +293,7 @@ const html = `
   <section class="feat flip range wrap" aria-labelledby="range-h">
     <div class="feat-t">
       <h3 id="range-h" class="rv">断面も、留め方も。</h3>
-      <p class="rv">手間のかかった断面の形も、見本を選ぶか、線を描くだけで作れます。腕のばねで石を挟むテンションは、地金ごとに、どれだけ小さく作り、どれだけ広げて入れるかを計算します。</p>
-      <table class="ten-t rv">
-        <caption>テンション：この三角の石の場合の例（mm）</caption>
-        <thead><tr><th scope="col">地金</th><th scope="col">小さく作る</th><th scope="col">広げて入れる</th></tr></thead>
-        <tbody>
-          ${TENSION_EXAMPLE.map((r) => `<tr><th scope="row">${r.metal}</th>${r.small ? `<td class="num">約 ${r.small}</td><td class="num">約 ${r.open}</td>` : `<td class="num">—<sup>※</sup></td><td class="num">—</td>`}</tr>`).join("")}
-        </tbody>
-      </table>
-      <p class="note rv">※ Pt900 は、この腕のままでは開ききらない見込みです。地金ごとに腕の太さや形を変えます。値は仮です。目安・最後は職人が決めます。</p>
+      <p class="rv">手間のかかった断面の形も、見本を選ぶか、線を描くだけで作れます。上と下で変えることもできます。留め方は、爪のほかに、腕のばねで石を挟むテンションも選べます（すぐ下の節）。</p>
     </div>
     <div class="feat-m rv">${crossfade(
       "rx",
@@ -277,6 +309,44 @@ const html = `
       "(max-width: 760px) 92vw, 520px",
       { cls: "xf-dark", ratio: "1 / 1", every: 3400 },
     )}<p class="note">切り口を見せています。どれも、アプリの断面の編集で作った形です。</p></div>
+  </section>
+
+  <section class="tension" id="tension" aria-labelledby="ten-h">
+    <div class="ten-top">
+      <p class="v ten-v rv">テンション</p>
+      <div class="ten-intro">
+        <h3 id="ten-h" class="rv">腕のばねだけで、<br>石を挟む。</h3>
+        <p class="rv">テンションは、爪を使わず、腕が元に戻ろうとする力で石を挟む留め方です。人がやると大変な計算を、継ぐは組んだ形からその場で出します。</p>
+        <ul class="ten-what rv">
+          <li><b>どれだけ縮めて作るか</b>石を押さえるために、腕の開きを石より小さく作る量。</li>
+          <li><b>どれだけ広げて入れるか</b>石を入れるとき、腕を押し広げる量。</li>
+          <li><b>くぼみと溝の深さ</b>石の角を受ける「角のくぼみ」と、辺を受ける「辺の溝」の深さ。</li>
+          <li><b>戻りきらない分</b>広げた腕は、手を離しても元の位置まで戻りきりません。その分も見込みます。</li>
+        </ul>
+      </div>
+    </div>
+    <div class="ten-body">
+      <figure class="ten-card rv">${img("tension-card", "設計の画面のテンションの札。角のくぼみ 0.40 mm・辺の溝 0.40 mm、答えは「ぎりぎり・職人が確かめる」。石を留めるのに縮める量 約 0.53 mm、安全に縮められる量 約 0.47 mm、作る時の開き 約 7.13 mm、石を入れる時に広げる量 約 1.34 mm", "(max-width: 760px) 80vw, 340px")}<figcaption>設計の画面の札。職人の指輪と同じ値（SV925・14 号・くぼみ 0.4 mm・溝 0.4 mm）を入れると「ぎりぎり・職人が確かめる」。</figcaption></figure>
+      <div class="ten-side">
+        <table class="ten-t rv">
+          <caption>同じ石・同じ腕で、地金ごとに（mm）</caption>
+          <thead><tr><th scope="col">地金</th><th scope="col">縮めて作る</th><th scope="col">広げて入れる</th><th scope="col">戻りきらない</th></tr></thead>
+          <tbody>
+            ${TENSION_EXAMPLE.map((r) => `<tr${r.metal === "SV925" ? ` class="mine"` : ""}><th scope="row">${r.metal}</th>${r.short ? `<td colspan="3" class="short">この腕では開ききらない見込み（約 <span class="num">${r.short}</span> mm 曲がりが残る）。腕を太くするか、形を変えます</td>` : `<td class="num">約 ${r.shrink}</td><td class="num">約 ${r.spread}</td><td class="num">約 ${r.set}</td>`}</tr>`).join("")}
+          </tbody>
+        </table>
+        <p class="note rv">三角の石 8.88 × 7.52 × 4.24 mm・丸線 ø 4.0 mm・14 号・加工硬化した硬い状態での、大まかな計算です。地金の値（硬さや、曲がりにくさ）には「仮」のものがあり、計算も試して確かめたものではありません。目安・最後は職人が決めます。</p>
+      </div>
+    </div>
+    <div class="ten-real">${crossfade(
+      "tx",
+      [
+        { name: "finished-ring", alt: "職人の手が、三角の青い石を挟んだ銀のテンションの指輪を、作業台の上で持っている", cap: "この計算をもとに、職人が確かめて作った指輪" },
+        { name: "ring-tension", alt: "継ぐで組んだテンションの指輪。丸線の腕の端が、三角の石を両側から挟んでいる", cap: "継ぐで組んだテンションの形" },
+      ],
+      "(max-width: 760px) 92vw, 900px",
+      { cls: "xf-dark xf-slow", ratio: "4 / 3", every: 8000 },
+    )}</div>
   </section>
 
   ${chapter("渡す 二", "learn", "学ぶ人へ", "学校では、独自のデザインは先生に聞くしかなく、長いときは 1 時間待ちます（職人の経験です）。継ぐなら、すぐ答えが出ます。")}
@@ -311,21 +381,24 @@ const html = `
 
   ${chapter("渡す 三", "next", "次の時代へ", "めったに作らない技ほど、途切れます。")}
 
-  <section class="stat wrap" aria-labelledby="stat-h">
+  <section class="stat" aria-labelledby="stat-h">
     <h3 id="stat-h" class="rv">伝統的工芸品の作り手は、</h3>
     <p class="stat-n rv">約 <span class="num">6</span> 割</p>
     <p class="stat-e rv">減りました。</p>
+    <div class="stat-line rv" aria-hidden="true"><i></i></div>
     <p class="stat-t rv">従業員は約 <span class="num">11.5</span> 万人（<span class="num">1998</span> 年度）から、約 <span class="num">4.8</span> 万人（<span class="num">2022</span> 年度）に。</p>
     <p class="src rv">出典：<a href="${STAT_URL}" target="_blank" rel="noopener">経済産業省 説明資料（文化庁サイト掲載の PDF）</a></p>
   </section>
 
-  <section class="naiku wrap" aria-labelledby="naiku-h">
-    <figure class="naiku-ph rv">${heritage("naiku-1953", "1953 年の内宮を空から撮った写真。上が新しい殿舎、下がそれまでの殿舎", "(max-width: 760px) 92vw, 640px")}<figcaption>1953 年の内宮。上が新しい殿舎、下がそれまでの殿舎（本田照夫 撮影・パブリックドメイン）。</figcaption></figure>
-    <div class="naiku-t">
-      <h3 id="naiku-h" class="rv">20 年に一度しか、<br>受け継ぐ機会が<br>ない技もあります。</h3>
+  <section class="naiku" aria-labelledby="naiku-h">
+    <div class="naiku-full">
+      <figure class="naiku-ph">${heritage("naiku-1953", "1953 年の内宮を空から撮った写真。上が新しい殿舎、下がそれまでの殿舎", "100vw")}</figure>
+      <h3 id="naiku-h" class="v naiku-h rv">20 年に一度しか、<br>受け継ぐ機会が<br>ない技もあります。</h3>
+    </div>
+    <div class="naiku-t wrap">
       <p class="rv">伊勢神宮の式年遷宮では、社殿も御装束神宝も、20 年に一度、すべて新しく作り直されます。遷宮に関わる技能者が携われるのは、多い人で <span class="num">3</span> 回ほどです。</p>
-      <p class="src rv">出典：<a href="${HAKUSHO_URL}" target="_blank" rel="noopener">国土交通白書 平成 26 年版のコラム</a>（社殿を作る技能者の話）</p>
-      <figure class="naiku-zu rv">${heritage("goshinpo-gyokuhai", "内宮御神宝図の一部。玉と金の飾りをつないだ玉佩の絵", "(max-width: 760px) 92vw, 520px")}<figcaption>神宝の一つ、玉佩を描いた図。内宮御神宝図（部分。江戸時代の写し）、国立国会図書館所蔵・パブリックドメイン。</figcaption></figure>
+      <p class="src rv">出典：<a href="${HAKUSHO_URL}" target="_blank" rel="noopener">国土交通白書 平成 26 年版のコラム</a>（社殿を作る技能者の話）。写真は 1953 年の内宮。上が新しい殿舎、下がそれまでの殿舎。本田照夫 撮影・パブリックドメイン。</p>
+      <figure class="naiku-zu rv">${heritage("goshinpo-gyokuhai", "内宮御神宝図の一部。玉と金の飾りをつないだ玉佩の絵", "(max-width: 760px) 92vw, 640px")}<figcaption>神宝の一つ、玉佩を描いた図。内宮御神宝図（部分。江戸時代の写し）、国立国会図書館所蔵・パブリックドメイン。</figcaption></figure>
     </div>
   </section>
 
@@ -377,15 +450,24 @@ const html = `
         </div>
         <figure class="own-f rv">${img("restore-flow", "途切れた技の流れ。分かることを入れる、Claude が作り方の案を出す、試して結果を入れる", "(max-width: 760px) 92vw, 560px")}</figure>
       </div>
-      <p class="ifever rv">工房に入れておけば、万が一の時に役立ちます。</p>
     </div>
   </section>
 
+  <section class="ifever" aria-label="工房に">
+    <p class="v ifever-v rv">工房に入れておけば、<br>万が一の時に役立ちます。</p>
+  </section>
+
+  <section class="stance" aria-labelledby="stance-h">
+    <h2 id="stance-h" class="rv">決めるのは、職人です。</h2>
+    <p class="rv">Claude は職人の決まりを読み、案を出し、理由を残します。</p>
+  </section>
+
   <section class="end" aria-labelledby="end-h">
-    <h2 id="end-h" class="end-h rv">職人の判断を、<br>次の人へ。</h2>
-    <p class="end-t rv">継ぐ</p>
+    <div class="end-v">
+      <h2 id="end-h" class="v end-h rv">職人の判断を、<br>次の人へ。</h2>
+      <p class="v end-t rv">継ぐ</p>
+    </div>
     <p class="end-made rv">このアプリも、彫金職人が Claude Code と作りました。</p>
-    <p class="end-stance rv">決めるのは職人です。Claude は職人の決まりを読み、案を出し、理由を残します。</p>
     <div class="cta rv">
       <a class="btn primary" href="${STUDIO}">設計する</a>
       <a class="btn" href="${LEDGER}">帳面</a>
@@ -400,7 +482,7 @@ const html = `
 <footer class="ft">
   <div class="ft-in">
     <p class="ft-top"><span class="brand">継ぐ</span><a href="${GITHUB}" rel="noopener">GitHub</a></p>
-    <p>指輪・図面・帳面などの写真と動く絵は、継ぐの画面を撮ったものです。手の動画は職人が撮った本物の手元です。品物の写真：</p>
+    <p>指輪・図面・帳面などの写真と動く絵は、継ぐの画面を撮ったものです。手の動画と、テンションの仕上がった指輪の写真は、職人が撮った本物の手元です。品物の写真：</p>
     <ul class="credits">${CREDITS.map((c) => `<li>${c.what} ― ${c.src}、<a href="${c.href}" rel="noopener">出典</a>（${c.lic}）</li>`).join("")}</ul>
     <p>ライブラリとフォントのライセンスは GitHub の README に。継ぐは MIT ライセンスです。</p>
   </div>
