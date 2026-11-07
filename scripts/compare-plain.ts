@@ -20,7 +20,8 @@ import type { Ledger } from "../src/rules/ledger";
 import { seedTechLedger, TECH_IDS, TECHS } from "../src/rules/techniques";
 import { bookText, readBook } from "../src/rebuild/book";
 import { modelOf, topImage } from "../src/rebuild/pattern-model";
-import { opWords, parsePattern, patternContext, type PatternPrediction, patternPrompt, patternRequest, PREDICT_PATTERN } from "../src/rebuild/pattern-tools";
+import { patternRecordOf, reviewPattern } from "../src/rebuild/pattern-check";
+import { opWords, parsePattern, patternContext, type PatternPrediction, type PatternRecord, patternPrompt, patternRequest, PREDICT_PATTERN } from "../src/rebuild/pattern-tools";
 import { addClue, applyPlan, clueRefs, knownClueIds, namesOf, newProject, plainWords, setPattern, sourceText, type RestorePlan, type RestoreProject } from "../src/rebuild/restore";
 import { clueText, restoreContent, restorePrompt } from "../src/rebuild/restore-prompt";
 import { parseRestoration, PROPOSE_RESTORATION } from "../src/rebuild/restore-tools";
@@ -30,6 +31,12 @@ import { PASSWORD_HEADER } from "../src/claude/wire";
 const DAY = "2026-11-08";
 const OUT = "docs/compare";
 const RAW = `${OUT}/raw`;
+/**
+ * --after：B（継ぐ）だけを、見込みの見た目の確かめ（src/rebuild/pattern-check.ts）を入れたあとのコードで回し直す（2026-11-08）。
+ * B の答えと、審判（A は前の答えのまま、B は新しい答え）は raw-after/ に置き、前の raw/ は消さない（前と後をくらべるため）
+ */
+const AFTER = process.argv.includes("--after");
+const BRAW = AFTER ? `${OUT}/raw-after` : RAW;
 
 /** A の指示（短く、ふつうに）。道具・帳面・決まりは渡さない */
 export const PLAIN_SYSTEM = "金工の技の手がかりから、作り方の手順と、できる模様を答えてください。";
@@ -210,7 +217,7 @@ async function runTsugu(c: Case, n: number) {
   });
   if (!r.ok) {
     const out = { id: c.id, cond: "B", run: n, date: DAY, error: r.error, calls, ms: Date.now() - t0 };
-    writeFileSync(`${RAW}/${c.id}-B${n}.json`, JSON.stringify(out, null, 2));
+    writeFileSync(`${BRAW}/${c.id}-B${n}.json`, JSON.stringify(out, null, 2));
     return out;
   }
   p = applyPlan(p, r.value, { date: DAY, sent: clueRefs(p), photosSent: [], bookOn: true, book: book.map((b) => ({ id: b.id, title: b.title })), sources: `${sourceText(p)}\n${bookText(book)}`, warnings: r.warnings });
@@ -226,20 +233,24 @@ async function runTsugu(c: Case, n: number) {
       if (!o.ok) rejected.push(o.error);
       return o;
     },
+    // 画面と同じ：言った見込みと計算の絵が食いちがえば、1 回だけ直してもらう（前の回し方には無かった）
+    ...(AFTER ? { review: reviewPattern(PREDICT_PATTERN.name, 7) } : {}),
     password,
     fetch: fetchShim,
   });
   let prediction: PatternPrediction | undefined;
   let picture: { top: string; section: string; notes: string[] } | undefined;
+  let record: PatternRecord | undefined;
   if (q.ok) {
-    p = setPattern(p, v.version, { date: DAY, prediction: q.value, notes: q.warnings ?? [] }, DAY);
+    record = AFTER ? patternRecordOf(q, DAY, 7) : { date: DAY, prediction: q.value, notes: q.warnings ?? [] };
+    p = setPattern(p, v.version, record, DAY);
     prediction = q.value;
     if (prediction.applicable) {
       const m = modelOf(prediction, 7);
       const top = await topImage(m, 400, 2);
       const sec = m.section(640, 140, m.row, 2);
-      const topFile = `${RAW}/${c.id}-B${n}-top.png`;
-      const secFile = `${RAW}/${c.id}-B${n}-section.png`;
+      const topFile = `${BRAW}/${c.id}-B${n}-top.png`;
+      const secFile = `${BRAW}/${c.id}-B${n}-section.png`;
       writeFileSync(topFile, encodePng(top.w, top.h, top.data));
       writeFileSync(secFile, encodePng(sec.w, sec.h, sec.data));
       picture = { top: topFile, section: secFile, notes: m.notes };
@@ -257,10 +268,11 @@ async function runTsugu(c: Case, n: number) {
     clueNames: Object.fromEntries(names),
     prediction,
     predictionError: q.ok ? undefined : q.error,
-    predictionNotes: q.ok ? q.warnings ?? [] : [],
+    predictionNotes: record?.notes ?? [],
+    firstTry: record?.firstTry,
     picture,
   };
-  writeFileSync(`${RAW}/${c.id}-B${n}.json`, JSON.stringify(out, null, 2));
+  writeFileSync(`${BRAW}/${c.id}-B${n}.json`, JSON.stringify(out, null, 2));
   return out;
 }
 
@@ -301,6 +313,7 @@ export function tsuguText(b: any): { steps: string[]; whole: string; pattern: st
     ? [
         pred.applicable ? "模様の見込み：描く" : "模様の見込み：描かない",
         pred.reason,
+        pred.look?.length ? `値を決める前に言った見込み：\n${pred.look.map((l) => `- ${l.point}：${l.expect}`).join("\n")}` : "",
         pred.summary,
         pred.applicable ? `絵のための操作（この操作から計算で絵を描いた）：\n${pred.ops.map((o) => `- ${opWords(o)}${o.assumed ? `　仮：${o.assumed}` : ""}`).join("\n")}` : "",
         pred.cannot_show ? `この絵では表せないこと：${pred.cannot_show}` : "",
@@ -494,7 +507,7 @@ function seeded(s: string): number {
 /** pictures＝false：B の絵を渡さず、文だけで見てもらう（絵があるから点が下がったのか、案そのものが弱いのかを分けるため） */
 async function judge(c: Case, n: number, pictures = true) {
   const a = JSON.parse(readFileSync(`${RAW}/${c.id}-A${n}.json`, "utf8"));
-  const b = JSON.parse(readFileSync(`${RAW}/${c.id}-B${n}.json`, "utf8"));
+  const b = JSON.parse(readFileSync(`${BRAW}/${c.id}-B${n}.json`, "utf8"));
   const bFirst = seeded(`${c.id}-${n}`) < 0.5;
   const p = projectOf(c);
   const items = bFirst ? [["B", b], ["A", a]] : [["A", a], ["B", b]];
@@ -536,7 +549,7 @@ async function judge(c: Case, n: number, pictures = true) {
   }
   const order = items.map(([cond]) => cond);
   const out = { id: c.id, run: n, order, points: c.points, ms: r?.ms, usage: r?.data?.usage, raw: textOf(r?.data), result: parsed };
-  writeFileSync(`${RAW}/${c.id}-judge-${n}${pictures ? "" : "-text"}.json`, JSON.stringify(out, null, 2));
+  writeFileSync(`${BRAW}/${c.id}-judge-${n}${pictures ? "" : "-text"}.json`, JSON.stringify(out, null, 2));
   return out;
 }
 
@@ -550,8 +563,12 @@ function score() {
     const p = projectOf(c);
     const clueTexts = c.clues.map((x) => x.text);
     const src = sourcesOf(clueTexts.join("\n"), ledger);
-    for (const file of readdirSync(RAW).filter((f) => new RegExp(`^${c.id}-[AB]\\d+\\.json$`).test(f)).sort()) {
-      const r = JSON.parse(readFileSync(`${RAW}/${file}`, "utf8"));
+    const files = [
+      ...readdirSync(RAW).filter((f) => new RegExp(`^${c.id}-A\\d+\\.json$`).test(f)).map((f) => `${RAW}/${f}`),
+      ...readdirSync(BRAW).filter((f) => new RegExp(`^${c.id}-B\\d+\\.json$`).test(f)).map((f) => `${BRAW}/${f}`),
+    ].sort();
+    for (const file of files) {
+      const r = JSON.parse(readFileSync(file, "utf8"));
       let whole = "";
       let steps: string[] = [];
       let structured: number | undefined;
@@ -580,7 +597,7 @@ function score() {
       }
       const nums = scanNumbers(whole, src, r.cond === "B");
       const where = steps.filter((s) => saysWhere(s, clueTexts)).length;
-      const jf = `${RAW}/${c.id}-judge-${r.run}.json`;
+      const jf = `${BRAW}/${c.id}-judge-${r.run}.json`;
       let jud: any;
       if (existsSync(jf)) {
         const j = JSON.parse(readFileSync(jf, "utf8"));
@@ -588,7 +605,7 @@ function score() {
         jud = j.result?.answers?.[k];
       }
       const verdicts = (jud?.points ?? []).map((x: any) => x.verdict as string);
-      const tf = `${RAW}/${c.id}-judge-${r.run}-text.json`;
+      const tf = `${BRAW}/${c.id}-judge-${r.run}-text.json`;
       let textVerdicts: string[] = [];
       if (existsSync(tf)) {
         const j = JSON.parse(readFileSync(tf, "utf8"));
@@ -627,7 +644,7 @@ function score() {
       });
     }
   }
-  writeFileSync(`${OUT}/results.json`, JSON.stringify(rows, null, 2));
+  writeFileSync(`${OUT}/${AFTER ? "results-after" : "results"}.json`, JSON.stringify(rows, null, 2));
   // あらまし
   const sum = (cond: string, f: (r: any) => number) => rows.filter((r) => r.cond === cond).reduce((a, r) => a + f(r), 0);
   const cnt = (cond: string) => rows.filter((r) => r.cond === cond).length;
@@ -677,27 +694,89 @@ export function aggregate(rows: any[]) {
   return { A: f("A"), B: f("B") };
 }
 
+/**
+ * 直す前の B の絵で「合う」でなかった 57 点のうち、値の選び方（層の順・色の出し方・深さ・置き方）が わけ だった 14 点（README の表。手で分けた）。
+ * [技, 回, 点の番号]。直した後の同じ点を、審判がどう見たかをくらべる
+ */
+const VALUE_POINTS: [string, number, number][] = [
+  ["konoha", 1, 1], ["konoha", 1, 2], ["konoha", 1, 3], ["konoha", 2, 1], ["konoha", 2, 2], ["konoha", 2, 3],
+  ["amadare", 1, 2], ["machigai", 1, 1], ["machigai", 2, 1], ["shashin", 2, 1],
+  ["mujun", 2, 2], ["senshippo", 1, 2], ["senshippo", 1, 5], ["senshippo", 2, 5],
+];
+
+/** 審判の、B の答えの、その点の判断 */
+function bVerdict(dir: string, id: string, run: number, point: number): string | undefined {
+  const f = `${dir}/${id}-judge-${run}.json`;
+  if (!existsSync(f)) return undefined;
+  const j = JSON.parse(readFileSync(f, "utf8"));
+  return j.result?.answers?.[(j.order as string[]).indexOf("B")]?.points?.[point - 1]?.verdict;
+}
+
 async function chart() {
   const rows = JSON.parse(readFileSync(`${OUT}/results.json`, "utf8"));
   const g = aggregate(rows);
+  // B を直したあと（--after）。A は前の答えと前の審判のまま（A の答えは回し直していない）
+  const afterFile = `${OUT}/results-after.json`;
+  const h = existsSync(afterFile) ? aggregate(JSON.parse(readFileSync(afterFile, "utf8"))) : null;
+  const B = (label: string, before: number, after: number | undefined): [string, number, string][] => [
+    [`B　${h ? "直す前" : label}`, before, "var(--b0)"],
+    ...(h && after !== undefined ? ([["B　直した後", after, "var(--b)"]] as [string, number, string][]) : []),
+  ];
+  const mx = (...v: number[]) => Math.max(...v.filter((x) => Number.isFinite(x)));
   const panels: { title: string; note: string; bars: [string, number, string][]; fmt: (v: number) => string; max: number }[] = [
-    { title: "根拠のない数字が出た答え（30 回のうち）", note: "温度・長さ・時間・割合など。手がかりに無く（B は帳面にも無く）、仮・目安とも書いていない数字。どちらもほとんど無い", bars: [["A　Claude だけ", g.A.runs - g.A.unsourcedRunsZero, "var(--a)"], ["B　継ぐ", g.B.runs - g.B.unsourcedRunsZero, "var(--b)"]], fmt: (v) => `${v} 回`, max: g.A.runs },
-    { title: "どこから来たかが見える手順", note: "手がかり・帳面・推し量りのどれから来たかを、その手順の文で言っている割合。多いほどよい", bars: [["A　Claude だけ", g.A.stepsWherePct, "var(--a)"], ["B　継ぐ", g.B.stepsWherePct, "var(--b)"]], fmt: (v) => `${Math.round(v)}%`, max: 100 },
-    { title: "手がかりの点に「合う」（審判の Claude）", note: "文だけで見ると A が上。B の絵で見ると下がる。絵は、文の言い分のうち計算で出なかった所を見せる", bars: [["A　文で", g.A.yesPct, "var(--a)"], ["B　文で", g.B.textYesPct, "var(--b)"], ["B　絵で", g.B.yesPct, "var(--b2)"]], fmt: (v) => `${Math.round(v)}%`, max: 100 },
-    { title: "分からない所を、分からないと言うか（審判・0〜2）", note: "0＝言わずに埋める、1＝一部だけ、2＝足りない所をはっきり言う。多いほどよい", bars: [["A　Claude だけ", g.A.honesty, "var(--a)"], ["B　継ぐ", g.B.honesty, "var(--b)"]], fmt: (v) => v.toFixed(2), max: 2 },
-    { title: "手がかりに無いことの言い切り（審判・1 回あたり）", note: "B の数の多くは、渡した帳面を審判が知らずに数えたもの。少ないほどよい", bars: [["A　Claude だけ", g.A.overclaimPerRun, "var(--a)"], ["B　継ぐ", g.B.overclaimPerRun, "var(--b)"]], fmt: (v) => v.toFixed(1), max: Math.max(g.A.overclaimPerRun, g.B.overclaimPerRun) },
-    { title: "1 回の待ち時間", note: "B は 2 回呼ぶ（案と模様の見込み）。少ないほどよい", bars: [["A　Claude だけ", g.A.secPerRun, "var(--a)"], ["B　継ぐ", g.B.secPerRun, "var(--b)"]], fmt: (v) => `${Math.round(v)} 秒`, max: Math.max(g.A.secPerRun, g.B.secPerRun) },
+    {
+      title: "手がかりの点に「合う」（審判の Claude）",
+      note: h
+        ? "A は絵が無いので、文の言い分を確かめられない。B の絵で見た合い方は、直した後も 60% のまま（直した所は合うようになったが、別の所で下がった。README）"
+        : "文だけで見ると A が上。B の絵で見ると下がる。絵は、文の言い分のうち計算で出なかった所を見せる",
+      bars: [
+        ["A　文で", g.A.yesPct, "var(--a)"],
+        [`B　${h ? "前・" : ""}文で`, g.B.textYesPct, "var(--b0)"],
+        [`B　${h ? "前・" : ""}絵で`, g.B.yesPct, "var(--b0h)"],
+        ...(h
+          ? ([
+              ["B　後・文で", h.B.textYesPct, "var(--b)"],
+              ["B　後・絵で", h.B.yesPct, "var(--bh)"],
+            ] as [string, number, string][])
+          : []),
+      ],
+      fmt: (v) => `${Math.round(v)}%`,
+      max: 100,
+    },
+    ...(h
+      ? [
+          {
+            title: `値の選び方で外れていた ${VALUE_POINTS.length} 点が、絵で「合う」`,
+            note: "直す前に、層の順・色の出し方・深さ・置き方のせいで絵が手がかりと合わなかった点（README の表）。同じ技・同じ回の同じ点を、直した後にくらべた",
+            bars: B("継ぐ", VALUE_POINTS.filter(([id, n, k]) => bVerdict(RAW, id, n, k) === "yes").length, VALUE_POINTS.filter(([id, n, k]) => bVerdict(`${OUT}/raw-after`, id, n, k) === "yes").length),
+            fmt: (v: number) => `${v} 点`,
+            max: VALUE_POINTS.length,
+          },
+          {
+            title: "絵で見て「合わない」（審判の Claude）",
+            note: "B の絵が、手がかりの点と反対のことを示した割合。少ないほどよい",
+            bars: B("継ぐ", g.B.noPct, h.B.noPct),
+            fmt: (v: number) => `${Math.round(v)}%`,
+            max: 100,
+          },
+        ]
+      : []),
+    { title: "根拠のない数字が出た答え（30 回のうち）", note: "温度・長さ・時間・割合など。手がかりに無く（B は帳面にも無く）、仮・目安とも書いていない数字", bars: [["A　Claude だけ", g.A.runs - g.A.unsourcedRunsZero, "var(--a)"], ...B("継ぐ", g.B.runs - g.B.unsourcedRunsZero, h ? h.B.runs - h.B.unsourcedRunsZero : undefined)], fmt: (v) => `${v} 回`, max: g.A.runs },
+    { title: "どこから来たかが見える手順", note: "手がかり・帳面・推し量りのどれから来たかを、その手順の文で言っている割合。多いほどよい", bars: [["A　Claude だけ", g.A.stepsWherePct, "var(--a)"], ...B("継ぐ", g.B.stepsWherePct, h?.B.stepsWherePct)], fmt: (v) => `${Math.round(v)}%`, max: 100 },
+    { title: "分からない所を、分からないと言うか（審判・0〜2）", note: "0＝言わずに埋める、1＝一部だけ、2＝足りない所をはっきり言う。多いほどよい", bars: [["A　Claude だけ", g.A.honesty, "var(--a)"], ...B("継ぐ", g.B.honesty, h?.B.honesty)], fmt: (v) => v.toFixed(2), max: 2 },
+    { title: "手がかりに無いことの言い切り（審判・1 回あたり）", note: "B の数の多くは、渡した帳面を審判が知らずに数えたもの。少ないほどよい", bars: [["A　Claude だけ", g.A.overclaimPerRun, "var(--a)"], ...B("継ぐ", g.B.overclaimPerRun, h?.B.overclaimPerRun)], fmt: (v) => v.toFixed(1), max: mx(g.A.overclaimPerRun, g.B.overclaimPerRun, h?.B.overclaimPerRun ?? 0) },
+    { title: "1 回の待ち時間", note: h ? "B は 2 回呼ぶ（案と模様の見込み）。直した後は、食いちがえば見込みをもう 1 回呼ぶ。少ないほどよい" : "B は 2 回呼ぶ（案と模様の見込み）。少ないほどよい", bars: [["A　Claude だけ", g.A.secPerRun, "var(--a)"], ...B("継ぐ", g.B.secPerRun, h?.B.secPerRun)], fmt: (v) => `${Math.round(v)} 秒`, max: mx(g.A.secPerRun, g.B.secPerRun, h?.B.secPerRun ?? 0) },
   ];
   const W = 1080;
   const bar = (label: string, v: number, max: number, color: string, text: string) =>
     `<div class="row"><div class="lab">${label}</div><div class="track"><div class="bar" style="width:${Math.max(0.6, (v / max) * 100)}%;background:${color}"></div></div><div class="val">${text}</div></div>`;
   const html = `<!doctype html><html lang="ja"><head><meta charset="utf-8"><style>
-  :root{--surface:#fcfcfb;--ink:#0b0b0b;--ink2:#52514e;--grid:#e4e3df;--a:#eb6834;--b:#2a78d6;--b2:repeating-linear-gradient(135deg,#2a78d6 0 8px,#9cc0ec 8px 14px)}
+  :root{--surface:#fcfcfb;--ink:#0b0b0b;--ink2:#52514e;--grid:#e4e3df;--a:#eb6834;--b:#2a78d6;--bh:repeating-linear-gradient(135deg,#2a78d6 0 8px,#9cc0ec 8px 14px);--b0:#9cb6d6;--b0h:repeating-linear-gradient(135deg,#9cb6d6 0 8px,#dbe6f3 8px 14px)}
   body{margin:0;background:var(--surface);color:var(--ink);font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN",sans-serif;width:${W}px}
   .wrap{padding:56px 56px 40px}
   h1{font-size:46px;margin:0 0 10px;font-weight:700;letter-spacing:.02em}
   .sub{font-size:26px;color:var(--ink2);margin:0 0 34px;line-height:1.5}
-  .legend{display:flex;gap:36px;font-size:28px;margin-bottom:30px}
+  .legend{display:flex;flex-wrap:wrap;gap:12px 30px;font-size:26px;margin-bottom:30px}
   .legend span{display:inline-flex;align-items:center;gap:12px}
   .sw{width:28px;height:28px;border-radius:4px;display:inline-block}
   .panel{border-top:2px solid var(--grid);padding:26px 0 22px}
@@ -712,7 +791,7 @@ async function chart() {
   </style></head><body><div class="wrap">
   <h1>継ぐ がある時と、Claude だけの時</h1>
   <p class="sub">架空の技 ${rows.filter((r: any) => r.cond === "A" && r.run === 1).length} 個 × 2 回ずつ。同じモデル（Claude Opus 5.5）・同じ手がかりの文。A はふつうに 1 回聞く。B は帳面と道具と模様の計算を通す。2026-11-08</p>
-  <div class="legend"><span><i class="sw" style="background:var(--a)"></i>A　Claude だけ</span><span><i class="sw" style="background:var(--b)"></i>B　継ぐ</span></div>
+  <div class="legend"><span><i class="sw" style="background:var(--a)"></i>A Claude だけ</span>${h ? `<span><i class="sw" style="background:var(--b0)"></i>B 直す前</span><span><i class="sw" style="background:var(--b)"></i>B 直した後</span>` : `<span><i class="sw" style="background:var(--b)"></i>B　継ぐ</span>`}<span><i class="sw" style="background:var(--bh)"></i>しま＝絵</span></div>
   ${panels.map((p) => `<div class="panel"><h2>${p.title}</h2><p class="note">${p.note}</p>${p.bars.map(([l, v, c]) => bar(l, v, p.max, c, p.fmt(v))).join("")}</div>`).join("")}
   <div class="foot">数が少ない試し（1 つの条件で ${g.A.runs} 回）。審判も Claude。技はどれも作り話で、本当の答えは無い。くわしくは docs/compare/README.md</div>
   </div></body></html>`;
@@ -724,13 +803,13 @@ async function chart() {
   await page.goto(`file://${process.cwd()}/${tmp}`);
   await page.screenshot({ path: `${OUT}/summary.png`, fullPage: true });
   await browser.close();
-  console.log(JSON.stringify(g, null, 2));
+  console.log(JSON.stringify(h ? { before: g, after: h } : g, null, 2));
 }
 
 // ---------- 入口 ----------
 
 const [cmd, envPath, ...rest] = process.argv.slice(2);
-mkdirSync(RAW, { recursive: true });
+mkdirSync(BRAW, { recursive: true });
 if (cmd === "score") {
   score();
   process.exit(0);
@@ -752,6 +831,7 @@ for (let i = 0; i < rest.length; i++) {
   if (rest[i] === "--runs") runs = Number(rest[++i]);
   else if (rest[i] === "--only") only = rest[++i];
   else if (rest[i] === "--no-picture") noPicture = true;
+  else if (rest[i] === "--after") continue;
   else pick.push(rest[i]);
 }
 const cases = allCases().filter((c) => !pick.length || pick.includes(c.id));
@@ -760,7 +840,8 @@ for (const c of cases)
   for (let n = 1; n <= runs; n++) {
     if (cmd === "judge") jobs.push(() => judge(c, n, !noPicture));
     else {
-      if (only !== "B") jobs.push(() => runPlain(c, n));
+      // --after では A を回さない（前の A の答えを、そのまま使う）
+      if (only !== "B" && !AFTER) jobs.push(() => runPlain(c, n));
       if (only !== "A") jobs.push(() => runTsugu(c, n));
     }
   }

@@ -187,3 +187,44 @@ export const RELIEF_VALUES = {
   /** ふちにそう線を引かない、板のふちの幅（打ち出しは、ふち 0.08 の内で平らにもどる） */
   outlineInset: 0.05,
 } as const;
+
+/** 絵の色を言う、短い色の言葉（Claude が「地は赤茶」のように言った見込みと、計算の絵の色を、同じ言葉でくらべるため。2026-11-08） */
+export const COLOR_WORDS = ["白", "灰", "黒", "茶", "赤茶", "赤", "金", "緑", "青", "紫"] as const;
+export type ColorWord = (typeof COLOR_WORDS)[number];
+
+/**
+ * 絵の色（#rrggbb）を、色の言葉 1 つにする。明るさと色合いで分けるだけの、絵のための目安（色の名前の決まりではない）。
+ * さかいの値は、この表の材料の絵の色が、ふつうの言い方（銀＝白、赤銅の煮色＝黒、銅＝赤茶、金＝金）に分かれるように選んだ。
+ */
+export function colorWord(hex: string): ColorWord {
+  const v = parseInt(hex.slice(1), 16);
+  const r = ((v >> 16) & 255) / 255;
+  const g = ((v >> 8) & 255) / 255;
+  const b = (v & 255) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  const c = max - min;
+  // 色みの強さ（HSL の彩度）。弱い色は、明るさだけで白・灰・黒にする
+  const s = c / (1 - Math.abs(2 * l - 1) || 1);
+  if (l >= 0.78 || (l >= 0.72 && s < 0.35)) return "白";
+  if (c < 0.08 || s < 0.2) return l >= 0.35 ? "灰" : "黒";
+  if (l < 0.2) return "黒";
+  let h = 0;
+  if (max === r) h = (60 * ((g - b) / c) + 360) % 360;
+  else if (max === g) h = 60 * ((b - r) / c) + 120;
+  else h = 60 * ((r - g) / c) + 240;
+  if (h < 8 || h >= 340) return "赤";
+  if (h < 20) return l < 0.3 ? "茶" : "赤茶";
+  if (h < 40) return l < 0.45 ? "茶" : "赤茶";
+  if (h < 65) return l < 0.4 ? "茶" : "金";
+  if (h < 170) return "緑";
+  if (h < 260) return "青";
+  return "紫";
+}
+
+/**
+ * 計算の絵で、見込みの言葉（地の材料と色・見える材料）を確かめるときの値（2026-11-08。どれも絵の確かめのための仮の値で、出典はない）。
+ * grid＝上から見る点の数（1 辺）。shown＝表の点のうちこれだけあれば「見える」とする割合。extra＝言っていない材料がこれより多く出たら知らせる割合
+ */
+export const LOOK_CHECK = { grid: 120, shown: 0.002, extra: 0.05 } as const;
