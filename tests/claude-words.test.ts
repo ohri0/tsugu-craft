@@ -1,8 +1,10 @@
 // 人に見せる文：作業の記録に、英字の名前・内部の番号・決まりの印が出ないこと（2026-11-05 作者のスマホの絵から）
 import { describe, expect, it } from "vitest";
-import { cannotFrom, hasJapanese, offlineWhy, plainWords, prongPlaceWords, ruleTitles, toolLogLine, withoutCannot, type StoneWords } from "../src/claude/words";
-import { designPrompt, SYSTEM_PROMPT } from "../src/claude/prompt";
-import { SYSTEM_MAX_CHARS } from "../src/claude/wire";
+import { cannotFrom, hasJapanese, heardFrom, heardWords, offlineWhy, plainWords, prongPlaceWords, ruleTitles, toolLogLine, withoutCannot, type StoneWords } from "../src/claude/words";
+import { askPromptText, correctPrompt, designPrompt, interviewPrompt, keepPrompt, SYSTEM_PROMPT, teachPrompt } from "../src/claude/prompt";
+import { askGapPrompt } from "../src/claude/gap";
+import { bandPrompt } from "../src/studio/band";
+import { JA_ANSWER, SYSTEM_MAX_CHARS } from "../src/claude/wire";
 import { parseToolCall } from "../src/claude/tools";
 import { seedLedger } from "../src/rules/ledger";
 import { readFileSync } from "node:fs";
@@ -167,5 +169,26 @@ describe("Claude につながらないわけ", () => {
   });
   it("ほかのわけは、かっこに入れて出す", () => {
     expect(offlineWhy("合言葉が違います。")).toBe("（合言葉が違います）");
+  });
+});
+
+describe("ひとことの希望の受け取り方", () => {
+  it("「受け取り方：」の行を取り出し、と受け取りました・句点を重ねない。なしのときは空", () => {
+    const t = "受け取り方：かわいく → 細めの腕・小さめの爪・丸みのある形\nやったこと：x\nまだできないこと：なし";
+    expect(heardFrom(t)).toBe("かわいく → 細めの腕・小さめの爪・丸みのある形");
+    expect(heardFrom("**受け取り方**: かわいく → 丸い爪、と受け取りました。")).toBe("かわいく → 丸い爪");
+    expect(heardFrom("受け取り方：なし")).toBe("");
+    expect(heardFrom("やったこと：x")).toBe("");
+    expect(heardWords("かわいく → 丸い爪")).toBe("受け取り方：かわいく → 丸い爪、と受け取りました。違えば、希望に言葉を足してもう一度。");
+    expect(heardWords("")).toBe("");
+  });
+});
+
+describe("英語で聞かれても、日本語で答える（A09）", () => {
+  it("人に答える指示のすべてに、日本語で答える行が入っている", () => {
+    const l = seedLedger();
+    for (const p of [designPrompt(l), interviewPrompt(l, "山田"), teachPrompt(l), askPromptText("x", "山田"), keepPrompt(l, "山田"), correctPrompt(l, "山田", "x"), askGapPrompt("x", "x"), bandPrompt()]) {
+      expect(p).toContain(JA_ANSWER);
+    }
   });
 });

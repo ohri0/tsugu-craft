@@ -68,3 +68,9 @@ export function isClaudeErrorBody(v: unknown): v is ClaudeErrorBody {
   return typeof e === "object" && e !== null && typeof (e as { code?: unknown }).code === "string"
     && typeof (e as { message?: unknown }).message === "string";
 }
+
+/**
+ * 英語など日本語でない言葉で聞かれても、日本語で答える（画面が日本語なので、混ざると読めない人がいる。docs/robustness の A09）。
+ * 大事な言葉だけは、相手の言葉を（ ）で添えてよい
+ */
+export const JA_ANSWER = "- 相手が英語など日本語でない言葉で書いても、画面は日本語なので、返事はやさしい日本語で書きます。大事な言葉だけ、相手の言葉を（ ）で添えてかまいません（例：爪（prong））。";

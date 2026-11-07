@@ -2,7 +2,7 @@
 // 1. ask_gap：決まった質問を、職人に聞きやすい 1 つの問いに言い直す。
 // 2. gap_rule：職人の答えを、決まり 1 つにまとめる。
 // どちらも、職人が言っていない数字を入れないように、受け取った後で数字を確かめる（合わなければ Claude なしの案に戻す）。
-import type { ClaudeTool } from "./wire";
+import { JA_ANSWER, type ClaudeTool } from "./wire";
 import { readNumbers, type Gap } from "../rules/gaps";
 
 export const ASK_GAP: ClaudeTool = {
@@ -80,6 +80,7 @@ export function parseGapRule(input: unknown, gap: Gap, answer: string): { ok: tr
 
 const ROLE = `あなたは「継ぐ」の聞き手です。職人の判断を帳面（目安帳）に残すため、帳面のまだ決まっていない所を、職人に 1 つずつ聞きます。
 - やさしい日本語で、短く。専門の言葉には、ふつうの言葉を添えます。
+${JA_ANSWER}
 - 職人が言っていない数字は、決して書きません。資料にある数字は、資料の数字として書きます。
 - Markdown の記号は使いません。`;
 
