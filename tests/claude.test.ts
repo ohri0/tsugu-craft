@@ -423,6 +423,16 @@ describe("道具の定義", () => {
     expect(parseToolCall("propose_rule", { ...base, param: "prong.cornerReachMm", value: 500 }).ok).toBe(false);
   });
 
+  it("決まりの案の工程（steps）は工程の名前の並びで受ける（前は番号の並びと見て、いつも断っていた。2026-11-07 の試し）", () => {
+    const base = { title: "爪を倒す前に", text: "爪を少し削ってから倒す", reason: "割れないように" };
+    expect(parseToolCall("propose_rule", { ...base, steps: ["head", "prong"] }).ok).toBe(true);
+    expect(parseToolCall("propose_rule", { ...base, steps: [] }).ok).toBe(true);
+    expect(parseToolCall("propose_rule", { ...base, steps: ["paint"] }).ok).toBe(false);
+    expect(parseToolCall("propose_rule", { ...base, steps: [3] }).ok).toBe(false);
+    // 番号の並びは今までどおり番号で見る
+    expect(parseToolCall("set_setting", { prong_positions: ["a"], reason: "x" }).ok).toBe(false);
+  });
+
   it("入力を型と範囲で確かめる", () => {
     expect(parseToolCall("check", {}).ok).toBe(true);
     expect(parseToolCall("set_setting", { height: "standard", prong_positions: [0, 45], reason: "標準" }).ok).toBe(true);

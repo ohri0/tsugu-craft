@@ -760,7 +760,7 @@ export type ParseResult = { ok: true; call: ParsedToolCall } | { ok: false; erro
 interface PropSchema {
   type: "string" | "number" | "integer" | "array" | "boolean" | "object";
   enum?: readonly string[];
-  items?: { type: "integer" } | { type: "object" };
+  items?: { type: "integer" } | { type: "object" } | { type: "string"; enum?: readonly string[] };
 }
 
 const BOUND_OF: Record<string, keyof typeof INPUT_BOUNDS> = {
@@ -808,6 +808,15 @@ function checkProp(key: string, s: PropSchema, v: unknown): string | null {
       // 場所ごとの形は checkStations が見る
       if (key === "stations" || key === "relief_more") return null;
       if (s.items?.type === "object") return checkSizeSteps(key, v);
+      // 文字の並び（決まりが効く工程 steps など）。前は番号の並びとして見ていて、工程を付けた決まりの案がいつも断られていた（2026-11-07 の試し）
+      if (s.items?.type === "string") {
+        const allowed = s.items.enum;
+        for (const item of v) {
+          if (typeof item !== "string") return `${key} は文字の並びで書いてください`;
+          if (allowed && !allowed.includes(item)) return `${key} は ${allowed.join(" / ")} から選んでください（今は ${item}）`;
+        }
+        return null;
+      }
       for (const item of v) {
         const e = checkNumber(key, item, true);
         if (e) return e;
