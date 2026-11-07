@@ -213,7 +213,7 @@ Claude Desktop に足す（設定の「開発者」→ 設定ファイル `claud
 ```
 npm install
 npm run dev      # 画面（Claude を使わない所は、これで全部動く）
-npm test         # 形の処理と確かめるルールのテスト（2026-11-07 の通しで 99 ファイル・1568 件が通る）
+npm test         # 形の処理と確かめるルールのテスト（2026-11-07 夜の通しで 99 ファイル・1571 件が通る）
 ```
 
 Claude を使う所は、サーバーの関数（`api/claude.ts`）が Claude API を呼びます。`.env.example` を `.env` に写して、自分の API キーを入れます（`.env` はリポジトリに入れない）。開発用のサーバーでも、同じ関数が動きます（`vite.config.ts`）。
