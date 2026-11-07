@@ -21,6 +21,11 @@ export interface CallToolOptions<T> {
   user: string | ClaudeContentBlockParam[];
   tool: ClaudeTool;
   parse: (input: unknown) => { ok: true; value: T; warnings?: string[] } | { ok: false; error: string };
+  /**
+   * 受け取った答えを、計算などで確かめる（任意）。食いちがいがあれば、Claude に返す文を返す（無ければ null）。
+   * 文が返ったら、1 回だけ、その文を道具の結果として返して出し直してもらい、1 回目の答えは reviewed に残す。
+   */
+  review?: (value: T) => string | null;
   /** 公開ページの合言葉 */
   password?: string;
   /** fast＝考える量を少なくして速く返す */
@@ -30,8 +35,16 @@ export interface CallToolOptions<T> {
   signal?: AbortSignal;
 }
 
+/** 確かめで食いちがい、1 回だけ出し直してもらったときの記録。unanswered＝出し直しを受け取れず、1 回目の答えを使った */
+export interface Reviewed<T> {
+  first: T;
+  firstWarnings?: string[];
+  message: string;
+  unanswered?: true;
+}
+
 export type CallToolResult<T> =
-  | { ok: true; value: T; remaining?: number; warnings?: string[] }
+  | { ok: true; value: T; remaining?: number; warnings?: string[]; reviewed?: Reviewed<T> }
   | { ok: false; error: string; code?: string; status?: number; remaining?: number };
 
 const MESSAGES = {
@@ -104,8 +117,10 @@ export async function callTool<T>(opts: CallToolOptions<T>): Promise<CallToolRes
   let remaining: number | undefined;
   let askedForTool = false;
   let sentError = false;
+  let reviewed: Reviewed<T> | undefined;
+  const useFirst = (r: Reviewed<T>): CallToolResult<T> => ({ ok: true, value: r.first, remaining, ...(r.firstWarnings?.length ? { warnings: r.firstWarnings } : {}), reviewed: { ...r, unanswered: true } });
 
-  // 最初の 1 回 ＋ 文だけの返事への頼み直し 1 回 ＋ 形の直し 1 回 ＝ 多くて 3 回
+  // 最初の 1 回 ＋ 文だけの返事への頼み直し 1 回 ＋ 形の直し 1 回 ＋ 確かめのあとの出し直し 1 回（review があるとき）＝ 多くて 4 回
   for (;;) {
     if (opts.signal?.aborted) return { ok: false, error: MESSAGES.aborted, code: "aborted", remaining };
     const out = await post(fetchImpl, endpoint, { messages, system: opts.system, tools: [opts.tool], ...(opts.speed ? { speed: opts.speed } : {}) }, opts.password, opts.signal);
@@ -122,6 +137,8 @@ export async function callTool<T>(opts: CallToolOptions<T>): Promise<CallToolRes
     const others = uses.filter((b) => b !== use).map((b) => errorResult(b.id, MESSAGES.others));
 
     if (!use) {
+      // 確かめのあとに道具を呼ばなかったら、1 回目の答えを使う
+      if (reviewed) return useFirst(reviewed);
       if (askedForTool) return { ok: false, error: MESSAGES.noTool, code: "no_tool", remaining };
       askedForTool = true;
       messages.push({
@@ -136,9 +153,18 @@ export async function callTool<T>(opts: CallToolOptions<T>): Promise<CallToolRes
 
     const parsed = opts.parse(use.input);
     if (parsed.ok) {
-      return { ok: true, value: parsed.value, remaining, ...(parsed.warnings?.length ? { warnings: parsed.warnings } : {}) };
+      const message = !reviewed && opts.review ? opts.review(parsed.value) : null;
+      if (message) {
+        // 確かめで食いちがった：1 回だけ、知らせて出し直してもらう（1 回目の答えは残す）
+        reviewed = { first: parsed.value, ...(parsed.warnings?.length ? { firstWarnings: parsed.warnings } : {}), message };
+        messages.push({ role: "user", content: [{ type: "tool_result", tool_use_id: use.id, content: message }, ...others] });
+        continue;
+      }
+      return { ok: true, value: parsed.value, remaining, ...(parsed.warnings?.length ? { warnings: parsed.warnings } : {}), ...(reviewed ? { reviewed } : {}) };
     }
     if (sentError) {
+      // 確かめのあとの出し直しが形の誤りなら、1 回目の答え（形は正しい）を使う
+      if (reviewed) return useFirst(reviewed);
       return { ok: false, error: `Claude の答えの形が正しくありませんでした：${parsed.error}`, code: "bad_input", remaining };
     }
     sentError = true;

@@ -7,6 +7,7 @@
 // 合う計算が無い技は、Claude がそう答え、絵は描かない。
 import "./moyou.css";
 import "./pattern.css";
+import { patternRecordOf, reviewPattern } from "../rebuild/pattern-check";
 import { modelOf, type PatternModel } from "../rebuild/pattern-model";
 import type { Rgba } from "../rebuild/pattern-sim";
 import { opWords, parsePattern, patternContext, patternPrompt, patternRequest, PREDICT_PATTERN, TOOL_OP_LABEL, type PatternPrediction, type PatternRecord } from "../rebuild/pattern-tools";
@@ -36,6 +37,8 @@ export function predictFor(p: RestoreProject, plan: RestorePlan, password: strin
     user: patternRequest(p.name, plan, (s) => plainWords(s, names), patternContext(p, plan)),
     tool: PREDICT_PATTERN,
     parse: (x) => parsePattern(x, { steps: plan.steps.length }),
+    // 言った見込み（地の材料と色・見える材料）を、計算の絵でくらべ、食いちがえば 1 回だけ直してもらう
+    review: reviewPattern(PREDICT_PATTERN.name, SEED),
     password,
   });
 }
@@ -55,7 +58,7 @@ export async function makePattern(p: RestoreProject, version: number): Promise<{
     if (r.code === "wrong_password") resetPassword();
     return { ok: false, error: r.error };
   }
-  const record: PatternRecord = { date: today(), prediction: r.value, notes: r.warnings ?? [] };
+  const record: PatternRecord = patternRecordOf(r, today(), SEED);
   const next = setPattern(p, version, record, today());
   const saved = saveProject(next);
   if (!saved.ok) return { ok: false, error: saved.error };
@@ -348,7 +351,7 @@ export function mountPatternView(root: HTMLElement, project: RestoreProject, ver
       ${prev ? `<div class="pv-diff"><b>前の案とのちがい</b>${diffList(prev.pattern!.prediction, pred)}</div>` : ""}
       <div class="pv-notes"></div>`
       }
-      ${pred ? `<details class="pv-ops"><summary>Claude の置きかえ（手順 → 計算の操作）</summary><p>${says(pred.reason, v)}</p>${rec?.notes.length ? `<p class="pv-sub">受け取るときに直したこと：${esc(rec.notes.join(" / "))}</p>` : ""}</details>` : ""}
+      ${pred ? `<details class="pv-ops"><summary>Claude の置きかえ（手順 → 計算の操作）</summary><p>${says(pred.reason, v)}</p>${pred.look?.length ? `<p class="pv-sub">値を決める前に言った見込み：</p><ul>${pred.look.map((l) => `<li>${says(l.point, v)}：${says(l.expect, v)}</li>`).join("")}</ul>` : ""}${rec?.notes.length ? `<p class="pv-sub">受け取るときに直したこと：${esc(rec.notes.join(" / "))}</p>` : ""}</details>` : ""}
       <p class="mo-honest">これは形だけの見込みです。金属の本当の流れ・熱・割れは計算しません。「仮」の数は、手順に書かれていないので絵のために決めた値で、作り方の数字ではありません。本当にどうなるかは、小さな切れ端で試して確かめてください。最後に決めるのは職人です。</p>
       ${pred ? `<div class="pv-acts"><button type="button" class="ghost pv-again"${busy ? " disabled" : ""}>この案で、見込みを作り直す</button><p class="pv-st" role="status"></p></div>` : ""}
     </section>`;

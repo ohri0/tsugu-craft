@@ -662,9 +662,13 @@ export function pointAt(r: Relief, x: number, y: number, upto = r.ops.length): P
           p.add = Math.max(p.add, 0.04 * (1 - e * e));
           p.addMat = p.fillMat;
         } else if (e < 1 + wire * 0.2) {
+          // 区切りの線は、ガラスの底から表まで立つ壁（前は表の上の小さな出っぱりだけで、断面に線が見えなかった。2026-11-08 のくらべで分かった）
+          const wm = op.wire ? r.materials.indexOf(op.wire) : 0;
           p.cut = 0;
+          p.fill = V.enamelDepth;
+          p.fillMat = wm;
           p.add = Math.max(p.add, 0.05);
-          p.addMat = op.wire ? r.materials.indexOf(op.wire) : 0;
+          p.addMat = wm;
         } else {
           // 線の外の地も、少し彫りくぼめてある
           p.cut = Math.max(p.cut, 0.0);
