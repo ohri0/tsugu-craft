@@ -223,16 +223,16 @@ export function ringGaps(ledger: Ledger): Gap[] {
         title: "爪の太さ（最低）",
         reason: rule.reason,
         question: `石の大きさが ${fmtNum(stone)} mm くらいの石だと、爪の太さは最低何ミリにしますか？`,
-        why: `${why}今の帳面の点は ${ptsText} だけ。`,
+        why: `${why}今の帳面にある職人の値は ${ptsText} だけ。`,
       });
     let widest = { span: 0, mid: 0 };
     for (let i = 0; i + 1 < points.length; i++) {
       const span = points[i + 1].stone - points[i].stone;
       if (span > widest.span) widest = { span, mid: half((points[i].stone + points[i + 1].stone) / 2) };
     }
-    if (widest.span > MAX_POINT_SPAN_MM) ask(widest.mid, rule.sizePoints?.length ? "この間は、職人の点から割合で出した推測だけ。" : "この間は、点と点をまっすぐつないで出しているだけ。");
+    if (widest.span > MAX_POINT_SPAN_MM) ask(widest.mid, rule.sizePoints?.length ? "この間の大きさは、職人の値から割合で出した推測だけ。" : "この間の大きさは、職人の 2 つの値をまっすぐつないで出しているだけ。");
     const last = points[points.length - 1].stone;
-    if (last < LARGE_STONE_MM - MAX_POINT_SPAN_MM / 2) ask(LARGE_STONE_MM, rule.sizePoints?.length ? "大きい石は、職人の点から割合で出した推測だけ。" : "大きい石は、線を伸ばして出しているだけ。");
+    if (last < LARGE_STONE_MM - MAX_POINT_SPAN_MM / 2) ask(LARGE_STONE_MM, rule.sizePoints?.length ? "大きい石は、職人の値から割合で出した推測だけ。" : "大きい石は、職人の値をつないだ線を伸ばして出しているだけ。");
   } else if (!rule) {
     gaps.push({
       id: "ring:prong-size:any",

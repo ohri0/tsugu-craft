@@ -38,7 +38,8 @@ export interface Interview {
 const KIND: Record<Gap["kind"], string> = {
   missing: "決まりがない",
   unverified: "未確認",
-  uncovered: "点が届いていない",
+  // 前は「点が届いていない」。点＝職人が値を言った石の大きさのことだが、画面では何の点か分からなかった
+  uncovered: "この大きさの値がない",
   provisional: "仮の目安のまま",
   public: "公開情報のまま",
   open: "資料にない",
