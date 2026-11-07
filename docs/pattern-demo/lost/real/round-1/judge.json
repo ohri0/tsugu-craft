@@ -1,0 +1,370 @@
+{
+  "date": "2026-11-08",
+  "round": 1,
+  "cols": [
+    {
+      "tag": "solo",
+      "file": "docs/pattern-demo/lost/wootz-solo-top.png",
+      "title": "Claude だけ",
+      "sub": "帳面なし（手がかり 6 つだけ）"
+    },
+    {
+      "tag": "book-r0",
+      "file": "docs/pattern-demo/lost/wootz-book-top.png",
+      "title": "帳面あり（回 0）",
+      "sub": "前の回の絵"
+    },
+    {
+      "tag": "book-r1",
+      "file": "docs/pattern-demo/lost/real/round-1/wootz-book-top.png",
+      "title": "帳面あり（回 1）",
+      "sub": "本物を見た職人の言葉 4 つを足して、出し直した"
+    }
+  ],
+  "words": [
+    {
+      "id": "wootz-r1-1-ishikawa",
+      "title": "木目のように流れる",
+      "text": "本物の模様は、木の模様（木目）のように自由に流れる。端の方まで、ぐわぐわとランダムに見えるが、規則性もある。",
+      "reason": "本物の刀の写真と見込みの絵を見くらべて、職人が言った（回 1）",
+      "quote": "木目のように流れる｜本物の模様は、木の模様（木目）のように自由に流れる。端の方まで、ぐわぐわとランダムに見えるが、規則性もある。",
+      "source": {
+        "kind": "craftsman",
+        "name": "石川"
+      },
+      "date": "2026-11-08",
+      "round": 1
+    },
+    {
+      "id": "wootz-r1-2-ishikawa",
+      "title": "縞は細かく続く",
+      "text": "白と黒の間が空きすぎない。縞は細かく、グラデーションのように途切れずに続いている。",
+      "reason": "本物の刀の写真と見込みの絵を見くらべて、職人が言った（回 1）",
+      "quote": "縞は細かく続く｜白と黒の間が空きすぎない。縞は細かく、グラデーションのように途切れずに続いている。",
+      "source": {
+        "kind": "craftsman",
+        "name": "石川"
+      },
+      "date": "2026-11-08",
+      "round": 1
+    },
+    {
+      "id": "wootz-r1-3-ishikawa",
+      "title": "重ねて打ち込む",
+      "text": "重ねて打ち込み、平らにして、また重ねる。これをくり返すと、模様がより強く出る。今の見込みは重ねが足りない。",
+      "reason": "本物の刀の写真と見込みの絵を見くらべて、職人が言った（回 1）",
+      "quote": "重ねて打ち込む｜重ねて打ち込み、平らにして、また重ねる。これをくり返すと、模様がより強く出る。今の見込みは重ねが足りない。",
+      "source": {
+        "kind": "craftsman",
+        "name": "石川"
+      },
+      "date": "2026-11-08",
+      "round": 1
+    },
+    {
+      "id": "wootz-r1-4-ishikawa",
+      "title": "薄くまでのばす",
+      "text": "板は、だいぶ薄いところまで打ちのばす。",
+      "reason": "本物の刀の写真と見込みの絵を見くらべて、職人が言った（回 1）",
+      "quote": "薄くまでのばす｜板は、だいぶ薄いところまで打ちのばす。",
+      "source": {
+        "kind": "craftsman",
+        "name": "石川"
+      },
+      "date": "2026-11-08",
+      "round": 1
+    }
+  ],
+  "points": [
+    {
+      "key": "contrast",
+      "name": "明暗",
+      "ask": "明るい線と暗い地の、差の強さと、明るい所・暗い所の割合"
+    },
+    {
+      "key": "flow",
+      "name": "流れ",
+      "ask": "流れる水のように、うねって波打つ線かどうか（まっすぐな線・角ばった形とのちがい）"
+    },
+    {
+      "key": "bands",
+      "name": "横切る段",
+      "ask": "刃を横切る段（はしご）や、輪（バラ）があるか・ないか、ある所の見え方"
+    },
+    {
+      "key": "scale",
+      "name": "細かさ",
+      "ask": "線の太さと、線と線の間の大きさ（模様の細かさ）"
+    },
+    {
+      "key": "texture",
+      "name": "つながり方",
+      "ask": "線がとぎれて点やまだらで終わる網のようか、長くつながる縞か、角ばった格子か"
+    }
+  ],
+  "results": [
+    {
+      "ref": "met-30932",
+      "order": [
+        "book-r1",
+        "book-r0",
+        "solo"
+      ],
+      "scores": [
+        {
+          "label": "A",
+          "points": {
+            "contrast": 1,
+            "flow": 1,
+            "bands": 0,
+            "scale": 2,
+            "texture": 1
+          },
+          "overall": 2,
+          "comment": "線の細かさは少し近いが、縦のすじと横の刻みで格子のよう。うねりも輪もなく、暗い地が多すぎる。",
+          "tag": "book-r1"
+        },
+        {
+          "label": "B",
+          "points": {
+            "contrast": 1,
+            "flow": 1,
+            "bands": 2,
+            "scale": 1,
+            "texture": 1
+          },
+          "overall": 3,
+          "comment": "横に並ぶ目のような輪は少し本物の段に近い。でも角ばった四角が多く、線があらく、明暗の差も強すぎる。",
+          "tag": "book-r0"
+        },
+        {
+          "label": "C",
+          "points": {
+            "contrast": 1,
+            "flow": 1,
+            "bands": 2,
+            "scale": 1,
+            "texture": 1
+          },
+          "overall": 3,
+          "comment": "横の列に細長い輪が並ぶ所は段に少し似る。だが縦の線と四角い格子が強く、流れるうねりや細かい縞がない。",
+          "tag": "solo"
+        }
+      ],
+      "stats": {
+        "本物": {
+          "orient": 1,
+          "light": 0.34,
+          "spread": 0.25,
+          "edges": 0.433
+        },
+        "book-r1": {
+          "orient": 0.75,
+          "light": 0.16,
+          "spread": 0.27,
+          "edges": 0.446
+        },
+        "book-r0": {
+          "orient": 0.77,
+          "light": 0.17,
+          "spread": 0.3,
+          "edges": 0.333
+        },
+        "solo": {
+          "orient": 0.71,
+          "light": 0.16,
+          "spread": 0.3,
+          "edges": 0.292
+        }
+      },
+      "raw": "{\"scores\":[{\"label\":\"A\",\"points\":{\"contrast\":1,\"flow\":1,\"bands\":0,\"scale\":2,\"texture\":1},\"overall\":2,\"comment\":\"線の細かさは少し近いが、縦のすじと横の刻みで格子のよう。うねりも輪もなく、暗い地が多すぎる。\"},{\"label\":\"B\",\"points\":{\"contrast\":1,\"flow\":1,\"bands\":2,\"scale\":1,\"texture\":1},\"overall\":3,\"comment\":\"横に並ぶ目のような輪は少し本物の段に近い。でも角ばった四角が多く、線があらく、明暗の差も強すぎる。\"},{\"label\":\"C\",\"points\":{\"contrast\":1,\"flow\":1,\"bands\":2,\"scale\":1,\"texture\":1},\"overall\":3,\"comment\":\"横の列に細長い輪が並ぶ所は段に少し似る。だが縦の線と四角い格子が強く、流れるうねりや細かい縞がない。\"}]}"
+    },
+    {
+      "ref": "met-31130",
+      "order": [
+        "book-r1",
+        "book-r0",
+        "solo"
+      ],
+      "scores": [
+        {
+          "label": "A",
+          "points": {
+            "contrast": 1,
+            "flow": 1,
+            "bands": 1,
+            "scale": 3,
+            "texture": 1
+          },
+          "overall": 3,
+          "comment": "細かさと縦の筋は近い。でも地が暗すぎ、線はまっすぐかギザギザで、横の格子が全体にあり、うねる流れがない。",
+          "tag": "book-r1"
+        },
+        {
+          "label": "B",
+          "points": {
+            "contrast": 1,
+            "flow": 0,
+            "bands": 0,
+            "scale": 0,
+            "texture": 0
+          },
+          "overall": 1,
+          "comment": "大きく角ばった枠と、横に並ぶ輪の段がある。本物は細かくうねる筋で段はなく、形も大きさもまるでちがう。",
+          "tag": "book-r0"
+        },
+        {
+          "label": "C",
+          "points": {
+            "contrast": 1,
+            "flow": 1,
+            "bands": 0,
+            "scale": 1,
+            "texture": 0
+          },
+          "overall": 1,
+          "comment": "縦の線が少しあるが、角ばった格子と横の輪の段が強い。本物の細かいうねりや、とぎれる筋とはちがう。",
+          "tag": "solo"
+        }
+      ],
+      "stats": {
+        "本物": {
+          "orient": 1,
+          "light": 0.29,
+          "spread": 0.27,
+          "edges": 0.279
+        },
+        "book-r1": {
+          "orient": 0.76,
+          "light": 0.16,
+          "spread": 0.27,
+          "edges": 0.446
+        },
+        "book-r0": {
+          "orient": 0.84,
+          "light": 0.17,
+          "spread": 0.3,
+          "edges": 0.333
+        },
+        "solo": {
+          "orient": 0.84,
+          "light": 0.16,
+          "spread": 0.3,
+          "edges": 0.292
+        }
+      },
+      "raw": "{\"scores\":[{\"label\":\"A\",\"points\":{\"contrast\":1,\"flow\":1,\"bands\":1,\"scale\":3,\"texture\":1},\"overall\":3,\"comment\":\"細かさと縦の筋は近い。でも地が暗すぎ、線はまっすぐかギザギザで、横の格子が全体にあり、うねる流れがない。\"},{\"label\":\"B\",\"points\":{\"contrast\":1,\"flow\":0,\"bands\":0,\"scale\":0,\"texture\":0},\"overall\":1,\"comment\":\"大きく角ばった枠と、横に並ぶ輪の段がある。本物は細かくうねる筋で段はなく、形も大きさもまるでちがう。\"},{\"label\":\"C\",\"points\":{\"contrast\":1,\"flow\":1,\"bands\":0,\"scale\":1,\"texture\":0},\"overall\":1,\"comment\":\"縦の線が少しあるが、角ばった格子と横の輪の段が強い。本物の細かいうねりや、とぎれる筋とはちがう。\"}]}"
+    },
+    {
+      "ref": "met-32739",
+      "order": [
+        "book-r0",
+        "solo",
+        "book-r1"
+      ],
+      "scores": [
+        {
+          "label": "A",
+          "points": {
+            "contrast": 1,
+            "flow": 1,
+            "bands": 1,
+            "scale": 1,
+            "texture": 0
+          },
+          "overall": 2,
+          "comment": "暗い地が多すぎ、角ばった四角の格子と横の段がつよい。本物のうねる流れる線とはちがう。",
+          "tag": "book-r0"
+        },
+        {
+          "label": "B",
+          "points": {
+            "contrast": 1,
+            "flow": 1,
+            "bands": 1,
+            "scale": 1,
+            "texture": 1
+          },
+          "overall": 2,
+          "comment": "たての線が少しのびるが、角ばった格子と横の段がめだつ。うねりが足りず、暗い所が多すぎる。",
+          "tag": "solo"
+        },
+        {
+          "label": "C",
+          "points": {
+            "contrast": 1,
+            "flow": 1,
+            "bands": 1,
+            "scale": 2,
+            "texture": 1
+          },
+          "overall": 3,
+          "comment": "たての細い筋で細かさは近いが、横の細い格子が全体にあり、うねる流れや明るい所の量が足りない。",
+          "tag": "book-r1"
+        }
+      ],
+      "stats": {
+        "本物": {
+          "orient": 1,
+          "light": 0.42,
+          "spread": 0.29,
+          "edges": 0.453
+        },
+        "book-r0": {
+          "orient": 0.82,
+          "light": 0.17,
+          "spread": 0.3,
+          "edges": 0.333
+        },
+        "solo": {
+          "orient": 0.77,
+          "light": 0.16,
+          "spread": 0.3,
+          "edges": 0.292
+        },
+        "book-r1": {
+          "orient": 0.79,
+          "light": 0.16,
+          "spread": 0.27,
+          "edges": 0.446
+        }
+      },
+      "raw": "{\"scores\":[{\"label\":\"A\",\"points\":{\"contrast\":1,\"flow\":1,\"bands\":1,\"scale\":1,\"texture\":0},\"overall\":2,\"comment\":\"暗い地が多すぎ、角ばった四角の格子と横の段がつよい。本物のうねる流れる線とはちがう。\"},{\"label\":\"B\",\"points\":{\"contrast\":1,\"flow\":1,\"bands\":1,\"scale\":1,\"texture\":1},\"overall\":2,\"comment\":\"たての線が少しのびるが、角ばった格子と横の段がめだつ。うねりが足りず、暗い所が多すぎる。\"},{\"label\":\"C\",\"points\":{\"contrast\":1,\"flow\":1,\"bands\":1,\"scale\":2,\"texture\":1},\"overall\":3,\"comment\":\"たての細い筋で細かさは近いが、横の細い格子が全体にあり、うねる流れや明るい所の量が足りない。\"}]}"
+    }
+  ],
+  "mean": {
+    "solo": {
+      "overall": 2,
+      "points": {
+        "contrast": 1,
+        "flow": 1,
+        "bands": 1,
+        "scale": 1,
+        "texture": 0.7
+      },
+      "orient": 0.77
+    },
+    "book-r0": {
+      "overall": 2,
+      "points": {
+        "contrast": 1,
+        "flow": 0.7,
+        "bands": 1,
+        "scale": 0.7,
+        "texture": 0.3
+      },
+      "orient": 0.81
+    },
+    "book-r1": {
+      "overall": 2.7,
+      "points": {
+        "contrast": 1,
+        "flow": 1,
+        "bands": 0.7,
+        "scale": 2.3,
+        "texture": 1
+      },
+      "orient": 0.77
+    }
+  }
+}

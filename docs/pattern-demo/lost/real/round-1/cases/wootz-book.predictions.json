@@ -1,0 +1,132 @@
+[
+  {
+    "version": 1,
+    "tag": "book",
+    "prediction": {
+      "applicable": true,
+      "reason": "重ねずに一つの鋳た塊から始まる技なので、塊の中のむらを、叩いてのばし、溝を彫って平らにし、研いで酸で色の差にする流れに置きかえました。",
+      "look": [
+        {
+          "point": "地の色",
+          "expect": "酸につけると、地の鋼（黒くなる鋼）が黒く見える。塊の地の材料から出る。"
+        },
+        {
+          "point": "明るい線",
+          "expect": "塊の中の網目（白く残る鋼）が、のばして平たい帯になり、研いだ面で切られて、とぎれとぎれの白い線や点になる。酸で白く残る。"
+        },
+        {
+          "point": "流れる水のような波",
+          "expect": "網目を薄くのばした帯を、研ぐ深さで斜めに切るので、線が波打って見えるはず。"
+        },
+        {
+          "point": "はしごの段",
+          "expect": "幅の向きの溝を 40 本彫って平らにするので、長さの向きに、ほぼ同じ間で模様が変わる段が並ぶはず。"
+        }
+      ],
+      "ground_metal": "steel_dark",
+      "ground_color": "黒",
+      "shown_metals": [
+        "steel_dark",
+        "steel_light"
+      ],
+      "ops": [
+        {
+          "op": "ingot",
+          "step": 1,
+          "why": "坩堝で作る一つの塊から始まる。ゆっくり固めてできるむらも、この塊の網目として描く。",
+          "assumed": "網目は白く残る鋼、地は黒くなる鋼として仮に選んだ。網目の数は 20 と仮に決めた。むらの本当の形と量は分かっていない。",
+          "metals": [
+            "steel_light",
+            "steel_dark"
+          ],
+          "amount": 20,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "-"
+        },
+        {
+          "op": "forge_thin",
+          "step": 3,
+          "why": "低めの熱で鍛えて、塊をのばしはじめる。",
+          "assumed": "厚みを半分にすると仮に決めた。",
+          "metals": [],
+          "amount": 2,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "length"
+        },
+        {
+          "op": "forge_thin",
+          "step": 5,
+          "why": "薄くまで打ちのばし、むらを面に平行な帯にする。",
+          "assumed": "だいぶ薄くするので、厚みを 6 分の 1 と仮に決めた。",
+          "metals": [],
+          "amount": 6,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "length"
+        },
+        {
+          "op": "carve",
+          "step": 6,
+          "why": "はしごの段の説として、幅の向きの溝を同じ間で彫る。",
+          "assumed": "段は 40 という手がかりに合わせ、溝 40 本、深さは厚みの 0.15、細い溝と仮に決めた。",
+          "metals": [],
+          "amount": 0.15,
+          "size": 0.006,
+          "across": 40,
+          "count": 0,
+          "thickness": [],
+          "choice": "lines"
+        },
+        {
+          "op": "flatten",
+          "step": 6,
+          "why": "溝を彫ったあと叩いて平らにし、模様を溝の形に寄せる。",
+          "assumed": "",
+          "metals": [],
+          "amount": 0,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "-"
+        },
+        {
+          "op": "grind",
+          "step": 7,
+          "why": "刃の形に整え、表をよく研ぐ。",
+          "assumed": "研ぐ深さは厚みの 0.1 と仮に決めた。",
+          "metals": [],
+          "amount": 0.1,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "-"
+        },
+        {
+          "op": "color",
+          "step": 8,
+          "why": "液につけて、明るい線と暗い地の色の差にする。",
+          "assumed": "",
+          "metals": [],
+          "amount": 0,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "etch"
+        }
+      ],
+      "cannot_show": "約730℃の上下をくり返して炭化物の粒を育てること、熱しすぎて模様が消えること、熱の色、刃の形、焼き入れのような熱の手順。むらの本当の形と、帯ができるしくみ。",
+      "summary": "黒い地に、とぎれとぎれの白い線が波打つように流れ、長さの向きに同じ間で模様が変わる段が並ぶ絵になりそうです。網目のむらの形は説にもとづく仮の見込みです。"
+    }
+  }
+]
