@@ -1002,6 +1002,10 @@ def tension16(s, t, f):
     # 最終案 17c：事実の表は 4 行目（図面の開き）の下の端まで。行の途中で切らない（5 行目からは、下の帯にかかる）
     if "row4" in B:
         cy = B["row4"]["y"] + B["row4"]["h"] + 4 - wz * 9 / 32
+    # 最終案 17j（答えの枠に手順の一行と職人の言葉、すぐ下に緑の「安全に留めるなら」）：事実の表は見せず、
+    #   つまみ（＋ を押す所）から、答えの枠と、緑の枠の言葉（「この深さにする」のボタンの上）までを 1 つの寄りに
+    if "safeHead2" in B:
+        cy = B["safeHead2"]["y"] + B["safeHead2"]["h"] + 6 - wz * 9 / 32
     # 最終案 17（作者の本物の指輪：短い辺を溝・反対の角をくぼみ）：ぎりぎりの所を 0.6 秒ほど見せてから、溝の ＋ を 6 回（2 回目で留まる見込み）。等倍
     # 最終案 17b（作者の指輪 0.4 / 0.4）：くぼみ 0.4・溝 0.2（ぎりぎり）から溝の ＋ を 4 回、押す間は前の 2 倍ほど（4 回目で留まる見込み）。撮った頭から等倍
     # 最終案 17c（アプリの計算に、戻りきらない分）：くぼみ 0.25・溝 0.3（足りない）→ くぼみの ＋ を 3 回（0.30 でぎりぎり）→ 溝の ＋ を 2 回。作者の 0.4 / 0.4 はぎりぎり・職人が確かめる
@@ -1016,7 +1020,10 @@ def tension16(s, t, f):
 
 
 # 最終案 17b（作者が決めた言葉）：作者は浅い深さを心配して、腕をどれだけ小さく作り、石を入れるのにどれだけ広げるかを継ぐで確かめてから作った
-FIN_CAP_CALC = "この計算をもとに、職人が確かめて作った指輪"
+# 最終案 17j（2026-11-08。テンションの答えが「ぎりぎり入れれば、留まる見込み」になり、「職人が確かめる」ではなくなった）：
+#   前の場面の終わりの深さ（0.40 / 0.40）と同じ値を書く。作者が作ったときの数（作る時の開き 約 6.18・広げる 約 1.34 mm）は、
+#   いまの画面の数（6.91・1.56）より前の計算なので、「この計算の数字」ではなく「継ぐの計算の数字」と書く
+FIN_CAP_CALC = "継ぐの計算の数字で、実際に作った指輪（くぼみ 0.4・溝 0.4 mm）"
 FIN_BOX = (275, 150, 1100, 619)  # 元の映像の切り出し（指輪が真ん中より少し上。上の明るい帯は入れない。約 1.5 倍）
 
 
@@ -2208,10 +2215,16 @@ def learn10(s, t, f):
         t_voice = t_tab1 + (m["voice"] - m["table1"]) / FPS
         pts = [(0, st), (t1, m["type"]), (t2, m["typed"]), (t3, m["wait"]), (t_ans, m["answer"]),
                (t_tab0, m["table0"]), (t_tab1, m["table1"]), (t_voice, m["voice"]), (n, min(nfr - 1, m["voice"] + int((n - t_voice) * FPS * 0.9)))]
+        if HANDS17:
+            # 最終案 17j（手の動きを n24 の頭から重ねる）：打つ所は見せず、問いを送ったあと（答えを待つ所）から始め、答えを HANDS17_ANS 秒に出す
+            t_ans = HANDS17_ANS
+            t_tab0 = t_ans + (m["table0"] - m["answer"]) / FPS
+            t_tab1 = t_tab0 + (m["table1"] - m["table0"]) / FPS
+            pts = [(0, m["wait"]), (t_ans, m["answer"]), (t_tab0, m["table0"]), (t_tab1, m["table1"]), (n, min(nfr - 1, m["table1"] + int((n - t_tab1) * FPS)))]
     else:
         pts = [(0, m["full"] + 4), (0.35, m["type"]), (a0 - 0.4, m["typed"] + 6), (a0 + 0.2, m["wait"]), (n, min(m["answer"] + 38, nfr - 1))]
     i = ramp_frame(pts, t)
-    tz = a0 + 0.3
+    tz = (HANDS17_ANS + 0.15) if HANDS17 and "table0" in m else a0 + 0.3
     b = M["boxes"]["thread"]
     # 寄る：会話の欄の幅（820 px まで）。高さは、欄の見えている所のまん中（中は撮るときに送る）
     # 最終案 14：問いの吹き出しを上の帯のすぐ下に（その下に答えの文と表。撮るときに送る）
@@ -2222,10 +2235,12 @@ def learn10(s, t, f):
 
 # ---- 最終案 17（HANDS17=1 のときだけ。2026-11-08）：学ぶの章の終わり、n24「継ぐなら、すぐ答えが出ます。」のあとに、学ぶの「手の動きを比べる」を短く。
 #   職人（作者）が撮った本物のヤスリがけの、いい例・よくない例と、ならした手の点とヤスリの線（アプリの画面をそのまま撮った章 hands17。capture/story.cjs）。
-#   語りの秒と全体の長さは変えない：n24 の終わりから、次の章の n27「そして、次の時代へ。」の頭までの約 1.3 秒（その後半は章の変わり目の黒）に入れる。
-#   HANDS17_LEAD：n24 の終わりの何秒前から重ねはじめるか（既定 0.2 秒）
+#   語りの秒と全体の長さは変えない。n24 の終わりのあとだけでは約 1.3 秒しかない（その後半は章の変わり目の黒）ので、
+#   最終案 17j から、n24 の頭の少し前（HANDS17_AT 秒。既定 -0.1）から 0.35 秒かけて重ね、章の変わり目の黒まで約 2.5 秒はっきり見せる。
+#   そのぶん学ぶの場面は、打つ所を見せず、問いを送ったあとから始めて、答えを場面の頭から HANDS17_ANS 秒（既定 0.85）に出す（learn10）
 HANDS17 = os.environ.get("HANDS17") == "1"
-HANDS17_LEAD = float(os.environ.get("HANDS17_LEAD", "0.2"))
+HANDS17_AT = float(os.environ.get("HANDS17_AT", "-0.1"))
+HANDS17_ANS = float(os.environ.get("HANDS17_ANS", "0.85"))
 HANDS17_CAP = "手の動きも、職人の手本と比べられる"
 
 
@@ -2250,8 +2265,7 @@ def hands17_view(u):
 def hands17_mix(s, t, a):
     if not HANDS17 or not s.get("voice"):
         return a
-    v = s["voice"][-1]
-    t_h = v["at"] + v["dur"] - HANDS17_LEAD
+    t_h = s["voice"][-1]["at"] + HANDS17_AT
     k = fade(t, t_h, 0.35)
     if k <= 0:
         return a
@@ -3164,10 +3178,12 @@ def waza17e_beat(t):
 BEAT17 = os.environ.get("BEAT17", "G").strip().upper() or "G"
 WAZA17H_CAPTION = {"H": ("昔に失われた技でも、", "作り方の案から、模様が見えてきます。"),
                    "I": WAZA17G_CAPTION}
+# 見込みの絵を替えるときは、この 3 つ（docs/pattern-demo/ からの所。左から 途中・途中・出来上がり）だけ直す。
+#   例：作者の言葉を足した回 1 なら "lost/real/round-1/wootz-book-stage1.png" … "lost/real/round-1/wootz-book-top.png"。段の名前が変われば WAZA17H_STEPS も
 WAZA17H_STAGES = ("lost/wootz-book-stage1.png", "lost/wootz-book-stage2.png", "lost/wootz-book-top.png")
 WAZA17H_STEPS = "鋳た塊のむら → 叩いてのばす → 溝を彫って平らにし、色を出す"
 WAZA17H_REAL = "lost/real/met-30932-crop.png"
-WAZA17H_SIM = "Claude の手順から描いた見込み"
+WAZA17H_SIM = "Claude の手順と、職人の帳面を合わせて作った見込み"  # 2026-11-08 作者（絵は帳面ありの回 wootz-book-*）
 WAZA17H_REAL_HEAD = "本物"
 WAZA17H_REAL_SUB = "18〜19 世紀の刀（メトロポリタン美術館）"
 WAZA17H_TECH = "本当に途切れた技：ダマスカス鋼（ウーツ鋼）"
@@ -3577,9 +3593,11 @@ def extra_key(s):
         return "beat17=" + BEAT17 + "".join(inspect.getsource(getattr(fn, "__wrapped__", fn)) for fn in fns) + repr(consts)
     if s["id"] == "sources":
         return repr(SOURCES)
+    if s["id"] == "finished" and s.get("fin_cap") == "calc":
+        return FIN_CAP_CALC
     if s["id"] == "learn10" and HANDS17:
         p = os.path.join(STORY, "hands17", "meta.json")
-        return "hands17=" + str(HANDS17_LEAD) + HANDS17_CAP + "".join(inspect.getsource(fn) for fn in (hands17_view, hands17_mix)) + str(os.path.getmtime(p) if os.path.exists(p) else 0)
+        return "hands17=" + str(HANDS17_AT) + "/" + str(HANDS17_ANS) + HANDS17_CAP + "".join(inspect.getsource(fn) for fn in (hands17_view, hands17_mix)) + str(os.path.getmtime(p) if os.path.exists(p) else 0)
     return ""
 
 

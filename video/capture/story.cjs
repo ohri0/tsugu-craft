@@ -4445,7 +4445,9 @@ Object.assign(CH, {
   tension16: async (a) => {
     const { p } = a;
     // 欄の中で「浅く留めたいとき」を置く高さ（欄の上から px）。最終案 17c：事実の表が下の帯にかからないよう、少し上へ
-    const TOFF = Number(process.env.TENSION_OFF || 40);
+    // 最終案 17j（答えの枠に手順の一行・職人の言葉、すぐ下に緑の「安全に留めるなら」が入って、欄が 200 px ほど高くなった）：
+    //   つまみ・答え・緑の枠が 1 つの寄りに入るよう、「浅く留めたいとき」の見出しを欄の上の端より上へ送る（-80）
+    const TOFF = Number(process.env.TENSION_OFF || -80);
     await studioNow9(a, { query: '?nooffload' }); await builtNow9(a);
     await p.addStyleTag({ content: OPS_CSS11 });
     await p.evaluate(({ pit, g0 }) => {
@@ -4482,7 +4484,7 @@ Object.assign(CH, {
     console.log('tension16 はじめ', await state());
     const pb = await boxOf(p, plus);
     if (pb) await a.jump({ x: pb.x + pb.width / 2 - 140, y: pb.y + pb.height / 2 + 120 });
-    a.mark('full'); await a.box('hold', '.tn-hold', 6); await a.box('verdict', '.tn-hold .tn-verdict', 6); await a.box('facts', '.tn-hold .tn-facts', 6); await a.box('plus', plus, 6);
+    a.mark('full'); await a.box('hold', '.tn-hold', 6); await a.box('verdict', '.tn-hold .tn-verdict', 6); await a.box('safe', '.tn-hold .tn-safe', 6); await a.box('sliders', '.tn-hold .sliders', 6); await a.box('facts', '.tn-hold .tn-facts', 6); await a.box('plus', plus, 6);
     // 最終案 17c：はじめの「足りない」を読める間（約 1 秒）、印は答えの札のそばから ＋ の手前へゆっくり漂う
     if (pb) await a.drift(N(Number(process.env.TENSION_HEAD || 32)), { x: pb.x + pb.width / 2 - 26, y: pb.y + pb.height / 2 + 26 });
     else await a.drift(N(10), plus, { k: 0.45 });
@@ -4503,7 +4505,8 @@ Object.assign(CH, {
       console.log('tension16 押した', k, steps[k - 1], await state());
       if (k < steps.length) await a.drift(N(Number(process.env.TENSION_GAP || 6)), { x: c.x + 5, y: c.y + 7 });
     }
-    await a.box('verdict2', '.tn-hold .tn-verdict', 6); await a.box('facts2', '.tn-hold .tn-facts', 6);
+    await a.box('verdict2', '.tn-hold .tn-verdict', 6); await a.box('facts2', '.tn-hold .tn-facts', 6); await a.box('safe2', '.tn-hold .tn-safe', 6);
+    await a.box('safeHead2', '.tn-hold .tn-safe p', 4);
     for (let r = 1; r <= 8; r++) await a.box(`row${r}`, `.tn-hold .tn-facts > div:nth-child(${r})`, 2);
     const vb = await boxOf(p, '.tn-hold .tn-verdict');
     if (vb) await a.drift(N(24), { x: vb.x + vb.width * 0.32, y: vb.y + vb.height * 0.4 });
