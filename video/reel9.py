@@ -2216,7 +2216,47 @@ def learn10(s, t, f):
     # 寄る：会話の欄の幅（820 px まで）。高さは、欄の見えている所のまん中（中は撮るときに送る）
     # 最終案 14：問いの吹き出しを上の帯のすぐ下に（その下に答えの文と表。撮るときに送る）
     cy = 240 if "q" in M["boxes"] else box_center("learn11", "answer", 0, 30)[1]  # 切り抜きの下の端を、聞く欄（464 px）の上に
-    return blend_views(lambda: full_view("learn11", i), lambda: css_crop("learn11", i, b["x"] + b["w"] / 2, cy, min(820, b["w"] + 40)), t, tz, 0.6)
+    a = blend_views(lambda: full_view("learn11", i), lambda: css_crop("learn11", i, b["x"] + b["w"] / 2, cy, min(820, b["w"] + 40)), t, tz, 0.6)
+    return hands17_mix(s, t, a)
+
+
+# ---- 最終案 17（HANDS17=1 のときだけ。2026-11-08）：学ぶの章の終わり、n24「継ぐなら、すぐ答えが出ます。」のあとに、学ぶの「手の動きを比べる」を短く。
+#   職人（作者）が撮った本物のヤスリがけの、いい例・よくない例と、ならした手の点とヤスリの線（アプリの画面をそのまま撮った章 hands17。capture/story.cjs）。
+#   語りの秒と全体の長さは変えない：n24 の終わりから、次の章の n27「そして、次の時代へ。」の頭までの約 1.3 秒（その後半は章の変わり目の黒）に入れる。
+#   HANDS17_LEAD：n24 の終わりの何秒前から重ねはじめるか（既定 0.2 秒）
+HANDS17 = os.environ.get("HANDS17") == "1"
+HANDS17_LEAD = float(os.environ.get("HANDS17_LEAD", "0.2"))
+HANDS17_CAP = "手の動きも、職人の手本と比べられる"
+
+
+def hands17_view(u):
+    """撮った章 hands17 の、どこが違うか（見出し）から 2 本の動画の下の端までを切り抜いて、画面のまん中に。下に小さな字"""
+    M = meta("hands17")
+    K = M["size"][0] / 960
+    bx = M["boxes"]
+    x0, y0 = bx["grid"]["x"], bx["diff"]["y"] + 8  # 上の帯の下の線を入れない
+    x1, y1 = bx["grid"]["x"] + bx["grid"]["w"], bx["grid"]["y"] + bx["grid"]["h"]
+    i = int(clamp(M["marks"]["start"] + int(u * FPS), M["marks"]["start"], M["frames"] - 1))
+    hh = 880
+    ww = int(round(hh * (x1 - x0) / (y1 - y0)))
+    img = shot("hands17", i, (x0 * K, y0 * K, (x1 - x0) * K, (y1 - y0) * K), (ww, hh))
+    a = np.empty((H, W, 3), F32)
+    a[:] = img[hh // 2, 3]  # 頁の地の色（左の端、動画の横）
+    xa, ya = (W - ww) // 2, 40
+    a[ya:ya + hh, xa:xa + ww] = img
+    return ink(a, Hz(W / 2, 1012, HANDS17_CAP, "sans4", 34, 0.06, "c"), SHIRO, fade(u, 0.15, 0.4))
+
+
+def hands17_mix(s, t, a):
+    if not HANDS17 or not s.get("voice"):
+        return a
+    v = s["voice"][-1]
+    t_h = v["at"] + v["dur"] - HANDS17_LEAD
+    k = fade(t, t_h, 0.35)
+    if k <= 0:
+        return a
+    b = hands17_view(t - t_h)
+    return b if k >= 1 else a * (1 - k) + b * k
 
 @scene("kebori9", "hands9")
 def kebori10(s, t, f):
@@ -3537,6 +3577,9 @@ def extra_key(s):
         return "beat17=" + BEAT17 + "".join(inspect.getsource(getattr(fn, "__wrapped__", fn)) for fn in fns) + repr(consts)
     if s["id"] == "sources":
         return repr(SOURCES)
+    if s["id"] == "learn10" and HANDS17:
+        p = os.path.join(STORY, "hands17", "meta.json")
+        return "hands17=" + str(HANDS17_LEAD) + HANDS17_CAP + "".join(inspect.getsource(fn) for fn in (hands17_view, hands17_mix)) + str(os.path.getmtime(p) if os.path.exists(p) else 0)
     return ""
 
 

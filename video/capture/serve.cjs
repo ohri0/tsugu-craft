@@ -22,7 +22,17 @@ http.createServer((req, res) => {
   const file = path.join(ROOT, path.normalize(f).replace(/^(\.\.[/\\])+/, ''));
   fs.readFile(file, (err, buf) => {
     if (err) { res.writeHead(404); res.end('not found'); return; }
-    res.writeHead(200, { 'content-type': TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream', 'cache-control': 'no-store' });
+    const type = TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream';
+    // 動画の秒を送る（currentTime）には、ブラウザが一部だけ読める（Range）必要がある。ないと秒が 0 に戻る（2026-11-08 手を比べるを撮るとき）
+    const m = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range || '');
+    if (m) {
+      const a = m[1] ? Number(m[1]) : Math.max(0, buf.length - Number(m[2]));
+      const b = m[1] && m[2] ? Math.min(buf.length - 1, Number(m[2])) : buf.length - 1;
+      res.writeHead(206, { 'content-type': type, 'cache-control': 'no-store', 'accept-ranges': 'bytes', 'content-range': `bytes ${a}-${b}/${buf.length}`, 'content-length': b - a + 1 });
+      res.end(buf.subarray(a, b + 1));
+      return;
+    }
+    res.writeHead(200, { 'content-type': type, 'cache-control': 'no-store', 'accept-ranges': 'bytes' });
     res.end(buf);
   });
 }).listen(PORT, '127.0.0.1', () => console.log(`撮る用の継ぐ http://localhost:${PORT}（${ROOT}、/api は ${API} 番へ）`));

@@ -4658,6 +4658,49 @@ const STILLS9 = {
     console.log('rebuild9', await p.evaluate(() => [...document.querySelectorAll('details.clues .clue-list li span')].map((x) => x.innerText).join(' ・ ')));
   }],
 };
+// 最終案 17（HANDS17=1 の差し込み。2026-11-08）：学ぶの「手の動きを比べる」。職人（作者）が撮った本物のヤスリがけの、いい例・よくない例と、
+// ならした手の点とヤスリの線（src/app/hands-pair.ts）。ページの中の時計は止めてあるので、2 本の動画を止め、こまごとに同じ秒へ送ってから撮る
+// （線はアプリが動画の秒から描く。速さはアプリのはじめと同じ「ゆっくり」0.5 倍）。印は出さない。HANDS_T0 で動画の始めの秒を決められる。
+// 撮る相手は capture/serve.cjs（動画の秒を送れるよう Range に答える）。96 こま（3.2 秒分）撮っておき、組むときに使う長さを決める
+SIZE.hands17 = [960, 900];
+DSF.hands17 = 4;
+CH.hands17 = async (a) => {
+  const { p } = a;
+  // ?mihon では「見本・作り話」の帯が出て、技も「指輪の石留め」になる。ヤスリがけは本物の手元なので、帯の出ないふだんの頁で（隣の学ぶの場面 learn11 も ?mihon なし）
+  await app10(a, '#learn/hands');
+  await a.until(() => { const v = [...document.querySelectorAll('.pd-frame video')]; return v.length === 2 && v.every((x) => x.readyState >= 2); }, null, { label: '手を比べるの動画', timeout: 60000 });
+  await p.evaluate(() => document.querySelectorAll('.pd-frame video').forEach((v) => v.pause()));
+  const seek = (t) => p.evaluate((t) => Promise.all([...document.querySelectorAll('.pd-frame video')].map((v) => new Promise((r) => {
+    const tt = t % (v.duration || 1e9);
+    if (Math.abs(v.currentTime - tt) < 1e-4) return r();
+    v.addEventListener('seeked', () => r(), { once: true });
+    v.currentTime = tt;
+  }))), t);
+  // 「角度がぶれた」が出る秒を探す（よくない例）。出る少し前から撮る
+  const hot = [];
+  for (let t = 0; t < 9; t += 0.1) {
+    await seek(t);
+    await a.settle(40);
+    hot.push(await p.evaluate(() => !!document.querySelector('.pd-bad .pd-here.on')));
+  }
+  const first = hot.findIndex((x) => x);
+  // 既定は 5.4 秒から：いい例・よくない例の両方にヤスリの線が出ていて、よくない例の角度が 59 → 69° と振れ、「角度がぶれた」が出る所（2026-11-08 に 0.25 秒ごとに見た）
+  const t0 = process.env.HANDS_T0 ? Number(process.env.HANDS_T0) : 5.4;
+  console.log('hands17 角度がぶれた（0.1 秒ごと）', hot.map((x) => (x ? '1' : '.')).join(''), '最初', first * 0.1, '秒。撮る始め', t0.toFixed(2), '秒');
+  await seek(t0);
+  await a.settle(600);
+  await scrollTopTo(p, '.pd-diff', 58);  // 上の帯（44 px）の下
+  await a.settle(300);
+  await a.box('diff', '.pd-diff', 6); await a.box('grid', '.pd-grid', 6); await a.box('good', '.pd-good .pd-frame', 0); await a.box('bad', '.pd-bad .pd-frame', 0); await a.box('demo', '.pair-demo', 6);
+  a.mark('start');
+  const n = N(96);
+  for (let k = 0; k < n; k++) {
+    await seek(t0 + (k * 0.5) / 30);
+    await new Promise((r) => setTimeout(r, 30));
+    await a.shot({ hide: true });
+  }
+  a.mark('end');
+};
 (async () => {
   const names = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(CH);
   for (const n of names) {
