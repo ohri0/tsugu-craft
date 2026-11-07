@@ -1,5 +1,13 @@
 # 動画を組む仕組み
 
+## 作者の声を切り分ける（2026-11-07）
+
+作者が 1 本（または何本か）で読んだ録音を、行ごとの `work/voice/n<番号>.wav` に分ける。録り方と行の順は `../docs/RECORDING.md`。
+
+- `video/work/.venv/bin/python -I video/voice_split.py 録音.m4a [録音2.m4a …]`（一部だけ録り直したときは `--lines n5,n6`。今ある n ファイルを上書きするときは `--force`、前のものは `_backup_<時刻>/` に写る）
+- 表 `work/voice/_split_report.txt`・耳で確かめる `work/voice/_check.m4a`・きれいにする前の `work/voice/_raw/`。
+- 試し：`video/work/.venv/bin/python -I video/voice_split_test.py`（仮の声をつないだ録音で、行の当て方を確かめる）。
+
 ## 最終案 8（2026-11-05。いまの作り方）
 
 最終案 7 の仕組みのまま、作者が最終案 7 を見た声と、作者の映像を入れたもの。台本は `PLAN-final8.md`（いちばん上に今の状況と次のコマンド）、声の 37 行は `../docs/NARRATION-ad.md`。
