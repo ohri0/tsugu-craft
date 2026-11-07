@@ -105,7 +105,8 @@ function toCanvas(img: Rgba): HTMLCanvasElement {
 }
 
 /** 断面を、上下に少し余白をとって描く（板が帯に見えるように） */
-function drawSection(c: HTMLCanvasElement, m: PatternModel, row: number, fill: number) {
+function drawSection(c: HTMLCanvasElement | null, m: PatternModel, row: number, fill: number) {
+  if (!c?.isConnected) return;
   const { w, h, ctx } = fit(c);
   const band = Math.max(8, Math.round(h * fill));
   const img = m.section(w, band, row, dpr() >= 2 ? 1 : 2);
@@ -114,7 +115,8 @@ function drawSection(c: HTMLCanvasElement, m: PatternModel, row: number, fill: n
 }
 
 /** 上から見た面（canvas の形に合わせて、断面の行のまわりの帯を切り出す）。断面を切った所に、細い印 */
-async function drawTop(c: HTMLCanvasElement, m: PatternModel, row: number, alive: () => boolean, mark: "line" | "ticks" | "none") {
+async function drawTop(c: HTMLCanvasElement | null, m: PatternModel, row: number, alive: () => boolean, mark: "line" | "ticks" | "none") {
+  if (!c?.isConnected) return;
   const { w, h } = fit(c);
   const n = w;
   const span = h / w;
@@ -162,6 +164,8 @@ export function mountPatternView(root: HTMLElement, project: RestoreProject, ver
   const html = document.documentElement;
   html.classList.add("mo-page");
   let gen = 0;
+  /** 頁を描き直した回（絵の描きかけの gen とは別。ボタンの答えが、古い頁に届かないように） */
+  let renders = 0;
   let timer = 0;
   let step = 0;
   let last = 0;
@@ -260,7 +264,7 @@ export function mountPatternView(root: HTMLElement, project: RestoreProject, ver
   function render() {
     gen++;
     stopTimer();
-    const my = gen;
+    const my = ++renders;
     if (!plan) {
       root.innerHTML = `<section class="view moyou pv"><button type="button" class="rs-back pv-back">← 案にもどる</button><p class="rs-empty">まだ案がありません。</p></section>`;
       root.querySelector(".pv-back")!.addEventListener("click", opts.onBack);
@@ -359,7 +363,7 @@ export function mountPatternView(root: HTMLElement, project: RestoreProject, ver
         btn.disabled = true;
         btn.textContent = "Claude が考えています…（1 分ほど）";
         const r = await makePattern(p, v.version);
-        if (my !== gen || me !== mounted) return;
+        if (my !== renders || me !== mounted) return;
         if (!r.ok) {
           btn.disabled = false;
           btn.textContent = sel === ".pv-make" ? "この手順で作ると、どんな模様になるか見る" : "この案で、見込みを作り直す";
@@ -411,18 +415,19 @@ export function mountPatternView(root: HTMLElement, project: RestoreProject, ver
     const stages = [...root.querySelectorAll<HTMLElement>(".pv-stage")];
     for (const [i, li] of stages.entries()) {
       const sm = model.stage(i);
-      drawSection(li.querySelector<HTMLCanvasElement>(".pv-sec")!, sm, row, 0.62);
+      drawSection(li.querySelector<HTMLCanvasElement>(".pv-sec"), sm, row, 0.62);
       await pause();
       if (!ok()) return;
-      await drawTop(li.querySelector<HTMLCanvasElement>(".pv-face")!, sm, row, ok, "line");
+      await drawTop(li.querySelector<HTMLCanvasElement>(".pv-face"), sm, row, ok, "line");
       if (!ok()) return;
     }
-    drawSection(root.querySelector<HTMLCanvasElement>(".pv-sec-final")!, model, row, 0.8);
-    if (prevModel) drawSection(root.querySelector<HTMLCanvasElement>(".pv-sec-prev")!, prevModel, row, 0.8);
+    if (!ok()) return;
+    drawSection(root.querySelector<HTMLCanvasElement>(".pv-sec-final"), model, row, 0.8);
+    if (prevModel) drawSection(root.querySelector<HTMLCanvasElement>(".pv-sec-prev"), prevModel, row, 0.8);
     await pause();
     if (!ok()) return;
-    await drawTop(root.querySelector<HTMLCanvasElement>(".pv-top")!, model, row, ok, "ticks");
-    if (prevModel && ok()) await drawTop(root.querySelector<HTMLCanvasElement>(".pv-top-prev")!, prevModel, row, ok, "ticks");
+    await drawTop(root.querySelector<HTMLCanvasElement>(".pv-top"), model, row, ok, "ticks");
+    if (prevModel && ok()) await drawTop(root.querySelector<HTMLCanvasElement>(".pv-top-prev"), prevModel, row, ok, "ticks");
   }
 
   render();

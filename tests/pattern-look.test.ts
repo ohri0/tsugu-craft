@@ -146,8 +146,8 @@ describe("重ねない技：1 枚の板の表", () => {
   it("透かすと穴、象嵌は別の金属で表と同じ高さ、粒は上にのる。同じたねなら同じ", () => {
     const r = buildRelief(ops, 3);
     expect(r.materials).toEqual(["silver", "gold"]);
-    // 透かしの真ん中（4 つ並ぶ格子の 1 つ目）
-    expect(pointAt(r, 0.125, 0.125).hole || pointAt(r, 0.135, 0.125).hole).toBe(true);
+    // 透かしの真ん中（ふちの残しの内側に 4 つ並ぶ格子の 1 つ目：0.09 + 0.82 / 8）
+    expect(pointAt(r, 0.1925, 0.1925).hole).toBe(true);
     // ふちには開けない
     expect(pointAt(r, 0.02, 0.5).hole).toBe(false);
     let sawInlay = false;

@@ -221,6 +221,8 @@ export function pointAt(r: Relief, x: number, y: number): Pt {
       case "engrave": {
         const w = clampTo(op.size, PATTERN_LIMITS.size) * V.lineScale;
         const depth = clampTo(op.depth, PATTERN_LIMITS.depth);
+        // 散らす短い線は、枠の内に（ふちの枠を彫る技と、ぶつからないように）
+        if (p.hole || (op.path === "scatter" && rim(x, y) < V.borderInset + 0.035)) break;
         const h = pathHit(op.path, clampTo(op.across, PATTERN_LIMITS.across), x, y, seed);
         let c = 0;
         if (op.style === "kebori") {
@@ -245,6 +247,8 @@ export function pointAt(r: Relief, x: number, y: number): Pt {
         break;
       }
       case "nanako": {
+        // はめた金属の所は、よけて打つ（仮）
+        if (p.fill > 0 || p.hole) break;
         const n = clampTo(op.across, PATTERN_LIMITS.across) * V.nanakoScale;
         const g = nearestGrid(x, y, n, op.arrange === "rows" ? V.nanakoJitter : 0.32, seed, 1);
         const R = Math.min(0.48 / n, clampTo(op.size, PATTERN_LIMITS.size) * V.punchScale);
@@ -258,6 +262,7 @@ export function pointAt(r: Relief, x: number, y: number): Pt {
         break;
       }
       case "ishime": {
+        if (p.fill > 0 || p.hole) break;
         const n = clampTo(op.across, PATTERN_LIMITS.across) * V.ishimeScale;
         const g = nearestGrid(x, y, n, 0.45, seed, 3, false);
         const R = clampTo(op.size, PATTERN_LIMITS.size) * V.punchScale * (0.6 + 0.8 * hash(g.i, g.j, 9, seed));
@@ -277,10 +282,15 @@ export function pointAt(r: Relief, x: number, y: number): Pt {
         const n = clampTo(op.across, PATTERN_LIMITS.across);
         const R = clampTo(op.size, PATTERN_LIMITS.size);
         if (rim(x, y) < V.pierceRim) break;
+        // 抜く形は、ふちの残しの内側に割り付ける（形がふちにかからないように）
+        const m = V.pierceRim + 0.02;
+        const sc = 1 - 2 * m;
+        const X = (x - m) / sc;
+        const Y = (y - m) / sc;
         let hole = false;
         if (op.shape === "lattice") {
-          const u = ((x + y) * n) / Math.SQRT2;
-          const v = ((x - y) * n) / Math.SQRT2;
+          const u = ((X + Y) * n) / Math.SQRT2;
+          const v = ((X - Y) * n) / Math.SQRT2;
           const bar = clamp(0.5 - R * n, 0.08, 0.42);
           hole = Math.abs(u - Math.floor(u) - 0.5) < 0.5 - bar && Math.abs(v - Math.floor(v) - 0.5) < 0.5 - bar;
         } else if (op.shape === "wave") {
@@ -289,10 +299,13 @@ export function pointAt(r: Relief, x: number, y: number): Pt {
           const cy = (k + 0.5) * gap + 0.25 * gap * Math.sin(2 * Math.PI * (2 * x + hash(k, 0, 2, seed)));
           hole = Math.abs(y - cy) < Math.min(R, gap * 0.3) && rim(x, y) > V.pierceRim + 0.04;
         } else {
-          const g = nearestGrid(x, y, n, 0.06, seed, 7);
+          const g = nearestGrid(X, Y, n, 0.04, seed, 7, false);
+          // 割り付けた n × n の中の形だけ（外の形が、ふちの残しにかからないように）
+          if (g.i < 0 || g.j < 0 || g.i >= n || g.j >= n) break;
           const a = Math.atan2(g.dy, g.dx) + hash(g.i, g.j, 8, seed);
-          const rr = op.shape === "petals" ? R * (0.45 + 0.55 * Math.abs(Math.cos(2.5 * a))) : R;
-          hole = g.d < Math.min(rr, 0.45 / n);
+          const rmax = Math.min(R, (0.45 * sc) / n);
+          const rr = op.shape === "petals" ? rmax * (0.45 + 0.55 * Math.abs(Math.cos(2.5 * a))) : rmax;
+          hole = g.d * sc < rr;
         }
         if (hole) p.hole = true;
         break;
@@ -423,7 +436,9 @@ export function reliefSectionRow(r: Relief): number {
     let last: Pt | null = null;
     for (let i = 0; i < 120; i++) {
       const p = pointAt(r, (i + 0.5) / 120, row);
-      if (last && (topMat(p) !== topMat(last) || p.hole !== last.hole || Math.abs(heightOf(p) - heightOf(last)) > 0.02)) score++;
+      // 材料のさかい（はめた金属・粒・七宝）と透かしを重く数える（細かな打ち跡だけの行を選ばないように）
+      if (last && (topMat(p) !== topMat(last) || p.hole !== last.hole)) score += 4;
+      else if (last && Math.abs(heightOf(p) - heightOf(last)) > 0.02) score++;
       last = p;
     }
     if (score > bestScore) {
@@ -586,9 +601,11 @@ export function reliefSectionImage(r: Relief, w: number, h: number, row = 0.5, s
     const m = acc[4 * i + 3];
     if (!m) continue;
     const g = 1 + 0.03 * grain(i % w, Math.floor(i / w));
-    data[4 * i] = (acc[4 * i] / m) * g;
-    data[4 * i + 1] = (acc[4 * i + 1] / m) * g;
-    data[4 * i + 2] = (acc[4 * i + 2] / m) * g;
+    // 煮色の黒い地でも、暗い背景から板が見分けられるように、少し明るく
+    const lift = 16;
+    data[4 * i] = (acc[4 * i] / m) * g + lift;
+    data[4 * i + 1] = (acc[4 * i + 1] / m) * g + lift;
+    data[4 * i + 2] = (acc[4 * i + 2] / m) * g + lift;
     data[4 * i + 3] = Math.round((255 * m) / (ss * ss));
   }
   return { w, h, data };
