@@ -424,16 +424,16 @@ export function ledgerAsText(ctx: ToolContext): string {
   return `# 目安帳：${ledger.craft}\n（${GUIDE_NOTE}）\n\n${ledgerText(ledger)}\n`;
 }
 
-/** out/ の外へは書かない（../ や絶対パスを断る）。拡張子がなければ .svg を付ける */
-function insideOut(outDir: string, name: string): string {
-  const withExt = /\.svg$/i.test(name) ? name : `${name}.svg`;
+/** out/ の外へは書かない（../ や絶対パスを断る）。拡張子（既定は .svg）がなければ付ける。模様の見込みの PNG（mcp/pattern.ts）も使う */
+export function insideOut(outDir: string, name: string, ext: ".svg" | ".png" = ".svg"): string {
+  const withExt = name.toLowerCase().endsWith(ext) ? name : `${name}${ext}`;
   const target = resolve(outDir, withExt);
   const rel = relative(outDir, target);
   if (!rel || rel.startsWith("..") || isAbsolute(rel)) throw new Error("save_as は out/ の中のファイル名にしてください（../ や絶対パスは使えません）");
   return target;
 }
 
-function shownPath(p: string): string {
+export function shownPath(p: string): string {
   const rel = relative(REPO_ROOT, p);
   return rel && !rel.startsWith("..") && !isAbsolute(rel) ? rel : p;
 }

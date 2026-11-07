@@ -7,6 +7,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { initLedgerFile, readLedger } from "../mcp/ledger-file";
 import { presetOutline, readyStone } from "../mcp/stone-input";
 import { checkRingShape, checkRingTool, ledgerAsText, listRules, patternSvgTool, proposeRule, type ToolContext } from "../mcp/tools";
+import { listPatternOps, simulatePatternTool } from "../mcp/pattern";
+import { OP_RANGE } from "../src/rebuild/pattern-values";
 import { z } from "zod";
 import { centroid } from "../src/geometry/polygon";
 import { seedLedger } from "../src/rules/ledger";
@@ -202,5 +204,74 @@ describe("MCP の入力の形（2026-11-07 の試し）", () => {
     const bad = shape.safeParse({ stone: { preset: "round", long_mm: 8, depth_mm: -4 } });
     expect(bad.success).toBe(false);
     expect(bad.error!.issues[0].message).toBe("深さは 0 より大きい数にしてください");
+  });
+});
+
+describe("模様の見込み（simulate_pattern・list_pattern_ops）", () => {
+  const PNG_HEAD = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+  const layered = [
+    { op: "stack", metals: ["shakudo", "silver", "copper"], amount: 3 },
+    { op: "bond", choice: "good" },
+    { op: "carve", amount: 0.5, size: 0.04, across: 8, choice: "dots" },
+    { op: "flatten" },
+    { op: "color", choice: "patina" },
+  ];
+
+  it("正しい操作なら、上から見た面と断面の PNG を out/ に書き、日本語のまとめを返す", async () => {
+    const out = await simulatePatternTool(ctx, { ops: layered, save_as: "amadare", size_px: 128 });
+    for (const name of ["amadare-top.png", "amadare-section.png"]) {
+      const file = readFileSync(join(ctx.outDir, name));
+      expect(file.length).toBeGreaterThan(100);
+      expect(file.subarray(0, 8).equals(PNG_HEAD)).toBe(true);
+    }
+    expect(out.images).toHaveLength(2);
+    expect(out.result.family).toBe("layers");
+    expect(out.text).toContain("重ねた層の模様");
+    expect(out.text).toContain("作り方の指示ではない");
+  });
+
+  it("1 枚の板の飾りも描け、断面を省ける。模様を出す手順が無いときは、そう知らせる", async () => {
+    const plate = await simulatePatternTool(ctx, { ops: [{ op: "plate", metals: ["silver"] }, { op: "sukashi", size: 0.08, across: 4, choice: "petals" }], save_as: "plate.png", section: false, size_px: 128 });
+    expect(plate.result.family).toBe("surface");
+    expect(existsSync(join(ctx.outDir, "plate-top.png"))).toBe(true);
+    expect(existsSync(join(ctx.outDir, "plate-section.png"))).toBe(false);
+
+    const flat = await simulatePatternTool(ctx, { ops: [{ op: "stack", metals: ["silver", "copper"], amount: 4 }, { op: "bond", choice: "good" }], size_px: 128 });
+    expect(flat.text).toContain("模様を出す手順");
+    expect(existsSync(join(ctx.outDir, "pattern-top.png"))).toBe(true);
+  });
+
+  it("範囲の外の数は、範囲におさめて知らせる", async () => {
+    const out = await simulatePatternTool(ctx, { ops: [{ op: "stack", metals: ["silver", "copper"], amount: 999 }, { op: "twist", amount: 2 }], section: false, size_px: 128 });
+    expect(out.result.fixed.join(" ")).toContain("範囲");
+  });
+
+  it("おかしな操作は、日本語の理由で断る（絵は書かない）", async () => {
+    await expect(simulatePatternTool(ctx, { ops: [{ op: "melt" }] })).rejects.toThrow(/op は .* のどれかです/);
+    await expect(simulatePatternTool(ctx, { ops: [{ op: "bond", choice: "good" }] })).rejects.toThrow("最初の操作は stack");
+    await expect(simulatePatternTool(ctx, { ops: [{ op: "stack", metals: ["silver"], amount: 3 }, { op: "kebori", amount: 0.2, size: 0.01, across: 2, choice: "wave" }] })).rejects.toThrow("まぜないで");
+    await expect(simulatePatternTool(ctx, { ops: [{ op: "stack", metals: ["silver", "copper"] }] })).rejects.toThrow("amount");
+    expect(existsSync(ctx.outDir)).toBe(false);
+  });
+
+  it("out/ の外へは書かない（../ や絶対パスを断る）", async () => {
+    await expect(simulatePatternTool(ctx, { ops: layered, save_as: "../escape" })).rejects.toThrow("out/ の中");
+    await expect(simulatePatternTool(ctx, { ops: layered, save_as: join(dir, "abs") })).rejects.toThrow("out/ の中");
+    expect(existsSync(join(dir, "escape-top.png"))).toBe(false);
+    expect(existsSync(join(dir, "abs-top.png"))).toBe(false);
+  });
+
+  it("list_pattern_ops は、操作・2 つの計算・材料・範囲を返し、例はそのまま描ける", async () => {
+    const list = listPatternOps();
+    expect(list.op_count).toEqual({ min: OP_RANGE[0], max: OP_RANGE[1] });
+    expect(list.ops.find((o) => o.op === "stack")?.family).toBe("layers");
+    expect(list.ops.find((o) => o.op === "kebori")?.family).toBe("surface");
+    expect(list.metals.some((m) => m.id === "shakudo" && m.name === "赤銅")).toBe(true);
+    expect(list.fields.amount).toContain("stack");
+    expect(list.note).toContain("職人が決める");
+    for (const [i, ex] of list.examples.entries()) {
+      const out = await simulatePatternTool(ctx, { ops: ex.ops, save_as: `example-${i}`, section: false, size_px: 128 });
+      expect(out.result.fixed).toEqual([]);
+    }
   });
 });

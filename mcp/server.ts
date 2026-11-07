@@ -1,10 +1,11 @@
 // 継ぐの MCP サーバー（標準入出力でつなぐ）。Claude Desktop や Claude Code から、
-// 目安帳を読む・職人の決まりを足す・指輪を組んで確かめる・型紙を出す、を直接使えるようにする。
+// 目安帳を読む・職人の決まりを足す・指輪を組んで確かめる・型紙を出す・途切れた技の模様の見込みを描く、を直接使えるようにする。
 // 標準出力は MCP のやり取りだけに使うので、知らせは標準エラーに出す。
 // 画面の src/claude/prompt.ts は Vite でしか読めない書き方（?raw）なので、ここからは読み込まない。
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { defaultLedgerPath } from "./ledger-file";
+import { listPatternOps, PATTERN_DESCRIPTIONS, simulatePatternShape, simulatePatternTool } from "./pattern";
 import {
   checkRingShape,
   checkRingTool,
@@ -63,6 +64,31 @@ export function createServer(ctx: ToolContext): McpServer {
           content: [
             { type: "text" as const, text: JSON.stringify(rest, null, 2) },
             { type: "text" as const, text: svg },
+          ],
+        };
+      } catch (e) {
+        return { isError: true, content: [{ type: "text" as const, text: `うまくいきませんでした：${e instanceof Error ? e.message : String(e)}` }] };
+      }
+    },
+  );
+
+  server.registerTool(
+    "list_pattern_ops",
+    { title: "模様の見込みの操作の一覧", description: PATTERN_DESCRIPTIONS.list_pattern_ops, annotations: { readOnlyHint: true } },
+    async () => reply(() => listPatternOps()),
+  );
+
+  server.registerTool(
+    "simulate_pattern",
+    { title: "模様の見込みの絵を描く（形だけの見込み）", description: PATTERN_DESCRIPTIONS.simulate_pattern, inputSchema: simulatePatternShape, annotations: { destructiveHint: false } },
+    async (input) => {
+      try {
+        const { text, result, images } = await simulatePatternTool(ctx, input);
+        return {
+          content: [
+            { type: "text" as const, text },
+            { type: "text" as const, text: JSON.stringify(result, null, 2) },
+            ...images.map((img) => ({ type: "image" as const, data: img.png.toString("base64"), mimeType: "image/png" })),
           ],
         };
       } catch (e) {
