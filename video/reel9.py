@@ -2215,62 +2215,32 @@ def learn10(s, t, f):
         t_voice = t_tab1 + (m["voice"] - m["table1"]) / FPS
         pts = [(0, st), (t1, m["type"]), (t2, m["typed"]), (t3, m["wait"]), (t_ans, m["answer"]),
                (t_tab0, m["table0"]), (t_tab1, m["table1"]), (t_voice, m["voice"]), (n, min(nfr - 1, m["voice"] + int((n - t_voice) * FPS * 0.9)))]
-        if HANDS17:
-            # 最終案 17j（手の動きを n24 の頭から重ねる）：打つ所は見せず、問いを送ったあと（答えを待つ所）から始め、答えを HANDS17_ANS 秒に出す
-            t_ans = HANDS17_ANS
-            t_tab0 = t_ans + (m["table0"] - m["answer"]) / FPS
-            t_tab1 = t_tab0 + (m["table1"] - m["table0"]) / FPS
-            pts = [(0, m["wait"]), (t_ans, m["answer"]), (t_tab0, m["table0"]), (t_tab1, m["table1"]), (n, min(nfr - 1, m["table1"] + int((n - t_tab1) * FPS)))]
     else:
         pts = [(0, m["full"] + 4), (0.35, m["type"]), (a0 - 0.4, m["typed"] + 6), (a0 + 0.2, m["wait"]), (n, min(m["answer"] + 38, nfr - 1))]
     i = ramp_frame(pts, t)
-    tz = (HANDS17_ANS + 0.15) if HANDS17 and "table0" in m else a0 + 0.3
+    tz = a0 + 0.3
     b = M["boxes"]["thread"]
     # 寄る：会話の欄の幅（820 px まで）。高さは、欄の見えている所のまん中（中は撮るときに送る）
     # 最終案 14：問いの吹き出しを上の帯のすぐ下に（その下に答えの文と表。撮るときに送る）
     cy = 240 if "q" in M["boxes"] else box_center("learn11", "answer", 0, 30)[1]  # 切り抜きの下の端を、聞く欄（464 px）の上に
-    a = blend_views(lambda: full_view("learn11", i), lambda: css_crop("learn11", i, b["x"] + b["w"] / 2, cy, min(820, b["w"] + 40)), t, tz, 0.6)
-    return hands17_mix(s, t, a)
+    return blend_views(lambda: full_view("learn11", i), lambda: css_crop("learn11", i, b["x"] + b["w"] / 2, cy, min(820, b["w"] + 40)), t, tz, 0.6)
 
 
-# ---- 最終案 17（HANDS17=1 のときだけ。2026-11-08）：学ぶの章の終わり、n24「継ぐなら、すぐ答えが出ます。」のあとに、学ぶの「手の動きを比べる」を短く。
-#   職人（作者）が撮った本物のヤスリがけの、いい例・よくない例と、ならした手の点とヤスリの線（アプリの画面をそのまま撮った章 hands17。capture/story.cjs）。
-#   語りの秒と全体の長さは変えない。n24 の終わりのあとだけでは約 1.3 秒しかない（その後半は章の変わり目の黒）ので、
-#   最終案 17j から、n24 の頭の少し前（HANDS17_AT 秒。既定 -0.1）から 0.35 秒かけて重ね、章の変わり目の黒まで約 2.5 秒はっきり見せる。
-#   そのぶん学ぶの場面は、打つ所を見せず、問いを送ったあとから始めて、答えを場面の頭から HANDS17_ANS 秒（既定 0.85）に出す（learn10）
+# ---- 最終案 17m（HANDS17=1 のときだけ。2026-11-08 作者の声）：学ぶの章には入れず、2:20 の「職人が残す → 学ぶ人が受け取る」の
+#   右の欄「手を比べる」で、職人（作者）が撮った本物のヤスリがけの、いい例・よくない例と、ならした手の点とヤスリの線を短く（約 1.2 秒）。
+#   撮った章 hands17m（スマホの幅 480 の 4 倍。となりの欄と同じ大きさの字）。前の作り話の比べの画面（hands9）の代わり。
+#   語りの秒と全体の長さは変えない：右の欄の「聞く」を 0.4 秒短くし（2:20.1 から替わる）、次の章の黒（2:21.8〜）まで
 HANDS17 = os.environ.get("HANDS17") == "1"
-HANDS17_AT = float(os.environ.get("HANDS17_AT", "-0.1"))
-HANDS17_ANS = float(os.environ.get("HANDS17_ANS", "0.85"))
-HANDS17_CAP = "手の動きも、職人の手本と比べられる"
+HANDS17_AT = float(os.environ.get("HANDS17_AT", "6.7"))   # n30 の頭から。前の「手を比べる」は 7.1
+HANDS17_FADE = 0.5
 
 
-def hands17_view(u):
-    """撮った章 hands17 の、どこが違うか（見出し）から 2 本の動画の下の端までを切り抜いて、画面のまん中に。下に小さな字"""
-    M = meta("hands17")
-    K = M["size"][0] / 960
-    bx = M["boxes"]
-    x0, y0 = bx["grid"]["x"], bx["diff"]["y"] + 8  # 上の帯の下の線を入れない
-    x1, y1 = bx["grid"]["x"] + bx["grid"]["w"], bx["grid"]["y"] + bx["grid"]["h"]
+def hands17_col(u):
+    """撮った章 hands17m の、2 本の動画とその下の職人の言葉（.pd-grid）を、欄の大きさに。u：替わってからの秒（動画は 0.5 倍の速さで撮ってある）"""
+    M = meta("hands17m")
     i = int(clamp(M["marks"]["start"] + int(u * FPS), M["marks"]["start"], M["frames"] - 1))
-    hh = 880
-    ww = int(round(hh * (x1 - x0) / (y1 - y0)))
-    img = shot("hands17", i, (x0 * K, y0 * K, (x1 - x0) * K, (y1 - y0) * K), (ww, hh))
-    a = np.empty((H, W, 3), F32)
-    a[:] = img[hh // 2, 3]  # 頁の地の色（左の端、動画の横）
-    xa, ya = (W - ww) // 2, 40
-    a[ya:ya + hh, xa:xa + ww] = img
-    return ink(a, Hz(W / 2, 1012, HANDS17_CAP, "sans4", 34, 0.06, "c"), SHIRO, fade(u, 0.15, 0.4))
+    return col_shot("hands17m", i, max(0, M["boxes"]["grid"]["y"] - 4) * 4)
 
-
-def hands17_mix(s, t, a):
-    if not HANDS17 or not s.get("voice"):
-        return a
-    t_h = s["voice"][-1]["at"] + HANDS17_AT
-    k = fade(t, t_h, 0.35)
-    if k <= 0:
-        return a
-    b = hands17_view(t - t_h)
-    return b if k >= 1 else a * (1 - k) + b * k
 
 @scene("kebori9", "hands9")
 def kebori10(s, t, f):
@@ -2279,7 +2249,8 @@ def kebori10(s, t, f):
     # 最終案 13：3:00 に収めるため、右の 2 つ（聞く・手を比べる）の間を 2.7 → 2.3 秒に（場面は 11.7 → 10.6 秒）
     t_model = a0 + 3.0
     t_ask = a0 + 4.8
-    t_hand = a0 + 7.1
+    t_hand = a0 + (HANDS17_AT if HANDS17 else 7.1)
+    xf_h = HANDS17_FADE if HANDS17 else 1.0   # 最終案 17m：本物の手の比べは短いので、替わるのも速く
     a = L.ground().copy()
     m = meta("kebori9")["marks"]
     k_l0 = fade(t, 0.3, 0.8) * (1 - sm((t - t_model) / 1.0))
@@ -2293,13 +2264,13 @@ def kebori10(s, t, f):
     k_g = fade(t, 0.5, 0.9) * (1 - sm((t - t_ask) / 1.0))
     if k_g > 0:
         a = col_place(a, col_shot("kebori9", m["top"], GUIDE_Y11), COL_X[1], k_g)
-    k_r0 = fade(t, t_ask, 1.0) * (1 - sm((t - t_hand) / 1.0))
+    k_r0 = fade(t, t_ask, 1.0) * (1 - sm((t - t_hand) / xf_h))
     if k_r0 > 0:
         y = max(0, int(meta("kebori9")["boxes"]["thread"]["y"] + 6)) * 4
         a = col_place(a, col_shot("kebori9", m["answer"], y), COL_X[1], k_r0)
-    k_r1 = fade(t, t_hand, 1.0)
+    k_r1 = fade(t, t_hand, xf_h)
     if k_r1 > 0:
-        a = col_place(a, col_shot("hands9", meta("hands9")["marks"]["result"], 0), COL_X[1], k_r1)
+        a = col_place(a, hands17_col(t - t_hand) if HANDS17 else col_shot("hands9", meta("hands9")["marks"]["result"], 0), COL_X[1], k_r1)
     k = fade(t, 0.2, 0.9)
     a = ink(a, Hz(COL_X[0], 92, "職人が残す", "min", S, 0.08), SHIRO, k)
     a = ink(a, Hz(COL_X[1], 92, "学ぶ人が受け取る", "min", S, 0.08), SHIRO, fade(t, t_ask - 0.2, 0.8))
@@ -3597,9 +3568,9 @@ def extra_key(s):
         return repr(SOURCES)
     if s["id"] == "finished" and s.get("fin_cap") == "calc":
         return FIN_CAP_CALC
-    if s["id"] == "learn10" and HANDS17:
-        p = os.path.join(STORY, "hands17", "meta.json")
-        return "hands17=" + str(HANDS17_AT) + "/" + str(HANDS17_ANS) + HANDS17_CAP + "".join(inspect.getsource(fn) for fn in (hands17_view, hands17_mix)) + str(os.path.getmtime(p) if os.path.exists(p) else 0)
+    if s["id"] == "kebori10" and HANDS17:
+        p = os.path.join(STORY, "hands17m", "meta.json")
+        return "hands17m=" + str(HANDS17_AT) + "/" + str(HANDS17_FADE) + inspect.getsource(hands17_col) + str(os.path.getmtime(p) if os.path.exists(p) else 0)
     return ""
 
 
