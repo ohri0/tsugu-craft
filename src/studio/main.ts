@@ -4352,11 +4352,12 @@ function renderBandBuild() {
 }
 
 async function makeBand(lead = "", begun?: number) {
-  if (making) return begun !== undefined ? historyEnd(begun, true) : undefined;
+  // 生成しなかったとき（合言葉なし・失敗）は、石なしへの切り替えを「生成」と数えない（「生成の前に戻す」が、生成していないのに出ていた）
+  if (making) return begun !== undefined ? historyEnd(begun, false) : undefined;
   const wish = $<HTMLInputElement>(".wish").value.trim();
   const pass = store.password() || (await askPassword(true));
   if (!pass) {
-    if (begun !== undefined) historyEnd(begun, true);
+    if (begun !== undefined) historyEnd(begun, false);
     setStatus("生成には Claude が要ります。合言葉がなくても、「形」の見本や数字を変えて手で作れます。", { links: [{ label: "手で変える →", run: toManual }] });
     toast("生成には合言葉が要ります。断面の見本や数字は、手で変えられます");
     return;
@@ -4368,7 +4369,7 @@ async function makeBand(lead = "", begun?: number) {
   const r = await callTool<BandDraft>({ system: bandPrompt(bandGuides()), user: `号：${gou} 号\n${wish || "ふつうの普段使いの指輪"}`, tool: MAKE_BAND, parse: parseBand, password: pass, speed: "fast" });
   making = false;
   if (!r.ok) {
-    historyEnd(mark, true);
+    historyEnd(mark, false);
     if (r.code === "wrong_password") resetPassword();
     setStatus(r.error);
     return;
