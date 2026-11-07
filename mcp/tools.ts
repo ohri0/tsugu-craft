@@ -12,7 +12,7 @@ import { GUIDE_NOTE, GUIDES, type HeightOption, type MetalId } from "../src/rule
 import { activeRules, addRule, effectiveGuides, ledgerText, PARAMS, sourceLabel, type Ledger, type ParamId, type Rule } from "../src/rules/ledger";
 import { build, DEFAULT_DESIGN, type Design } from "../src/ui/design";
 import { sectionCurveProblem, SECTION_INPUT } from "../src/geometry/section-input";
-import { BAND_WIDTH_WORDS, INPUT_BOUNDS, IROGANE, OFFERED_PARAMS, RELIEF_PATTERN_WORDS, RELIEF_PATTERNS } from "../src/claude/tools";
+import { BAND_WIDTH_WORDS, INPUT_BOUNDS, IROGANE, OFFERED_PARAMS, paramValueProblem, RELIEF_PATTERN_WORDS, RELIEF_PATTERNS } from "../src/claude/tools";
 import { FINISHES_OFFERED } from "../src/geometry/finish";
 import type { ShankStation } from "../src/geometry/shank";
 import { readLedger, REPO_ROOT, writeLedger } from "./ledger-file";
@@ -244,6 +244,9 @@ export function proposeRule(ctx: ToolContext, input: ProposeRuleInput) {
   if (parsed.value !== undefined && !(Number.isFinite(parsed.value) && parsed.value > 0)) {
     throw new Error("value は 0 より大きい数にしてください");
   }
+  // ありえない値（爪 5 mm など）は入れない。範囲は道具の入力の範囲（INPUT_BOUNDS）がある値だけ（docs/robustness の M07）
+  const outOfRange = parsed.param && parsed.value !== undefined ? paramValueProblem(parsed.param, parsed.value) : null;
+  if (outOfRange) throw new Error(outOfRange);
   const before = readLedger(ctx.ledgerPath);
   const rule: Omit<RuleWithQuote, "id" | "replaces"> = {
     title: parsed.title,
