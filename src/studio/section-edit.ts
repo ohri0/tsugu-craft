@@ -377,7 +377,7 @@ export function viewFor(widthMm: number, thicknessMm: number, maxX: number = VIE
   return { x, yMin, yMax: yMin + h };
 }
 
-/** 方眼（0.1 mm・0.5 mm・1 mm）と目盛りの数字、指の側の線 */
+/** 方眼（0.1 mm・0.5 mm・1 mm）と目盛りの数字、指の側の線。「指の側」の字は 0 と 1 の目盛りの間に置く（0 の上に置くと数字と重なった） */
 function gridSvg(v: View): string {
   const fine: string[] = [];
   const minor: string[] = [];
@@ -405,7 +405,7 @@ function gridSvg(v: View): string {
   labels.push(`<text x="${f3(v.x - 0.08)}" y="${f3(sy(lx))}" text-anchor="end">mm</text>`);
   return `<g class="se-grid"><g class="fine">${fine.join("")}</g><g class="minor">${minor.join("")}</g><g class="major">${major.join("")}</g></g>
       <g class="se-labels">${labels.join("")}</g>
-      <text class="se-finger-label" x="0" y="${f3(sy(lx * 0.5))}" text-anchor="middle">指の側</text>`;
+      <text class="se-finger-label" x="0.5" y="${f3(sy(lx * 0.5))}" text-anchor="middle">指の側</text>`;
 }
 
 const viewBox = (v: View) => `${f3(-v.x)} ${f3(-v.yMax)} ${f3(2 * v.x)} ${f3(v.yMax - v.yMin)}`;

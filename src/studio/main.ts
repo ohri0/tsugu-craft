@@ -1383,7 +1383,17 @@ function openSheetFull() {
   };
   el.querySelector(".sf-in")!.addEventListener("click", () => zoomBy(1.5));
   el.querySelector(".sf-out")!.addEventListener("click", () => zoomBy(1 / 1.5));
-  el.querySelector(".sf-close")!.addEventListener("click", () => el.remove());
+  // Esc でも閉じる（見せる・なぜ継ぐと同じ。前は「閉じる」を押すしかなかった）
+  const onKey = (e: KeyboardEvent) => {
+    if (e.key === "Escape") close();
+  };
+  const close = () => {
+    document.removeEventListener("keydown", onKey);
+    el.remove();
+  };
+  document.addEventListener("keydown", onKey);
+  el.querySelector(".sf-close")!.addEventListener("click", close);
+  el.querySelector<HTMLButtonElement>(".sf-close")!.focus();
 }
 function hideSheet() {
   sheetOn = false;

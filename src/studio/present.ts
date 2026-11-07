@@ -27,7 +27,9 @@ const esc = (t: string) => t.replace(/[<&>"]/g, (c) => ({ "<": "&lt;", "&": "&am
 
 export function presentHtml(info: PresentInfo, groups: PresentGroup[], active: string): string {
   const g = groups.find((x) => x.key === active) ?? groups[0];
-  const cell = (k: string, v: string, cls = "") => `<div><div class="pk">${esc(k)}</div><div class="pv ${cls}">${esc(v)}</div></div>`;
+  // 数と単位の間で行を分けない（スマホで「約 2.7」と「g」が別の行になっていた）
+  const keepUnit = (t: string) => t.replace(/(\d) (mm|g|ct)(?![A-Za-z])/g, "$1\u00a0$2");
+  const cell = (k: string, v: string, cls = "") => `<div><div class="pk">${esc(k)}</div><div class="pv ${cls}">${keepUnit(esc(v))}</div></div>`;
   return `${info.title ? `<h2 class="pr-title">${esc(info.title)}</h2>` : ""}<div class="pr-tabs" role="tablist">${groups.map((x) => `<button type="button" role="tab" data-g="${x.key}" aria-selected="${x.key === g.key}">${esc(x.label)}</button>`).join("")}</div>
     ${g ? `<div class="pr-opt" role="group" aria-label="${esc(g.label)}">${g.options.map((o) => `<button type="button" data-g="${g.key}" data-v="${esc(o.v)}" aria-pressed="${o.v === g.on}">${esc(o.label)}</button>`).join("")}</div>` : ""}
     ${info.quote ? `<p class="pr-q">「${esc(info.quote.text)}」<small>${esc(info.quote.by)}</small></p>` : ""}
