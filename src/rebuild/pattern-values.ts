@@ -3,21 +3,31 @@
 // 木目金の試し（src/rebuild/mokume-values.ts）とは別。赤銅と銅の色だけは、同じ絵の色を使う。
 import { MOKUME_METALS } from "./mokume-values";
 
-/** 重ねる材料。名前は画面に出す言葉。色は絵の色（仮）：raw＝そのまま、etch＝酸で地を出したとき、patina＝煮色のように色を出したとき */
+/**
+ * 重ねる材料。名前は画面に出す言葉。色は絵の色（仮）：raw＝磨いたまま、etch＝酸で地を出したとき、patina＝煮色のように色を出したとき。
+ * 金属らしく見えるように、木目金の試しと同じ考えで選んだ（2026-11-07 見直し）：赤銅は煮色で紫がかった黒、銅は赤茶、銀は白、四分一は灰、
+ * 鋼は、酸で炭素の多い方が青みの黒・少ない方が明るい灰。磨いたままの金属どうしは、色の差が小さい。
+ */
 export const PATTERN_METALS = {
-  shakudo: { name: "赤銅", raw: MOKUME_METALS.shakudo.raw, etch: "#5a4436", patina: MOKUME_METALS.shakudo.niiro },
+  shakudo: { name: "赤銅", raw: MOKUME_METALS.shakudo.raw, etch: "#4a3a33", patina: MOKUME_METALS.shakudo.niiro },
   copper: { name: "銅", raw: MOKUME_METALS.copper.raw, etch: "#b8714f", patina: MOKUME_METALS.copper.niiro },
-  shibuichi: { name: "四分一（銀と銅の合金）", raw: "#b3a596", etch: "#8f8476", patina: "#6b6e6c" },
-  silver: { name: "銀", raw: "#dcdcd8", etch: "#e8e8e4", patina: "#cfcdc6" },
+  shibuichi: { name: "四分一（銀と銅の合金）", raw: "#b9ab9b", etch: "#8f8578", patina: "#7d807e" },
+  silver: { name: "銀", raw: "#e2e1dc", etch: "#ecebe6", patina: "#dcd9d0" },
   gold: { name: "金", raw: "#d9b45c", etch: "#dcb862", patina: "#d2a94c" },
   brass: { name: "真鍮", raw: "#cdb064", etch: "#b99a50", patina: "#8a6b3c" },
-  nickel: { name: "ニッケル", raw: "#c9c9c4", etch: "#e6e6e1", patina: "#b9b9b3" },
-  steel_dark: { name: "黒くなる鋼（炭素の多い鋼）", raw: "#8e9297", etch: "#2b2d30", patina: "#36322f" },
-  steel_light: { name: "白く残る鋼（炭素の少ない鋼）", raw: "#a2a6ab", etch: "#c4c8cc", patina: "#8d8a86" },
-  iron: { name: "鉄", raw: "#7e7b77", etch: "#4b4844", patina: "#4d3b30" },
-  dark: { name: "暗い色の材料（名前が分からない）", raw: "#4a4644", etch: "#3a3634", patina: "#2a2624" },
-  light: { name: "明るい色の材料（名前が分からない）", raw: "#d6d0c4", etch: "#e2ddd2", patina: "#cfc6b4" },
+  nickel: { name: "ニッケル", raw: "#c9c9c4", etch: "#e3e4e2", patina: "#b9b9b3" },
+  steel_dark: { name: "黒くなる鋼（炭素の多い鋼）", raw: "#8f9398", etch: "#24282e", patina: "#33302e" },
+  steel_light: { name: "白く残る鋼（炭素の少ない鋼）", raw: "#a6aaaf", etch: "#c2c6cb", patina: "#8d8a86" },
+  iron: { name: "鉄", raw: "#85878a", etch: "#3e4044", patina: "#4d3b30" },
+  dark: { name: "暗い色の材料（名前が分からない）", raw: "#55524f", etch: "#33302f", patina: "#2a2624" },
+  light: { name: "明るい色の材料（名前が分からない）", raw: "#cfccc4", etch: "#dedbd3", patina: "#cfc6b4" },
   red: { name: "赤い色の材料（名前が分からない）", raw: "#b0503a", etch: "#9c4532", patina: "#8a3626" },
+  // 七宝のガラス（1 枚の板の飾りで使う。色を出す手順では変わらない）
+  enamel_blue: { name: "七宝の青", raw: "#1f4f8a", etch: "#1f4f8a", patina: "#1f4f8a" },
+  enamel_green: { name: "七宝の緑", raw: "#2f7a55", etch: "#2f7a55", patina: "#2f7a55" },
+  enamel_red: { name: "七宝の赤", raw: "#a8322b", etch: "#a8322b", patina: "#a8322b" },
+  enamel_white: { name: "七宝の白", raw: "#e9e6dc", etch: "#e9e6dc", patina: "#e9e6dc" },
+  enamel_yellow: { name: "七宝の黄", raw: "#d9a933", etch: "#d9a933", patina: "#d9a933" },
 } as const;
 
 export type MetalId = keyof typeof PATTERN_METALS;
@@ -39,14 +49,37 @@ export const PATTERN_VALUES = {
   unbonded: { good: 0, partial: 0.12, poor: 0.35, none: 0.35 },
   /** はがれが表に口を開ける、表から層の境までの近さ（層の厚みを 1 として） */
   openDepth: 0.55,
-  /** 平らに叩く・のばすときの、横のゆらぎ（板の幅に対して） */
-  wobble: 0.012,
+  /** のばすとき・平らに叩くときの、横のゆらぎ（板の幅に対して）。平らに叩くだけなら小さく（並べた四角のさかいが、まっすぐに残るように） */
+  wobble: { forge: 0.012, flatten: 0.003 },
   /** 叩くたびに層が波打つ大きさ（板の厚みに対して）。のばすときは、のばす割合の平方根をかける */
-  layerWave: { forge: 0.012, flatten: 0.006, fold: 0.006 },
+  layerWave: { forge: 0.03, flatten: 0.006, fold: 0.012 },
   /** 板そのもののわずかな波打ち（層の厚みに対して） */
   waviness: 0.25,
   /** 重ねて叩いたあとの層の数の上限（細かすぎると絵で見分けられない） */
   maxLayers: 4096,
+  /** ねじる前に、重ねた板を四角い棒にのばす長さ（棒の幅に対して）。板のままの長さでねじると、ねじれが詰まりすぎる */
+  twistBar: 2,
+  /** ねじった棒を四角に叩きもどすとき、回った角が面に押しこまれる強さ（0＝円のようになめらか、1＝角の折れ目そのまま） */
+  twistCorner: 0.5,
+  /** 手であけた穴・刻んだ溝のばらつき（決まった間の穴でも、手の仕事なので少しずれる）。位置は間かくに対して、大きさ・深さ・楕円は割合で */
+  handJitter: { pos: 0.1, size: 0.14, depth: 0.1, ellipse: 0.12, lineWander: 0.12 },
+} as const;
+
+/** 絵の光と手ざわり（どれも絵のための値。画面とファイルで同じ） */
+export const PATTERN_LOOK = {
+  /** 地のざらつき（明るさの割合） */
+  grain: 0.03,
+  /** 1 枚ずつの板の、わずかな色のちがい（明るさの割合） */
+  layerTone: 0.035,
+  /** 左上からの光：左上を明るく、右下を暗く（明るさの割合） */
+  light: 0.07,
+  shadow: 0.12,
+  /** 磨いた面のやわらかな照り（明るさの割合） */
+  sheen: 0.07,
+  /** 酸で地を出したときの、わずかな凹凸の陰（明るい層が少し高い） */
+  relief: 0.22,
+  /** 画素より細かい層をならす幅の上限（層の数） */
+  maxSpan: 64,
 } as const;
 
 /** 道具が受け取る数の範囲（はみ出したら、範囲におさめて知らせる） */
@@ -65,3 +98,44 @@ export const PATTERN_LIMITS = {
 
 /** 道具が受け取る操作の数の範囲 */
 export const OP_RANGE = [1, 20] as const;
+
+/** 1 枚の板の飾り（src/rebuild/pattern-relief.ts）の形の値。どれも絵のための仮の値で、出典はない */
+export const RELIEF_VALUES = {
+  /** 板の厚み（板の幅に対して）。凹凸の陰の強さが、これで決まる */
+  thickness: 0.03,
+  /** 手で彫る線のゆらぎ（線の間かくに対して） */
+  hand: 0.08,
+  /** 道具の size（線の半分の幅）にかける数。小さな数でも線が見えるように */
+  lineScale: 1,
+  /** 蹴彫りの一打ちの長さ（線の幅に対して） */
+  keriLength: 3,
+  /** ふちにそった枠の線：いちばん外の線の、ふちからの近さと、線の間かく（板の幅に対して） */
+  borderInset: 0.045,
+  borderGap: 0.03,
+  /** 魚々子：across にかける数（輪は小さく、たくさん並ぶ）・ずれ・溝の深さ */
+  nanakoScale: 1,
+  nanakoJitter: 0.04,
+  nanakoDepth: 0.12,
+  /** 打つ点の大きさ（size にかける数） */
+  punchScale: 1,
+  /** 石目：across にかける数・点の深さ */
+  ishimeScale: 2.2,
+  ishimeDepth: 0.1,
+  /** 槌目：跡の大きさにかける数・深さにかける数 */
+  hammerScale: 1,
+  hammerDepth: 0.35,
+  /** 透かしを開けない、ふちの幅（板の幅に対して） */
+  pierceRim: 0.07,
+  /** 透かしのふちに落ちる影の長さ（板の幅に対して） */
+  shadow: 0.006,
+  /** 打ち出しの高さにかける数（厚みに対して） */
+  reliefHeight: 3,
+  /** 象嵌の深さ（厚みに対して） */
+  inlayDepth: 0.3,
+  /** 粒の大きさにかける数・粒の高さにかける数（板の幅を厚みに直す） */
+  grainScale: 1,
+  grainHeight: 1 / 0.03,
+  /** 七宝：区切りの線の太さ（板の幅に対して）・ガラスの深さ（厚みに対して） */
+  wire: 0.006,
+  enamelDepth: 0.35,
+} as const;
