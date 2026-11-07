@@ -3,14 +3,14 @@
 // 試した結果のある技（雨垂れ銀）は、さらに → 試した結果 → 結果を入れて見込み 1 を作り直す → 案 2 → 見込み 2 と比べる → 技の一覧。
 // Claude の返事は、scripts/pattern-demo.ts が本物の Claude から受け取って残したもの（docs/pattern-demo/cases/<id>.replies.json）を、同じ順で返す。
 // 手がかりと試した結果は、同じときに残した記録（cases/<id>.json）から読む（同じ順で入れると、返事の番号 C1〜 が合う）。
-// 開発用のサーバーを立てて（npx vite --port 5197）、node scripts/pattern-flow-shots.cjs [URL の頭] [技の id（はじめは amadare）]
+// 開発用のサーバーを立てて（npx vite --port 5197）、node scripts/pattern-flow-shots.cjs [URL の頭] [技の id（はじめは amadare）] [出す所（はじめは docs/pattern-demo）]
 // 出すもの：雨垂れ銀は docs/pattern-demo/flow-*.png、ほかの技は docs/pattern-demo/<id>-flow-*.png
 const { chromium } = require('playwright');
 const fs = require('fs');
 
 const BASE = process.argv[2] || 'http://localhost:5197';
 const ID = process.argv[3] || 'amadare';
-const OUT = 'docs/pattern-demo';
+const OUT = process.argv[4] || 'docs/pattern-demo';
 const PREFIX = ID === 'amadare' ? 'flow' : `${ID}-flow`;
 const replies = JSON.parse(fs.readFileSync(`${OUT}/cases/${ID}.replies.json`, 'utf8'));
 const saved = JSON.parse(fs.readFileSync(`${OUT}/cases/${ID}.json`, 'utf8')).project;
