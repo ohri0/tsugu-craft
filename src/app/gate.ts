@@ -65,7 +65,7 @@ function ask(first: string): Promise<void> {
     root.setAttribute("style", "position:fixed;inset:0;z-index:2147483000;display:grid;place-items:center;padding:24px;background:#141416;color:#f2f2f4;font-family:-apple-system,'Hiragino Sans','Noto Sans JP',sans-serif;");
     root.innerHTML = `<form style="width:min(100%,360px);display:grid;gap:14px;">
       <h1 style="margin:0;font-size:24px;font-weight:600;letter-spacing:.04em;">継ぐ</h1>
-      <p style="margin:0;font-size:15px;line-height:1.7;color:#c9c9cf;">はじめるには、合言葉を入れてください。合言葉は、このアプリを教えてくれた人に聞いてください。</p>
+      <p style="margin:0;font-size:15px;line-height:1.7;color:#c9c9cf;">設計・帳面・学ぶ・技を開くには、合言葉を入れてください。合言葉は、このアプリを教えてくれた人に聞いてください。</p>
       <input type="password" autocomplete="off" placeholder="合言葉" aria-label="合言葉" style="min-height:48px;padding:0 14px;font-size:16px;color:inherit;background:#1f1f22;border:1px solid #47474d;border-radius:8px;">
       <p class="gate-msg" role="alert" style="margin:0;min-height:1.6em;font-size:14px;line-height:1.6;color:#ff8a80;">${first}</p>
       <button style="min-height:48px;font-size:16px;font-weight:600;color:#fff;background:#2f6fe4;border:0;border-radius:8px;cursor:pointer;">はじめる</button>
