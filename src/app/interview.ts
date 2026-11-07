@@ -120,7 +120,8 @@ export function mountInterview(root: HTMLElement, target: InterviewTarget, opts:
     const voice = bindVoice($<HTMLButtonElement>(".mic"), field, { onError: st });
     $<HTMLInputElement>(".iv-name input").addEventListener("input", (e) => (name = (e.target as HTMLInputElement).value.trim() || target.defaultName()));
     $(".skip").addEventListener("click", () => {
-      if (!askConfirm(flowUI() ? "この質問を、あとにしますか？\n書いた答えは消えます。質問は、あとでまた出ます。" : "この質問をとばしますか？\n書いた答えは消えます。質問は、あとでまた出ます。")) return;
+      // 確かめるのは、消える答えがあるときだけ（何も書いていないのに「書いた答えは消えます」と聞いていた）
+      if (field.value.trim() && !askConfirm(flowUI() ? "この質問を、あとにしますか？\n書いた答えは消えます。質問は、あとでまた出ます。" : "この質問をとばしますか？\n書いた答えは消えます。質問は、あとでまた出ます。")) return;
       voice.stop();
       skipped.add(gap.id);
       const rest = target.gaps().filter((g) => !skipped.has(g.id));
