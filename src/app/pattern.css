@@ -8,8 +8,12 @@
 
 /* 段：作る順に並べる（段の数は技ごとにちがう。5 つまでは 1 行、それより多いと 2 行）。どの段も「横から見た切り口」と「上から見た面」 */
 .pv .pv-stages { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(var(--pv-cols, 4), minmax(0, 1fr)); gap: 26px 16px; }
-.pv .pv-stage { display: grid; align-content: start; gap: 5px; opacity: 0; transform: translateY(6px); transition: opacity 0.7s ease, transform 0.7s ease; }
-.pv .pv-stage.on { opacity: 1; transform: none; }
+/* まだ出ていない段は、薄い下書き（枠と名前だけ。絵は出さない）。前は透明で、段が出る前は下に大きな空きがあった */
+.pv .pv-stage { display: grid; align-content: start; gap: 5px; opacity: 0.32; transition: opacity 0.7s ease; }
+.pv .pv-stage.on { opacity: 1; }
+.pv .pv-stage .pv-pic canvas { transition: opacity 0.7s ease; }
+.pv .pv-stage:not(.on) .pv-pic { border-radius: 5px; background: var(--mo-bg); box-shadow: inset 0 0 0 1px var(--mo-line); }
+.pv .pv-stage:not(.on) .pv-pic canvas { opacity: 0; }
 .pv .pv-stage .mo-sh { padding: 0 2px 4px; margin-bottom: 4px; }
 .pv .pv-stage .mo-sh b { font-size: 14px; font-weight: 600; line-height: 1.35; }
 .pv .pv-pics { display: grid; gap: 6px; }
@@ -30,9 +34,14 @@
 
 /* 出来上がり：この案と前の案の面を大きく並べ、下に断面 */
 .pv .pv-final { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 26px 28px; margin: 22px 0 0; padding-top: 24px; border-top: 1px solid var(--mo-line); align-items: start; }
-.pv .pv-big { margin: 0; opacity: 0; transform: translateY(8px); transition: opacity 0.9s ease, transform 0.9s ease; }
-.pv .pv-final .pv-prev { transition-delay: 0.45s; }
+/* 出来上がりの前は、面と断面の枠を薄く見せて場所を取っておく（絵は出さない） */
+.pv .pv-big { margin: 0; opacity: 0.32; transition: opacity 0.9s ease, transform 0.9s ease; }
+.pv .pv-big canvas { transition: opacity 0.9s ease, filter 0.9s ease; }
+.pv:not(.on-final) .pv-big .pv-frame canvas { opacity: 0; }
+.pv:not(.on-final) .pv-secbig canvas { filter: brightness(0); }
+.pv .pv-final .pv-prev, .pv .pv-final .pv-prev canvas { transition-delay: 0.45s; }
 .pv .pv-secbig { grid-column: 1 / -1; transition-delay: 0.9s; }
+.pv .pv-secbig canvas { transition-delay: 0.9s; }
 .pv.on-final .pv-big { opacity: 1; transform: none; }
 .pv .pv-frame { width: 100%; max-width: 540px; margin: 0 auto; padding: 10px; border-radius: 10px; background: #0c0b0b; box-shadow: 0 0 0 1px var(--mo-line), 0 18px 40px rgba(0, 0, 0, 0.35); }
 .pv .pv-frame canvas { display: block; width: 100%; aspect-ratio: 1; height: auto; border-radius: 3px; background: #0c0b0b; }
@@ -72,7 +81,7 @@
 .pv .pv-decline p { margin: 0; }
 
 @media (prefers-reduced-motion: reduce) {
-  .pv .pv-stage, .pv .pv-big { transition: none; }
+  .pv .pv-stage, .pv .pv-big, .pv .pv-stage .pv-pic canvas, .pv .pv-big canvas { transition: none; }
 }
 @media (max-width: 1000px) and (min-width: 761px) {
   .pv .pv-stages { grid-template-columns: repeat(3, minmax(0, 1fr)); }
