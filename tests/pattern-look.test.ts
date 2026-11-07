@@ -1,6 +1,6 @@
 // 模様の見込みの絵を、きれいに・自然に描くための関数（2026-11-07 の見直し）と、重ねない技の計算（src/rebuild/pattern-relief.ts）
 import { describe, expect, it } from "vitest";
-import { carveDepth, diskToSquare, footprint, layerRamp, rampColor, squareToDisk, surface, buildSim, untwist, bandRows, surfaceImageAsync, type PatternOp } from "../src/rebuild/pattern-sim";
+import { carveDepth, diskToSquare, footprint, layerRamp, pressBack, rampColor, squareToDisk, surface, buildSim, untwist, bandRows, surfaceImageAsync, type PatternOp } from "../src/rebuild/pattern-sim";
 import { buildRelief, heightOf, pathHit, pointAt, reliefSectionImage, reliefTopAsync, topMat, type ReliefOp } from "../src/rebuild/pattern-relief";
 import { parsePattern, patternContext, patternRequest, toReliefOps } from "../src/rebuild/pattern-tools";
 import { modelOf, topImage } from "../src/rebuild/pattern-model";
@@ -73,14 +73,61 @@ describe("ねじり・並べかえ", () => {
       const [x2, y2] = diskToSquare(u, v);
       expect(x2).toBeCloseTo(x, 4);
       expect(y2).toBeCloseTo(y, 4);
+      // ねじらなければ、横の位置はそのまま。深さは真ん中へ寄る（叩いて、出っぱった角が表の薄い皮に押しこまれる）が、表と裏と真ん中はそのまま
       const [a, b] = untwist(x, y, 0);
       expect(a).toBeCloseTo(x, 4);
-      expect(b).toBeCloseTo(y, 4);
+      expect(Math.sign(b)).toBe(Math.sign(y));
+      expect(Math.abs(b)).toBeLessThanOrEqual(Math.abs(y) + 1e-9);
     }
+    expect(untwist(0.2, 1, 0)[1]).toBeCloseTo(1, 4);
+    expect(untwist(0.2, -1, 0)[1]).toBeCloseTo(-1, 4);
     // 半回りで、真ん中を通る点は反対へ
     const [a, b] = untwist(0.4, 0, Math.PI);
     expect(a).toBeCloseTo(-0.4, 3);
     expect(b).toBeCloseTo(0, 3);
+  });
+  it("回った四角を押しもどす：回さなければそのまま、45 度回すと、四角のふちの点は回った四角の角から来る", () => {
+    for (const [x, z] of [[0.3, -0.7], [-0.9, 0.2]]) {
+      const [a, b] = pressBack(x, z, 0);
+      expect(a).toBeCloseTo(x, 6);
+      expect(b).toBeCloseTo(z, 6);
+    }
+    // 45 度：左のふちの点は、どの深さでも、もとの四角の 1 つの角（層が 1 点に集まる。星の先）
+    const c1 = pressBack(-1, -0.5, Math.PI / 4);
+    const c2 = pressBack(-1, 0.5, Math.PI / 4);
+    expect(Math.hypot(c1[0] - c2[0], c1[1] - c2[1])).toBeLessThan(1e-6);
+    expect(Math.abs(c1[0]) + Math.abs(c1[1])).toBeCloseTo(2, 4);
+  });
+  const changes = (s: ReturnType<typeof surface>, rows: boolean, from: number, to: number) => {
+    const n = s.n;
+    let c = 0;
+    for (let a = Math.floor(from * n); a < Math.floor(to * n); a++) {
+      for (let b = 1; b < n; b++) {
+        const p = rows ? s.layer[a * n + b] : s.layer[b * n + a];
+        const q = rows ? s.layer[a * n + b - 1] : s.layer[(b - 1) * n + a];
+        if (p !== q) c++;
+      }
+    }
+    return c;
+  };
+  it("四角い棒をねじって平たくして削ると、棒のふちに層が集まる星の先が、半回りごとに出る", () => {
+    const s = surface(buildSim([{ op: "stack", metals: ["iron", "light"], count: 16 }, { op: "bond", quality: "good" }, { op: "twist", turns: 3 }, { op: "flatten" }, { op: "grind", depth: 0.3 }]), 128);
+    // ふちの列（星の先）は、真ん中の列（入れ子の形のまん中）より、ずっと多く層が入れ替わる
+    expect(changes(s, false, 0, 0.08)).toBeGreaterThan(changes(s, false, 0.46, 0.54) * 4);
+  });
+  it("長さの向きにのばすと、層の波打ちは、のばした向きに長い筋になる（まるいまだらにならない）", () => {
+    const ops = (direction: "length" | "both"): PatternOp[] => [
+      { op: "stack", metals: ["steel_dark", "steel_light"], count: 8 },
+      { op: "bond", quality: "good" },
+      { op: "fold", times: 3 },
+      { op: "forge_thin", ratio: 2, direction },
+      { op: "grind", depth: 0.1 },
+    ];
+    const len = surface(buildSim(ops("length")), 128);
+    // 横に見ると線を何本も横切り、縦（のばした向き）に見ると、ほとんど横切らない
+    expect(changes(len, true, 0, 1)).toBeGreaterThan(changes(len, false, 0, 1) * 3);
+    const both = surface(buildSim(ops("both")), 128);
+    expect(changes(both, true, 0, 1)).toBeLessThan(changes(both, false, 0, 1) * 2);
   });
   it("横にして並べると、切った本数だけ、すべての層の縞がくり返す", () => {
     const base: PatternOp[] = [{ op: "stack", metals: ["dark", "light"], count: 8 }, { op: "bond", quality: "good" }];
@@ -170,6 +217,57 @@ describe("重ねない技：1 枚の板の表", () => {
     const h = pathHit("border", 1, 0.045, 0.5, 1);
     expect(h.d).toBeCloseTo(0, 5);
     expect(pathHit("straight", 4, 0.5, 0.25, 1).d).toBeGreaterThan(0.08);
+  });
+  it("片切彫り：鋭い壁は片側だけ。斜めの面は、左上からの光を受ける側（横の線なら下）にある", () => {
+    const r = buildRelief([{ op: "plate", metal: "silver" }, { op: "engrave", style: "katakiri", path: "straight", depth: 0.3, size: 0.01, across: 4 }], 5);
+    let ymax = 0;
+    let cmax = 0;
+    for (let y = 0.02; y < 0.23; y += 0.0002) {
+      const c = pointAt(r, 0.5, y).cut;
+      if (c > cmax) {
+        cmax = c;
+        ymax = y;
+      }
+    }
+    expect(cmax).toBeGreaterThan(0.2);
+    // 下（光を受ける面）は浅くなりながら続き、上（壁の外）は、もう彫っていない
+    expect(pointAt(r, 0.5, ymax + 0.008).cut).toBeGreaterThan(0);
+    expect(pointAt(r, 0.5, ymax - 0.004).cut).toBe(0);
+  });
+  it("唐草の道すじ：つるの波に、巻いた先と葉がつく。散らした草は、透かしの穴をよける", () => {
+    // つる・渦・葉のどれかが、列の中のあちこちにある
+    let near = 0;
+    for (let y = 0.05; y < 0.95; y += 0.01) for (let x = 0.05; x < 0.95; x += 0.01) if (pathHit("scroll", 3, x, y, 1).d < 0.01) near++;
+    expect(near).toBeGreaterThan(300);
+    // 草：穴にかかる株は置きなおすので、彫った所のすぐそばに穴は無い
+    const g = buildRelief([{ op: "plate", metal: "silver" }, { op: "sukashi", shape: "petals", size: 0.08, across: 4 }, { op: "engrave", style: "katakiri", path: "scatter", depth: 0.2, size: 0.01, across: 12 }], 7);
+    let cuts = 0;
+    for (let y = 0.1; y < 0.9; y += 0.004) {
+      for (let x = 0.1; x < 0.9; x += 0.004) {
+        if (pointAt(g, x, y).cut > 0) {
+          cuts++;
+          expect(pointAt(g, x + 0.006, y).hole || pointAt(g, x - 0.006, y).hole).toBe(false);
+        }
+      }
+    }
+    expect(cuts).toBeGreaterThan(50);
+  });
+  it("打ち出しの花びらと葉は、形のあるふくらみになる（同じたねなら同じ）", () => {
+    for (const shape of ["petals", "leaves"] as const) {
+      const r = buildRelief([{ op: "plate", metal: "copper" }, { op: "uchidashi", shape, height: 0.2, size: 0.06, across: 3 }], 4);
+      let up = 0;
+      let all = 0;
+      for (let y = 0.1; y < 0.9; y += 0.01) {
+        for (let x = 0.1; x < 0.9; x += 0.01) {
+          all++;
+          if (pointAt(r, x, y).bend > 0.05) up++;
+        }
+      }
+      // ふくらんだ所と平らな地の両方がある
+      expect(up / all).toBeGreaterThan(0.08);
+      expect(up / all).toBeLessThan(0.7);
+      expect(pointAt(r, 0.37, 0.41)).toEqual(pointAt(buildRelief(r.ops, 4), 0.37, 0.41));
+    }
   });
   it("絵の大きさ。板の飾りの答えは、板の計算で描く", async () => {
     const r = buildRelief(ops, 3);

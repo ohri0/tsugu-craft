@@ -9,7 +9,7 @@ import { hexRgb, type Rgba } from "./pattern-sim";
 import type { ColorKind } from "./pattern-sim";
 import { PATTERN_COLORS, PATTERN_LIMITS, PATTERN_LOOK, PATTERN_METALS, RELIEF_VALUES, type MetalId } from "./pattern-values";
 
-export type ReliefPath = "straight" | "wave" | "spiral" | "scatter" | "border";
+export type ReliefPath = "straight" | "wave" | "spiral" | "scatter" | "border" | "scroll";
 export type EngraveStyle = "kebori" | "keribori" | "katakiri";
 
 export type ReliefOp =
@@ -26,7 +26,7 @@ export type ReliefOp =
   /** 透かし：形を切り抜く（後ろが見える） */
   | { op: "sukashi"; shape: "circles" | "petals" | "lattice" | "wave"; size: number; across: number }
   /** 打ち出し：裏から叩いて盛り上げる */
-  | { op: "uchidashi"; shape: "bumps" | "ridges" | "wave"; height: number; size: number; across: number }
+  | { op: "uchidashi"; shape: "bumps" | "ridges" | "wave" | "petals" | "leaves"; height: number; size: number; across: number }
   /** 象嵌：溝やくぼみを彫り、別の金属をはめて平らに */
   | { op: "zogan"; metal: MetalId; path: ReliefPath | "dots"; size: number; across: number }
   /** 粒金：小さな粒をろう付けする */
@@ -65,6 +65,8 @@ export interface Relief {
   notes: string[];
   facts: string;
   seed: number;
+  /** 計算の途中で覚えておく答え（散らした草の株を置く所）。同じ板なら同じ */
+  cache?: Map<string, number>;
 }
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -109,11 +111,94 @@ export function buildRelief(ops: readonly ReliefOp[], seed = 7): Relief {
 
 // ---- 線の道すじ ----
 
-/** 点から、道すじの線までの距離。along＝線にそった位置、side＝線のどちら側か（＋−） */
+/** 点から、道すじの線までの距離。along＝線にそった位置、side＝線のどちら側か（＋−）、(nx, ny)＝side が＋の側を向く向き、wf＝その所の線の太さの割合（先が細い線） */
 export interface PathHit {
   d: number;
   along: number;
   side: number;
+  nx: number;
+  ny: number;
+  wf: number;
+}
+
+const MISS: PathHit = { d: Infinity, along: 0, side: 1, nx: 0, ny: 1, wf: 1 };
+
+/**
+ * 先が細くなる、少し曲がった一筆（草の葉・唐草の葉）。根元 (bx, by) から、向き a に長さ L。bend＝先の横のずれ（長さに対して）。
+ * 根元がいちばん太く、先でとがる
+ */
+function bladeHit(x: number, y: number, bx: number, by: number, a: number, L: number, bend: number, along0 = 0): PathHit {
+  const ux = Math.cos(a);
+  const uy = Math.sin(a);
+  const px = x - bx;
+  const py = y - by;
+  const l = px * ux + py * uy;
+  const t = clamp(l / L, 0, 1);
+  const c = bend * L * t * t;
+  const q = -px * uy + py * ux - c;
+  // 曲がった線の向き（t での接線）に直した法線
+  const slope = 2 * bend * t;
+  const k = 1 / Math.hypot(1, slope);
+  const nx = (-uy - slope * ux) * k;
+  const ny = (ux - slope * uy) * k;
+  const out = l < 0 ? -l : l > L ? l - L : 0;
+  const d = Math.hypot(q * k, out);
+  return { d, along: along0 + t * L, side: Math.sign(q) || 1, nx, ny, wf: Math.pow(1 - t, 0.75) * Math.min(1, 0.35 + t * 6) };
+}
+
+const nearer = (a: PathHit, b: PathHit) => (b.d < a.d ? b : a);
+
+/** 唐草の 1 列（つるの波・巻いた先・葉）。u, v は列の中の位置（列の高さを 1）。g は列の高さ（距離をもとの大きさにもどす） */
+function scrollHit(u: number, v: number, k: number, g: number, seed: number): PathHit {
+  const S = RELIEF_VALUES.scroll;
+  const w = (2 * Math.PI) / S.period;
+  const A = S.amp;
+  // つる：ゆるい波（列ごとに少し位相をずらす）
+  const p0 = 2 * Math.PI * hash(k, 0, 31, seed);
+  const f = A * Math.sin(w * u + p0);
+  const fd = A * w * Math.cos(w * u + p0);
+  const kk = 1 / Math.hypot(1, fd);
+  let best: PathHit = { d: Math.abs(v - f) * kk * g, along: u * g, side: Math.sign(v - f) || 1, nx: -fd * kk, ny: kk, wf: 1 };
+  const turns = S.turns * 2 * Math.PI;
+  const m0 = Math.floor((w * u + p0 - Math.PI / 2) / Math.PI);
+  for (let m = m0 - 1; m <= m0 + 1; m++) {
+    // 波の山（谷）の頂
+    const um = (Math.PI / 2 + m * Math.PI - p0) / w;
+    const s = ((m % 2) + 2) % 2 === 0 ? 1 : -1;
+    const vm = s * A;
+    // 渦：頂で、つると同じ向きに出て、外へ巻きながら細くなる
+    const R0 = S.curl;
+    const cx = um;
+    const cy = vm + s * R0;
+    const du = u - cx;
+    const dv = v - cy;
+    const r = Math.hypot(du, dv);
+    const th0 = (-s * Math.PI) / 2;
+    let base = (s * (Math.atan2(dv, du) - th0)) % (2 * Math.PI);
+    if (base < 0) base += 2 * Math.PI;
+    for (let q = 0; q < 2; q++) {
+      const phi = base + 2 * Math.PI * q;
+      if (phi > turns) break;
+      const rr = R0 * (1 - (0.8 * phi) / turns);
+      const sd = r - rr;
+      const d = Math.abs(sd) * g;
+      if (d < best.d) {
+        best = { d, along: R0 * phi * g, side: Math.sign(sd) || 1, nx: r > 1e-9 ? du / r : 0, ny: r > 1e-9 ? dv / r : 1, wf: 1 - (0.65 * phi) / turns };
+      }
+    }
+    // 葉：つるの節（頂と次の谷の間）から、前へ、渦と同じ側へ
+    const uz = um + S.period / 4;
+    const vz = A * Math.sin(w * uz + p0);
+    const slope = Math.atan(A * w * Math.cos(w * uz + p0));
+    const leaf = bladeHit(u, v, uz, vz, slope + s * S.leafAngle, S.leaf, s * 0.3);
+    const t = clamp(leaf.along / S.leaf, 0, 1);
+    // 葉は、根元と先が細く、真ん中が太い
+    leaf.wf = S.leafWidth * 2.6 * Math.sqrt(t) * (1 - t);
+    leaf.d *= g;
+    leaf.along *= g;
+    best = nearer(best, leaf);
+  }
+  return best;
 }
 
 /** across 本の線（またはそれに当たる数）の道すじのうち、いちばん近い線。手で彫るので、線ごとに少しゆらぐ */
@@ -125,25 +210,33 @@ export function pathHit(path: ReliefPath, across: number, x: number, y: number, 
     case "wave": {
       const gap = 1 / n;
       const k0 = Math.floor(y / gap);
-      let best: PathHit = { d: Infinity, along: x, side: 1 };
+      let best: PathHit = MISS;
       for (let k = k0 - 1; k <= k0 + 1; k++) {
         const amp = path === "wave" ? 0.32 * gap : W * gap * 0.4;
         const f = path === "wave" ? 2 : 1 + hash(k, 0, 3, seed);
-        const cy = (k + 0.5) * gap + W * gap * jit(k, 0, 1, seed) + amp * Math.sin(2 * Math.PI * (f * x + hash(k, 0, 2, seed)));
+        const arg = 2 * Math.PI * (f * x + hash(k, 0, 2, seed));
+        const cy = (k + 0.5) * gap + W * gap * jit(k, 0, 1, seed) + amp * Math.sin(arg);
+        const fd = amp * 2 * Math.PI * f * Math.cos(arg);
+        const kk = 1 / Math.hypot(1, fd);
         const sd = y - cy;
-        if (Math.abs(sd) < best.d) best = { d: Math.abs(sd), along: x, side: Math.sign(sd) || 1 };
+        if (Math.abs(sd) * kk < best.d) best = { d: Math.abs(sd) * kk, along: x, side: Math.sign(sd) || 1, nx: -fd * kk, ny: kk, wf: 1 };
       }
       return best;
     }
     case "border": {
       // 板のふちにそって、四角の枠の線を n 本
       const gap = RELIEF_VALUES.borderGap;
-      const e = Math.max(Math.abs(x - 0.5), Math.abs(y - 0.5));
-      let best: PathHit = { d: Infinity, along: 0, side: 1 };
+      const ex = Math.abs(x - 0.5);
+      const ey = Math.abs(y - 0.5);
+      const e = Math.max(ex, ey);
+      // side が＋＝枠の内側。その向き
+      const nx = ex > ey ? -Math.sign(x - 0.5) : 0;
+      const ny = ex > ey ? 0 : -Math.sign(y - 0.5);
+      let best: PathHit = MISS;
       for (let k = 0; k < n; k++) {
         const r = 0.5 - RELIEF_VALUES.borderInset - k * gap;
         const sd = r - e;
-        if (Math.abs(sd) < best.d) best = { d: Math.abs(sd), along: Math.abs(x - 0.5) > Math.abs(y - 0.5) ? y : x, side: Math.sign(sd) || 1 };
+        if (Math.abs(sd) < best.d) best = { d: Math.abs(sd), along: ex > ey ? y : x, side: Math.sign(sd) || 1, nx, ny, wf: 1 };
       }
       return best;
     }
@@ -157,34 +250,52 @@ export function pathHit(path: ReliefPath, across: number, x: number, y: number, 
       const t = r / gap - th;
       const k = Math.round(t);
       const sd = (t - k) * gap;
-      if (r > 0.47 + gap / 2) return { d: Infinity, along: 0, side: 1 };
-      return { d: Math.abs(sd), along: (k + th) * 2 * Math.PI * r, side: Math.sign(sd) || 1 };
+      if (r > 0.47 + gap / 2) return MISS;
+      return { d: Math.abs(sd), along: (k + th) * 2 * Math.PI * r, side: Math.sign(sd) || 1, nx: r > 1e-9 ? dx / r : 0, ny: r > 1e-9 ? dy / r : 1, wf: 1 };
+    }
+    case "scroll": {
+      // 唐草：横に流れるつるが波打ち、山と谷ごとに外へ巻き、節から葉が出る。n 列
+      const g = 1 / n;
+      const k0 = Math.floor(y / g);
+      let best: PathHit = MISS;
+      for (let k = k0 - 1; k <= k0 + 1; k++) {
+        if (k < 0 || k >= n) continue;
+        best = nearer(best, scrollHit(x / g + 0.37 * k, y / g - (k + 0.5), k, g, seed));
+      }
+      return best;
     }
     case "scatter": {
-      // 短い線を、ばらばらの向きに散らす（草の葉や雨のように）
+      // 草：根元から 2〜3 本の葉が、上へ向かって少し開いて伸びる。先は細くとがる（引っかき傷にならないように、向きをそろえる）
       const cell = 1 / n;
       const i0 = Math.floor(x / cell);
       const j0 = Math.floor(y / cell);
-      let best: PathHit = { d: Infinity, along: 0, side: 1 };
-      for (let j = j0 - 1; j <= j0 + 1; j++) {
+      let best: PathHit = MISS;
+      for (let j = j0 - 1; j <= j0 + 2; j++) {
         for (let i = i0 - 1; i <= i0 + 1; i++) {
-          const cx = (i + 0.5 + 0.35 * jit(i, j, 4, seed)) * cell;
-          const cy = (j + 0.5 + 0.35 * jit(i, j, 5, seed)) * cell;
-          const a = Math.PI * (0.15 + 0.4 * hash(i, j, 6, seed));
-          const half = cell * (0.28 + 0.18 * hash(i, j, 7, seed));
-          const ux = Math.cos(a);
-          const uy = Math.sin(a);
-          const px = x - cx;
-          const py = y - cy;
-          const t = clamp(px * ux + py * uy, -half, half);
-          const sd = -px * uy + py * ux;
-          const d = Math.hypot(px - t * ux, py - t * uy);
-          if (d < best.d) best = { d, along: t + half, side: Math.sign(sd) || 1 };
+          for (const b of tuft(i, j, cell, seed)) best = nearer(best, bladeHit(x, y, b.bx, b.by, b.a, b.L, b.bend));
         }
       }
       return best;
     }
   }
+}
+
+/** 草の 1 株の葉（根元・向き・長さ・曲がり）。同じ i, j, たねなら同じ */
+export function tuft(i: number, j: number, cell: number, seed: number, alt = 0): { bx: number; by: number; a: number; L: number; bend: number; k: number }[] {
+  // alt＝置きなおす回数（0 がはじめの所。穴にかかるときに、株ごとずらす）
+  const bx = (i + 0.5 + (alt ? 0.45 : 0.3) * jit(i, j, 4 + 40 * alt, seed)) * cell;
+  const by = (j + 0.8 + (alt ? 0.4 : 0.15) * jit(i, j, 5 + 40 * alt, seed)) * cell;
+  // 株ごとに少しかたむく（風になびくように、どの株も同じ向きへ寄せる）
+  const lean = 0.18 + 0.12 * jit(i, j, 6, seed);
+  const count = hash(i, j, 7, seed) < 0.4 ? 2 : 3;
+  const out = [];
+  for (let k = 0; k < count; k++) {
+    const spread = count === 2 ? (k === 0 ? -0.3 : 0.25) : (k - 1) * 0.36;
+    const a = -Math.PI / 2 + lean + spread + 0.06 * jit(i, j, 10 + k, seed);
+    const L = cell * (k === 1 || count === 2 ? 0.62 : 0.46) * (0.85 + 0.3 * hash(i, j, 14 + k, seed));
+    out.push({ bx, by, a, L, bend: 0.12 + 0.1 * (spread + lean), k });
+  }
+  return out;
 }
 
 // ---- 1 点の様子 ----
@@ -211,34 +322,101 @@ function nearestGrid(x: number, y: number, n: number, jitter: number, seed: numb
 /** 板のふちからの近さ（透かしを、ふちの近くに開けない） */
 const rim = (x: number, y: number) => Math.min(x, y, 1 - x, 1 - y);
 
-/** 操作の並びのとおりに、点 (x, y) の様子を決める */
-export function pointAt(r: Relief, x: number, y: number): Pt {
+/** 左上からの光（面の向きと、片切彫りの面を光へ向けるのに使う） */
+const LIGHT = [-0.55, -0.6, 0.58] as const;
+
+/**
+ * 散らした草（scatter）の、いちばん近い葉。前の手順で穴をあけた所（透かし）にかかる株は、株ごと置きなおし（いくつかの所のうち、まわりがいちばんあいている所）、
+ * どこにも置けなければ彫らない（穴をよけて、地のあいた所に草を置く）。株ごとの置き場所は、いちど調べたら覚えておく（同じ板なら同じ）
+ */
+function grassHit(r: Relief, idx: number, across: number, w: number, x: number, y: number, seed: number): PathHit {
+  const n = Math.max(1, Math.round(across));
+  const cell = 1 / n;
+  const i0 = Math.floor(x / cell);
+  const j0 = Math.floor(y / cell);
+  let best: PathHit = MISS;
+  const cache = (r.cache ??= new Map());
+  const m = w * 2;
+  /** 株のまわりのあき（穴やふちから離れているほど大きい。穴にかかれば -1） */
+  const room = (bs: ReturnType<typeof tuft>) => {
+    let score = 0;
+    for (const b of bs) {
+      const ux = Math.cos(b.a);
+      const uy = Math.sin(b.a);
+      for (const t of [0, 0.5, 1]) {
+        const cx = b.bx + ux * b.L * t - uy * b.bend * b.L * t * t;
+        const cy = b.by + uy * b.L * t + ux * b.bend * b.L * t * t;
+        for (const k of [1, 3, 6]) {
+          for (const [ox, oy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) {
+            const X = cx + ox * m * k;
+            const Y = cy + oy * m * k;
+            const bad = X < 0 || Y < 0 || X > 1 || Y > 1 || rim(X, Y) < RELIEF_VALUES.borderInset + 0.035 || pointAt(r, X, Y, idx).hole;
+            if (bad && k === 1) return -1;
+            if (!bad) score++;
+          }
+        }
+      }
+    }
+    return score;
+  };
+  for (let j = j0 - 1; j <= j0 + 2; j++) {
+    for (let i = i0 - 1; i <= i0 + 1; i++) {
+      const key = `${idx}:${i}:${j}`;
+      let alt = cache.get(key);
+      if (alt === undefined) {
+        // いくつかの置き場所のうち、まわりがいちばんあいている所（穴と穴の間のまん中に寄る）
+        alt = -1;
+        let top = -1;
+        for (let a = 0; a < RELIEF_VALUES.grassTries; a++) {
+          const sc = room(tuft(i, j, cell, seed, a));
+          if (sc > top) {
+            top = sc;
+            alt = sc >= 0 ? a : -1;
+          }
+        }
+        cache.set(key, alt);
+      }
+      if (alt >= 0) for (const b of tuft(i, j, cell, seed, alt)) best = nearer(best, bladeHit(x, y, b.bx, b.by, b.a, b.L, b.bend));
+    }
+  }
+  return best;
+}
+
+/** 操作の並びのとおりに、点 (x, y) の様子を決める（upto＝その番号の手前の操作まで） */
+export function pointAt(r: Relief, x: number, y: number, upto = r.ops.length): Pt {
   const p = fresh();
   const V = RELIEF_VALUES;
   for (const [idx, op] of r.ops.entries()) {
+    if (idx >= upto) break;
     const seed = r.seed + 7919 * (idx + 1);
     switch (op.op) {
       case "engrave": {
         const w = clampTo(op.size, PATTERN_LIMITS.size) * V.lineScale;
         const depth = clampTo(op.depth, PATTERN_LIMITS.depth);
-        // 散らす短い線は、枠の内に（ふちの枠を彫る技と、ぶつからないように）
-        if (p.hole || (op.path === "scatter" && rim(x, y) < V.borderInset + 0.035)) break;
-        const h = pathHit(op.path, clampTo(op.across, PATTERN_LIMITS.across), x, y, seed);
+        // 散らす草と唐草は、枠の内に（ふちの枠を彫る技と、ぶつからないように）
+        if (p.hole || ((op.path === "scatter" || op.path === "scroll") && rim(x, y) < V.borderInset + 0.035)) break;
+        const n = clampTo(op.across, PATTERN_LIMITS.across);
+        const h = op.path === "scatter" ? grassHit(r, idx, n, w, x, y, seed) : pathHit(op.path, n, x, y, seed);
+        if (h.d === Infinity) break;
+        const ww = w * h.wf;
         let c = 0;
         if (op.style === "kebori") {
-          if (h.d < w) c = depth * (1 - h.d / w);
+          if (h.d < ww) c = depth * (1 - h.d / ww) * Math.min(1, 0.4 + h.wf);
         } else if (op.style === "keribori") {
           // くさびを連ねる：一打ちごとに、太い所から細くなる
           const L = w * V.keriLength;
           const ph = h.along / L - Math.floor(h.along / L);
-          const we = w * (1.25 - 0.95 * ph);
+          const we = ww * (1.25 - 0.95 * ph);
           if (ph < 0.9 && h.d < we) c = depth * (1 - h.d / we) * (0.6 + 0.4 * (1 - ph));
         } else {
-          // 片切彫り：片方は立った壁、もう片方はなだらかに浅くなる
-          const sd = h.side * h.d;
-          const wall = w * 0.18;
-          if (sd >= 0 && sd < w * 1.6) c = depth * (1 - sd / (w * 1.6));
-          else if (sd < 0 && sd > -wall) c = depth * (1 + sd / wall);
+          // 片切彫り：片方は鏨を立てた鋭い壁、もう片方は平らに斜めに浅くなる面（光を受ける側へ向ける）
+          const flip = h.nx * LIGHT[0] + h.ny * LIGHT[1] > 0 ? -1 : 1;
+          const sd = h.side * h.d * flip;
+          const face = ww * V.bevelFace;
+          const wall = ww * V.bevelWall;
+          const dd = depth * Math.min(1, 0.35 + h.wf);
+          if (sd >= 0 && sd < face) c = dd * (1 - sd / face);
+          else if (sd < 0 && sd > -wall) c = dd * (1 + sd / wall);
         }
         if (c > 0) {
           p.cut = Math.max(p.cut, c);
@@ -316,8 +494,51 @@ export function pointAt(r: Relief, x: number, y: number): Pt {
         const s = clampTo(op.size, PATTERN_LIMITS.size);
         let b = 0;
         if (op.shape === "bumps") {
+          // 手で打ち出すので、ふくらみごとに大きさと形が少しちがう（わずかに楕円・かたより）
           const g = nearestGrid(x, y, n, 0.12, seed, 11);
-          b = Math.exp(-((g.d / s) ** 2));
+          const a = Math.PI * hash(g.i, g.j, 12, seed);
+          const e = 1 + 0.18 * jit(g.i, g.j, 13, seed);
+          const ss = s * (1 + 0.15 * jit(g.i, g.j, 14, seed));
+          const u = (g.dx * Math.cos(a) + g.dy * Math.sin(a)) * e;
+          const v = (-g.dx * Math.sin(a) + g.dy * Math.cos(a)) / e;
+          b = Math.exp(-((Math.hypot(u, v) / ss) ** 2)) * (1 + 0.25 * Math.tanh(u / ss) * hash(g.i, g.j, 15, seed));
+        } else if (op.shape === "petals") {
+          // 花：真ん中の小さな丸と、まわりの 5 枚の花びら。花びらは根元が細く先が丸い、すじが少しくぼむ
+          const g = nearestGrid(x, y, n, 0.06, seed, 11);
+          const a0 = 2 * Math.PI * hash(g.i, g.j, 12, seed);
+          const R = Math.min(s * 2.2, 0.46 / n);
+          b = 0.75 * Math.exp(-((g.d / (0.2 * R)) ** 2));
+          for (let k = 0; k < 5; k++) {
+            const a = a0 + (2 * Math.PI * k) / 5;
+            const l = g.dx * Math.cos(a) + g.dy * Math.sin(a);
+            const w = -g.dx * Math.sin(a) + g.dy * Math.cos(a);
+            const t = l / R;
+            if (t <= 0.05 || t >= 1.05) continue;
+            const half = 0.3 * R * Math.sqrt(Math.max(0, Math.sin(Math.PI * Math.min(1, t) * 0.92)));
+            const q = Math.abs(w) / Math.max(1e-6, half);
+            if (q >= 1) continue;
+            const crease = 1 - 0.18 * Math.exp(-((w / (0.05 * R)) ** 2));
+            b = Math.max(b, (1 - q * q) ** 0.6 * Math.sin(Math.PI * Math.min(1, t)) ** 0.5 * crease);
+          }
+        } else if (op.shape === "leaves") {
+          // 葉：根元から先へ細くなる葉の形のふくらみ。真ん中の葉脈と、斜めの細い葉脈が少しくぼむ
+          const g = nearestGrid(x, y, n, 0.1, seed, 11);
+          const a = -Math.PI / 4 + 0.5 * jit(g.i, g.j, 12, seed);
+          const L = Math.min(s * 2.4, 0.48 / n);
+          const l = (g.dx * Math.cos(a) + g.dy * Math.sin(a)) / L;
+          const w = (-g.dx * Math.sin(a) + g.dy * Math.cos(a)) / L;
+          if (l > -1 && l < 1) {
+            // 根元（l = -1）寄りが太い
+            const half = 0.36 * Math.sqrt(1 - l * l) * (1 - 0.3 * l);
+            const bendW = w - 0.12 * (1 - l * l);
+            const q = Math.abs(bendW) / half;
+            if (q < 1) {
+              const ph = (l - 2.2 * Math.abs(bendW)) * 3.4;
+              const lateral = Math.exp(-((ph - Math.floor(ph) - 0.5) ** 2) / 0.01);
+              const vein = 1 - 0.22 * Math.exp(-((bendW / 0.03) ** 2)) - (q > 0.15 ? 0.07 * lateral : 0);
+              b = (1 - q * q) ** 0.7 * Math.sqrt(1 - l * l) * vein;
+            }
+          }
         } else if (op.shape === "ridges") {
           const t = (y * n) % 1;
           b = Math.exp(-(((t - 0.5) / (s * n)) ** 2));
@@ -490,9 +711,7 @@ export async function reliefTopAsync(
   const L = PATTERN_LOOK;
   // 高さ（板の厚み）を、板の幅の割合に直す。厚みは幅のおよそ 1/30（仮）
   const zs = RELIEF_VALUES.thickness * N;
-  const lx = -0.55;
-  const ly = -0.6;
-  const lz = 0.58;
+  const [lx, ly, lz] = LIGHT;
   const rows = j1 - j0;
   const data = new Uint8ClampedArray(n * rows * 4);
   const at = (I: number, J: number) => {

@@ -69,6 +69,16 @@ function makeWaves(rand: () => number, n: number, fmin: number, fmax: number): W
   }));
 }
 
+/** のばした向き（y）に長くのびた波（x の向きに細かく、y の向きにゆるやか） */
+function makeStreaks(rand: () => number, n: number, fx: readonly [number, number], fy: readonly [number, number]): Wave[] {
+  return Array.from({ length: n }, (_, k) => ({
+    fx: (fx[0] + rand() * (fx[1] - fx[0])) * (rand() < 0.5 ? -1 : 1),
+    fy: (fy[0] + rand() * (fy[1] - fy[0])) * (rand() < 0.5 ? -1 : 1),
+    ph: rand() * Math.PI * 2,
+    a: 1 / Math.sqrt(k + 1),
+  }));
+}
+
 function waveAt(ws: readonly Wave[], x: number, y: number): number {
   let v = 0;
   let s = 0;
@@ -167,6 +177,9 @@ export function buildSim(ops: readonly PatternOp[], seed = 7, opts: { bond?: Bon
       const r = rng(st.seed);
       // [0] 横のゆらぎ x、[1] y、[2] 層の波打ち
       st.waves = [makeWaves(r, 4, 1, 4), makeWaves(r, 4, 1, 4), makeWaves(r, 6, 1.5, 9)];
+      // [3] 長さの向きにのばすときの層の波打ち：のばした向きに長い筋（丸いまだらにならないように）
+      const S = PATTERN_VALUES.streak;
+      if (op.op === "forge_thin" && op.direction === "length") st.waves.push(makeStreaks(r, S.n, S.fx, S.fy));
     }
     stages.push(st);
     switch (op.op) {
@@ -325,23 +338,67 @@ export function diskToSquare(u: number, v: number): [number, number] {
   return [clamp(x, -1, 1), clamp(y, -1, 1)];
 }
 
-/** ねじって四角に叩きもどした棒の切り口の点（-1〜1）が、ねじる前にどこにあったか。th はその所の回った角度 */
+/** 幅 1 の制約 |a + b z| ≦ 1 を満たす z の範囲 */
+function band1(a: number, b: number): [number, number] {
+  if (Math.abs(b) < 1e-9) return [-Infinity, Infinity];
+  const p = (-1 - a) / b;
+  const q = (1 - a) / b;
+  return p < q ? [p, q] : [q, p];
+}
+
+/**
+ * 回った四角（四角い棒の切り口を th だけ回したもの）を、上下から押して四角にもどす（press）。
+ * 縦の列ごとに：左からの面積の割合が同じ所へ横に動き、列の中の上下は、列の高さの割合のまま押しちぢめる（金属の量は変わらない）。
+ * 押した四角の点（-1〜1）が、回った四角のどこから来たかを返す（回る前の切り口の座標で）。
+ */
+export function pressBack(X: number, Z: number, th: number): [number, number] {
+  const c = Math.abs(Math.cos(th));
+  const s = Math.abs(Math.sin(th));
+  // 回った四角の、列の高さは台形：はし ±b で 0、±a の内で h0（面積は 4）
+  const a = Math.abs(c - s);
+  const b = c + s;
+  const h0 = 2 / Math.max(c, s);
+  const A1 = (h0 * (b - a)) / 2;
+  const T = 2 * (clamp(X, -1, 1) + 1);
+  let x: number;
+  if (T < A1) x = -b + Math.sqrt((2 * T * (b - a)) / h0);
+  else if (T <= 4 - A1) x = -a + (T - A1) / h0;
+  else x = b - Math.sqrt((2 * Math.max(0, 4 - T) * (b - a)) / h0);
+  const C = Math.cos(th);
+  const S = Math.sin(th);
+  const i1 = band1(x * C, S);
+  const i2 = band1(-x * S, C);
+  const lo = Math.max(i1[0], i2[0]);
+  const hi = Math.min(i1[1], i2[1]);
+  const z = hi > lo ? (lo + hi) / 2 + (Z * (hi - lo)) / 2 : 0;
+  return [clamp(x * C + z * S, -1, 1), clamp(-x * S + z * C, -1, 1)];
+}
+
+/**
+ * ねじって叩いた棒の切り口の点（-1〜1。x＝幅、u＝深さ）が、ねじる前にどこにあったか。th はその所の回った角度。
+ * 2 つの見方の間を取る（PATTERN_VALUES.twistCorner）：
+ *   なめらかな見方（四角 → 円 → 回す → 四角）：内の層は、ほぼ回るだけ
+ *   押しもどす見方（pressBack）：回った四角の角が押しこまれ、角から層が放射状に集まる（星の先）
+ * 叩くと、出っぱった角の分が表の薄い皮に押しこまれるので、深さは真ん中へ寄せる（PATTERN_VALUES.twistSkin）。
+ */
 export function untwist(x: number, u: number, th: number): [number, number] {
-  // なめらかな見方（四角 → 円 → 回す → 四角）
-  const [dx, du] = squareToDisk(x, u);
+  const p = PATTERN_VALUES.twistSkin;
+  const z = Math.sign(u) * Math.abs(u) ** p;
+  const [dx, du] = squareToDisk(x, z);
   const c = Math.cos(th);
   const s = Math.sin(th);
   const D = diskToSquare(dx * c + du * s, -dx * s + du * c);
-  // 角を残す見方（真ん中からの向きはそのままに、回った四角のふちを、四角のふちへ）：回った角が面に押しこまれて、層が折れ曲がる
-  const r = Math.hypot(x, u);
-  if (r < 1e-9) return [0, 0];
-  const phi = Math.atan2(u, x);
-  const rho = r * Math.max(Math.abs(Math.cos(phi)), Math.abs(Math.sin(phi)));
-  const a = phi - th;
-  const q = rho / Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a)));
-  // 2 つの間を取る（角だけだと折れ目がぎざぎざに、円だけだと木の目のように見えた）
+  // 押しもどす見方は、回った四角の角の所で折れ目ができる（絵に段がついた）。となりの所と平均して、なめらかに
+  const P = [0, 0];
+  // 棒のふちでは平均しない（ふちの外の点を使うと、角から集まる線がくずれた）
+  const d = PATTERN_VALUES.twistSmooth * clamp((0.9 - Math.abs(x)) / 0.25, 0, 1);
+  for (const k of [-1, 0, 1]) {
+    const q = pressBack(x + k * d, z, th);
+    P[0] += q[0] / 3;
+    P[1] += q[1] / 3;
+  }
   const m = PATTERN_VALUES.twistCorner;
-  return [clamp(D[0] * (1 - m) + q * Math.cos(a) * m, -1, 1), clamp(D[1] * (1 - m) + q * Math.sin(a) * m, -1, 1)];
+  return [clamp(D[0] * (1 - m) + P[0] * m, -1, 1), clamp(D[1] * (1 - m) + P[1] * m, -1, 1)];
 }
 
 export interface Trace {
@@ -373,7 +430,12 @@ export function trace(sim: Sim, x: number, y: number, u: number): Trace {
           py /= Math.sqrt(f);
         }
         // のばす前の板で、層が少し波打っていた。それがのばされるので、波は、のばした向きに長くなる（丸いまだらにならない）
-        uu = reflect01(uu + PATTERN_VALUES.layerWave.forge * Math.sqrt(f) * waveAt(ws[2], px / W, py / W));
+        const LW = PATTERN_VALUES.layerWave;
+        if (ws[3]) {
+          // 大きな筋の波打ちは、板の表と裏のごく近くでは消える（削らなければ、表はいちばん上の層のまま）
+          const edge = Math.min(1, uu / LW.streakEdge, (1 - uu) / LW.streakEdge);
+          uu = reflect01(uu + LW.streak * Math.sqrt(f) * edge * waveAt(ws[3], px / W, py / W));
+        } else uu = reflect01(uu + LW.forge * Math.sqrt(f) * waveAt(ws[2], px / W, py / W));
         px += A * W * waveAt(ws[0], px / W, py / W);
         py += A * W * waveAt(ws[1], px / W, py / W);
         break;
@@ -403,7 +465,8 @@ export function trace(sim: Sim, x: number, y: number, u: number): Trace {
       case "twist": {
         const turns = clampTo(op.turns, PATTERN_LIMITS.turns);
         // 四角い棒の切り口は、ねじると回る。そのあと四角に叩きもどすので、回った四角の角が内へ押しこまれる。
-        // それを「四角 → 円 → 回す → 四角」で近づける（角を折り返すと、木の目のような流れになってしまった。2026-11-07）
+        // それを untwist（回すだけの見方と、上下から押しもどす見方の間）で近づける。角を折り返すと木の目のように、
+        // 回すだけだと入れ子の山形だけになった（2026-11-07）。押しもどすと、角が棒のふちに来る所で層が集まり、星の先になる
         const bar = PATTERN_VALUES.twistBar;
         const [ox, ou] = untwist(2 * (px / W) - 1, 2 * uu - 1, (2 * Math.PI * turns * py) / (H * bar));
         px = clamp((ox + 1) / 2, 0, 0.999999) * W;

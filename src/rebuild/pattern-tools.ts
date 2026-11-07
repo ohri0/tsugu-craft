@@ -47,11 +47,11 @@ export const TOOL_OP_LABEL: Record<ToolOp, string> = {
   color: "色を出す",
 };
 
-const PATHS: ReliefPath[] = ["straight", "wave", "spiral", "scatter", "border"];
+const PATHS: ReliefPath[] = ["straight", "wave", "spiral", "scatter", "border", "scroll"];
 const NANAKO = ["rows", "scatter"] as const;
 const HAMMER = ["round", "long"] as const;
 const PIERCE = ["circles", "petals", "lattice", "wave"] as const;
-const REPOUSSE = ["bumps", "ridges", "wave"] as const;
+const REPOUSSE = ["bumps", "ridges", "wave", "petals", "leaves"] as const;
 const INLAY = [...PATHS, "dots"] as const;
 const GRAINS = ["cluster", "line", "border", "scatter"] as const;
 const CELLS = ["round", "petal", "hex"] as const;
@@ -185,9 +185,9 @@ export const PREDICT_PATTERN: ClaudeTool = {
                 "bond：good（よくつながる）・partial（ところどころつながらない）・poor（つながらない所が多い）。forge_thin：length（長さの向きにのばす）・both（縦横に広げる）。" +
                 "carve・punch：dots（決まった間の丸い穴）・pits（ばらばらの丸いくぼみ）・lines（幅の向きのまっすぐな溝）・waves（波打つ溝）。" +
                 "rearrange：edge_up（横にして層のふちを表に出す）・strips（細く切って 1 本おきに向きを変える）・tiles（四角に切って 1 つおきに回す）。color：none・etch（酸などで地を出す）・patina（煮色のように薬で色を出す）。" +
-                "kebori・keribori・katakiri・zogan の線の道すじ：straight（横にまっすぐ）・wave（波）・spiral（渦）・scatter（短い線を散らす）・border（ふちにそった枠）。zogan はほかに dots（丸くはめる）。" +
+                "kebori・keribori・katakiri・zogan の線の道すじ：straight（横にまっすぐ）・wave（波）・spiral（渦）・scatter（草のような短い線を散らす）・border（ふちにそった枠）・scroll（唐草：波打つつるが渦を巻き、葉が出る）。zogan はほかに dots（丸くはめる）。" +
                 "nanako：rows（列に並べる）・scatter（ばらばら）。tsuchime：round（丸い跡）・long（細長い跡）。sukashi：circles・petals（花びら）・lattice（格子）・wave（波の切り抜き）。" +
-                "uchidashi：bumps（丸いふくらみ）・ridges（すじ）・wave（波）。granulate：cluster（房）・line（列）・border（ふち）・scatter（散らす）。shippo：round・petal・hex（区切りの形）。ほかの操作は -",
+                "uchidashi：bumps（丸いふくらみ）・ridges（すじ）・wave（波）・petals（花びらの花）・leaves（葉）。granulate：cluster（房）・line（列）・border（ふち）・scatter（散らす）。shippo：round・petal・hex（区切りの形）。ほかの操作は -",
             },
           },
           required: ["op", "step", "why", "assumed", "metals", "amount", "size", "across", "choice"],
@@ -448,10 +448,10 @@ export function opWords(o: PredictedOp): string {
   }
 }
 
-const PATH_WORD: Record<string, string> = { straight: "まっすぐな線", wave: "波の線", spiral: "渦", scatter: "散らした短い線", border: "ふちにそった枠" };
+const PATH_WORD: Record<string, string> = { straight: "まっすぐな線", wave: "波の線", spiral: "渦", scatter: "散らした短い線", border: "ふちにそった枠", scroll: "唐草（渦を巻くつると葉）" };
 const metalName = (m: MetalId | undefined) => (m ? PATTERN_METALS[m].name.replace(/（.*）/, "") : "");
 const PIERCE_WORD: Record<string, string> = { circles: "丸", petals: "花びら", lattice: "格子", wave: "波" };
-const REPOUSSE_WORD: Record<string, string> = { bumps: "丸いふくらみ", ridges: "すじ", wave: "波" };
+const REPOUSSE_WORD: Record<string, string> = { bumps: "丸いふくらみ", ridges: "すじ", wave: "波", petals: "花びらの花", leaves: "葉" };
 const GRAIN_WORD: Record<string, string> = { cluster: "房にして", line: "列にして", border: "ふちにそって", scatter: "散らして" };
 const CELL_WORD: Record<string, string> = { round: "丸", petal: "花", hex: "六角" };
 
@@ -497,7 +497,7 @@ export function patternPrompt(): string {
 - granulate：粒金。小さな粒（metals に 1 つ）をろう付けする
 - shippo：七宝。線で区切った中に、色のガラス（metals に enamel_ の色）を入れて焼く
 - color：最後に色を出す（地の金属とはめた金属に。七宝の色は変わらない）
-線の道すじ（straight・wave・spiral・scatter・border）は、本物の文様をそのまま描けません。いちばん近いものを選び、本当の文様の形は cannot_show に書いてください。石を留める・品物の形に曲げる・鋳る、などは描けないので cannot_show に書いてください。
+線の道すじ（straight・wave・spiral・scatter・border・scroll）は、本物の文様をそのまま描けません。いちばん近いものを選び、本当の文様の形は cannot_show に書いてください。石を留める・品物の形に曲げる・鋳る、などは描けないので cannot_show に書いてください。
 
 使える材料（近いものを選ぶ。名前が分からない材料は dark・light・red から色で選ぶ）：
 ${metals}
