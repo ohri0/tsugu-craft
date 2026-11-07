@@ -25,6 +25,7 @@ import { flowUI } from "./mihon";
 import { getVideo, putVideo } from "./video-store";
 import { askPassword, resetPassword } from "./password";
 import { esc, store, today } from "./store";
+import { loadRequests, mountRequests } from "./model-requests";
 import { bindVoice, canListen } from "./voice";
 import { ringTarget } from "./waza";
 
@@ -88,12 +89,12 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
       <h3>ほかにできること</h3>
       <div class="acts">
         <button type="button" class="act print"><b>帳面を印刷</b><small>紙にして工房に置く</small></button>
-        <button type="button" class="act" data-open="motion"><b>手本を撮る</b><small>作業を撮るだけ。学ぶ人が手の動きを比べられます</small></button>
+        <button type="button" class="act" data-open="motion"><b>手本を撮る <span class="mreq-n act-req" hidden></span></b><small>作業を撮るだけ。学ぶ人が手の動きを比べられます</small></button>
         ${clear ? "" : `<button type="button" class="act" data-open="free"><b>思いついたことを話して残す</b><small>話すか書くと、決まりの案になります</small></button>`}
       </div>
       ${clear ? `<details class="tp-more keep-setting"><summary>工房の既定（爪の形）</summary><div class="keep-basics-slot"></div></details>` : ""}
     </div>
-    <div class="block panel motion-panel" hidden><div class="panel-head"><h3>手本を撮る</h3><button type="button" class="ghost close">閉じる</button></div><div class="motion-root"></div></div>
+    <div class="block panel motion-panel" hidden><div class="panel-head"><h3>手本を撮る</h3><button type="button" class="ghost close">閉じる</button></div><div class="mreq-slot" hidden></div><div class="motion-root"></div></div>
     ${clear ? "" : `<div class="block panel free-panel" hidden><div class="panel-head"><h3>話して残す</h3><button type="button" class="ghost close">閉じる</button></div><div class="free-body"></div></div>`}
   </section>`;
   const $ = <T extends HTMLElement = HTMLElement>(s: string) => root.querySelector<T>(s)!;
@@ -108,6 +109,11 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
   let askPinned: string | undefined;
 
   function refresh() {
+    // 学ぶ人から頼まれた手本の数（手本を撮る の札と、開いた欄の一覧）
+    const reqN = loadRequests().items.length;
+    $(".act-req").hidden = !reqN;
+    $(".act-req").textContent = String(reqN);
+    if (!$(".motion-panel").hidden) mountRequests($(".mreq-slot"));
     const ledger = store.ledger();
     const label = bookLabel(ledger);
     $(".keep-title").textContent = bookTitle(label);
@@ -480,6 +486,7 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
   function openPanel(which: string) {
     const panel = $(`.${which}-panel`);
     panel.hidden = false;
+    if (which === "motion") mountRequests($(".mreq-slot"));
     if (which === "motion" && !motionMounted) {
       motionMounted = true;
       mountMotion($(".motion-root"), {

@@ -87,14 +87,14 @@ export async function loadPair(): Promise<PairDemo | null> {
   }
 }
 
-/** 判定の表（例でも、学ぶ人の動画でも同じ形） */
-export function judgeHtml(rows: JudgeRow[], tool: string, youLabel: string): string {
+/** 判定の表（例でも、学ぶ人の動画でも同じ形）。baseLabel を渡すと、いい例ではない手本（ほかの技の手本）と比べた表 */
+export function judgeHtml(rows: JudgeRow[], tool: string, youLabel: string, baseLabel?: string): string {
   const mk = (m: JudgeRow["mark"]) => (m ? `<b class="jd-mark jd-${{ "○": "ok", "△": "warn", "×": "ng" }[m]}">${m}</b>` : `<b class="jd-mark jd-na">－</b>`);
   const th = GUIDES.handJudge;
   return `<section class="judge" aria-label="判定">
-      <p class="jd-h"><b>判定</b><span>道具を追いかけ、手本（いい例）と比べて、扱えているかを見ます。いまは${esc(tool)}。ほかの道具も、手本を残せば同じしくみで比べられます。</span></p>
+      <p class="jd-h"><b>判定</b><span>${baseLabel ? `道具のまっすぐな縁を追いかけ、${esc(baseLabel)}と角度のぶれを比べます。線が見つからない道具は、判定しません。` : `道具を追いかけ、手本（いい例）と比べて、扱えているかを見ます。いまは${esc(tool)}。ほかの道具も、手本を残せば同じしくみで比べられます。`}</span></p>
       <table class="jd-table">
-        <thead><tr><th></th><th>手本（いい例）</th><th>${esc(youLabel)}</th><th></th></tr></thead>
+        <thead><tr><th></th><th>${esc(baseLabel ?? "手本（いい例）")}</th><th>${esc(youLabel)}</th><th></th></tr></thead>
         <tbody>${rows
           .map((r) => `<tr class="jd-${r.key}"><th scope="row">${esc(r.label)}</th><td>${esc(r.base)}</td><td>${esc(r.you)}</td><td>${mk(r.mark)}</td></tr><tr class="jd-say"><td colspan="4">${esc(r.say)}</td></tr>`)
           .join("")}</tbody>
@@ -220,7 +220,7 @@ export function mountPair(slot: HTMLElement, d: PairDemo): () => void {
       }
       ctx.restore();
     }
-    // ヤスリ：ならした線と、直前 1 秒の角度の幅（薄い扇）。角度の数は右上の決まった所に
+    // ヤスリ：ならした線と、直前 1 秒の角度の幅（薄い扇）。角度の数は右下の決まった所に
     const tool = ov.tool ? trackAt(ov.tool, t) : null;
     if (ov.tool && tool) {
       const [a, mxN, myN, lenN] = tool.v;
@@ -269,7 +269,7 @@ export function mountPair(slot: HTMLElement, d: PairDemo): () => void {
       here.classList.toggle("on", !!ov.hot.on[Math.min(ov.hot.on.length - 1, Math.max(0, i))]);
     }
   };
-  // 角度の数は、動画の右上の決まった所に出す（線について動く札は、読みにくかった）
+  // 角度の数は、動画の右下の決まった所に出す（線について動く札は、読みにくかった）
   slot.querySelectorAll<HTMLElement>(".pd-frame").forEach((fr) => fr.insertAdjacentHTML("beforeend", `<span class="pd-deg" aria-hidden="true"></span>`));
 
   let raf = 0;

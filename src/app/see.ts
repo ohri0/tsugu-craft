@@ -18,7 +18,7 @@ import { isMihonSource, learnNav, san, techName, techPicker } from "./flow-view"
 import { clipUrl, flowUI, isMihon, MIHON_CLIPS, MIHON_NAME } from "./mihon";
 import { findRules } from "../rules/search";
 import { addQuestion } from "../rules/teacher-queue";
-import { savedRecords } from "../ui/motion-ui";
+import { recordCount, savedRecords, storeRecord } from "../ui/motion-ui";
 import { drawFrame, poseAt, seek, trailAround } from "./draw";
 import { masterName } from "./master";
 import { askPassword, resetPassword } from "./password";
@@ -28,6 +28,9 @@ import { judgeHtml, loadPair, mountPair, type PairDemo } from "./hands-pair";
 import { measureTake, type PairToolLines } from "../craft/pair-measure";
 import { judgeTake, type JudgeRow } from "../craft/hand-judge";
 import { toolLinesFromVideo } from "./tool-track";
+import { fulfilModel, loadRequests, requestModel } from "./model-requests";
+import { cleanTechName, freeTechKey, requestsFor, videoRoute, type VideoRole } from "../rules/model-requests";
+import { putVideo } from "./video-store";
 
 /** 手本：記録と、その動画の URL */
 interface Example {
@@ -80,8 +83,13 @@ async function localExamples(): Promise<Example[]> {
   return out;
 }
 
-/** いい例の動画を、自分の手と比べる手本に使うときの id（技の手本がまだないとき） */
+/** いい例の動画を、自分の手と比べる手本に使うときの id（ヤスリがけを選んだとき） */
 const PAIR_GOOD = "pair-good";
+/** 「聞きたい技」の選び：ヤスリがけ（職人のいい例が手本）と、一覧にない技（名前を書く） */
+const YASURI = "yasuri";
+const OTHER = "other";
+/** 道具の線を、ほかの技でも見るときの手の名前（角度のぶれだけを使う。手の左右は使わない） */
+const ANY_TOOL = { hold: { side: "right", name: "押さえる手" }, file: { side: "left", name: "道具を持つ手", tool: "道具" } } as const;
 
 export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: string): void; flow(): void } {
   const flow = flowUI();
@@ -95,8 +103,10 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
       demo
         ? `<div class="pair-slot"></div>
     <section class="mine">
-    <h3 class="mine-h">自分の手で比べる</h3>
+    <h3 class="mine-h">この技の動き、合っていますか？</h3>
+    <p class="small muted mine-lead">聞きたい技を選んで、あなたの手を撮ってください。手本があれば比べます。なければ、職人に手本を頼めます。</p>
     <div class="tech-pick-slot"></div>
+    <label class="other-tech" hidden><span>技の名前</span><input type="text" maxlength="40" placeholder="例：鏨で線を彫る"></label>
     <p class="small see-title"></p>`
         : `<header class="view-head">
       <h2>手の動きで比べる</h2>
@@ -117,11 +127,21 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
         <b>あなたの手を撮って比べる</b>
         <small>手本と同じ向き・同じ距離で、手首から指先まで入るように 20〜30 秒。</small>
       </div>
+      <label class="tool-opt" hidden><input type="checkbox" class="tool-on"> 道具の線も見る（ヤスリ・鏨のような、まっすぐな道具）</label>
       <div class="row">
         <label class="primary btnlike">撮る<input type="file" accept="video/*" capture="environment" class="pick-cam" hidden></label>
         <label class="ghost btnlike">動画を選ぶ<input type="file" accept="video/*" class="pick-file" hidden></label>
         <button type="button" class="ghost try-sample" hidden>見本の動画で試す</button>
+        <button type="button" class="ghost ask-novideo" hidden>動画なしで、手本を頼む</button>
       </div>
+    </div>
+    <div class="role" hidden role="group" aria-label="この動画は？">
+      <p class="role-h"><b>この動画は？</b><small class="role-file"></small></p>
+      <div class="role-btns">
+        <button type="button" class="role-btn role-check"><b>自分の手を見てほしい</b><small class="role-check-s"></small></button>
+        <button type="button" class="role-btn role-model"><b>職人の手本（いい例）として残す</b><small class="role-model-s"></small></button>
+      </div>
+      <button type="button" class="linklike role-cancel">やめる</button>
     </div>
     <div class="progress" hidden><div class="pbar"><i></i></div><p class="small ptext"></p></div>
     <div class="result" hidden></div>
@@ -149,8 +169,18 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
   let pairShown = false;
   /** 読み終えた いい例・よくない例（いい例と比べる判定に使う） */
   let pairDemo: PairDemo | null = null;
-  /** 学ぶ人の動画から探したヤスリの線（いい例と比べるときだけ） */
+  /** 学ぶ人の動画から探したヤスリの線（いい例と比べるとき・道具の線も見るとき） */
   let learnerTool: PairToolLines | null = null;
+  /** 聞きたい技（いい例・よくない例のある画面だけ）：ヤスリがけ・一覧の技・ほかの技 */
+  let choice: string = YASURI;
+  /** 手本がないので、比べずに職人へ手本を頼むとき */
+  let asking = false;
+  /** 入れたばかりで、まだ「この動画は？」を選んでいない動画 */
+  let pending: File | null = null;
+  /** 手本として残したばかりの記録（次に手本の一覧を出すとき、それを選ぶ） */
+  let pickAfter: string | null = null;
+  /** 手本の動画から探した道具の線（手本の id ごとに 1 回） */
+  let masterTool: { id: string; tool: PairToolLines | null } | null = null;
 
   /** 職人の呼び名 */
   const masterOf = () => (isMihon() ? MIHON_NAME : masterName(store.mainLedger()));
@@ -167,6 +197,35 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
     const id = tech ?? "ring";
     $(".fl-slot").innerHTML = learnNav(id, "hands");
     $<HTMLAnchorElement>(".back").href = `#learn/${id}`;
+    if (demo) {
+      // 聞きたい技：ヤスリがけ（職人のいい例が手本・はじめに選ぶ）・一覧の技・一覧にない技（名前を書く）
+      const opt = (v: string, label: string) => `<option value="${v}">${esc(label)}</option>`;
+      $(".tech-pick-slot").innerHTML = `<label class="tech-pick"><span>あなたの聞きたい技</span><select aria-label="あなたの聞きたい技">${[
+        opt(YASURI, "ヤスリがけ（職人の手本あり）"),
+        ...WAZA_ORDER.map((x) => opt(x, `${techName(x)}${recordCount(x) ? "（手本あり）" : ""}`)),
+        opt(OTHER, "ほかの技（名前を書く）"),
+      ].join("")}</select></label>`;
+      const sel = $<HTMLSelectElement>(".tech-pick-slot select");
+      sel.value = choice;
+      sel.addEventListener("change", () => {
+        const v = sel.value;
+        if (v === OTHER) {
+          choice = OTHER;
+          tech = undefined;
+          current = null;
+          $(".result").hidden = true;
+          if (location.hash !== "#learn/hands") history.replaceState(null, "", "#learn/hands");
+          void refresh();
+          $<HTMLInputElement>(".other-tech input").focus();
+        } else if (v === YASURI && location.hash === "#learn/hands") {
+          choice = YASURI;
+          current = null;
+          $(".result").hidden = true;
+          void refresh();
+        } else location.hash = v === YASURI ? "#learn/hands" : `#learn/hands/${v}`;
+      });
+      return;
+    }
     if (!$(".tech-pick-slot").childElementCount) {
       $(".tech-pick-slot").innerHTML = techPicker(id, WAZA_ORDER, "どの技を比べますか");
       $<HTMLSelectElement>(".tech-pick-slot select").addEventListener("change", (e) => (location.hash = `#learn/hands/${(e.target as HTMLSelectElement).value}`));
@@ -177,8 +236,10 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
   /** 別の技へ（前の結果は消す） */
   function route(next?: string) {
     const id = next && (next === "ring" || isTechId(next)) ? (next as HowtoId) : undefined;
-    if (id !== tech) {
+    const nextChoice = id ?? (choice === OTHER ? OTHER : YASURI);
+    if (id !== tech || nextChoice !== choice) {
       tech = id;
+      choice = nextChoice;
       current = null;
       learner = null;
       cmp = null;
@@ -195,7 +256,7 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
     // 見本の手本は、職人の本物の手元でもヤスリがけ。技の手本だとは言わない
     $(".see-title").textContent = isMihon() ? "見本の手本（職人の本物の手元・ヤスリがけ）と、学ぶ人の手の動きを比べます。" : tech ? `${san(name)}の手本（${techName(tech)}）と、あなたの手を比べます。` : `${name}さんの手本の動画と、あなたの手の動きを比べます。`;
     if (demo && !pair) pair = loadPair();
-    const [samples, local, pd] = await Promise.all([loadSamples(), localExamples().then((l) => l.filter((e) => !tech || (e.record.technique ?? "ring") === tech)), demo ? pair! : Promise.resolve(null)]);
+    const [samples, local, pd] = await Promise.all([loadSamples(), localExamples().then((l) => l.filter((e) => (demo ? (e.record.technique ?? "ring") === techKey() : !tech || (e.record.technique ?? "ring") === tech))), demo ? pair! : Promise.resolve(null)]);
     if (my !== seq) return;
     if (pd && !pairShown) {
       pairShown = true;
@@ -215,34 +276,76 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
       $(".cta small").textContent = "本当は、自分の手を撮ります。見本では、職人が撮った「よくない例」を、学ぶ人の手として使います。";
     }
     const toMaster = tech ? `#waza/${tech}?step=model` : "#ledger/motion";
-    // 技の手本がまだないときは、いい例の動画と比べられる（行き止まりにしない）
-    if (!examples.length && pd) {
-      const good: Example = { id: PAIR_GOOD, record: { ...pd.good.record, title: `いい例（${pd.info.work}）` }, videoUrl: pd.good.videoUrl, sample: true };
-      examples = [good];
-      $(".see-title").hidden = true;
-      $(".examples").innerHTML = `<p class="no-model">${tech ? `${esc(techName(tech))}の手本は、まだありません。` : "手本の動画は、まだありません。"}<a class="linklike" href="${toMaster}">職人が手本を残す →</a></p>`;
-      $(".cta b").textContent = `${pd.info.work}を撮って、いい例と比べる`;
-      $(".cta small").textContent = "手首から指先まで入るように、10〜30 秒。";
-      if (current?.id !== PAIR_GOOD) choose(good);
-      else current = good;
+    asking = false;
+    $(".other-tech").hidden = !(demo && choice === OTHER);
+    $(".tool-opt").hidden = true;
+    $(".ask-novideo").hidden = true;
+    if (demo) {
+      const nm = techNow();
+      // ヤスリがけ：職人のいい例を手本にする（ヤスリの角度も見る）。ここで残した手本も並べる
+      const good: Example | null = choice === YASURI && pd ? { id: PAIR_GOOD, record: { ...pd.good.record, title: `いい例（${pd.info.work}・${pd.info.who ?? "職人"}）` }, videoUrl: pd.good.videoUrl, sample: true } : null;
+      examples = [...(good ? [good] : []), ...(choice === "ring" && samples && !mihon ? [samples.master] : []), ...local];
+      // 手本のない技（一覧にない技も）：動画を入れると、職人に手本を頼むか、職人ならそのまま手本として残せる
+      if (!examples.length) {
+        asking = true;
+        current = null;
+        const sent = !nm ? 0 : choice === OTHER ? loadRequests().items.filter((r) => !r.tech && r.name === nm).length : requestsFor(loadRequests(), tech ?? "ring").length;
+        $(".see-title").hidden = true;
+        $(".master-stage").hidden = true;
+        $(".examples").innerHTML = `<p class="no-model">${nm ? `${esc(nm)}の手本は、まだありません。` : "一覧にない技は、名前を書いてください。"}${sent ? `<small>この技は、もう ${sent} 件 頼んでいます。</small>` : ""}</p>`;
+        $(".cta").hidden = false;
+        $(".cta b").textContent = "動画を入れる";
+        $(".cta small").textContent = "あなたの手なら、その動画をつけて職人に手本を頼めます。職人なら、そのまま手本として残せます。";
+        $(".ask-novideo").hidden = false;
+        return;
+      }
+      $(".see-title").hidden = false;
+      $(".see-title").textContent = good && current?.id !== PAIR_GOOD && current ? `${nm}の手本と、あなたの手を比べます。` : good ? `上の「いい例」（${pd!.info.who ?? "職人"}が撮った手元）を手本にして、あなたの手と${pd!.info.file.tool}の角度を比べます。` : `${nm}の手本と、あなたの手を比べます。`;
+      $(".cta b").textContent = `${nm}の動画を入れる`;
+      $(".cta small").textContent = "手首から指先まで入るように、10〜30 秒。入れたら「自分の手を見てほしい」か「職人の手本として残す」かを選びます。";
+      $(".tool-opt").hidden = !!good;
+      const want = pickAfter ? examples.find((e) => e.id === pickAfter) : undefined;
+      pickAfter = null;
+      if (examples.length === 1 && good) {
+        $(".examples").innerHTML = "";
+        if (current?.id !== PAIR_GOOD) choose(good);
+        else current = good;
+        return;
+      }
+      listExamples(name);
+      if (want) choose(want);
+      else if (!current || !examples.some((e) => e.id === current!.id)) choose(examples[0]);
       return;
     }
     $(".see-title").hidden = false;
-    if (demo) {
-      $(".cta b").textContent = "あなたの手を撮って比べる";
-      $(".cta small").textContent = "手本と同じ向き・同じ距離で、手首から指先まで入るように 20〜30 秒。";
-    }
     if (!examples.length) {
       $(".examples").innerHTML = `<div class="no-example"><p>${tech ? `${esc(techName(tech))}の手本は、まだありません。` : "手本の動画は、まだありません。"}</p><div class="row"><a class="primary btnlike" href="${toMaster}">職人が手本を残す</a></div></div>`;
       $(".master-stage").hidden = true;
       $(".cta").hidden = true;
       return;
     }
+    listExamples(name);
+    if (!current || !examples.some((e) => e.id === current!.id)) choose(examples[0]);
+  }
+
+  /** 手本の一覧（押すと、その手本と比べる） */
+  function listExamples(name: string) {
     $(".examples").innerHTML = `<div class="ex-list">${examples
-      .map((e, i) => `<button type="button" class="ex" data-i="${i}" aria-pressed="false"><b>${esc(e.record.title)}</b><small>${esc(e.record.craftsman === MIHON_NAME ? "見本・職人の本物の手元" : `${e.record.craftsman || name}さん`)} ・ ${clock(e.record.durationS)}${e.record.notes.length ? ` ・ 言葉 ${e.record.notes.length}` : ""}${e.sample ? " ・ 見本" : ""}</small></button>`)
+      .map((e, i) => `<button type="button" class="ex" data-i="${i}" aria-pressed="false"><b>${esc(e.record.title)}</b><small>${esc(e.id === PAIR_GOOD ? "上のいい例" : e.record.craftsman === MIHON_NAME ? "見本・職人の本物の手元" : san(e.record.craftsman || name))} ・ ${clock(e.record.durationS)}${e.record.notes.length ? ` ・ 言葉 ${e.record.notes.length}` : ""}${e.sample && e.id !== PAIR_GOOD ? " ・ 見本" : ""}</small></button>`)
       .join("")}</div>`;
     root.querySelectorAll<HTMLButtonElement>(".ex").forEach((b) => b.addEventListener("click", () => choose(examples[Number(b.dataset.i)])));
-    if (!current || !examples.some((e) => e.id === current!.id)) choose(examples[0]);
+  }
+
+  /** 聞きたい技の名前（ヤスリがけ・一覧の技・書いた名前） */
+  function techNow(): string {
+    if (choice === YASURI) return pairDemo?.info.work ?? "ヤスリがけ";
+    if (choice === OTHER) return cleanTechName($<HTMLInputElement>(".other-tech input").value);
+    return techName(tech ?? "ring");
+  }
+  /** 手の記録の technique に入れる印（一覧の技は id、ヤスリがけと書いた技は名前の印） */
+  function techKey(): string {
+    if (choice === YASURI || choice === OTHER) return freeTechKey(techNow());
+    return tech ?? "ring";
   }
 
   function choose(e: Example) {
@@ -349,13 +452,25 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
         record = createRecord(input, { title: "あなたの動画", craftsman: "", videoName: file.name || "動画" });
         // いい例と比べるときは、道具（ヤスリ）も同じしくみで追いかける
         learnerTool = null;
-        if (current.id === PAIR_GOOD && pairDemo) {
+        const toolOn = current.id === PAIR_GOOD ? !!pairDemo : demo && $<HTMLInputElement>(".tool-on").checked;
+        if (toolOn) {
           const t0 = performance.now();
           try {
             learnerTool = await toolLinesFromVideo(lv, (d, n) => {
               bar.style.width = `${(100 * d) / n}%`;
-              $(".ptext").textContent = `${pairDemo!.info.file.tool}を探しています ${Math.round((100 * d) / n)}%`;
+              $(".ptext").textContent = `${current?.id === PAIR_GOOD ? pairDemo!.info.file.tool : "道具"}を探しています ${Math.round((100 * d) / n)}%`;
             });
+            // ほかの技の手本は、手本の動画からも同じしくみで道具の線を探す（手本ごとに 1 回）
+            if (current.id !== PAIR_GOOD && masterTool?.id !== current.id) {
+              const mvid = document.createElement("video");
+              Object.assign(mvid, { muted: true, playsInline: true, preload: "auto", src: current.videoUrl });
+              const id = current.id;
+              const tool = await toolLinesFromVideo(mvid, (d, n) => {
+                bar.style.width = `${(100 * d) / n}%`;
+                $(".ptext").textContent = `手本の道具を探しています ${Math.round((100 * d) / n)}%`;
+              });
+              masterTool = { id, tool };
+            }
           } catch {
             learnerTool = null;
           }
@@ -384,7 +499,7 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
     if (!cands.length && rows) {
       cmp = null;
       $(".result").hidden = false;
-      $(".result").innerHTML = judgeHtml(rows, pairDemo!.info.file.tool, "あなた");
+      $(".result").innerHTML = judgeHtml(rows, judgeTool(), "あなた", current?.id === PAIR_GOOD ? undefined : "手本");
       $(".result").scrollIntoView({ behavior: "smooth", block: "start" });
       if (flow) store.flowMark("compared", tech ?? "ring");
       return;
@@ -398,12 +513,21 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
     if (flow) store.flowMark("compared", tech ?? "ring");
   }
 
-  /** いい例と比べる判定（いい例を手本にしているときだけ） */
+  /** 道具の判定：いい例を手本にしているときは 3 つの項目。ほかの技で「道具の線も見る」ときは、道具の角度のぶれだけ */
   function judgeRows(): JudgeRow[] | null {
-    if (!pairDemo || !learner || current?.id !== PAIR_GOOD) return null;
-    const you = measureTake(learner.record.landmarksSampled, pairDemo.info, learnerTool);
-    return judgeTake(pairDemo.good.measure, you, { hold: pairDemo.info.hold.name, tool: pairDemo.info.file.tool });
+    if (!learner || !current) return null;
+    if (current.id === PAIR_GOOD) {
+      if (!pairDemo) return null;
+      const you = measureTake(learner.record.landmarksSampled, pairDemo.info, learnerTool);
+      return judgeTake(pairDemo.good.measure, you, { hold: pairDemo.info.hold.name, tool: pairDemo.info.file.tool });
+    }
+    if (!learnerTool || masterTool?.id !== current.id || !masterTool.tool) return null;
+    const base = measureTake(current.record.landmarksSampled, ANY_TOOL, masterTool.tool);
+    const you = measureTake(learner.record.landmarksSampled, ANY_TOOL, learnerTool);
+    return judgeTake(base, you, { hold: ANY_TOOL.hold.name, tool: ANY_TOOL.file.tool }).filter((r) => r.key === "angle");
   }
+  /** 判定の表の道具の名前と、手本の呼び名 */
+  const judgeTool = () => (current?.id === PAIR_GOOD && pairDemo ? pairDemo.info.file.tool : ANY_TOOL.file.tool);
 
   function holdRule(): Rule | undefined {
     // 手のふらつきの話なので、指輪の帳面は「金属を持つ手」の決まり。ほかの技は、職人の言葉があればそれを、なければ出さない（関係のない決まりを出さない）
@@ -429,7 +553,7 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
     const rows = judgeRows();
     $(".result").hidden = false;
     $(".result").innerHTML = `
-      ${rows ? judgeHtml(rows, pairDemo!.info.file.tool, "あなた") : ""}
+      ${rows ? judgeHtml(rows, judgeTool(), "あなた", current?.id === PAIR_GOOD ? undefined : "手本") : ""}
       <div class="verdict">
         <p class="eyebrow">比べた結果 ・ ${c.side === "right" ? "画面の右の手" : "画面の左の手"}</p>
         <h3>${head}</h3>
@@ -601,8 +725,99 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
   const onPick = (e: Event) => {
     const f = (e.target as HTMLInputElement).files?.[0];
     (e.target as HTMLInputElement).value = "";
-    if (f) void readLearner(f);
+    if (!f) return;
+    // 見本と前の画面は、そのまま比べる。ふだんは、まず「この動画は？」を選ぶ
+    if (!demo) return void readLearner(f);
+    if (!needName()) return;
+    pending = f;
+    $(".result").hidden = true;
+    $(".role-file").textContent = `${techNow()} ・ ${f.name || "動画"}`;
+    $(".role-check-s").textContent = asking ? "手本がまだないので、この動画をつけて職人に手本を頼みます" : "手本と比べて、違う所を出します";
+    $(".role-model-s").textContent = `${techNow()}の手本になり、学ぶ人がすぐ比べられます`;
+    $(".role").hidden = false;
+    $(".role").scrollIntoView({ behavior: "smooth", block: "nearest" });
   };
+  $(".other-tech input").addEventListener("change", () => void refresh());
+  const pickRole = (role: VideoRole | null) => {
+    const f = pending;
+    pending = null;
+    $(".role").hidden = true;
+    if (!f || !role) return;
+    const to = videoRoute(role, !asking);
+    if (to === "compare") void readLearner(f);
+    else if (to === "request") void askModel(f);
+    else void saveModel(f);
+  };
+  $(".role-check").addEventListener("click", () => pickRole("check"));
+  $(".role-model").addEventListener("click", () => pickRole("model"));
+  $(".role-cancel").addEventListener("click", () => pickRole(null));
+  $(".ask-novideo").addEventListener("click", () => void askModel());
+
+  /** 一覧にない技は、名前がなければ先に書いてもらう */
+  function needName(): boolean {
+    if (techNow()) return true;
+    status("技の名前を書いてください。");
+    $<HTMLInputElement>(".other-tech input").focus();
+    return false;
+  }
+
+  /** 手本のない技：職人に手本を頼む（動画をつけても、つけなくても。このブラウザに残す。職人は「手本を撮る」所で見る） */
+  async function askModel(f?: File) {
+    if (!needName()) return;
+    const name = techNow();
+    status("");
+    await requestModel(name, choice === OTHER ? undefined : (tech ?? "ring"), f);
+    const to = choice === OTHER ? "#ledger/motion" : `#waza/${tech ?? "ring"}?step=model`;
+    $(".result").hidden = false;
+    $(".result").innerHTML = `<div class="asked"><b>${esc(name)}の手本を、職人に頼みました</b><p class="small">${f ? "職人は「手本を撮る」所で、あなたの動画を見られます。" : ""}手本ができたら、ここで比べられます。</p><a class="linklike" href="${to}">職人の方はこちら →</a></div>`;
+    await refresh();
+  }
+
+  /** 職人の手本（いい例）として残す：手の点を読み、その技の手本にする。頼まれていた分は済みにする */
+  async function saveModel(f: File) {
+    if (!needName()) return;
+    const name = techNow();
+    const key = techKey();
+    const url = URL.createObjectURL(f);
+    lv.src = url;
+    $(".progress").hidden = false;
+    const bar = $<HTMLElement>(".pbar i");
+    $(".ptext").textContent = "手を読む道具を用意しています（初めては 20 MB ほど読み込みます）…";
+    let record: SkillRecord;
+    try {
+      const input = await trackVideo(lv, {
+        fps: 10,
+        onProgress: (d, n) => {
+          bar.style.width = `${(100 * d) / n}%`;
+          $(".ptext").textContent = `手本の手を読んでいます ${Math.round((100 * d) / n)}%`;
+        },
+      });
+      record = { ...createRecord(input, { title: `${name}の手本`, craftsman: masterOf(), videoName: f.name || "動画" }), technique: key };
+    } catch (e) {
+      $(".progress").hidden = true;
+      status(`手を読めませんでした：${(e as Error).message}`);
+      return;
+    }
+    $(".progress").hidden = true;
+    if (!storeRecord(record)) {
+      status("このブラウザに残せませんでした（置き場がいっぱいです）。");
+      return;
+    }
+    try {
+      await putVideo(record.id, f);
+    } catch {
+      status("動画をこのブラウザに残せませんでした（置き場がいっぱいです）。");
+      return;
+    }
+    const done = fulfilModel(choice === YASURI || choice === OTHER ? { name } : { tech: key });
+    status("");
+    pickAfter = record.id;
+    current = null;
+    store.touch();
+    await refresh();
+    $(".result").hidden = false;
+    $(".result").innerHTML = `<div class="asked"><b>${esc(name)}の手本として残しました</b><p class="small">学ぶ人は、この技を選ぶと、すぐこの手本と比べられます。${done ? `頼まれていた ${done} 件は、済みにしました。` : ""}</p></div>`;
+  }
   $(".pick-cam").addEventListener("change", onPick);
   $(".pick-file").addEventListener("change", onPick);
   $(".try-sample").addEventListener("click", () => sampleLearner && void readLearner(sampleLearner));
