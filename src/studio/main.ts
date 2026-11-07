@@ -1499,6 +1499,8 @@ async function make() {
   const pass = store.password() || (await askPassword(true));
   if (!pass) {
     setStatus("生成には Claude が要ります。合言葉がないので、希望の言葉は使えません。形は今の案（決まりごとから作った案）のままです。", { links: [{ label: "手で変える →", run: toManual }] });
+    // スマホでは欄の文が画面の下に隠れて、押しても何も起きないように見えたので、上にも短く出す
+    toast("生成には合言葉が要ります。形は今の案のまま、手で変えられます");
     return;
   }
   making = true;
@@ -3714,7 +3716,7 @@ function rulesSectionHtml(): string {
   const hereTag = here ? (here.by === "craftsman" ? `<i class="pt-c">職人</i>` : here.by === "inferred" ? `<i class="pt-g">推測</i>` : `<i class="pt-p">目安</i>`) : "";
   return `<section class="sec rules-sec teach-sec"><h4>Claude に教える<small>職人の決まり ・ 確かめに効く ${mine.length} 件</small></h4>
     <p class="hint">今の設計を見ながら、一言で教えてください。Claude が読み取って決まりの案にし、ほかの大きさの石も割合で推し量ります（推測）。ちがう所は、また一言で直せます。「これでいい」を押すと、その場で確かめ直します。</p>
-    ${now ? `<p class="teach-now"><small>いまの設計</small>石の大きさ ${now.stoneMm.toFixed(1)} mm${now.prongMm !== undefined ? ` ・ 爪 ø ${now.prongMm.toFixed(2)} mm` : ""} ・ この石の爪の最低 ${here!.value.toFixed(2)} mm${hereTag}</p>` : ""}
+    ${now ? `<p class="teach-now"><small>いまの設計</small>石の大きさ（長辺と幅の平均）${now.stoneMm.toFixed(1)} mm${now.prongMm !== undefined ? ` ・ 爪 ø ${now.prongMm.toFixed(2)} mm` : ""} ・ この石の爪の最低 ${here!.value.toFixed(2)} mm${hereTag}</p>` : ""}
     <textarea rows="1" class="ar-text" placeholder="${kind === "band" ? "例：平打ちなら、腕の厚みは最低 1.5 mm" : "例：18 ミリなら 1.2 は欲しい ／ この爪は細く見えるけど、これで十分"}">${esc(ruleDraft)}</textarea>
     <div class="row"><button type="button" class="ghost-d ar-mic">話す</button><button type="button" class="primary ar-go">Claude に教える</button></div>
     <div class="ar-proposal"></div>
@@ -4356,6 +4358,7 @@ async function makeBand(lead = "", begun?: number) {
   if (!pass) {
     if (begun !== undefined) historyEnd(begun, true);
     setStatus("生成には Claude が要ります。合言葉がなくても、「形」の見本や数字を変えて手で作れます。", { links: [{ label: "手で変える →", run: toManual }] });
+    toast("生成には合言葉が要ります。断面の見本や数字は、手で変えられます");
     return;
   }
   making = true;
