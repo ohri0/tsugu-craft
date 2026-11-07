@@ -49,6 +49,11 @@ export type PatternOp =
        * 金属は外へ逃げる。あとで削る・研ぐと、木目金と同じように、うねる木目の輪が出る
        */
       uneven?: number;
+      /**
+       * 大きな打ちと曲げ（板の幅の中の数。無いか 0 なら、小さな打ちだけ＝前のまま。2026-11-08 回 3）。uneven があるときだけ使う。
+       * 強い打ちや曲げは、金属を板の幅ほどの大きさで上下と横に動かす。小さな打ちと重なって、削ると大きな輪（目）とうねりになる
+       */
+      swell?: number;
     }
   /**
    * 棒にしてねじる（板の長さの中で turns 回まわす）。bars＝ねじった棒を何本、横に並べてつなぐか（無ければ 1 本）。
@@ -68,6 +73,8 @@ export type PatternOp =
       depth: number;
       /** 削る面のうねり（板の厚みに対して。0 か無ければ平ら＝前のまま。2026-11-08 回 2）。面が、層（帯）を少しずつちがう深さで切る */
       wave?: number;
+      /** 面のうねりの数（板の幅の中。無いか 0 なら前のまま＝0.4〜1.8 ほど。2026-11-08 回 3）。大きな打ち（swell）と同じほどにすると、ふくらみの所が輪になる */
+      ripples?: number;
     }
   /** 切って並べかえる。edge_up＝横にして層のふちを表に、strips＝細く切って 1 本おきに向きを変える、tiles＝四角に切って 1 つおきに回す */
   | { op: "rearrange"; mode: RearrangeMode; pieces: number }
@@ -165,6 +172,8 @@ interface Stage {
   flattened?: boolean;
   /** 打ちむら（forge_thin の uneven）：1 回ずつの打ちの所（この操作のあとの板の大きさで）、半径、向き（1＝表から、-1＝裏から） */
   dents?: { x: number; y: number; r: number; s: number }[];
+  /** 大きな打ちと曲げ（forge_thin の swell）：所、幅の向きの半径 r、長さの向きの半径 ry、向き */
+  swells?: { x: number; y: number; r: number; ry: number; s: number }[];
   /** 削る面のうねり（grind の wave） */
   grindWaves?: Wave[];
 }
@@ -296,13 +305,28 @@ export function buildSim(ops: readonly PatternOp[], seed = 7, opts: { bond?: Bon
             r: hv.radius * W * (1 - hv.radiusMix / 2 + hv.radiusMix * r()),
             s: r() < 0.5 ? 1 : -1,
           }));
-        }
+          // 大きな打ちと曲げ（別のたねで。小さな打ちの所は変えない）
+          if (op.swell && op.swell > 0) {
+            const sv = PATTERN_VALUES.swell;
+            const k = clampTo(op.swell, PATTERN_LIMITS.swell);
+            const r2 = rng(st.seed + 19);
+            const base = W / (2 * k);
+            // 半径の 2 倍の四角あたり perCell。板のふちの外にも少しはみ出して置く（ふちで輪が切れても、その外から押された形が入るように）
+            const m = Math.max(1, Math.round((sv.perCell * (W + 2 * base) * (H + 2 * base)) / (4 * base * base * sv.stretch)));
+            st.swells = Array.from({ length: m }, () => {
+              const rr = base * (1 - sv.radiusMix / 2 + sv.radiusMix * r2());
+              return { x: -base + r2() * (W + 2 * base), y: -base + r2() * (H + 2 * base), r: rr, ry: rr * sv.stretch, s: r2() < 0.5 ? 1 : -1 };
+            });
+          }
+        } else if (op.swell && op.swell > 0) notes.push("大きな打ち・曲げ（swell）は、打ちむらの深さ（uneven）が 0 なので描きませんでした。");
         break;
       }
       case "grind":
         if (op.wave && op.wave > 0) {
           const G = PATTERN_VALUES.grindWave;
-          st.grindWaves = makeWaves(rng(st.seed + 17), G.n, G.f[0], G.f[1]);
+          // うねりの数があれば、その数のまわり（0.6〜1.2 倍。縦と横の両方に入るので、1 つの向きでは、ほぼその数）
+          const k = op.ripples && op.ripples > 0 ? clampTo(op.ripples, PATTERN_LIMITS.swell) : 0;
+          st.grindWaves = k ? makeWaves(rng(st.seed + 17), G.n, 0.6 * k, 1.2 * k) : makeWaves(rng(st.seed + 17), G.n, G.f[0], G.f[1]);
         }
         break;
       case "twist":
@@ -347,6 +371,8 @@ export function buildSim(ops: readonly PatternOp[], seed = 7, opts: { bond?: Bon
     graded = 0;
   }
   if (stages.some((s) => s.dents)) notes.push("叩くときの打ちむら（1 回ずつの打ちで層が少し上下にずれる）は、跡の大きさ・数・深さを仮に決めて描きました。");
+  if (stages.some((s) => s.swells))
+    notes.push("大きな打ちと曲げ（金属を板の幅ほどの大きさで動かす）は、数・大きさ・ずれの深さを仮に決めて描きました。削ると、ふくらみの所に輪（目）が出ます。本当の打ち方は分かっていません。");
 
   const unbonded = ingot ? 0 : PATTERN_VALUES.unbonded[opts.bond ?? bond];
   const hr = rng(seed + 3000);
@@ -385,7 +411,10 @@ export function buildSim(ops: readonly PatternOp[], seed = 7, opts: { bond?: Bon
  * （count で板全体に置くときに、板の大きさを知るため）
  */
 export function carveDepth(op: Extract<PatternOp, { op: "carve" }>, qx: number, qy: number, seed: number, aspect = 1): number {
-  const across = clampTo(op.across, PATTERN_LIMITS.across);
+  const across0 = clampTo(op.across, PATTERN_LIMITS.across);
+  // 溝（lines・waves）を板全体の数 count で刻むとき：板の長さの中に count 本（手がかりの「段は 40」が、幅の中の 40 本の細かい縞になっていた。2026-11-08 回 3）
+  const byCount = (op.shape === "lines" || op.shape === "waves") && op.count && op.count > 0;
+  const across = byCount ? clamp(op.count! / Math.max(aspect, 1e-6), 0.05, PATTERN_LIMITS.across[1]) : across0;
   const a = 1 / across;
   const depth = clampTo(op.depth, PATTERN_LIMITS.depth);
   const size = clampTo(op.size, PATTERN_LIMITS.size);
@@ -572,6 +601,30 @@ export function undent(dents: readonly { x: number; y: number; r: number; s: num
   return [x - L * dx, y - L * dy, reflect01(u - amp * dz * edge)];
 }
 
+/**
+ * 大きな打ちと曲げをもどす（undent と同じ考えで、跡が長さの向きに長い楕円）。amp は上下のずれ（板の厚みに対して）。
+ * 層は大きく上下にずれ、金属は外へ逃げる。表と裏のごく近くでは消える（2026-11-08 回 3）
+ */
+export function unswell(sw: readonly { x: number; y: number; r: number; ry: number; s: number }[], amp: number, x: number, y: number, u: number): [number, number, number] {
+  const hv = PATTERN_VALUES.hammer;
+  let dz = 0;
+  let dx = 0;
+  let dy = 0;
+  for (const d of sw) {
+    const ex = x - d.x;
+    const ey = y - d.y;
+    const q = (ex * ex) / (d.r * d.r) + (ey * ey) / (d.ry * d.ry);
+    if (q > 9) continue;
+    const e = Math.exp(-q);
+    dz += d.s * e;
+    dx += ex * e;
+    dy += ey * e;
+  }
+  const edge = Math.min(1, u / hv.edge, (1 - u) / hv.edge);
+  const L = hv.lateral * amp;
+  return [x - L * dx, y - L * dy, reflect01(u - amp * dz * edge)];
+}
+
 /** 最後の板の (x, y)（最後の板の大きさで）の深さ u にある物が、はじめに重ねた板のどこにあったか */
 export function trace(sim: Sim, x: number, y: number, u: number): Trace {
   let px = x;
@@ -589,6 +642,8 @@ export function trace(sim: Sim, x: number, y: number, u: number): Trace {
         const ws = st.waves!;
         // 打ちむら（のばしたあとの板の上で起きたので、のばす前にもどす前に、先にもどす）
         if (st.dents) [px, py, uu] = undent(st.dents, clampTo(op.uneven!, PATTERN_LIMITS.uneven), px, py, uu);
+        // 大きな打ちと曲げ（小さな打ちより先に起きたので、小さな打ちをもどしたあとにもどす）
+        if (st.swells) [px, py, uu] = unswell(st.swells, PATTERN_VALUES.swell.amp * clampTo(op.uneven!, PATTERN_LIMITS.uneven), px, py, uu);
         if (op.direction === "length") py /= f;
         else {
           px /= Math.sqrt(f);

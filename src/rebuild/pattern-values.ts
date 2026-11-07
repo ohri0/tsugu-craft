@@ -93,6 +93,15 @@ export const PATTERN_VALUES = {
    * perArea＝板の幅の 2 乗あたりの打つ回数。radius＝1 回の跡の半径（板の幅に対して）。radiusMix＝その大きさのばらつき。lateral＝金属が外へ逃げる量（上下のずれに対して）。edge＝ずれが消える、表と裏からの近さ
    */
   hammer: { perArea: 10, radius: 0.14, radiusMix: 0.5, lateral: 0.5, edge: 0.02 },
+  /**
+   * 大きな打ちと曲げ（forge_thin の swell。2026-11-08 回 3）。どれも仮の値。
+   * 本当の鍛造では、小さな打ちのほかに、強い打ちや曲げ・叩きもどしが、金属を板の幅ほどの大きさで動かす。小さな跡（hammer）だけでは、
+   * 削った面に小さなさざ波しか出ず、本物の刃の大きな輪（目）やうねりが出なかった（回 2 の目の言葉「波は小さく、輪や大きなうねりがない」）。
+   * 木目金と同じ物理：大きくふくらんだ層を平らな面が切ると、ふくらみの所に、入れ子の輪（目）が出る。
+   * 幅の中の数 n なら、1 つの半径は板の幅の 1/(2n) ほど。perCell＝半径の 2 倍の四角あたりの数。amp＝上下のずれ（打ちむらの深さ uneven に対して）。
+   * stretch＝そのあとも長さの向きにのばすので、長さの向きに長い（半径の割合）。radiusMix＝大きさのばらつき
+   */
+  swell: { perCell: 1.2, amp: 1.5, stretch: 1.6, radiusMix: 0.5 },
   /** 削る面のうねり（grind の wave。2026-11-08 回 2）：手で研ぐ・削る面は、完全には平らでない。うねりの数（板の幅の中）の範囲と、波の数。仮 */
   grindWave: { n: 4, f: [0.4, 1.8] },
 } as const;
@@ -138,6 +147,8 @@ export const PATTERN_LIMITS = {
   uneven: [0, 0.4],
   /** 削る面のうねり（grind の wave。板の厚みに対して。0＝平ら） */
   grindWave: [0, 0.2],
+  /** 大きな打ち・曲げの数（forge_thin の swell）と、削る面のうねりの数（grind の ripples）。どちらも板の幅の中の数（2026-11-08 回 3） */
+  swell: [1, 6],
   /** 色の濃淡のなめらかさ（color の graded。0＝2 色、1＝濃さのとおりの濃淡） */
   graded: [0, 1],
 } as const satisfies Record<string, readonly [number, number]>;

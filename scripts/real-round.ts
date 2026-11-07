@@ -4,7 +4,7 @@
 //            帳面ありだけ本物の Claude で出し直して、描き直し、目を隠してくらべ直し、並べた絵を作る。前の回は消さない。
 // 使い方：npx tsx scripts/real-round.ts <.env のある所>                 （回 0）
 //         npx tsx scripts/real-round.ts <.env のある所> <言葉のファイル>  （次の回）
-//         言葉のファイルに言葉が 1 つも無い（# の行だけ）なら、言葉は足さず、計算を直した回にする（並べた絵に「計算を直した（言葉は前の回と同じ）」と書く。2026-11-08 回 2）
+//         言葉のファイルに言葉が 1 つも無い（# の行だけ）なら、言葉は足さず、計算を直した回にする（並べた絵に「計算を直した（言葉は回 1 と同じ）」と書く。2026-11-08 回 2。続けて計算だけ直した回は「さらに」。回 3）
 //         npx tsx scripts/real-round.ts --sheet                          （Claude を呼ばず、いちばん新しい回の並べた絵だけ描き直す）
 // 出すもの：docs/pattern-demo/lost/real/round-<n>/（絵・記録・judge.json・real-compare-round-<n>.png）と、いちばん新しい並べた絵 docs/pattern-demo/lost/real-compare.png
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -146,7 +146,12 @@ async function main() {
       writeFileSync(LEDGER, JSON.stringify(ledger, null, 2) + "\n");
     } else {
       // 言葉を足さない回：帳面はそのまま。絵のちがいが、計算を直した所だけから出るように
-      note = `回 ${round}：計算を直した（言葉は回 ${round - 1} と同じ。職人の言葉 ${ledger.rules.length} つのまま、本物の Claude で出し直した）`;
+      // 言葉を最後に足した回と、前の回も計算だけを直した回か（回 3 は「計算をさらに直した（言葉は回 1 と同じ）」。2026-11-08）
+      const hasWords = (r: number) => existsSync(`${REAL}/round-${r}/words.txt`) && wordsToRules(readFileSync(`${REAL}/round-${r}/words.txt`, "utf8"), r).length > 0;
+      let last = round - 1;
+      while (last > 0 && !hasWords(last)) last--;
+      const again = round - 1 > last ? "さらに" : "";
+      note = `回 ${round}：計算を${again}直した（言葉は回 ${last} と同じ）。職人の言葉 ${ledger.rules.length} つのまま、本物の Claude で出し直した`;
     }
     writeFileSync(`${dir}/words.txt`, readFileSync(wordsFile, "utf8"));
     await run("book", { out: dir, book: bookFor("book", ledger as never) });
