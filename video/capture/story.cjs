@@ -4447,7 +4447,9 @@ Object.assign(CH, {
     // 欄の中で「浅く留めたいとき」を置く高さ（欄の上から px）。最終案 17c：事実の表が下の帯にかからないよう、少し上へ
     // 最終案 17j（答えの枠に手順の一行・職人の言葉、すぐ下に緑の「安全に留めるなら」が入って、欄が 200 px ほど高くなった）：
     //   つまみ・答え・緑の枠が 1 つの寄りに入るよう、「浅く留めたいとき」の見出しを欄の上の端より上へ送る（-80）
-    const TOFF = Number(process.env.TENSION_OFF || -80);
+    // 最終案 17m（アプリの札が 1 通りに：答えの見出し → 緑の「安全に留めるなら」→ くぼみ・溝の深さのつまみ、の順。6c9368a・4ef5186）：
+    //   答えの見出しが欄の見出し（確かめる・作れるか）に隠れないよう、そのすぐ下に（6）
+    const TOFF = Number(process.env.TENSION_OFF || 6);
     await studioNow9(a, { query: '?nooffload' }); await builtNow9(a);
     await p.addStyleTag({ content: OPS_CSS11 });
     await p.evaluate(({ pit, g0 }) => {
@@ -4506,7 +4508,7 @@ Object.assign(CH, {
       if (k < steps.length) await a.drift(N(Number(process.env.TENSION_GAP || 6)), { x: c.x + 5, y: c.y + 7 });
     }
     await a.box('verdict2', '.tn-hold .tn-verdict', 6); await a.box('facts2', '.tn-hold .tn-facts', 6); await a.box('safe2', '.tn-hold .tn-safe', 6);
-    await a.box('safeHead2', '.tn-hold .tn-safe p', 4);
+    await a.box('safeHead2', '.tn-hold .tn-safe p', 4); await a.box('sliders2', '.tn-hold .sliders', 6);
     for (let r = 1; r <= 8; r++) await a.box(`row${r}`, `.tn-hold .tn-facts > div:nth-child(${r})`, 2);
     const vb = await boxOf(p, '.tn-hold .tn-verdict');
     if (vb) await a.drift(N(24), { x: vb.x + vb.width * 0.32, y: vb.y + vb.height * 0.4 });
