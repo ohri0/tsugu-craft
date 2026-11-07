@@ -1,7 +1,7 @@
 // 「自分の技を組み立て直す」で Claude に渡す指示と手がかり。
 // 決まりは system に、毎回変わる手がかり・結果・前の案は人の言葉に置く（system の長さの上限にかからず、決まりの部分を使い回せる）。
 // 力試しとちがって技の名前を隠さない。答えがないので、当てることに意味がなく、もともとの知識も分けて書いてもらえば役に立つ。
-import type { ClaudeContentBlockParam } from "../claude/wire";
+import { JA_ANSWER, type ClaudeContentBlockParam } from "../claude/wire";
 import { bookText, type BookRule } from "./book";
 import { CLUE_KIND_IDS, CLUE_KINDS, resultFor, usableResults, type Outcome, type RestoreClue, type RestorePlan, type RestoreProject, type TrialResult } from "./restore";
 import { PROPOSE_RESTORATION } from "./restore-tools";
@@ -57,6 +57,7 @@ export function restorePrompt(opts: { book?: boolean } = {}): string {
 
 ## 決まり
 
+${JA_ANSWER}
 - 確かな作り方だと言わないでください。「正しい」「確実」「本当の作り方」のような言い切りは使わず、「〜と考えられる」「〜かもしれない」と書いてください。
 - どの工程にも、根拠にした手がかりの番号を clue_ids に書いてください（C で始まる番号は手がかり、T で始まる番号は職人が試した結果）。一覧にない番号は使えません。
 - 番号は ${opts.book ? "clue_ids・book_ids" : "clue_ids"} と prev_step にだけ書きます。職人が読む文（detail・uncertain・caution・why・what・summary・changes・change_note）には番号を書かず、手がかりの名前で書いてください。職人は番号を知りません。
@@ -147,6 +148,7 @@ export function techRulePrompt(p: RestoreProject, master: string): string {
 
 ## まとめ方
 
+${JA_ANSWER}
 - propose_rule を 1 回だけ呼びます。title は短く（20 文字ほど）、text は「いつ・何を・どこまで」が分かる 1〜2 文、reason は${master}さんが言った理由。
 - quote には${master}さんの言葉を、聞き間違いと思われる所だけ直して、なるべくそのまま入れます。
 - ${master}さんが言っていない数字・理由・コツは足しません。強めたり、言い換えて意味を変えたりしません。

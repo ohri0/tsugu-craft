@@ -5,7 +5,7 @@
 // （読み直すときも、同じ関数で確かめられるように）。
 // 操作ごとに値の組をちがう形にすると、strict の形が複雑すぎて API に断られた（2026-11-07「Schema is too complex」）。
 // そこで、どの操作も同じ 5 つの値（metals・amount・size・across・choice）を持ち、使わない値は空や 0 にする。
-import type { ClaudeTool } from "../claude/wire";
+import { JA_ANSWER, type ClaudeTool } from "../claude/wire";
 import type { CarveShape, ColorKind, PatternOp, RearrangeMode } from "./pattern-sim";
 import type { ReliefOp, ReliefPath } from "./pattern-relief";
 import { METAL_IDS, OP_RANGE, PATTERN_LIMITS, PATTERN_METALS, type MetalId } from "./pattern-values";
@@ -504,6 +504,7 @@ ${metals}
 
 ## 決まり
 
+${JA_ANSWER}
 - どの操作も metals・amount・size・across・choice を持ちます。その操作で使わない値は、空・0・- にしてください。
 - 工程の順に、作る順で置きかえてください。1 つの工程が 2 つの操作になっても、2 つの工程が 1 つの操作になってもかまいません。
 - どの操作にも、元になった工程の番号を step に書いてください。工程に書かれていないが、絵を描くために要る操作（重ねる枚数を決める、など）は step を 0 にして、why にそう書いてください。
