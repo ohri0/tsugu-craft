@@ -7,12 +7,13 @@ import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { z } from "zod";
 import { metalName } from "../src/geometry/ring";
 import { patternSvg } from "../src/pattern/sheet";
-import { HOLD_NOTE, holdRatio } from "../src/rules/checks";
+import { HOLD_NOTE, grooveNote, holdRatio, shankWidthNote } from "../src/rules/checks";
 import { GUIDE_NOTE, GUIDES, type HeightOption, type MetalId } from "../src/rules/guides";
 import { activeRules, addRule, effectiveGuides, ledgerText, PARAMS, sourceLabel, type Ledger, type ParamId, type Rule } from "../src/rules/ledger";
 import { build, DEFAULT_DESIGN, type Design } from "../src/ui/design";
 import { sectionCurveProblem, SECTION_INPUT } from "../src/geometry/section-input";
-import { INPUT_BOUNDS } from "../src/claude/tools";
+import { BAND_WIDTH_WORDS, INPUT_BOUNDS, IROGANE, OFFERED_PARAMS, RELIEF_PATTERN_WORDS, RELIEF_PATTERNS } from "../src/claude/tools";
+import { FINISHES_OFFERED } from "../src/geometry/finish";
 import type { ShankStation } from "../src/geometry/shank";
 import { readLedger, REPO_ROOT, writeLedger } from "./ledger-file";
 import { readyStone, STONE_PRESETS } from "./stone-input";
@@ -36,9 +37,11 @@ const nonEmpty = (label: string) => z.string().trim().min(1, `${label}を書い�
 
 // ---- 入力の形 ----
 
-const paramIds = Object.keys(PARAMS) as [ParamId, ...ParamId[]];
+// 布目象嵌の値（inlay.*）は、伝統の仕上げを出すときだけ（アプリの道具と同じ）
+const paramIds = [...OFFERED_PARAMS] as [ParamId, ...ParamId[]];
 const heightIds = Object.keys(GUIDES.height.options) as [HeightOption, ...HeightOption[]];
-const metalIds = Object.keys(GUIDES.metals) as [MetalId, ...MetalId[]];
+// 色金（赤銅・四分一・銅）は、伝統の仕上げを出すときだけ（アプリの道具と同じ。src/geometry/finish.ts の FINISHES_OFFERED）
+const metalIds = (Object.keys(GUIDES.metals) as MetalId[]).filter((m) => FINISHES_OFFERED || !(IROGANE as readonly string[]).includes(m)) as [MetalId, ...MetalId[]];
 
 /** 受ける石の大きさの上限（mm）。画面のつまみ（3〜14 mm）より広く、測った大きな石も受ける */
 const STONE_MAX_MM = 25;
@@ -74,6 +77,7 @@ const stationShape = z.object({
   section: z.enum(["kouman", "hirauchi", "hangouman", "kaku"]).optional().describe("この場所の断面（省くと、ひとつ上の場所と同じ）"),
   section_curve: sectionCurvePoints.optional().describe("この場所の断面の線（section より先に使う）"),
   sway_mm: z.number().min(INPUT_BOUNDS.sway_mm[0]).max(INPUT_BOUNDS.sway_mm[1]).optional().describe("腕を指の向きへ寄せる量（mm）。片方の肩が指先へ寄ると、もう片方は付け根へ寄る。いちばん下では 0"),
+  step: z.boolean().optional().describe("true なら、ひとつ上の場所からここまでを段で変える（段々の肩）。省くと、なめらかにつなぐ"),
 });
 
 const designShape = z
@@ -105,7 +109,7 @@ const designShape = z
       .describe("腕の場所ごとの形（角度の小さい順。左右は同じ）。石座のそばの形は shank_width_mm・shank_thickness_mm・断面で決まり、ここにはそれより下の場所を書く。間はなめらかにつながる"),
     shank_relief: z
       .object({
-        pattern: z.enum(["arch", "diamond", "wave", "beads", "lines", "leaf", "mil", "blade"]).describe("模様：arch＝先の尖ったアーチの列、diamond＝菱の格子、wave＝波の線、beads＝粒のくぼみ、lines＝横の筋、leaf＝葉とつる、mil＝縁の粒、blade＝尖った葉"),
+        pattern: z.enum(RELIEF_PATTERNS).describe(`模様。${RELIEF_PATTERN_WORDS}`),
         across_from: z.number().min(0).max(1).optional().describe("彫る帯の内側（真ん中 0・腕の縁 1 の割合）"),
         across_to: z.number().min(0).max(1).optional().describe("彫る帯の外側"),
         count: z.number().int().min(INPUT_BOUNDS.relief_count[0]).max(INPUT_BOUNDS.relief_count[1]).optional().describe("片側の腕に並べる数。省くと 4"),
@@ -116,7 +120,7 @@ const designShape = z
       })
       .optional()
       .describe("腕の外の面に彫る浅い模様（穴は開かない）"),
-    shank_width_mm: z.number().min(1).max(10).optional().describe(`腕の幅（mm）。いちばん上（石座のそば）の幅。省略で ${GUIDES.shank.widthMm} mm`),
+    shank_width_mm: z.number().min(INPUT_BOUNDS.width_mm[0]).max(INPUT_BOUNDS.width_mm[1]).optional().describe(`腕の幅（mm）。いちばん上（石座のそば）の幅。省略で ${GUIDES.shank.widthMm} mm`),
     prong_tip: z
       .enum(["round", "oni"])
       .optional()
@@ -187,7 +191,8 @@ export const DESCRIPTIONS = {
     "機械で確かめられる値に当たるときだけ param と value を付ける（両方付けるか、両方付けない）。同じ param の決まりがあれば置き換え、古い決まりは履歴に残る。",
   check_ring:
     "石と設計から指輪（石座・爪・腕）を組み、目安帳の決まりで確かめる。問題ごとに、どこ・今の値・必要な値・理由・直し方の選択肢（見た目への影響つき）と、" +
-    "根拠の決まり（誰の・いつの）を返す。石の一番下と指のすき間、地金の重さの見積もり、石の留まりも返す。答えを 1 つに決めず、選択肢を職人やデザイナーに見せる。",
+    "根拠の決まり（誰の・いつの）を返す。石の一番下と指のすき間、地金の重さの見積もり、石の留まりも返す。答えを 1 つに決めず、選択肢を職人やデザイナーに見せる。" +
+    `cautions は止めない注意で、作れない所ではない（ok は problems だけで決まる）。${BAND_WIDTH_WORDS}。`,
   pattern_svg:
     "石の原寸（1:1）の型紙を A4 の SVG（mm 単位）で返す。黒が石の縁、赤が覆輪の内側と外側。save_as を付けると、リポジトリの out/ に書き出す。" +
     "印刷は「実際のサイズ・100%」で、型紙の 10 mm と 50 mm を定規で確かめるよう伝える。",
@@ -280,6 +285,7 @@ function stationsFrom(list: NonNullable<NonNullable<CheckRingInput["design"]>["s
       ...(st.section ? { section: st.section } : {}),
       ...(st.section_curve ? { section: "free" as const, curve: { points: st.section_curve } } : {}),
       ...(st.sway_mm ? { swayMm: st.sway_mm } : {}),
+      ...(st.step ? { step: true } : {}),
     };
   });
 }
@@ -360,8 +366,22 @@ export function checkRingTool(ctx: ToolContext, input: CheckRingInput) {
       options: p.options.map((o) => ({ id: o.id, label: o.label, effect_on_look: o.effectOnLook })),
       rule: p.rule ? { id: p.rule.id, title: p.rule.title, text: p.rule.text, source: sourceLabel(p.rule.source), date: p.rule.date } : null,
     })),
+    cautions: cautionsOf(ring.shank, g, ledger),
     note: `${GUIDE_NOTE}。地金の重さは部品の重なりも数えた少し多めの見積もり。`,
   };
+}
+
+/** 止めない注意（腕の幅の黄色・オレンジ、手で彫る細い溝）。problems には入れない（Claude が作れないと思って腕を太くし続けないように） */
+function cautionsOf(shank: Parameters<typeof shankWidthNote>[0] & Parameters<typeof grooveNote>[0], g: ReturnType<typeof effectiveGuides>, ledger: Ledger) {
+  const width = shankWidthNote(shank, g);
+  const groove = grooveNote(shank, g);
+  const rule = activeRules(ledger).find((r) => r.checks?.includes("band-narrow") && r.source.kind === "craftsman");
+  return [
+    ...(width
+      ? [{ id: "band-narrow", level: width.level, where: width.where, current: `${width.widthMm.toFixed(2)} mm`, text: `${width.text}（止めない）`, rule: rule ? { id: rule.id, title: rule.title, source: sourceLabel(rule.source), date: rule.date } : null }]
+      : []),
+    ...(groove ? [{ id: "band-groove", level: "yellow" as const, where: groove.where, current: `${groove.widthMm.toFixed(2)} mm`, text: `${groove.text}（止めない）`, rule: null }] : []),
+  ];
 }
 
 export function patternSvgTool(ctx: ToolContext, input: PatternSvgInput) {

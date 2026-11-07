@@ -3,8 +3,9 @@
 import type { Metal } from "../claude/tools";
 import type { SettingResult } from "../geometry/setting";
 import type { ShankResult } from "../geometry/shank";
-import { elasticOpeningMm, HARD_STATE_LABEL, type HardState, type SpringMetal } from "./checks";
+import { HARD_STATE_LABEL, longTriangle, type HardState, type SpringMetal } from "./checks";
 import { GUIDE_NOTE, GUIDES, type Guides } from "./guides";
+import { curvedWireFactor, elasticOpeningMm, permanentSetMm, setCurve } from "./tension-set";
 
 export type SpringMetalId = SpringMetal;
 /** 表に並べる地金の順 */
@@ -19,14 +20,8 @@ export function springIdOf(m: Metal): SpringMetalId {
   return "k18y";
 }
 
-/**
- * 丸い線を曲げるとき、線の内側で曲げが強まる割合（ばねの手引きの式：Ki ＝（4C² − C − 1）÷（4C（C − 1））、C ＝ 輪の径 ÷ 線の太さ）。
- * 細い輪の式で出した「開ける量」を、この割合で割ると、太い輪の分を見た量になる。
- */
-export function curvedWireFactor(radiusMm: number, wireMm: number): number {
-  const c = (2 * radiusMm) / wireMm;
-  return (4 * c * c - c - 1) / (4 * c * (c - 1));
-}
+/** 丸い線を曲げるとき、線の内側で曲げが強まる割合。式は src/rules/tension-set.ts */
+export { curvedWireFactor };
 
 /** room：余裕あり。tight：ぎりぎり（太い輪の分を見ると足りない）。short：足りない（まっすぐ開くと曲がったまま残る） */
 export type SpringVerdict = "room" | "tight" | "short";
@@ -51,8 +46,10 @@ export interface SpringRow {
   makeGapMm: number | null;
   /** 広げて入れる量（作る時の開きから、石が通る所まで。mm） */
   spreadMm: number | null;
-  /** 石を入れたあと、腕が戻ろうとして石を押さえる量（mm） */
+  /** 石を入れたあと、腕が戻ろうとして石を押さえる量（mm）。広げたあと戻りきらない分（setMm）を引いた量。負なら、腕が石に届かず、その分すき間が残る */
   gripMm: number | null;
+  /** 広げたあと、戻りきらずに開いたまま残る量（mm。仮。src/rules/tension-set.ts） */
+  setMm: number | null;
   /** まっすぐ開いたとき、曲がったまま残る量（mm。足りるときは 0） */
   bentMm: number;
   /** 横から滑らせて入れられる石で、小さめに作れる量（開くのは締まりの分だけ。mm。滑らせられなければ null） */
@@ -96,6 +93,7 @@ export function tensionSpring(s: Pick<SettingResult, "tension">, sh: Pick<ShankR
     const verdict: SpringVerdict = safeMm >= needMm ? "room" : limitMm >= needMm ? "tight" : "short";
     // 余裕があれば、太い輪の分を見た限界まで。ぎりぎりなら、残りの全部（それでも少ない）
     const shrinkMm = verdict === "room" ? safeMm - needMm : verdict === "tight" ? limitMm - needMm : null;
+    const setMm = shrinkMm === null ? null : permanentSetMm(needMm + shrinkMm, setCurve(safeMm, limitMm, g.tension.springSetRatio));
     return {
       metal,
       name: m.name,
@@ -109,7 +107,8 @@ export function tensionSpring(s: Pick<SettingResult, "tension">, sh: Pick<ShankR
       shrinkMaxMm: verdict === "short" ? null : limitMm - needMm,
       makeGapMm: shrinkMm === null ? null : info.gapMm - shrinkMm,
       spreadMm: shrinkMm === null ? null : needMm + shrinkMm,
-      gripMm: shrinkMm,
+      gripMm: shrinkMm === null ? null : shrinkMm - setMm!,
+      setMm,
       bentMm: Math.max(0, needMm - limitMm),
       slideShrinkMm: info.slides ? safeMm : null,
     };
@@ -149,7 +148,13 @@ export function tensionCautions(s: Pick<SettingResult, "tension">, table: Spring
   if (!info || !table) return [];
   const out: TensionCaution[] = [];
   if (info.slides) out.push({ id: "no-stop", title: "横に止める物がない", text: "両はしともまっすぐな溝です。締まりの力だけで止まります。止め方は職人が決めます" });
-  if (info.overhangRatio > g.tension.askOverhangRatio + 1e-9 && info.overhangRatio <= g.tension.maxOverhangRatio + 1e-9)
+  if (longTriangle(info) && info.overhangMm > 0)
+    out.push({
+      id: "long-triangle",
+      title: "残りの角が横へ出る",
+      text: `長い辺の両はしの角を挟むので、残りの角が腕の幅の外へ、片側 ${info.overhangMm.toFixed(2)} mm 出ます。出た角をぶつけると、2 つの角を結ぶ線のまわりに石が回ろうとします。留まるかは職人が確かめてください`,
+    });
+  else if (info.overhangRatio > g.tension.askOverhangRatio + 1e-9 && info.overhangRatio <= g.tension.maxOverhangRatio + 1e-9)
     out.push({
       id: "overhang",
       title: "腕の幅の外へ大きく出る",
@@ -184,6 +189,7 @@ export function springForClaude(t: SpringTable) {
       make_gap_mm: r2(r.makeGapMm),
       spread_mm: r2(r.spreadMm),
       grip_mm: r2(r.gripMm),
+      stays_open_after_spread_mm: r2(r.setMm),
       stays_bent_mm: r2(r.bentMm),
       slide_smaller_by_mm: r2(r.slideShrinkMm),
     })),

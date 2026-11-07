@@ -1,0 +1,815 @@
+[
+  {
+    "tool": "propose_restoration",
+    "response": {
+      "status": 200,
+      "body": {
+        "model": "claude-opus-5-5",
+        "id": "msg_011Cgniyb1zDzh1smm48YbZL",
+        "type": "message",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": "",
+            "signature": "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"
+          },
+          {
+            "type": "tool_use",
+            "id": "toolu_01M6sdrtsYimB6aZb9deMDcG",
+            "name": "propose_restoration",
+            "input": {
+              "steps": [
+                {
+                  "title": "三つの地金を用意する",
+                  "detail": "古い覚え書きに、赤銅・銀・銅を重ねるとある。表の目の黒・白・赤の輪は、色を揚げたあとの赤銅・銀・銅の色かもしれないと考えられる。",
+                  "clue_ids": [
+                    "C3",
+                    "C1"
+                  ],
+                  "book_ids": [],
+                  "basis": "clues",
+                  "confidence": 2,
+                  "uncertain": "重ねる順番、それぞれの板の厚さ、何枚重ねるかは分からない。黒が赤銅、白が銀、赤が銅だというのも見立てで、確かめていない。",
+                  "caution": "",
+                  "prev_step": 0,
+                  "change": "new",
+                  "change_note": ""
+                },
+                {
+                  "title": "重ねる面をきれいにする",
+                  "detail": "重ねる面の汚れや油、さびを落とし、平らにそろえる。手がかりには書かれていないが、火で一つにするなら要ると考えた。",
+                  "clue_ids": [],
+                  "book_ids": [],
+                  "basis": "prior",
+                  "confidence": 1,
+                  "uncertain": "どこまで磨くか、何で汚れを落とすかは試して決める。",
+                  "caution": "汚れ落としに酸などを使うなら、手袋と目の守りをつけ、風通しのよい所で。",
+                  "prev_step": 0,
+                  "change": "new",
+                  "change_note": ""
+                },
+                {
+                  "title": "重ねて火で一つにする",
+                  "detail": "古い覚え書きの「火にて一つとなし」から、重ねた板を熱して、くっつけて一つの塊にしたと考えられる。",
+                  "clue_ids": [
+                    "C3"
+                  ],
+                  "book_ids": [],
+                  "basis": "clues",
+                  "confidence": 3,
+                  "uncertain": "何度まで熱すか、どのくらいの時間か、板をどう押さえるかは分からない。試して決める。熱しすぎると銀や赤銅が溶けて流れるかもしれない。",
+                  "caution": "高い熱を使う。やけどと火事に気をつける。溶けた金属が飛ぶことがある。",
+                  "prev_step": 0,
+                  "change": "new",
+                  "change_note": ""
+                },
+                {
+                  "title": "焼きなましてゆっくり冷ます",
+                  "detail": "打つ前や、打って硬くなったときに焼きなます。この工房では木目金で、焼きなましたあとは水で急に冷やさず、ゆっくり冷ますと判断している。重ねた地金を打つこの技でも、同じほうがよいかもしれない。",
+                  "clue_ids": [
+                    "C3"
+                  ],
+                  "book_ids": [
+                    "B16"
+                  ],
+                  "basis": "clues",
+                  "confidence": 2,
+                  "uncertain": "どの工程の間で、何回焼きなますか、何度に熱すかは分からない。帳面は木目金についての決まりで、この技にそのまま当てはまるかは試して確かめる。",
+                  "caution": "高い熱を使う。やけどに気をつける。",
+                  "prev_step": 0,
+                  "change": "new",
+                  "change_note": ""
+                },
+                {
+                  "title": "表から浅く穴を彫る",
+                  "detail": "古い覚え書きに「錐にて浅く穴を穿ち」とある。表の目がほぼ同じ間で並ぶので、穴も同じくらいの間で彫ったと考えられる。裏に穴の跡がないので、穴は表からで、裏まで抜けていないと考えられる。職人の見立てでは、穴の深さで見える輪の数が変わるかもしれない。",
+                  "clue_ids": [
+                    "C3",
+                    "C1",
+                    "C2",
+                    "C4"
+                  ],
+                  "book_ids": [],
+                  "basis": "clues",
+                  "confidence": 2,
+                  "uncertain": "穴の深さと間は覚え書きに書かれていない。どの層まで届かせると黒・白・赤の三つの輪が出るかも分からない。錐の先の形も分からない。",
+                  "caution": "錐や刃物で手を切らないように、板をしっかり固定する。",
+                  "prev_step": 0,
+                  "change": "new",
+                  "change_note": ""
+                },
+                {
+                  "title": "打って平らにする",
+                  "detail": "古い覚え書きの「打ち平む」から、穴を彫った板を打って平らにしたと考えられる。打つと穴のまわりの層が広がり、輪として表に出るのかもしれない。裏が平らで打った跡がないので、裏は平らな台に当てていたかもしれない。",
+                  "clue_ids": [
+                    "C3",
+                    "C2"
+                  ],
+                  "book_ids": [],
+                  "basis": "clues",
+                  "confidence": 2,
+                  "uncertain": "穴がどこまでふさがるか、表に打ち跡が残るか、どのくらいの薄さまで打つかは分からない。",
+                  "caution": "",
+                  "prev_step": 0,
+                  "change": "new",
+                  "change_note": ""
+                },
+                {
+                  "title": "表と裏をととのえる",
+                  "detail": "裏に打った跡がないことから、打ったあとに表面をならしたり磨いたりしたのかもしれない。覚え書きには書かれていないので、推し量りにすぎない。",
+                  "clue_ids": [
+                    "C2"
+                  ],
+                  "book_ids": [],
+                  "basis": "clues",
+                  "confidence": 1,
+                  "uncertain": "削ったのか、磨いただけか、何もしなかったのかは分からない。表を削ると、見える輪の数が変わるかもしれない。",
+                  "caution": "",
+                  "prev_step": 0,
+                  "change": "new",
+                  "change_note": ""
+                },
+                {
+                  "title": "煮て色を揚げる",
+                  "detail": "古い覚え書きの「のち煮て色を揚ぐ」から、最後に液で煮て、地金ごとの色を出したと考えられる。目の中の黒・白・赤の輪は、このとき出た色かもしれない。",
+                  "clue_ids": [
+                    "C3",
+                    "C1"
+                  ],
+                  "book_ids": [],
+                  "basis": "clues",
+                  "confidence": 3,
+                  "uncertain": "煮る液の中身、濃さ、煮る時間は覚え書きに書かれていない。試して決める。",
+                  "caution": "色揚げの液に銅の化合物などを使うかもしれない。湯気を吸わないよう風通しのよい所で、手袋をつけ、液は台所の道具と分けて使う。",
+                  "prev_step": 0,
+                  "change": "new",
+                  "change_note": ""
+                }
+              ],
+              "dropped": [],
+              "unknowns": [
+                {
+                  "what": "重ねる順番と層の数",
+                  "why": "どの層が表に近いかで、輪の色の並びが変わる。表の目の黒・白・赤の並びに合わせられない。",
+                  "step": 1
+                },
+                {
+                  "what": "穴の深さ",
+                  "why": "職人の見立てでは、深さで輪の数が変わるかもしれない。三つの輪を出すにはどこまで彫るかが決まらない。",
+                  "step": 5
+                },
+                {
+                  "what": "火で一つにするときの温度と時間",
+                  "why": "低いとくっつかず、高いと銀や赤銅が溶けるかもしれない。",
+                  "step": 3
+                },
+                {
+                  "what": "打ったあと穴がどうなるか、表を削ったかどうか",
+                  "why": "目が丸い輪として平らに出る仕組みが分からないと、仕上げの工程が決まらない。",
+                  "step": 6
+                },
+                {
+                  "what": "煮る液の中身と時間",
+                  "why": "黒・白・赤の色の出方が液で変わるかもしれない。",
+                  "step": 8
+                },
+                {
+                  "what": "穴の間と錐の形",
+                  "why": "目の大きさとそろい方を、残った品物に近づけられない。",
+                  "step": 5
+                },
+                {
+                  "what": "焼きなましの回数と温度",
+                  "why": "打っている途中で割れたり、層がはがれたりするかもしれない。",
+                  "step": 4
+                }
+              ],
+              "next_checks": [
+                {
+                  "what": "残った品物の板の縁（ふち）を、持ち主に頼んで拡大して見せてもらい、層の色の並びと厚さの比べを見る",
+                  "why": "重ねる順番と層の数が、材料を使わずに分かるかもしれない。表の目が平らか、少しへこんでいるかも見られる。",
+                  "kind": "ask",
+                  "step": 1,
+                  "caution": ""
+                },
+                {
+                  "what": "赤銅・銀・銅の小さな切れ端を、別々に煮て色を揚げてみる",
+                  "why": "黒・白・赤がそれぞれの地金の色だという見立てが合っているかが分かる。重ねる前に安く確かめられる。",
+                  "kind": "trial",
+                  "step": 8,
+                  "caution": "液の湯気を吸わない。手袋をつけ、風通しのよい所で。"
+                },
+                {
+                  "what": "高い赤銅や銀の前に、安い地金の小さな切れ端を二つ重ねて、火で一つにできるか試す",
+                  "why": "くっつく温度と押さえ方の見当がつき、高い材料のむだが減る。",
+                  "kind": "trial",
+                  "step": 3,
+                  "caution": "高い熱を使う。やけどと火事に気をつける。"
+                },
+                {
+                  "what": "三つを重ねた小さな切れ端に、深さを少しずつ変えた穴を一列に彫り、打って平らにしてから色を揚げる",
+                  "why": "穴の深さと見える輪の数の関係という職人の見立てが確かめられる。三つの輪が出る深さの見当がつく。",
+                  "kind": "trial",
+                  "step": 5,
+                  "caution": "板をしっかり固定し、錐で手を切らないように。"
+                },
+                {
+                  "what": "同じ切れ端の半分は打ったまま、半分は表をならしてから色を揚げて比べる",
+                  "why": "打ったあとに表を削ったかどうかで、目の見え方がどう変わるかが分かる。",
+                  "kind": "trial",
+                  "step": 7,
+                  "caution": ""
+                },
+                {
+                  "what": "打つ途中で焼きなますとき、ゆっくり冷ましたものと水で冷ましたものを比べる",
+                  "why": "この工房の木目金での判断が、この技でも合うかが分かる。曲がりやはがれの違いを見る。",
+                  "kind": "trial",
+                  "step": 4,
+                  "caution": "高い熱を使う。やけどに気をつける。"
+                }
+              ],
+              "summary": "古い覚え書きから考えると、赤銅・銀・銅を重ねて火で一つにし、表から浅く穴を彫って打ち平らにし、最後に煮て色を揚げた技かもしれません。目の黒・白・赤の輪は、穴の深さで出る層の数が変わってできたものと考えられますが、深さ、重ねる順番、温度、煮る液はまだ分かりません。これは試して確かめるための案です。",
+              "changes": ""
+            },
+            "caller": {
+              "type": "direct"
+            }
+          }
+        ],
+        "container": null,
+        "stop_reason": "tool_use",
+        "stop_sequence": null,
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 4,
+          "cache_creation_input_tokens": 7115,
+          "cache_read_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 7115,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "iterations": [
+            {
+              "input_tokens": 4,
+              "output_tokens": 5377,
+              "cache_read_input_tokens": 0,
+              "cache_creation_input_tokens": 7115,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 7115,
+                "ephemeral_1h_input_tokens": 0
+              },
+              "type": "message",
+              "model": null
+            }
+          ],
+          "output_tokens": 5377,
+          "output_tokens_details": {
+            "thinking_tokens": 1957
+          },
+          "service_tier": "standard",
+          "inference_geo": "global",
+          "speed": "standard"
+        },
+        "diagnostics": null
+      }
+    }
+  },
+  {
+    "tool": "predict_pattern",
+    "response": {
+      "status": 200,
+      "body": {
+        "model": "claude-opus-5-5",
+        "id": "msg_011Cgnj3hGPZgsqKL7hW6EpT",
+        "type": "message",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": "",
+            "signature": "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"
+          },
+          {
+            "type": "tool_use",
+            "id": "toolu_01GYqMvUtSsBiDkoLt6EABuH",
+            "name": "predict_pattern",
+            "input": {
+              "applicable": true,
+              "reason": "赤銅・銀・銅を重ねてつなぎ、表から浅く穴を彫って打ち平らにし、煮て色を出す手順を、そのまま操作に置きかえました。",
+              "ops": [
+                {
+                  "op": "stack",
+                  "step": 1,
+                  "why": "赤銅・銀・銅の三つの地金を重ねる工程なので、重ねる操作にした",
+                  "assumed": "重ねる順番と枚数が分からないので、上から赤銅・銀・銅を3回くり返して9枚とした。絵のための仮の値",
+                  "metals": [
+                    "shakudo",
+                    "silver",
+                    "copper"
+                  ],
+                  "amount": 9,
+                  "size": 0,
+                  "across": 0,
+                  "choice": "-"
+                },
+                {
+                  "op": "bond",
+                  "step": 3,
+                  "why": "火で一つにする工程なので、層をつなぐ操作にした。面をきれいにする工程は、よくつながる見込みとしてここに含めた",
+                  "assumed": "温度や時間が分からないので、よくつながったと仮に決めた",
+                  "metals": [],
+                  "amount": 0,
+                  "size": 0,
+                  "across": 0,
+                  "choice": "good"
+                },
+                {
+                  "op": "carve",
+                  "step": 5,
+                  "why": "錐で表から浅く穴を彫る工程なので、同じ間の丸い穴を彫る操作にした",
+                  "assumed": "深さと間が分からないので、深さは厚みの4分の1ほどで上から3枚目の銅に届くくらい、幅に8つ並ぶ、穴の半径は幅の0.03とした。絵のための仮の値",
+                  "metals": [],
+                  "amount": 0.25,
+                  "size": 0.03,
+                  "across": 8,
+                  "choice": "dots"
+                },
+                {
+                  "op": "flatten",
+                  "step": 6,
+                  "why": "穴を彫った板を打って平らにする工程なので、平らにする操作にした",
+                  "assumed": "",
+                  "metals": [],
+                  "amount": 0,
+                  "size": 0,
+                  "across": 0,
+                  "choice": "-"
+                },
+                {
+                  "op": "color",
+                  "step": 8,
+                  "why": "最後に煮て色を揚げる工程なので、薬で色を出す操作にした",
+                  "assumed": "煮る液が分からないので、煮色のような色の出方として描く",
+                  "metals": [],
+                  "amount": 0,
+                  "size": 0,
+                  "across": 0,
+                  "choice": "patina"
+                }
+              ],
+              "cannot_show": "焼きなましとゆっくり冷ますことは、模様の形を変えないので描いていません。表と裏をととのえる工程は、削ったのか、磨いただけか、何もしなかったのかが分からないので、削る操作は入れていません。削ると見える輪の数が変わるかもしれません。煮る液による本当の色の深さ、熱しすぎて溶けること、表に残る打ち跡は表せません。",
+              "summary": "黒い地に、穴の所だけ白と赤の輪がのぞく、同じ間に並んだ目の模様になるかもしれません。ただし表を削らないので、輪がはっきり出ないことも考えられます。"
+            },
+            "caller": {
+              "type": "direct"
+            }
+          }
+        ],
+        "container": null,
+        "stop_reason": "tool_use",
+        "stop_sequence": null,
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 4,
+          "cache_creation_input_tokens": 4816,
+          "cache_read_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 4816,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "iterations": [
+            {
+              "input_tokens": 4,
+              "output_tokens": 1938,
+              "cache_read_input_tokens": 0,
+              "cache_creation_input_tokens": 4816,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 4816,
+                "ephemeral_1h_input_tokens": 0
+              },
+              "type": "message",
+              "model": null
+            }
+          ],
+          "output_tokens": 1938,
+          "output_tokens_details": {
+            "thinking_tokens": 894
+          },
+          "service_tier": "standard",
+          "inference_geo": "global",
+          "speed": "standard"
+        },
+        "diagnostics": null
+      }
+    }
+  },
+  {
+    "tool": "propose_restoration",
+    "response": {
+      "status": 200,
+      "body": {
+        "model": "claude-opus-5-5",
+        "id": "msg_011Cgnj5LToHQnKPHUsZ6b9J",
+        "type": "message",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": "",
+            "signature": "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"
+          },
+          {
+            "type": "tool_use",
+            "id": "toolu_01UWeHbNTeusEMi2P2ctqsff",
+            "name": "propose_restoration",
+            "input": {
+              "steps": [
+                {
+                  "title": "三つの地金を用意し、重ねる順の見当をつける",
+                  "detail": "古い覚え書きに、赤銅・銀・銅を重ねるとある。表の目の黒・白・赤の輪は、色を揚げたあとの赤銅・銀・銅の色かもしれない。職人の試しでは、浅い穴で黒と白、深い穴でだけ赤が出た。表から赤銅、銀、銅の順に重なっていたのかもしれない。",
+                  "clue_ids": [
+                    "C3",
+                    "C1",
+                    "T1"
+                  ],
+                  "book_ids": [],
+                  "basis": "clues",
+                  "confidence": 2,
+                  "uncertain": "重ねる順はまだ推し量り。試しの切れ端が、どの順で重ねてあったかによっても読み方が変わる。それぞれの層の厚さも分からない。試して決める。",
+                  "caution": "",
+                  "prev_step": 1,
+                  "change": "changed",
+                  "change_note": "職人の試しで、深い穴でだけ赤い輪が出たことから、銅がいちばん下（裏側）にあるかもしれないという重ねる順の見当を足した。"
+                },
+                {
+                  "title": "重ねる面をきれいにする",
+                  "detail": "重ねる面の汚れや油、さびを落とし、平らにそろえる。手がかりには書かれていないが、火で一つにするなら要ると考えた。",
+                  "clue_ids": [],
+                  "book_ids": [],
+                  "basis": "prior",
+                  "confidence": 1,
+                  "uncertain": "どこまで磨くか、どんな物で汚れを落とすかは分からない。",
+                  "caution": "汚れ落としに薬品を使うなら、手や目を守る。",
+                  "prev_step": 2,
+                  "change": "same",
+                  "change_note": ""
+                },
+                {
+                  "title": "重ねて火で一つにする",
+                  "detail": "古い覚え書きの「火にて一つとなし」から、重ねた板を熱して、くっつけて一つの塊にしたと考えられる。",
+                  "clue_ids": [
+                    "C3"
+                  ],
+                  "book_ids": [],
+                  "basis": "clues",
+                  "confidence": 2,
+                  "uncertain": "何度まで熱するか、どのくらいの時間か、押さえ方は分からない。試して決める。",
+                  "caution": "高い熱を使う。やけどと火事に気をつける。溶けすぎると層がくずれる。",
+                  "prev_step": 3,
+                  "change": "same",
+                  "change_note": ""
+                },
+                {
+                  "title": "焼きなましてゆっくり冷ます",
+                  "detail": "打つ前や、打って硬くなったときに焼きなます。この工房では木目金や槌目で、焼きなましたあとは水で急に冷やさず、ゆっくり冷ますと判断している。重ねた地金を打つこの技でも、同じほうがよいかもしれない。",
+                  "clue_ids": [
+                    "C3"
+                  ],
+                  "book_ids": [
+                    "B16",
+                    "B14"
+                  ],
+                  "basis": "clues",
+                  "confidence": 2,
+                  "uncertain": "焼きなましの温度と回数は分からない。",
+                  "caution": "高い熱を使う。やけどに気をつける。",
+                  "prev_step": 4,
+                  "change": "same",
+                  "change_note": ""
+                },
+                {
+                  "title": "表から、銅の層まで届く深さで穴をあける",
+                  "detail": "古い覚え書きに「錐にて浅く穴を穿ち」とある。けれど職人の試しでは、浅い穴では黒と白の輪しか出ず、もう少し深くあけた所だけ赤い輪が出た。表の目に赤い輪があるので、穴はいちばん下の層まで届く深さだったと考えられる。覚え書きの「浅く」は、裏まで抜けない、という意味かもしれない。目がほぼ同じ間で並び、裏に穴の跡がないので、同じ間で、裏に抜けないようにあける。職人の見立てどおり、深さで輪の数が変わると考えられる。",
+                  "clue_ids": [
+                    "C3",
+                    "C1",
+                    "C2",
+                    "C4",
+                    "T1"
+                  ],
+                  "book_ids": [],
+                  "basis": "clues",
+                  "confidence": 2,
+                  "uncertain": "どこまで深くすれば赤が出て、どこから裏に響くかは分からない。穴の間、穴の太さ、錐の先の形も分からない。試して決める。",
+                  "caution": "錐が滑ると手をけがする。板をしっかり押さえる。",
+                  "prev_step": 5,
+                  "change": "changed",
+                  "change_note": "職人の試しで、浅い穴では赤い輪が出ず、深くあけた所だけ赤が出たので、穴の深さを、銅の層まで届くように変えた。"
+                },
+                {
+                  "title": "打って平らにする",
+                  "detail": "古い覚え書きの「打ち平む」から、穴をあけた板を打って平らにしたと考えられる。打つと穴のまわりの層が広がり、輪として表に出るのかもしれない。裏が平らで打った跡がないので、裏は平らな台に当てていたかもしれない。穴が深くなったので、打つと裏に響きやすいかもしれない。",
+                  "clue_ids": [
+                    "C3",
+                    "C2",
+                    "T1"
+                  ],
+                  "book_ids": [],
+                  "basis": "clues",
+                  "confidence": 2,
+                  "uncertain": "どのくらい打つか、何回焼きなましをはさむか、表を削ってから打つのかは分からない。",
+                  "caution": "",
+                  "prev_step": 6,
+                  "change": "same",
+                  "change_note": ""
+                },
+                {
+                  "title": "表と裏をととのえる",
+                  "detail": "裏に打った跡がないことから、打ったあとに表面をならしたり磨いたりしたのかもしれない。覚え書きには書かれていないので、推し量りにすぎない。",
+                  "clue_ids": [
+                    "C2"
+                  ],
+                  "book_ids": [],
+                  "basis": "clues",
+                  "confidence": 1,
+                  "uncertain": "削るのか磨くのか、どこまでかは分からない。",
+                  "caution": "",
+                  "prev_step": 7,
+                  "change": "same",
+                  "change_note": ""
+                },
+                {
+                  "title": "煮て色を揚げる",
+                  "detail": "古い覚え書きの「のち煮て色を揚ぐ」から、最後に液で煮て、地金ごとの色を出したと考えられる。目の中の黒・白・赤の輪は、このとき出た色かもしれない。",
+                  "clue_ids": [
+                    "C3",
+                    "C1"
+                  ],
+                  "book_ids": [],
+                  "basis": "clues",
+                  "confidence": 2,
+                  "uncertain": "煮る液の中身、温度、時間は分からない。試して決める。",
+                  "caution": "煮る液によっては体に悪い物が入るかもしれない。湯気を吸わず、風通しをよくし、手と目を守る。",
+                  "prev_step": 8,
+                  "change": "same",
+                  "change_note": ""
+                }
+              ],
+              "dropped": [],
+              "unknowns": [
+                {
+                  "what": "赤い輪が出て、しかも裏に響かない穴の深さ",
+                  "why": "浅いと赤が出ず、深すぎると裏の平らさがくずれるかもしれない。この技の中心の分かれ目になる。",
+                  "step": 5
+                },
+                {
+                  "what": "三つの地金を重ねる順と、それぞれの層の厚さ",
+                  "why": "順と厚さで、どの深さでどの色が出るかが変わる。",
+                  "step": 1
+                },
+                {
+                  "what": "火で一つにするときの温度と時間、押さえ方",
+                  "why": "くっつかなければ打つとはがれ、熱しすぎると層がくずれる。",
+                  "step": 3
+                },
+                {
+                  "what": "打ったとき、深い穴の跡が裏に出るかどうか",
+                  "why": "残った品物の裏は平らで跡がないので、それと合うかを確かめたい。",
+                  "step": 6
+                },
+                {
+                  "what": "煮る液の中身と煮方",
+                  "why": "黒・白・赤の色の出方が、これで決まると考えられる。",
+                  "step": 8
+                },
+                {
+                  "what": "穴の間と太さ",
+                  "why": "表の目の大きさと並びに合わせるのに要る。",
+                  "step": 5
+                }
+              ],
+              "next_checks": [
+                {
+                  "what": "前に試した切れ端か新しい小さな切れ端に、深さを少しずつ変えた穴を並べてあけ、どの深さから赤い輪が出るかを見る",
+                  "why": "赤が出る深さの境目が分かり、穴あけの工程の深さが決めやすくなる。",
+                  "kind": "trial",
+                  "step": 5,
+                  "caution": "錐が滑らないよう板を押さえる。"
+                },
+                {
+                  "what": "試した切れ端の端をヤスリで削って断面を見て、三つの層の順と厚さを見る",
+                  "why": "浅い穴で黒と白、深い穴で赤が出たことが、重ねる順で説明できるかが分かる。",
+                  "kind": "trial",
+                  "step": 1,
+                  "caution": ""
+                },
+                {
+                  "what": "深くあけた穴の切れ端を打って平らにし、表の輪の形と、裏に跡が出るかを見る",
+                  "why": "深い穴でも裏が平らなままにできるか、打つと輪が広がるかが分かる。",
+                  "kind": "trial",
+                  "step": 6,
+                  "caution": ""
+                },
+                {
+                  "what": "打った小さな切れ端を煮て色を揚げ、黒・白・赤の輪になるかを見る",
+                  "why": "輪の色が、色揚げで出た地金の色だという見方が合うかが分かる。",
+                  "kind": "trial",
+                  "step": 8,
+                  "caution": "煮る液によっては体に悪い物が入るかもしれない。風通しをよくし、手と目を守る。"
+                },
+                {
+                  "what": "持ち主に、品物の縁や側面に層の重なりが見えるか、目の輪の幅がどうなっているかを聞く",
+                  "why": "層の順と厚さ、穴の深さの見当がつけやすくなる。",
+                  "kind": "ask",
+                  "step": 0,
+                  "caution": ""
+                }
+              ],
+              "summary": "古い覚え書きと職人の試しから、赤銅・銀・銅を重ねて火で一つにし、表から銅の層まで届く深さで穴をあけ、打ち平らにして煮て色を揚げた技かもしれない、と考えました。浅い穴では赤い輪が出なかったので、覚え書きの「浅く」は、裏まで抜けない程度の意味かもしれません。深さ、重ねる順、温度、煮る液はまだ分からないので、試して確かめるための案です。",
+              "changes": "職人の試しで、浅い穴では黒と白の輪しか出ず、深い所だけ赤が出たので、穴の深さを銅の層まで届くように変えました。同じ試しから、表から赤銅・銀・銅の順に重なっていたかもしれない、という見当を地金を用意する工程に足しました。ほかの工程はそのままです。"
+            },
+            "caller": {
+              "type": "direct"
+            }
+          }
+        ],
+        "container": null,
+        "stop_reason": "tool_use",
+        "stop_sequence": null,
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 4,
+          "cache_creation_input_tokens": 8368,
+          "cache_read_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 8368,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "iterations": [
+            {
+              "input_tokens": 4,
+              "output_tokens": 4295,
+              "cache_read_input_tokens": 0,
+              "cache_creation_input_tokens": 8368,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 8368,
+                "ephemeral_1h_input_tokens": 0
+              },
+              "type": "message",
+              "model": null
+            }
+          ],
+          "output_tokens": 4295,
+          "output_tokens_details": {
+            "thinking_tokens": 806
+          },
+          "service_tier": "standard",
+          "inference_geo": "global",
+          "speed": "standard"
+        },
+        "diagnostics": null
+      }
+    }
+  },
+  {
+    "tool": "predict_pattern",
+    "response": {
+      "status": 200,
+      "body": {
+        "model": "claude-opus-5-5",
+        "id": "msg_011Cgnj8GyYAKZPSpBoy5mdb",
+        "type": "message",
+        "role": "assistant",
+        "content": [
+          {
+            "type": "thinking",
+            "thinking": "",
+            "signature": "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"
+          },
+          {
+            "type": "tool_use",
+            "id": "toolu_01ETAtkE2GXXZQgsGFwrLs4Z",
+            "name": "predict_pattern",
+            "input": {
+              "applicable": true,
+              "reason": "赤銅・銀・銅の三枚重ねに、銅の層まで届く穴をあけ、打ち平らにして煮色を揚げる操作に置きかえました。",
+              "ops": [
+                {
+                  "op": "stack",
+                  "step": 1,
+                  "why": "覚え書きのとおり、表から赤銅、銀、銅の順に重ねる見当にした",
+                  "assumed": "各一枚ずつで三枚、厚さは同じと仮に決めた。重ねる順と厚さはまだ推し量り",
+                  "metals": [
+                    "shakudo",
+                    "silver",
+                    "copper"
+                  ],
+                  "amount": 3,
+                  "size": 0,
+                  "across": 0,
+                  "choice": "-"
+                },
+                {
+                  "op": "bond",
+                  "step": 3,
+                  "why": "火にて一つとなす工程。面をきれいにする工程もあるので、よくつながるとした",
+                  "assumed": "温度や時間は分からないので、よくつながったとして描く",
+                  "metals": [],
+                  "amount": 0,
+                  "size": 0,
+                  "across": 0,
+                  "choice": "good"
+                },
+                {
+                  "op": "carve",
+                  "step": 5,
+                  "why": "錐で同じ間に丸い穴をあけ、いちばん下の銅の層まで届かせる",
+                  "assumed": "三枚が同じ厚さなら銅は厚みの三分の二より下なので、深さを厚みの0.7とした。穴の大きさと並ぶ数も仮",
+                  "metals": [],
+                  "amount": 0.7,
+                  "size": 0.03,
+                  "across": 8,
+                  "choice": "dots"
+                },
+                {
+                  "op": "flatten",
+                  "step": 6,
+                  "why": "打ち平む工程。穴のまわりの層が広がり、輪として出るかを見る",
+                  "assumed": "",
+                  "metals": [],
+                  "amount": 0,
+                  "size": 0,
+                  "across": 0,
+                  "choice": "-"
+                },
+                {
+                  "op": "grind",
+                  "step": 7,
+                  "why": "打ったあと表をならす工程を、浅く削ることにした",
+                  "assumed": "削るか磨くかは分からないので、ごく浅く厚みの0.05とした",
+                  "metals": [],
+                  "amount": 0.05,
+                  "size": 0,
+                  "across": 0,
+                  "choice": "-"
+                },
+                {
+                  "op": "color",
+                  "step": 8,
+                  "why": "最後に煮て色を揚げる工程",
+                  "assumed": "煮る液は分からないので、煮色として描く",
+                  "metals": [],
+                  "amount": 0,
+                  "size": 0,
+                  "across": 0,
+                  "choice": "patina"
+                }
+              ],
+              "cannot_show": "焼きなましとゆっくり冷ますこと、面の汚れ落とし、火の温度、裏に響くかどうか、煮る液による本当の色あい",
+              "summary": "黒い赤銅の地に、同じ間で並ぶ丸い目が出て、目の中に白い銀の輪と、真ん中に赤い銅の色がのぞくかもしれません。穴の深さが銅に届かないところでは、赤が出ないことも考えられます。"
+            },
+            "caller": {
+              "type": "direct"
+            }
+          }
+        ],
+        "container": null,
+        "stop_reason": "tool_use",
+        "stop_sequence": null,
+        "stop_details": null,
+        "usage": {
+          "input_tokens": 4,
+          "cache_creation_input_tokens": 4896,
+          "cache_read_input_tokens": 0,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 4896,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "iterations": [
+            {
+              "input_tokens": 4,
+              "output_tokens": 1464,
+              "cache_read_input_tokens": 0,
+              "cache_creation_input_tokens": 4896,
+              "cache_creation": {
+                "ephemeral_5m_input_tokens": 4896,
+                "ephemeral_1h_input_tokens": 0
+              },
+              "type": "message",
+              "model": null
+            }
+          ],
+          "output_tokens": 1464,
+          "output_tokens_details": {
+            "thinking_tokens": 457
+          },
+          "service_tier": "standard",
+          "inference_geo": "global",
+          "speed": "standard"
+        },
+        "diagnostics": null
+      }
+    }
+  }
+]

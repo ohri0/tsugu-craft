@@ -91,7 +91,7 @@ function fakeHost(opts: { failCheck?: boolean } = {}) {
     check() {
       calls.push("check");
       if (opts.failCheck) throw new Error("確かめの計算に失敗");
-      return { problems: [], passed: ["石の一番下と指のすき間"], note: GUIDE_NOTE };
+      return { problems: [], passed: ["石の一番下と指のすき間"], cautions: [], note: GUIDE_NOTE };
     },
     look(input) {
       calls.push("look");

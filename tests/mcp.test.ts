@@ -106,8 +106,18 @@ describe("check_ring", () => {
     const flat = checkRingTool(ctx, { stone: triangle, design: { shank_section: "hirauchi" } });
     expect(flat.design.shank.section).toBe("hirauchi");
     expect(flat.metal_weight_g).toBeGreaterThan(v.metal_weight_g);
-    const thin = checkRingTool(ctx, { stone: triangle, design: { shank_thickness_mm: 1.0, shank_width_mm: 1.5 } });
+    // 腕の幅の赤は職人の決まりで 0.6 mm 以下（前は資料の 1.7 mm。作者が 1.6 mm でも作れると言った 2026-11-06）
+    const thin = checkRingTool(ctx, { stone: triangle, design: { shank_thickness_mm: 1.0, shank_width_mm: 0.55 } });
     expect(thin.problems.map((p) => p.id)).toEqual(expect.arrayContaining(["band-thin", "band-narrow"]));
+    // 1.5 mm は何も出ない。0.9 mm は黄色・0.65 mm はオレンジの注意で、problems には入らない（作れる）
+    const ok = checkRingTool(ctx, { stone: triangle, design: { shank_width_mm: 1.5 } });
+    expect(ok.problems.map((p) => p.id)).not.toContain("band-narrow");
+    expect(ok.cautions).toEqual([]);
+    for (const [w, level] of [[0.9, "yellow"], [0.65, "orange"]] as const) {
+      const r = checkRingTool(ctx, { stone: triangle, design: { shank_width_mm: w } });
+      expect(r.problems.map((p) => p.id)).not.toContain("band-narrow");
+      expect(r.cautions.find((c) => c.id === "band-narrow")).toMatchObject({ level });
+    }
   });
   it("腕の断面の線と場所ごとの形も、画面の Claude と同じ書き方で。壊れた線は分かる言葉で断る", () => {
     const ridge = [{ x: 1, y: 0 }, { x: 1, y: 0.35 }, { x: 0.5, y: 0.55 }, { x: 0, y: 1 }, { x: 0, y: 1 }, { x: 0, y: 1 }, { x: -0.5, y: 0.55 }, { x: -1, y: 0.35 }, { x: -1, y: 0 }];

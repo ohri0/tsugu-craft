@@ -7,8 +7,10 @@ import { findThinSpots, type ThinSpot } from "../geometry/section-thin";
 import { stoneSpaces } from "../geometry/multi";
 import { tipMeasures, type SettingResult } from "../geometry/setting";
 import type { TensionEnd, TensionInfo } from "../geometry/tension";
+import { checkNunome, faceSpan, nunomeOf, type NunomeCheck, type NunomeDesign, type NunomeIssue } from "../geometry/nunome";
 import { GUIDE_NOTE, GUIDES, type Guides, type StonePosition } from "./guides";
 import { prongMinOverride } from "./ledger";
+import { elasticOpeningMm } from "./tension-set";
 
 /** 画面に必ず添える、留まりの注意 */
 export const HOLD_NOTE = "「留まり」は爪を片持ちの棒と見なした目安の比較で、強度計算の代わりではない";
@@ -50,6 +52,15 @@ export const FIXES = {
   thinnerWire: { label: "腕の線を細くする", effectOnLook: "腕が細く見え、軽くなる。ばねの力は弱くなる" },
   turnGrip: { label: "挟む向きを変える", effectOnLook: "石の向きが変わり、腕の開きも変わる" },
   prongInstead: { label: "爪留めにする", effectOnLook: "石のまわりに爪が立ち、腕の両はしは閉じて見える" },
+  smallerTsuchime: { label: "槌目を小さくする", effectOnLook: "跡が浅く細かくなり、光がこまかく散る" },
+  noTsuchime: { label: "槌目をやめる", effectOnLook: "腕がなめらかな鏡面にもどる" },
+  noMilgrain: { label: "ミル打ちをやめる", effectOnLook: "腕の縁がすっきり見える" },
+  inlayLine: { label: "象嵌の線の太さを直す", effectOnLook: "模様の線が少し太く（細く）見える" },
+  inlayLarger: { label: "象嵌の模様を大きくする", effectOnLook: "模様がゆったりして、地が広く見える" },
+  inlayNarrower: { label: "象嵌の帯を細くする", effectOnLook: "帯が細く、控えめになる" },
+  inlayFoil: { label: "平金の厚みを直す", effectOnLook: "見た目はほとんど変わらない" },
+  inlayBorder: { label: "象嵌の縁の線をつける", effectOnLook: "帯の両縁に細い線が入る" },
+  noInlay: { label: "象嵌をやめる", effectOnLook: "腕が地金だけにもどる" },
 } as const satisfies Record<string, Omit<FixOption, "id">>;
 
 function fix(...ids: FixId[]): FixOption[] {
@@ -83,7 +94,11 @@ export type CheckId =
   | "tension-pit"
   | "tension-culet"
   | "tension-sunk"
-  | "tension-overhang";
+  | "tension-overhang"
+  | "tsuchime-thin"
+  | "milgrain-fit"
+  /** 布目象嵌の模様が作れるか（線の太さ・地のすき間・小さなかけら・帯が面に収まるか・平金の厚み） */
+  | NunomeCheck;
 
 /** 問題の場所（画面で赤くする所） */
 export type CheckTarget =
@@ -102,7 +117,9 @@ export type CheckTarget =
   /** 腕の間に挟む石座の、下の輪（板を丸めた輪）ぜんぶ */
   | { kind: "collar" }
   /** 腕の端が下の輪に当たる所（point は指輪の座標 mm） */
-  | { kind: "band-end"; point: [number, number, number] };
+  | { kind: "band-end"; point: [number, number, number] }
+  /** 布目象嵌の模様（腕は赤くせず、はめこんだ模様を赤く見せる） */
+  | { kind: "inlay" };
 
 export interface Problem {
   /** 確かめの種類と場所（例：prong-thin:2） */
@@ -119,6 +136,8 @@ export interface Problem {
   reason: string;
   options: FixOption[];
   target: CheckTarget;
+  /** 布目象嵌の問題の直し方（直した模様の値。画面と Claude の直し方が使う） */
+  nunomePatch?: Partial<NunomeDesign>;
   /**
    * 石を並べた指輪で、どの石の問題か（RingDesign.stones の番号。なければ 0 ＝ 真ん中の石）。
    * target の爪・角・縁の位置は、この石の座標
@@ -137,7 +156,8 @@ export interface CheckOptions {
 
 const mm = (v: number) => `${v.toFixed(2)} mm`;
 const pct = (v: number) => `${(v * 100).toFixed(0)}%`;
-const times = (v: number) => `${v.toFixed(2)}×`;
+/** 留まりの倍。画面に「0.13×」とだけ出ると何の数か分からなかったので、ふつうの言葉で（2026-11-06） */
+const times = (v: number) => `${v.toFixed(2)} 倍`;
 
 /**
  * 石の留まり（目安の比較）。標準の 4 本爪・標準の太さ・標準の高さ ＝ 1.0×。
@@ -193,7 +213,7 @@ export function cornerDistances(s: SettingResult): number[] {
 
 /** 指輪をまるごと確かめる。問題がなければ空の一覧 */
 export function checkRing(ring: RingDesign, opts: CheckOptions = {}): Problem[] {
-  const out = [...checkSetting(ring.setting, ring.culetGapMm, opts), ...checkShank(ring.shank, opts), ...checkBandEnds(ring, opts), ...checkTension(ring.setting, opts.guides)];
+  const out = [...checkSetting(ring.setting, ring.culetGapMm, opts), ...checkShank(ring.shank, opts), ...checkBandEnds(ring, opts), ...checkTension(ring.setting, opts.guides), ...checkFinish(ring, opts)];
   // 爪の間が空きすぎの所に、赤い印を出すための縁の点（石の座標）
   const gapPoints = (list: Problem[], outline: readonly Point[]) => {
     for (const p of list) {
@@ -392,8 +412,10 @@ export function checkTension(s: Pick<SettingResult, "tension">, g: Guides = GUID
       target: { kind: "band-end", point: [0, armEnd.planeY, armEnd.wireTopZ] },
     });
   }
-  // 石が腕の幅の外へ大きくはみ出す（腕に挟まるのが、石の長さの 3 分の 1 より短い）
-  if (info.overhangRatio > t.maxOverhangRatio + 1e-9) {
+  // 石が腕の幅の外へ大きくはみ出す（腕に挟まるのが、石の長さの 3 分の 1 より短い）。
+  // 三角を長い辺の両はしの角で挟む形は、石のいちばん長い所を挟み、出るのは残りの角 1 つだけなので、この線で止めない。
+  // 残りの角が横へ出ることは、tensionCautions で職人に確かめる（作者が実際に作った指輪はこの向きではない。2026-11-07 の聞きちがいを直した）
+  if (info.overhangRatio > t.maxOverhangRatio + 1e-9 && !longTriangle(info)) {
     const turn = info.grips.length > 1 && info.grip === "short";
     const seat = armEnd.contactWidthMm > 0 ? armEnd.contactWidthMm : info.ends[1].contactWidthMm;
     out.push({
@@ -410,6 +432,11 @@ export function checkTension(s: Pick<SettingResult, "tension">, g: Guides = GUID
     });
   }
   return out;
+}
+
+/** 三角を、いちばん長い辺の両はしの角で挟む形か */
+export function longTriangle(info: Pick<NonNullable<SettingResult["tension"]>, "mode" | "cornerCount">): boolean {
+  return info.mode === "corner-corner" && info.cornerCount === 3;
 }
 
 /** 形を作るために止める開きの最低（geometry/tension.ts と同じ。これ以下は作れない） */
@@ -439,7 +466,6 @@ export function tensionNotes(s: Pick<SettingResult, "tension" | "corners">, wire
     return list;
   });
   if (thin.length) notes.push(`彫った所に残る地金が薄い所：${thin.join("、")}（${mm(t.thinLipMm)} より薄い。仮の目安）。職人が見て決めます`);
-  if (info.ends.some((e) => e.depthMm < t.weakGrooveMm + 1e-9)) notes.push(`溝が ${mm(t.weakGrooveMm)} くらいでは抜ける、と職人は言います`);
   if (wireMm < t.minWireMm) notes.push(`腕の太さ ${mm(wireMm)}：${mm(t.minWireMm)} より細いと弱い、という職人の声が資料にあります（掲示板の 1 人の声）`);
   return notes;
 }
@@ -475,16 +501,8 @@ export function tensionInsert(info: Pick<TensionInfo, "mode" | "slides">): Tensi
   return { kind: "open", how: "腕を開いて、片側を溝へ入れてから、もう片側を入れます", hold: "溝が石の丸みに沿うので、腕が開かないと横へ動きません", noStop: false };
 }
 
-/**
- * 開いた輪を、まっすぐ押し開くとき、地金が戻れる範囲（耐力を超えない範囲）で開ける量（mm）。
- * 切れ目のある輪の曲げ：開く量 δ ＝ 3π F R³ ÷（E I）、いちばん大きい曲げ（開きの反対側）M ＝ 2 F R、σ ＝ M（d ÷ 2）÷ I。
- * F と I を消すと δ ≒ 3π R² σ ÷（E d）。I が消えるので、断面の形によらず、高さ d で決まる。
- * 前提：細い輪の近似（R が d より十分大きい。太い輪では内側の曲げが強くなるので、実際は少なめになりやすい）、まっすぐ押し開く（ねじらない）、端の溝は無視。
- * radiusMm：中心の半径 R。wireMm：線の高さ d。youngGpa：ヤング率 E。proofMpa：耐力 σ
- */
-export function elasticOpeningMm(radiusMm: number, wireMm: number, youngGpa: number, proofMpa: number): number {
-  return (3 * Math.PI * radiusMm * radiusMm * proofMpa) / (youngGpa * 1000 * wireMm);
-}
+/** 開いた輪を、まっすぐ押し開くとき、地金が戻れる範囲で開ける量（mm）。式と前提は src/rules/tension-set.ts（形の側からも読むので、そこに置いた） */
+export { elasticOpeningMm };
 
 export type HardState = "hardened" | "annealed";
 /** テンションの計算の地金（K18 は色ごと） */
@@ -517,10 +535,13 @@ export const TENSION_SHORT_TEXT = "まっすぐ開くだけでは入らない見
  * 参考の計算：地金が戻れる範囲で開ける量と、石を入れるのに要る量を並べる。合否にはしない（確かめの問題には入れない）。
  * 石にかかる力は出さない（信じられる出典がない）。テンションでなければ null
  */
-export function tensionOpening(s: Pick<SettingResult, "tension">, sh: Pick<ShankResult, "innerRadiusMm" | "thicknessMm" | "metal">, g: Guides = GUIDES, springMetal: SpringMetal = sh.metal): TensionOpening | null {
+export function tensionOpening(s: Pick<SettingResult, "tension">, sh: Pick<ShankResult, "innerRadiusMm" | "thicknessMm" | "metal">, g: Guides = GUIDES, springMetal?: SpringMetal): TensionOpening | null {
   const info = s.tension;
   if (!info) return null;
-  const m = g.tension.spring.metals[springMetal];
+  // 色金（赤銅・四分一・銅）のばねの値は表にない。計算しない
+  const id = springMetal ?? (sh.metal in g.tension.spring.metals ? (sh.metal as SpringMetal) : null);
+  if (!id) return null;
+  const m = g.tension.spring.metals[id];
   const radiusMm = sh.innerRadiusMm + sh.thicknessMm / 2;
   const wireMm = sh.thicknessMm;
   const needMm = info.ends[0].depthMm + info.ends[1].depthMm;
@@ -530,7 +551,7 @@ export function tensionOpening(s: Pick<SettingResult, "tension">, sh: Pick<Shank
     const openMm = elasticOpeningMm(radiusMm, wireMm, m.young.gpa, v.proofMpa);
     return { state, label: HARD_STATE_LABEL[state], proofMpa: v.proofMpa, provisional: v.provisional, basis: v.basis, openMm, enough: openMm >= needMm };
   });
-  return { metal: springMetal, metalName: m.name, radiusMm, wireMm, young: m.young, needMm, needText, states, enough: states[0].enough };
+  return { metal: id, metalName: m.name, radiusMm, wireMm, young: m.young, needMm, needText, states, enough: states[0].enough };
 }
 
 /** 参考の計算を、1 つの文に（Claude の確かめの注に添える） */
@@ -587,6 +608,90 @@ export function outlinePointAtT(outline: readonly Point[], t: number): Point {
 }
 
 /**
+ * 伝統の仕上げ（槌目・ミル打ち）が、この腕に入るか。どちらも**仮**の決まり（資料に mm の決まりはない。guides.ts の finish）。
+ * - 槌目：跡の深さだけ腕が薄くなる。いちばん薄い所から跡の深さを引いて、腕の厚みの目安を下回らないか（腕がもう薄いときは band-thin が知らせる）。
+ * - ミル打ち：粒の大きさ × 粒いくつ分（2 列と間）の幅が、いちばん細い所にあるか。粒を 1 つも置けないときも知らせる
+ */
+export function checkFinish(ring: Pick<RingDesign, "shank" | "params" | "milgrain">, opts: CheckOptions = {}): Problem[] {
+  const g: Guides = opts.guides ?? GUIDES;
+  const f = ring.params.finish;
+  if (!f) return [];
+  const out: Problem[] = [];
+  const sh = ring.shank;
+  const t = sh.minThicknessMm ?? sh.thicknessMm;
+  if (f.tsuchime && t >= g.band.minThicknessMm - 1e-9) {
+    // 荒らし槌目は大きさを選ばない（細かく浅い。仮）
+    const depth = (f.tsuchime.style === "arashi" ? g.finish.tsuchimeStyle.arashi : g.finish.tsuchime[f.tsuchime.size]).depthMm;
+    const after = t - depth;
+    if (after < g.band.minThicknessMm - 1e-9) {
+      out.push({
+        id: "tsuchime-thin",
+        check: "tsuchime-thin",
+        where: `槌目を打つ腕の厚み（${sh.along ? "いちばん薄い場所" : "いちばん厚い所"}）`,
+        current: `打ったあと ${mm(after)}（跡の深さ ${mm(depth)}）`,
+        required: `${mm(g.band.minThicknessMm)} 以上（仮の決まり）`,
+        currentValue: after,
+        requiredValue: g.band.minThicknessMm,
+        reason: `槌目は叩いて跡をつけるので、跡の深さだけ腕が薄くなる。薄すぎる腕には打てない（腕の厚みの目安 ${mm(g.band.minThicknessMm)} を借りた仮の決まり。跡の深さも仮。${GUIDE_NOTE}）`,
+        options: fix("smallerTsuchime", "thickerBand", "noTsuchime"),
+        target: { kind: "shank" },
+      });
+    }
+  }
+  if (f.milgrain) {
+    const w = sh.minWidthMm ?? sh.widthMm;
+    const bead = ring.milgrain?.beadMm ?? g.finish.milgrain.beadMm;
+    const need = bead * g.finish.milgrain.rowsPerBeadWidth;
+    if (w < need - 1e-9 || ring.milgrain?.count === 0) {
+      out.push({
+        id: "milgrain-fit",
+        check: "milgrain-fit",
+        where: "ミル打ちの粒（腕の縁）",
+        current: ring.milgrain?.count === 0 ? "粒を置ける縁がない" : `腕の幅 ${mm(w)}（粒 ø${bead.toFixed(2)} mm）`,
+        required: `腕の幅 ${mm(need)} 以上（粒 2 列と、その間の地。仮の決まり）`,
+        currentValue: w,
+        requiredValue: need,
+        reason: `ミルの粒は、縁の幅に合わせる（資料：粒の大きさは縁の幅と同じ。手打ちの鏨は ${g.finish.milgrain.toolMinMm}〜${g.finish.milgrain.toolMaxMm} mm）。細い腕の両縁に打つと、粒どうしがぶつかり、縁がえぐれる。粒 2 列と間の地を 粒 ${g.finish.milgrain.rowsPerBeadWidth} つ分とした仮の決まり（${GUIDE_NOTE}）`,
+        options: fix("noMilgrain", "widerBand"),
+        target: { kind: "shank" },
+      });
+    }
+  }
+  const nd = nunomeOf(f);
+  if (nd) {
+    const face = sh.outlineMm?.length ? faceSpan(sh.outlineMm.map(([x, y]) => ({ x, y })), false, g) : null;
+    for (const is of checkNunome(nd, { circumferenceMm: 2 * Math.PI * sh.outerRadiusMm, face }, g)) out.push(nunomeProblem(is));
+  }
+  return out;
+}
+
+/** 布目象嵌の確かめの直し方の名前 */
+export function nunomeFixId(is: Pick<NunomeIssue, "check" | "patch">): FixId {
+  if (is.check === "nunome-line") return "inlayLine";
+  if (is.check === "nunome-foil") return "inlayFoil";
+  if (is.check === "nunome-fit") return "inlayNarrower";
+  if (is.check === "nunome-piece" && is.patch.border) return "inlayBorder";
+  return "inlayLarger";
+}
+
+/** 布目象嵌の確かめ → 指輪の問題の形（腕を赤く） */
+export function nunomeProblem(is: NunomeIssue): Problem {
+  return {
+    id: is.check,
+    check: is.check,
+    where: `布目象嵌：${is.title}`,
+    current: is.current,
+    required: is.required,
+    currentValue: is.currentValue,
+    requiredValue: is.requiredValue,
+    reason: is.why,
+    options: fix(nunomeFixId(is), "noInlay"),
+    target: { kind: "inlay" },
+    nunomePatch: is.patch,
+  };
+}
+
+/**
  * 腕の厚みと幅（地金のみの指輪と同じ目安：guides.ts の band）。断面がどの形でも、いちばん厚い所の厚みと、いちばん細い所の幅で比べる
  */
 export function checkShank(sh: Pick<ShankResult, "thicknessMm" | "widthMm"> & { minWidthMm?: number; minThicknessMm?: number; outlineMm?: [number, number][]; along?: ShankResult["along"]; relief?: ShankResult["relief"] }, opts: CheckOptions = {}): Problem[] {
@@ -610,16 +715,16 @@ export function checkShank(sh: Pick<ShankResult, "thicknessMm" | "widthMm"> & { 
       target: { kind: "shank" },
     });
   }
-  if (w < g.band.minWidthMm - 1e-9) {
+  if (widthLevel(w, g) === "red") {
     out.push({
       id: "band-narrow",
       check: "band-narrow",
       where: sh.along ? "腕の幅（いちばん細い場所）" : "腕の幅",
       current: mm(w),
-      required: `${mm(g.band.minWidthMm)} 以上（目安）`,
+      required: `${mm(g.band.minWidthMm)} より太く（職人の決まり）`,
       currentValue: w,
       requiredValue: g.band.minWidthMm,
-      reason: "細い腕は曲がって丸くなくなる",
+      reason: WIDTH_RED_TEXT,
       options: fix("widerBand"),
       target: { kind: "shank" },
     });
@@ -681,6 +786,62 @@ type SectionLinesOf = { outlineMm?: [number, number][]; along?: ShankResult["alo
 function sectionLines(sh: SectionLinesOf): { at?: number; pts: readonly (readonly [number, number])[] }[] {
   if (sh.along) return sh.along.map((q) => ({ at: q.atDeg, pts: q.outlineMm }));
   return sh.relief && sh.outlineMm?.length ? [{ pts: sh.outlineMm }] : [];
+}
+
+// ---- 腕の幅の 3 段（職人 石川の決まり 2026-11-06。値は guides.ts の band.widthYellowMm・widthOrangeMm・minWidthMm） ----
+
+/** 腕の幅の段。null ＝ 何も出さない。yellow・orange は止めない注意、red は作れない所 */
+export type WidthLevel = "yellow" | "orange" | "red";
+
+/** 測った幅の小さな誤差（場所ごとの形は輪郭から測るので、0.7 mm に決めた幅が 0.6999999 mm になる）で段を変えない */
+const WIDTH_EPS = 1e-6;
+
+/** 腕の幅の段：1.0 mm 以下は黄色、0.7 mm より細いとオレンジ、0.6 mm 以下は赤（数字は帳面の値） */
+export function widthLevel(widthMm: number, g: Guides = GUIDES): WidthLevel | null {
+  const b = g.band;
+  if (widthMm <= b.minWidthMm + WIDTH_EPS) return "red";
+  if (widthMm < b.widthOrangeMm - WIDTH_EPS) return "orange";
+  if (widthMm <= b.widthYellowMm + WIDTH_EPS) return "yellow";
+  return null;
+}
+
+/**
+ * 赤の腕を直すときの幅：職人が「許容」と言った細さ（オレンジの境目 0.7 mm。黄色の注意は残る）。
+ * 工房の帳面で赤の線をそれより太くしたときは、赤の線より太い次の境目（なければ赤の線 ＋ 0.1 mm）
+ */
+export function widthFixMm(g: Guides = GUIDES): number {
+  const b = g.band;
+  return [b.widthOrangeMm, b.widthYellowMm].find((v) => v > b.minWidthMm + WIDTH_EPS) ?? Math.round((b.minWidthMm + 0.1) * 100) / 100;
+}
+
+/** 赤の理由（作れなくはないが、職人の決まりで赤） */
+export const WIDTH_RED_TEXT = "作れなくはないが、職人の決まりでは赤。細い腕は曲がって丸くなくなる";
+
+/** 黄色・オレンジの言葉（画面と Claude で同じ） */
+export const WIDTH_NOTE_TEXT: Record<"yellow" | "orange", string> = {
+  yellow: "細めの腕です。作れます。曲がりやすいので、職人と細さを確かめます",
+  orange: "かなり細い腕です。作れますが、曲がりやすいので、職人とよく確かめます",
+};
+
+/** 腕の幅の注意（黄色・オレンジ。作れない所ではない） */
+export interface WidthNote {
+  level: "yellow" | "orange";
+  /** どこ（例：腕の幅（いちばん細い場所）） */
+  where: string;
+  widthMm: number;
+  text: string;
+}
+
+/** 幅 1 つの注意（赤と、注意のいらない幅は null。赤は確かめの problems に出る） */
+export function widthNoteOf(widthMm: number, where: string, g: Guides = GUIDES): WidthNote | null {
+  const lv = widthLevel(widthMm, g);
+  if (lv !== "yellow" && lv !== "orange") return null;
+  return { level: lv, where, widthMm, text: WIDTH_NOTE_TEXT[lv] };
+}
+
+/** 石の付いた指輪・テンションの腕の幅の注意（場所ごとの形では、いちばん細い場所で） */
+export function shankWidthNote(sh: Pick<ShankResult, "widthMm"> & { minWidthMm?: number; along?: ShankResult["along"] }, g: Guides = GUIDES): WidthNote | null {
+  return widthNoteOf(sh.minWidthMm ?? sh.widthMm, sh.along ? "腕の幅（いちばん細い場所）" : "腕の幅", g);
 }
 
 /** 細い溝の注意の言葉（画面と確かめで同じ。職人 石川の言葉から 2026-11-06） */
@@ -927,8 +1088,8 @@ export function checkSetting(s: SettingResult, culetGapMm: number = s.heights.cu
       id: "hold",
       check: "hold",
       where: `石の留まり（石の場所：${positionName(position)}）`,
-      current: times(hold),
-      required: `${times(need)} 以上`,
+      current: `標準の 4 本爪の ${times(hold)}`,
+      required: `${times(need)}以上`,
       currentValue: hold,
       requiredValue: need,
       reason: `爪の太さ・本数・長さから見た留まりが足りない（${HOLD_NOTE}）`,

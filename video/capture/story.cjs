@@ -19,7 +19,8 @@ const OUT = `${SP}/story`;
 const PY = process.env.PY || path.join(__dirname, '..', 'work', '.venv', 'bin', 'python');
 // 3D を GPU で描く（ないと 1 こま 2 秒かかる。あると 5 ミリ秒）
 const GPU = ['--use-angle=metal', '--enable-gpu', '--ignore-gpu-blocklist'];
-const ease = (u) => (u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2);
+// 最終案 15（作者の声：印がタタタと速く跳ぶ）：動きの形を、まん中だけ速い 3 次から、なめらかな正弦に（速さの山がゆるい）
+const ease = (u) => 0.5 - 0.5 * Math.cos(Math.PI * Math.min(1, Math.max(0, u)));
 
 // マウスの印：矢印（自作の線）と、押したときの輪
 const CURSOR_CSS = `#__cur{position:fixed;left:-60px;top:-60px;width:26px;height:30px;margin:-3px 0 0 -5px;z-index:2147483647;pointer-events:none;filter:drop-shadow(0 2px 3px rgba(0,0,0,.45))}
@@ -29,16 +30,35 @@ const ARROW = `<svg width="26" height="30" viewBox="0 0 26 30"><path d="M5 3v20.
 // 章ごとの画面の大きさ（なければ 1600×900）。帳面・学ぶ・技は、スマホの幅（480）で撮る（字が大きく読める。作者も iPhone で使う）
 const SIZE = { ledger3m: [480, 900], waza3m: [480, 900], learn3m: [480, 900], learn4m: [480, 900], ledger7m: [480, 900], make7m: [480, 900], ask8m: [480, 900], make8m: [480, 1000],
   // 最終案 9：設計の画面は 960×540 の 3 倍（組むと字が 2 倍になる）。欄だけの場面は幅 860（スマホの形にならない幅）の真ん中 480 を 4 倍。帳面と学ぶはスマホの幅の 4 倍
-  photo9: [960, 540], gothic9: [960, 540], reason9: [960, 540], make9: [960, 540], word9: [860, 540], ask9: [480, 540], learn9: [480, 540] };
-const DSF = { photo9: 3, gothic9: 3, reason9: 3, make9: 3, word9: 4, ask9: 4, learn9: 4 };
+  photo9: [960, 540], gothic9: [960, 540], reason9: [960, 540], make9: [960, 540], word9: [860, 540], ask9: [480, 540], learn9: [480, 540],
+  // 最終案 10：全体を見せてから寄る。設計は 1280×720 の 3 倍、帳面・学ぶ・技は 960×540 の 4 倍（全体はそのまま縮め、寄るときは切り抜く）
+  word10: [1280, 720], gothic10: [1280, 720], reason10: [1280, 720], make10: [1280, 720], ask10: [960, 540], learn10: [960, 540], rebuild10: [960, 540], ledger10: [960, 540],
+  // 最終案 10（作者の声：実際に使っている所を中心に）：手で変える操作と、生成のあとに人が直す流れ
+  ops11: [1280, 720], gothic11: [1280, 720], moyou11: [1280, 720], deco11: [1280, 720], gen12: [1280, 720], learn11: [960, 540], ops12: [1280, 720], sec13: [1280, 720],
+  teach14: [1280, 720], make14: [1280, 720], teach15: [1280, 720], finish15: [1280, 720], tension16: [1280, 720], finish16: [1280, 720], finish17: [1280, 720] };
+const DSF = { photo9: 3, gothic9: 3, reason9: 3, make9: 3, word9: 4, ask9: 4, learn9: 4,
+  word10: 3, gothic10: 3, reason10: 3, make10: 3, ask10: 4, learn10: 4, rebuild10: 4, ledger10: 4, ops11: 3, gothic11: 3, moyou11: 3, deco11: 3, gen12: 3, learn11: 4, ops12: 3, sec13: 3,
+  teach14: 3, make14: 3, teach15: 3, finish15: 3, tension16: 3, finish16: 3, finish17: 3 };
 // マウスの印の大きさ（4 倍で撮る章で大きくなりすぎないように）
-const CURK = { word9: 0.5, ask9: 0.5, learn9: 0.5, photo9: 0.72, gothic9: 0.72, reason9: 0.72, make9: 0.72 };
+const CURK = { word9: 0.5, ask9: 0.5, learn9: 0.5, photo9: 0.72, gothic9: 0.72, reason9: 0.72, make9: 0.72,
+  word10: 0.8, gothic10: 0.8, reason10: 0.8, make10: 0.8, ask10: 0.62, learn10: 0.62, rebuild10: 0.62, ledger10: 0.62, ops11: 0.8, gothic11: 0.8, moyou11: 0.8, deco11: 0.8, gen12: 0.8, learn11: 0.62, ops12: 0.8, sec13: 0.8,
+  teach14: 0.8, make14: 0.8, teach15: 0.8, finish15: 0.8, tension16: 0.8, finish16: 0.8, finish17: 0.8 };
 // 最終案 9：本物の Claude の返事を章ごと・順番ごとに覚える（work/story/_claude9/）。撮り直しでは覚えた返事を使うので、Claude は呼ばない（呼ぶのは最初の 1 回だけ）
-const CLAUDE9 = new Set(['word9', 'ask9', 'learn9', 'gothic9', 'reason9']);
+const CLAUDE9 = new Set(['word9', 'ask9', 'learn9', 'gothic9', 'reason9', 'word10', 'ask10', 'learn10', 'gothic10', 'reason10', 'gothic11', 'deco11', 'gen12', 'learn11', 'teach14', 'teach15']);
+// 最終案 10：同じ操作の章は、前に覚えた本物の Claude の返事をそのまま使う（新しく呼ばない）。gothic11 は gothic10（今のアプリで本物の Claude が組んだ「ゴシックな感じ」）の返事
+const CLAUDE_ALIAS = { word10: 'word9', ask10: 'ask9', learn10: 'learn9', gothic11: 'gothic10', teach15: 'teach14',
+  // 「アールデコな感じ」：試した回ごとに別に覚える（DECO_TRY=1〜4）。使う回は DECO_USE（撮り直しは、その回の返事で）
+  deco11: `deco11_t${process.env.DECO_USE || process.env.DECO_TRY || '1'}`,
+  // 最終の「ゴシックな感じ」（2026-11-06 作者が確定）：GEN_TAG の回ごとに覚える（goth12_t1〜3）。gothic10 の回を使うなら GEN_TAG=gothic10 DECO_USE=（なし）
+  gen12: process.env.GEN_TAG === 'gothic10' ? 'gothic10' : `${process.env.GEN_TAG || 'goth12'}_t${process.env.DECO_USE || process.env.DECO_TRY || '1'}` };
 // 覚えた返事を返す前に待つ時間（ミリ秒。作業の記録が 1 行ずつ増える所を撮るため）
-const CLAUDE9_WAIT = { gothic9: 1600 };
+// 最終案 14：teach14（Claude に教える）と learn11 は、返事を少し待たせて「Claude が…しています」の所を何こまか撮る（その間は撮るだけ。返事が来たら until で待つ）
+const CLAUDE9_WAIT = { gothic9: 1600, gothic10: 1600, gothic11: 1600, deco11: 1600, gen12: 1600, teach14: 5000, learn11: 20000, teach15: 5000 };
+// 返事を覚える所。言葉で頼む場面（deco11）は DECO_REPLY_DIR で、ほかの所に置いた本物の返事（000.json…、API の返事そのまま）も使える
+// （アールデコの形を新しい候補に替えるとき：その候補の返事の所を DECO_REPLY_DIR に、または _claude9/deco11_t<番号>/ に置いて DECO_USE=<番号>）
+const claudeDir = (name) => (name === 'deco11' && process.env.DECO_REPLY_DIR) ? process.env.DECO_REPLY_DIR : `${OUT}/_claude9/${CLAUDE_ALIAS[name] || name}`;
 async function cacheClaude(p, name) {
-  const dir = `${OUT}/_claude9/${name}`;
+  const dir = claudeDir(name);
   fs.mkdirSync(dir, { recursive: true });
   let k = 0;
   await p.route('**/api/claude', async (route) => {
@@ -92,6 +112,8 @@ async function chapter(name, fn) {
     if (!document.getElementById('__rip')) { const e = document.createElement('div'); e.id = '__rip'; document.body.appendChild(e); }
   }, { css: CURSOR_CSS, arrow: ARROW });
   const centerOf = async (sel) => {
+    // 最終案 14：ない物を 120 秒待たない（すぐ知らせる）
+    if (!(await p.$(sel).catch(() => null))) { console.log(name, '見つからない', sel); return null; }
     const bx = await p.locator(sel).first().boundingBox();
     if (!bx) { console.log(name, '見つからない', sel); return null; }
     return { x: bx.x + bx.width / 2, y: bx.y + bx.height / 2, bx };
@@ -99,6 +121,10 @@ async function chapter(name, fn) {
   const a = {
     p,
     get i() { return i; },
+    /** 今の印の位置（ページの px） */
+    get cur() { return { ...cur }; },
+    /** 撮らずに印を置き直す（組むときに重ねて替える所の向こうで使う。最終案 15） */
+    jump: async (to) => { cur = { ...to }; await p.mouse.move(cur.x, cur.y); },
     /** 1 こま撮る（時計を 1/30 秒進めてから）。rip：押した輪の濃さ。turn：3D を回す角（ラジアン） */
     shot: async ({ rip = 0, turn = 0, hide = false } = {}) => {
       await ensure();
@@ -110,10 +136,46 @@ async function chapter(name, fn) {
         return window.__vt.step(1000 / 30);
       }, { ...cur, rip, turn, hide, curk: CURK[name] || 1 });
       await p.screenshot({ path: `${D}${String(i).padStart(4, '0')}.png`, timeout: 180000 });
-      curs.push([Math.round(cur.x), Math.round(cur.y), Math.round(rip * 100) / 100]);
+      // 4 つ目：印を隠したこまか（最終案 14。止まって見える所を探すのに使う）
+      curs.push([Math.round(cur.x), Math.round(cur.y), Math.round(rip * 100) / 100, hide ? 1 : 0]);
       i++;
     },
     hold: async (n, o = {}) => { for (let k = 0; k < n; k++) await a.shot(o); },
+    /**
+     * 最終案 14（作者の声：印が止まると「ラグったかな」に見える）：n こまかけて、to（sel か {x, y}）へ k の割合だけ、ゆっくり漂う。
+     * 止まって見えないよう、はじめと終わりもゆるく動き続ける（ほぼ一定の速さ）。読ませたい字の上をなぞるときにも使う
+     */
+    drift: async (n, to, { k = 1, o = {} } = {}) => {
+      const c = typeof to === 'string' ? await centerOf(to) : to;
+      if (!c) return a.hold(n, o);
+      const from = { ...cur };
+      const tx = from.x + (c.x - from.x) * k;
+      const ty = from.y + (c.y - from.y) * k;
+      for (let j = 1; j <= n; j++) {
+        const u = j / n;
+        const e = 0.8 * u + 0.2 * (0.5 - 0.5 * Math.cos(Math.PI * u));
+        cur = { x: from.x + (tx - from.x) * e, y: from.y + (ty - from.y) * e };
+        await p.mouse.move(cur.x, cur.y);
+        await a.shot(o);
+      }
+    },
+    /** 打つ（最終案 14）：1 字ずつ each こまずつ。打つ間、印は字にかからないよう少しずつ to（なければ右下へ少し）へ漂う */
+    typeDrift: async (text, { each = 1, to = null, o = {} } = {}) => {
+      const from = { ...cur };
+      const tgt = to || { x: from.x + 22, y: from.y + 26 };
+      const chars = [...text];
+      const n = Math.max(1, chars.length * each);
+      let j = 0;
+      for (const ch of chars) {
+        await p.keyboard.insertText(ch);
+        for (let k = 0; k < each; k++) {
+          j++;
+          cur = { x: from.x + (tgt.x - from.x) * (j / n), y: from.y + (tgt.y - from.y) * (j / n) };
+          await p.mouse.move(cur.x, cur.y);
+          await a.shot(o);
+        }
+      }
+    },
     mark: (k) => { marks[k] = i; },
     /** 見せたい所の枠を、今のこまに残す（ページの px。2 倍の画像では ×2） */
     box: async (k, sel, pad = 12) => {
@@ -127,6 +189,8 @@ async function chapter(name, fn) {
       const c = typeof to === 'string' ? await centerOf(to) : to;
       if (!c) return null;
       const from = { ...cur };
+      // 最終案 15：遠い所へは、こまを増やしてゆっくり動かす（ページの px で 1 こま平均 15 px まで）
+      n = Math.max(n, Math.round(Math.hypot(c.x - from.x, c.y - from.y) / 15));
       for (let k = 1; k <= n; k++) {
         const e = ease(k / n);
         cur = { x: from.x + (c.x - from.x) * e, y: from.y + (c.y - from.y) * e };
@@ -145,6 +209,25 @@ async function chapter(name, fn) {
       await a.shot({ rip: 0.65, turn });
       await a.shot({ rip: 0.3, turn });
       await a.hold(after, { turn });
+      return true;
+    },
+    /** つまんで動かす（最終案 10）：from（sel か {x, y}）で押したまま、to へ n こまかけて動かして離す。押している間は輪を薄く残す */
+    drag: async (from, to, { n = 24, pre = 12, o = {}, hold = 2 } = {}) => {
+      const c = await a.move(from, pre, o);
+      if (!c) return false;
+      await a.shot({ ...o, rip: 1 });
+      await p.mouse.down();
+      await a.shot({ ...o, rip: 0.8 });
+      const s = { ...cur };
+      for (let k = 1; k <= n; k++) {
+        const e = ease(k / n);
+        cur = { x: s.x + (to.x - s.x) * e, y: s.y + (to.y - s.y) * e };
+        await p.mouse.move(cur.x, cur.y);
+        await a.shot({ ...o, rip: 0.55 });
+      }
+      for (let k = 0; k < hold; k++) await a.shot({ ...o, rip: 0.55 });
+      await p.mouse.up();
+      await a.shot({ ...o, rip: 0.3 });
       return true;
     },
     /** 打つ：1 字ずつ、each こまずつ */
@@ -853,11 +936,12 @@ const CH = {
     console.log('build3 の数字', await specsText(p));
     await a.hold(40, { turn: 0.004, hide: true });
   },
-  // 職人の一言（横から）：工房 B（ネットの公開情報だけ）の太く高い指輪 → 職人の言葉を打つ → Claude の案 → これでいい → 爪も高さも変わる → 斜めから
+  // 職人の一言（丸く見える向きから）：工房 B（ネットの公開情報だけ）の太く高い指輪 → 職人の言葉を打つ → Claude の案 → これでいい → 爪も高さも変わる → 斜めから
+  // 2026-11-06：画面の「正面」が図面の正面図の向き（指の軸から、丸く見える）に変わった（082dd79）。前の「横」で見ていた絵は、今は「正面」
   word3: async (a) => {
     const { p } = a;
     await studio(a); await workshopB(a); await renderDisp(a);
-    await p.click('.view-btn[data-view="side"]'); await a.settle(800);
+    await p.click('.view-btn[data-view="front"]'); await a.settle(800);
     await p.locator('.ar-text').scrollIntoViewIfNeeded(); await a.settle(300);
     console.log('word3 前の数字', await specsText(p));
     await a.box('ring', '.vp', 0); await a.box('panel', '.studio-refine', 0); a.mark('start');
@@ -2454,11 +2538,12 @@ Object.assign(CH, {
 /** 設計の今の画面。見せたい所だけ残す。stage=true で背景を黒に（見せると同じ映り込み） */
 const CHROME9 = `.tb,.tools,.sb,.vp-tl,.gizmo,.toast,.stage-note,.undo-redo{display:none!important}
   .pro{grid-template-rows:0 1fr auto 0!important;grid-template-columns:0 1fr 340px!important;background:#101012!important} .act-why{display:none}`;
-const studioNow9 = async (a, { intro = false } = {}) => {
+const studioNow9 = async (a, { intro = false, query = '' } = {}) => {
   const { p } = a;
   p.on('dialog', (d) => d.accept());
   if (!intro) await p.addInitScript(() => { try { sessionStorage.setItem('tsugu.studio.introSeen.v1', '1'); localStorage.setItem('tsugu.studio.introSeen.v1', '1'); } catch {} });
-  await p.goto(`${BASE}/studio.html`, { waitUntil: 'load' });
+  // query：最終案 13 の deco11 は ?nooffload（一体の形を別の糸に頼まず、この糸で作る。仮の時計で撮るので、こまごとに必ず一体の形が映る。形は同じ）
+  await p.goto(`${BASE}/studio.html${query}`, { waitUntil: 'load' });
 };
 const builtNow9 = async (a) => {
   const { p } = a;
@@ -2757,9 +2842,1676 @@ Object.assign(CH, {
 });
 const LEARN9 = '三角の石を留めたい。爪は何本で、太さはどれくらい？';
 
+
+// ================================================================ 最終案 10（2026-11-06）：どの画面も、まず全体を見せて、押す所を示してから寄る（寄るのは組むときの切り抜き。枠は動かさない）
+const APP_CSS10 = '.pw-state,.toast{display:none!important}';
+const app10 = async (a, hash) => {
+  const { p } = a;
+  p.on('dialog', (d) => d.accept());
+  await p.goto(`${BASE}/app.html${hash}`, { waitUntil: 'load' });
+  await a.settle(1200);
+  await p.addStyleTag({ content: APP_CSS10 });
+  await a.settle(200);
+};
+Object.assign(CH, {
+  // 職人の言葉 → Claude の数字つきの案 → これでいい → 帳面に入る（全体 → 確かめるを押す → 職人の決まりの欄 → …）
+  word10: async (a) => {
+    const { p } = a;
+    await studioNow9(a); await builtNow9(a);
+    await p.addStyleTag({ content: '.toast{display:none!important}' });
+    await a.settle(300);
+    a.mark('full'); await a.box('tab', '.tabs [data-mode="refine"]', 6);
+    await a.hold(N(24));
+    await a.press('.tabs [data-mode="refine"]', { n: 18, after: 6 });
+    a.mark('refine');
+    await a.scroll('.ar-text', { block: 'center', n: 22 });
+    await a.settle(100);
+    a.mark('field'); await a.box('field', '.ar-text', 10); await a.box('panel', '.studio-refine', 0);
+    await a.hold(N(8));
+    await a.press('.ar-text', { n: 14, after: 2 });
+    a.mark('type');
+    for (const ch of (process.env.CAP_TEST ? WORD8.slice(0, 4) : WORD8)) { await p.keyboard.insertText(ch); await a.hold(1); }
+    a.mark('typed');
+    await a.hold(N(10));
+    await a.box('go', '.ar-go', 8);
+    await a.press('.ar-go', { n: 12, after: 0 });
+    a.mark('wait');
+    await a.until(() => /これでいい/.test(document.querySelector('.ar-proposal')?.innerText || ''), null, { label: 'Claude の案', timeout: 240000 });
+    await p.evaluate(() => { const e = document.querySelector('.ar-proposal'); const r = document.querySelector('.studio-refine'); r.scrollTop += e.getBoundingClientRect().top - r.getBoundingClientRect().top - 60; });
+    await a.settle(300);
+    await a.box('proposal', '.ar-proposal', 10); a.mark('proposal');
+    console.log('word10 の案', await p.evaluate(() => document.querySelector('.ar-proposal')?.innerText.replace(/\s+/g, ' ')));
+    await a.hold(N(40));
+    await a.box('ok', '.ar-proposal button.ok', 8);
+    await a.press('.ar-proposal button.ok', { n: 18, after: 0 });
+    a.mark('applied');
+    await a.settle(600);
+    await p.evaluate(() => { const e = document.querySelector('.rule-flash'); const r = document.querySelector('.studio-refine'); if (e) r.scrollTop += e.getBoundingClientRect().top - r.getBoundingClientRect().top - 20; });
+    await a.settle(200);
+    await a.box('flash', '.rule-flash', 8);
+    await a.hold(N(40), { hide: true });
+    console.log('word10 決まりの字', await p.evaluate(() => document.querySelector('.rule-flash')?.innerText.replace(/\s+/g, ' ')));
+  },
+  // 言葉で腕まで変わる：今のアプリで、本物の Claude に「ゴシックな感じ」（全体 → 希望の欄を押す → 打つ → 生成 → 見せるを押す）
+  gothic10: async (a) => {
+    const { p } = a;
+    await studioNow9(a); await builtNow9(a);
+    await p.addStyleTag({ content: '.toast{display:none!important} .worklog{max-height:none!important}' });
+    await blackVp9(a);
+    await p.evaluate(() => document.querySelector('.worklog')?.scrollIntoView({ block: 'center' }));
+    await a.settle(300);
+    console.log('gothic10 前', await specsText(p));
+    a.mark('full'); await a.box('wish', '.command', 6);
+    await a.hold(N(24), { turn: TURN9 });
+    a.mark('type');
+    await a.type('.wish', 'ゴシックな感じ', { each: 4, n: 18 });
+    a.mark('typed');
+    await a.hold(N(12), { turn: TURN9 });
+    await a.box('go', '.command button[type="submit"]', 6);
+    await a.press('.command button[type="submit"]', { n: 10, after: 2 });
+    a.mark('go');
+    const t0 = Date.now();
+    const done = () => { const s = document.querySelector('.make-status')?.textContent || ''; return !/組んで、作れるか/.test(s) && document.querySelectorAll('.worklog li').length > 1; };
+    const probe = () => document.querySelectorAll('.worklog li').length + (document.querySelector('.verdict-chip')?.textContent || '');
+    await a.watch(done, probe, { per: 8, timeout: 480000, onChange: () => p.evaluate(() => { const w = document.querySelector('.worklog'); if (w) w.lastElementChild?.scrollIntoView({ block: 'end' }); }) });
+    console.log('gothic10 Claude', Math.round((Date.now() - t0) / 1000), '秒');
+    await fine(a, 400);
+    await blackVp9(a);
+    a.mark('done');
+    await a.box('chip', '.verdict-chip', 6); await a.box('log', '.worklog', 6);
+    console.log('gothic10 後', await specsText(p));
+    await numbers9(p, 'gothic10');
+    console.log('gothic10 作業の記録', await p.evaluate(() => [...document.querySelectorAll('.worklog li')].map((l) => l.innerText.replace(/\s+/g, ' ')).join(' ／ ')));
+    console.log('gothic10 腕', await p.evaluate(() => { const st = window.__studio.session.state; return JSON.stringify({ section: st.shankSection, width: st.shankWidthMm, th: st.shankThicknessMm, metal: st.metal, stations: st.shankStations, relief: st.shankRelief, more: st.shankReliefMore, prongTip: st.prongTip, prongCount: st.prongCount, join: st.join }); }));
+    await a.hold(N(50), { turn: TURN9 });
+    // 見せるを押す（上の帯）
+    await a.box('present', '.act-present', 6);
+    await a.press('.act-present', { n: 16, after: 0 });
+    await a.settle(1200);
+    await p.evaluate(() => { const v = window.__viewer; v.setAutoRotate(false); v.keepCamera = true; v.setHighQuality(true); });
+    await new Promise((r) => setTimeout(r, 1200));
+    await a.settle(600);
+    await look9(a, { x: 0.8, y: -0.62, z: 0.5 }, 0.95);
+    a.mark('present');
+    console.log('gothic10 見せる', await p.evaluate(() => document.querySelector('.pr-panel')?.innerText.replace(/\s+/g, ' ')));
+    await a.hold(N(150), { turn: TURN9, hide: true });
+  },
+  // 作れない所を、職人の言葉で教える（全体 → 赤く光る → 札を押す → 理由の窓 → まとめて直す）
+  reason10: async (a) => {
+    const { p } = a;
+    await studioNow9(a); await builtNow9(a);
+    await p.addStyleTag({ content: '.toast{display:none!important}' });
+    await p.evaluate(() => window.__studio.setMode('refine'));
+    await a.settle(400);
+    await blackVp9(a);
+    await p.evaluate((f) => { const s = window.__studio.session; s.setShank(f); s.setSetting({ prong_mm: 0.6, reason: '撮る' }); }, FLAT9);
+    await fine(a, 400);
+    await blackVp9(a);
+    const seat = await p.evaluate(() => { const r = window.__studio.session.built.ring; return [0, 0, r.shank.outerRadiusMm + r.shank.innerRadiusMm + 2.4]; });
+    await aimAt(p, seat, [0.62, -1.0, 0.78], 30, -150, 0);
+    await a.settle(300);
+    console.log('reason10 細い', await specsText(p), await p.evaluate(() => document.querySelector('.verdict-chip')?.innerText));
+    a.mark('red'); await a.box('chip', '.verdict-chip', 6); await a.box('vp', '.vp', 0);
+    await a.hold(N(46), { turn: 0.001 });
+    await a.press('.verdict-chip', { n: 18, after: 2, turn: 0.001 });
+    await a.settle(100);
+    a.mark('open'); await a.box('pop', '.fix-pop', 6);
+    console.log('reason10 窓', await p.evaluate(() => document.querySelector('.fix-pop')?.innerText.replace(/\s+/g, ' ')));
+    await a.move({ x: 500, y: 600 }, 14, { turn: 0.001 });
+    a.mark('read');
+    await a.hold(N(70), { turn: 0.001, hide: true });
+    await a.move('.fp-every', 18, { turn: 0.001 });
+    await a.shot({ rip: 1, turn: 0.001 });
+    a.mark('press');
+    await p.evaluate(() => document.querySelector('.fp-every').click());
+    await a.shot({ rip: 0.65, turn: 0.001 }); await a.shot({ rip: 0.3, turn: 0.001 });
+    await a.until(() => !window.__studio.session.pendingFinal, null, { label: '細かい形', chunk: 50 });
+    await a.settle(200);
+    await blackVp9(a);
+    a.mark('fixed'); await a.box('chip2', '.verdict-chip', 6);
+    console.log('reason10 直した', await specsText(p), await p.evaluate(() => document.querySelector('.verdict-chip')?.innerText));
+    await a.hold(N(60), { turn: 0.001, hide: true });
+  },
+  // 作り方を自動で作る（全体 → 手順を押す → 鋳造 → 鍛造 → 文の中の言葉を押すと開く）
+  make10: async (a) => {
+    const { p } = a;
+    await studioNow9(a); await builtNow9(a);
+    await p.addStyleTag({ content: '.toast{display:none!important}' });
+    await p.evaluate((f) => window.__studio.session.setShank(f), FLAT9);
+    await fine(a, 300);
+    await blackVp9(a);
+    a.mark('full'); await a.box('tab', '.tabs [data-mode="hand"]', 6);
+    await a.hold(N(20), { turn: TURN9 });
+    await a.press('.tabs [data-mode="hand"]', { n: 18, after: 4, turn: TURN9 });
+    await a.settle(600);
+    await blackVp9(a);
+    const bp = '.build-panel';
+    await p.evaluate((s) => document.querySelector(`${s} [data-m="cast"]`).click(), bp);
+    await a.settle(500);
+    await p.evaluate((s) => { const c = document.querySelector(s); if (c) c.scrollTop = 0; }, bp);
+    a.mark('cast'); await a.box('panel', '.insp', 0);
+    await a.hold(N(40), { turn: TURN9 });
+    await a.press(`${bp} [data-m="hand"]`, { n: 16, after: 2, turn: TURN9 });
+    a.mark('forge');
+    await a.hold(N(14), { turn: TURN9 });
+    const c4 = `${bp} .mk-card:nth-child(4)`;
+    await a.scroll(c4, { block: 'start', n: 22 });
+    a.mark('card'); await a.box('card', c4, 4);
+    await a.hold(N(14), { turn: TURN9 });
+    const tm = await p.locator(`${c4} .flow .term`).first().boundingBox();
+    await a.move({ x: tm.x + tm.width / 2, y: tm.y + tm.height / 2 }, 18, { turn: TURN9 });
+    await a.shot({ rip: 1, turn: TURN9 });
+    a.mark('press');
+    await p.mouse.click(tm.x + tm.width / 2, tm.y + tm.height / 2);
+    await a.shot({ rip: 0.65, turn: TURN9 }); await a.shot({ rip: 0.3, turn: TURN9 });
+    await a.settle(60);
+    a.mark('open'); await a.box('def', `${c4} .term-def`, 6);
+    console.log('make10 言葉', await p.evaluate((s) => document.querySelector(s)?.innerText.replace(/\s+/g, ' ').slice(0, 120), `${c4} .term-def`));
+    await a.move({ x: 300, y: 600 }, 12, { turn: TURN9 });
+    await a.hold(N(60), { turn: TURN9, hide: true });
+  },
+  // 最終案 14（作者の声：作り方は 3D の形だけでなく、帳面に残った職人の言葉からも作る）：手順を押す → 鋳造 → 鍛造 →
+  //   ロウ付けの札の「職人の決まり」（ロウ付けのあとは、ゆっくり冷ます。石川工房の言葉）まで送って、その字をなぞる。印は止めない
+  make14: async (a) => {
+    const { p } = a;
+    await studioNow9(a); await builtNow9(a);
+    await p.addStyleTag({ content: '.toast{display:none!important}' });
+    await p.evaluate((f) => window.__studio.session.setShank(f), FLAT9);
+    await fine(a, 300);
+    await blackVp9(a);
+    a.mark('full'); await a.box('tab', '.tabs [data-mode="hand"]', 6);
+    await a.drift(N(18), '.tabs [data-mode="hand"]', { k: 0.3, o: { turn: TURN9 } });
+    await a.press('.tabs [data-mode="hand"]', { n: 18, after: 4, turn: TURN9 });
+    await a.settle(600);
+    await blackVp9(a);
+    const bp = '.build-panel';
+    await p.evaluate((s) => document.querySelector(`${s} [data-m="cast"]`).click(), bp);
+    await a.settle(500);
+    await p.evaluate((s) => { const c = document.querySelector(s); if (c) c.scrollTop = 0; }, bp);
+    a.mark('cast'); await a.box('panel', '.insp', 0);
+    // 鋳造の工程をなぞってから、鍛造へ
+    const c1 = await p.locator(`${bp} .mk-card`).first().boundingBox().catch(() => null);
+    if (c1) await a.drift(N(26), { x: c1.x + c1.width * 0.6, y: c1.y + 60 }, { o: { turn: TURN9 } });
+    await a.drift(N(10), `${bp} [data-m="hand"]`, { k: 0.4, o: { turn: TURN9 } });
+    await a.press(`${bp} [data-m="hand"]`, { n: 14, after: 2, turn: TURN9 });
+    a.mark('forge');
+    // ロウ付けの札（職人の決まりがある札）
+    const idx = await p.evaluate((s) => { const cs = [...document.querySelectorAll(`${s} .mk-card`)]; return cs.findIndex((c) => /ロウ付け/.test(c.querySelector('h3')?.innerText || '') && c.querySelector('.rule-in-step:not(.pub-in-step)')) + 1; }, bp);
+    const cS = `${bp} .mk-card:nth-child(${idx || 4})`;
+    console.log('make14 ロウ付けの札', idx, await p.evaluate((s) => document.querySelector(`${s} h3`)?.innerText, cS));
+    await a.drift(N(10), { x: a.cur.x - 40, y: a.cur.y + 60 }, { o: { turn: TURN9 } });
+    await a.scroll(cS, { block: 'start', n: 22 });
+    a.mark('card'); await a.box('card', cS, 4);
+    const rs = `${cS} .rule-in-step:not(.pub-in-step)`;
+    await a.drift(N(24), rs, { k: 0.5, o: { turn: TURN9 } });  // 最終案 15：12 → 24 こま（速すぎて跳んで見えた）
+    await a.scroll(rs, { block: 'center', n: 24 });
+    a.mark('rule'); await a.box('rule', rs, 8);
+    console.log('make14 職人の決まり', await p.evaluate((s) => document.querySelector(s)?.innerText.replace(/\s+/g, ' '), rs));
+    // 職人の決まりの字を、ゆっくりなぞる（題 → 言葉 → 名前と日付）
+    const rb = await p.locator(rs).first().boundingBox().catch(() => null);
+    if (rb) {
+      await a.drift(N(16), { x: rb.x + 36, y: rb.y + rb.height * 0.28 }, { o: { turn: TURN9 } });
+      await a.drift(N(56), { x: rb.x + rb.width - 30, y: rb.y + rb.height * 0.4 }, { o: { turn: TURN9 } });
+      await a.drift(N(40), { x: rb.x + rb.width * 0.45, y: rb.y + rb.height * 0.86 }, { o: { turn: TURN9 } });
+    }
+    await a.drift(N(40), { x: a.cur.x - 50, y: a.cur.y + 24 }, { o: { turn: TURN9 } });
+  },
+  // Claude が職人に聞く（帳面の画面の全体 → 書いて答えるを押す → 答える → Claude の案 → 帳面に入れる）
+  ask10: async (a) => {
+    const { p } = a;
+    await app10(a, '#ledger');
+    await a.until(() => { const q = document.querySelector('.iv-q'); return q && !q.classList.contains('pending'); }, null, { label: 'Claude の問い', timeout: 180000 });
+    await a.settle(600);
+    a.mark('full'); await a.box('card', '.iv-card', 6); await a.box('answerBtn', '.iv-card .answer', 6);
+    console.log('ask10 の問い', await p.evaluate(() => document.querySelector('.iv-q')?.innerText));
+    await a.hold(N(30));
+    await a.press('.iv-card .answer', { n: 16, after: 4 });
+    await p.evaluate(() => { document.querySelector('.iv-card')?.scrollIntoView({ block: 'start' }); window.scrollBy(0, -70); });
+    await a.settle(200);
+    a.mark('answerOpen'); await a.box('cardOpen', '.iv-card', 6); await a.box('answer', '.answer-box textarea', 8);
+    await a.press('.answer-box textarea', { n: 10, after: 0 });
+    a.mark('type');
+    for (const ch of (process.env.CAP_TEST ? ANSWER8.slice(0, 3) : ANSWER8)) { await p.keyboard.insertText(ch); await a.hold(2); }
+    a.mark('typed');
+    await a.hold(N(8));
+    await a.press('.answer-box button.make', { n: 12, after: 0 });
+    a.mark('wait');
+    await a.until(() => /帳面に入れる|これでいい/.test(document.querySelector('.proposal-slot')?.innerText || ''), null, { label: 'Claude の決まり', timeout: 240000 });
+    await a.settle(300);
+    await p.evaluate(() => { document.querySelector('.proposal-slot .proposal')?.scrollIntoView({ block: 'start' }); window.scrollBy(0, -40); });
+    await a.settle(200);
+    a.mark('draft'); await a.box('draftBox', '.proposal-slot .proposal', 8);
+    console.log('ask10 の案', await p.evaluate(() => document.querySelector('.proposal-slot')?.innerText.replace(/\s+/g, ' ')));
+    await a.hold(N(30));
+    await a.press('.proposal-slot [data-a="ok"]', { n: 18, after: 6 });
+    a.mark('saved');
+    await a.hold(N(24), { hide: true });
+  },
+  // 学ぶ（全体 → 問いを打つ → 聞くを押す → すぐ答え）
+  learn10: async (a) => {
+    const { p } = a;
+    await app10(a, '#learn');
+    a.mark('full'); await a.box('composer', '.composer', 6);
+    await a.hold(N(24));
+    await a.press('.composer textarea', { n: 14, after: 2 });
+    a.mark('type');
+    for (const ch of (process.env.CAP_TEST ? LEARN9.slice(0, 3) : LEARN9)) { await p.keyboard.insertText(ch); await a.hold(1); }
+    a.mark('typed');
+    await a.hold(N(8));
+    await a.box('send', '.composer .send', 6);
+    await a.press('.composer .send', { n: 10, after: 2 });
+    a.mark('wait');
+    await a.until(() => !!document.querySelector('.thread .a-short'), null, { label: '学ぶの答え', timeout: 240000 });
+    await a.settle(400);
+    await p.evaluate(() => { const q = [...document.querySelectorAll('.thread .q, .thread .bubble, .thread > *')].pop(); document.querySelector('.thread')?.lastElementChild?.scrollIntoView({ block: 'center' }); });
+    await a.settle(200);
+    a.mark('answer'); await a.box('answer', '.thread .a-short', 8); await a.box('thread', '.thread', 6);
+    console.log('learn10 の答え', await p.evaluate(() => document.querySelector('.thread')?.innerText.replace(/\s+/g, ' ').slice(0, 200)));
+    await a.hold(N(40), { hide: true });
+  },
+  // 答えの分かっている技（木目金）：全体 → 手がかりの欄を押して開く → 手がかり 9
+  rebuild10: async (a) => {
+    const { p } = a;
+    await app10(a, '#waza/rebuild');
+    a.mark('full'); await a.box('clues', 'details.clues > summary', 6);
+    await a.hold(N(24));
+    await a.press('details.clues > summary', { n: 16, after: 4 });
+    await a.scroll('details.clues', { block: 'start', n: 18, offset: 70 });
+    a.mark('open'); await a.box('cluesBox', 'details.clues', 0);
+    await a.hold(N(40), { hide: true });
+  },
+  // 帳面の全体（工房に入れておけば）
+  ledger10: async (a) => {
+    await app10(a, '#ledger');
+    a.mark('full');
+    await a.hold(N(6), { hide: true });
+  },
+});
+
+// 結の前に並べる「継ぐで作れる形の幅」：見本の形（入口のページの地金のみの指輪・攻めたゴシック）を、黒の上で少しずつ回す
+const SHAPES10 = [
+  ['attack', 'gothic=attack'],
+  ['crossing', 'band=crossing'],
+  ['stairs', 'band=stairs'],
+  ['twin', 'band=twin'],
+];
+Object.assign(CH, {
+  shapes10: async (a) => {
+    const { p } = a;
+    for (const [name, q] of (process.env.SHAPES ? SHAPES10.filter(([n]) => process.env.SHAPES.split(',').includes(n)) : SHAPES10)) {
+      await p.goto(`${BASE}/studio.html?nointro&rec&${q}`, { waitUntil: 'load' });
+      await a.until(() => !!(window.__studio && window.__viewer), null, { label: name, chunk: 50 });
+      await a.settle(2500);
+      await new Promise((r) => setTimeout(r, 2500));
+      await a.settle(1500);
+      await p.addStyleTag({ content: STAGE_CSS9 });
+      await p.evaluate(() => {
+        const v = window.__viewer;
+        v.setDisplayMode('render'); v.setPresenting(true);
+        document.querySelector('.t-dims[aria-pressed="true"]')?.click(); document.querySelector('.t-grid[aria-pressed="true"]')?.click();
+        v.setAutoRotate(false); v.keepCamera = true;
+        dispatchEvent(new Event('resize'));
+      });
+      await new Promise((r) => setTimeout(r, 1500));
+      await a.settle(800);
+      await look9(a, { x: 0.66, y: -0.62, z: 0.42 }, 1.0);
+      console.log('shapes10', name, await p.evaluate(() => document.querySelector('.sb .specs')?.innerText.replace(/\s+/g, ' ').slice(0, 200)));
+      a.mark(name);
+      await a.hold(N(80), { turn: TURN9, hide: true });
+    }
+  },
+});
+// ================================================================ 最終案 10 の続き（2026-11-06 作者の声：実際に使っている所を中心に。カーソルが本当に操作して、指輪がその場で変わる）
+/** 3D の絵を横に dx px ずらす（カメラの見る先はそのまま。回しても指輪はその場所で回る。押す・寸法の吸いつきも同じカメラなので合う） */
+const shiftView11 = (p, dx) => p.evaluate((dx) => {
+  const v = window.__viewer;
+  const w = v.host.clientWidth || 1; const h = v.host.clientHeight || 1;
+  const dy = h * (v.lift || 0) + ((v.insets?.bottom || 0) - (v.insets?.top || 0)) / 2;
+  for (const cam of [v.cams.persp, v.cams.ortho]) {
+    if (dx || dy) cam.setViewOffset(w, h, -dx, dy, w, h); else cam.clearViewOffset();
+    cam.updateProjectionMatrix();
+  }
+  v.dirty = true; v.draw?.();
+}, dx);
+/** 爪 i の、画面の点（ページの px）。爪の三角形の真ん中より少し上 */
+const prongAt11 = (p, i) => p.evaluate((i) => {
+  const v = window.__viewer; const m = v.settingMesh; const b = window.__studio.session.built;
+  const r = b.ring.setting.prongs[i].triangles; const pos = m.geometry.getAttribute('position').array;
+  let x = 0, y = 0, z = 0, n = 0, zmax = -1e9;
+  for (let k = r.start * 9; k < (r.start + r.count) * 9; k += 3) { x += pos[k]; y += pos[k + 1]; z += pos[k + 2]; n++; zmax = Math.max(zmax, pos[k + 2]); }
+  m.updateMatrixWorld();
+  const V = v.camera.position.constructor;
+  const w = new V(x / n, y / n, (z / n) * 0.4 + zmax * 0.6).applyMatrix4(m.matrixWorld);
+  const cam = new V().copy(v.camera.position);
+  const s = v.project(w.x, w.y, w.z); const rr = v.host.getBoundingClientRect();
+  return s && { x: s.x + rr.left, y: s.y + rr.top, dist: cam.distanceTo(w) };
+}, i);
+/** 指輪の中身の箱（mm）の真ん中と大きさ */
+const ringBox11 = (p) => p.evaluate(() => {
+  const v = window.__viewer; const lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9];
+  v.content.traverse((o) => { if (!o.isMesh || !o.geometry) return; o.geometry.computeBoundingBox(); const bb = o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld); for (const [k, a] of [['x', 0], ['y', 1], ['z', 2]]) { lo[a] = Math.min(lo[a], bb.min[k]); hi[a] = Math.max(hi[a], bb.max[k]); } });
+  return { c: [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2], size: Math.max(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) };
+});
+/** 指輪を、向き dir から、いちばん長い所が 3D の高さの frac になるように見る。そのあと横に dx px ずらす */
+const frame11 = async (a, dir, frac, dx) => {
+  const { p } = a;
+  const bx = await ringBox11(p);
+  await p.evaluate(({ c, size, dir, frac }) => {
+    const v = window.__viewer; const cam = v.camera; const V = cam.position.constructor;
+    const h = v.host.clientHeight || 600;
+    const d = size / frac / (2 * Math.tan(cam.fov * Math.PI / 360));
+    v.setAutoRotate(false); v.keepCamera = true;
+    v.controls.target.set(c[0], c[1], c[2]);
+    cam.position.copy(new V(c[0], c[1], c[2])).add(new V(dir.x, dir.y, dir.z).normalize().multiplyScalar(d));
+    cam.up.set(0, 0, 1); cam.lookAt(v.controls.target); v.controls.update(); v.dirty = true;
+    return h;
+  }, { c: bx.c, size: bx.size, dir, frac });
+  await shiftView11(p, dx);
+  await a.settle(300);
+};
+/** 黒い地（方眼と寸法の線は消す。自分で引く寸法の線は残す）。レンダーで */
+const OPS_CSS11 = '.toast{display:none!important} .dims:not(.measures),.stone-tags{display:none!important} .vp{background:#000!important}';
+const blackVp11 = async (a) => {
+  await a.p.evaluate(() => {
+    const v = window.__viewer;
+    document.querySelector('.t-dims[aria-pressed="true"]')?.click(); document.querySelector('.t-grid[aria-pressed="true"]')?.click();
+    document.querySelector('.disp [data-disp="render"]')?.click();
+    v.setDisplayMode('render'); v.setPresenting(true); v.setAutoRotate(false); v.keepCamera = true;
+  });
+  await a.settle(400);
+};
+const DIR11 = { x: 0.7, y: -0.62, z: 0.42 };
+Object.assign(CH, {
+  // 手で変える：腕の形を選ぶ → 断面を手で描く（点をつまんで動かすと、腕がその場で変わる）→ 号を変える → 寸法を 2 点で引く
+  ops11: async (a) => {
+    const { p } = a;
+    await studioNow9(a); await builtNow9(a);
+    await p.addStyleTag({ content: OPS_CSS11 });
+    await blackVp11(a);
+    await p.evaluate(() => { const s = document.querySelector('.ring-shape')?.closest('section'); const c = document.querySelector('.make-panel'); if (s && c) c.scrollTop += s.getBoundingClientRect().top - c.getBoundingClientRect().top - 6; });
+    await frame11(a, DIR11, 0.7, 170);
+    console.log('ops11 はじめ', await specsText(p));
+    a.mark('full'); await a.box('grid', '.ring-shape .bs-grid', 6); await a.box('vp', '.vp', 0); await a.box('panel', '.insp', 0);
+    await a.hold(N(30), { turn: TURN9 });
+    // 腕の形を選ぶ
+    await a.press('.ring-shape [data-sec="yamagata"]', { n: 20, after: 0, turn: TURN9 });
+    await fine(a, 100);
+    a.mark('yamagata');
+    console.log('ops11 山形', await specsText(p), JSON.stringify(await probsOf(p)));
+    await a.hold(N(40), { turn: TURN9 });
+    await a.press('.ring-shape [data-sec="hirauchi"]', { n: 12, after: 0, turn: TURN9 });
+    await fine(a, 100);
+    a.mark('hirauchi');
+    console.log('ops11 平打ち', await specsText(p), JSON.stringify(await probsOf(p)));
+    await a.hold(N(40), { turn: TURN9 });
+    // 断面を手で描く
+    await a.press('.ring-shape details.ring-draw > summary', { n: 16, after: 2, turn: TURN9 });
+    await a.scroll('.ring-shape details.ring-draw .sec-edit svg', { block: 'center', n: 18 });
+    a.mark('draw'); await a.box('sec', '.ring-shape details.ring-draw .sec-edit', 4);
+    await a.hold(N(12), { turn: TURN9 });
+    const pick = () => p.evaluate(() => {
+      const svg = document.querySelector('.ring-shape details.ring-draw .sec-edit svg'); const sr = svg.getBoundingClientRect(); const cx = sr.x + sr.width / 2;
+      const gs = [...svg.querySelectorAll('g.se-h:not(.ghost)')].map((g) => { const r = g.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+      gs.sort((q, w) => q.y - w.y);
+      const top = gs.filter((q) => q.y < gs[0].y + 4).sort((q, w) => Math.abs(q.x - cx) - Math.abs(w.x - cx))[0];
+      const side = gs.filter((q) => q.y > gs[0].y + 12 && q.y < sr.y + sr.height - 30).sort((q, w) => w.x - q.x)[0];
+      return { top, side };
+    });
+    const pt = await pick();
+    await a.drag(pt.top, { x: pt.top.x, y: pt.top.y - 24 }, { n: 34, o: { turn: TURN9 } });
+    await fine(a, 100);
+    a.mark('dragged');
+    console.log('ops11 描いた', await p.evaluate(() => document.querySelector('.ring-shape .se-read')?.innerText.replace(/\s+/g, ' ')), await specsText(p), JSON.stringify(await probsOf(p)));
+    await a.hold(N(50), { turn: TURN9 });
+    // 号を変える（確かめるの「手で変える」のつまみ）
+    await a.press('.tabs [data-mode="refine"]', { n: 18, after: 0, turn: TURN9 });
+    await a.settle(600);
+    await blackVp11(a);
+    await shiftView11(p, 170);
+    a.mark('refine');
+    await a.hold(N(10), { turn: TURN9 });
+    await a.scroll('.slider[data-s="r-gou"]', { block: 'center', n: 20 });
+    a.mark('gou0'); await a.box('gou', '.slider[data-s="r-gou"]', 6);
+    console.log('ops11 号の前', await p.evaluate(() => window.__studio.session.state.gou));
+    await a.hold(N(8), { turn: TURN9 });
+    for (let k = 0; k < 2; k++) {
+      await a.press('.slider[data-s="r-gou"] .sl-step[data-d="1"]', { n: k ? 6 : 16, after: 0, turn: TURN9 });
+      await fine(a, 100);
+      await a.hold(N(10), { turn: TURN9 });
+    }
+    a.mark('gou2');
+    console.log('ops11 号', await p.evaluate(() => window.__studio.session.state.gou), await specsText(p));
+    await a.hold(N(26), { turn: TURN9 });
+    // 寸法を 2 点で引く（正面から。内径）
+    await a.press('.view-btn[data-view="front"]', { n: 18, after: 0 });
+    await a.settle(900);
+    await shiftView11(p, 0);
+    await a.settle(200);
+    a.mark('front');
+    await a.hold(N(10));
+    await a.press('.t-measure', { n: 10, after: 2 });
+    a.mark('measure');
+    const g = await p.evaluate(() => {
+      const v = window.__viewer; const r = window.__studio.session.built.ring; const ri = r.shank.innerRadiusMm, ro = r.shank.outerRadiusMm;
+      const rr = v.host.getBoundingClientRect();
+      const P = (x, y, z) => { const s = v.project(x, y, z); return s && { x: s.x + rr.left, y: s.y + rr.top }; };
+      const A = P(0, -ri, ro), B = P(0, ri, ro);
+      return A.x < B.x ? { A, B } : { A: B, B: A };
+    });
+    await a.press({ x: g.A.x - 2, y: g.A.y }, { n: 16, after: 6 });
+    await a.press({ x: g.B.x + 2, y: g.B.y }, { n: 20, after: 2 });
+    a.mark('measured'); await a.box('ms', '.ms-panel', 6);
+    console.log('ops11 寸法', await p.evaluate(() => document.querySelector('.ms-panel')?.innerText.replace(/\s+/g, ' ')));
+    await a.move({ x: g.B.x + 120, y: g.B.y + 150 }, 14);
+    await a.hold(N(50), { hide: true });
+  },
+  // 言葉で頼む（本物の Claude の「ゴシックな感じ」。gothic10 で覚えた返事）→ 作れます → 人が爪を細くする → その場で作れない所 → 職人の言葉 → まとめて直す → 作れます → 図面 → STL
+  gothic11: async (a) => {
+    const { p } = a;
+    await studioNow9(a); await builtNow9(a);
+    const hideToast = await p.addStyleTag({ content: '.toast{display:none!important} .worklog{max-height:none!important}' });
+    await blackVp9(a);
+    await p.evaluate(() => document.querySelector('.worklog')?.scrollIntoView({ block: 'center' }));
+    await a.settle(300);
+    a.mark('full'); await a.box('wish', '.command', 6);
+    await a.hold(N(24), { turn: TURN9 });
+    a.mark('type');
+    await a.type('.wish', 'ゴシックな感じ', { each: 4, n: 18 });
+    a.mark('typed');
+    await a.hold(N(12), { turn: TURN9 });
+    await a.box('go', '.command button[type="submit"]', 6);
+    await a.press('.command button[type="submit"]', { n: 10, after: 2 });
+    a.mark('go');
+    const done = () => { const s = document.querySelector('.make-status')?.textContent || ''; return !/組んで、作れるか/.test(s) && document.querySelectorAll('.worklog li').length > 1; };
+    const probe = () => document.querySelectorAll('.worklog li').length + (document.querySelector('.verdict-chip')?.textContent || '');
+    await a.watch(done, probe, { per: 6, timeout: 480000, onChange: () => p.evaluate(() => { const w = document.querySelector('.worklog'); if (w) w.lastElementChild?.scrollIntoView({ block: 'end' }); }) });
+    await fine(a, 400);
+    await blackVp9(a);
+    a.mark('done'); await a.box('chip', '.verdict-chip', 6);
+    const verdict = await p.evaluate(() => ({ chip: document.querySelector('.verdict-chip')?.innerText, hidden: document.querySelector('.verdict-chip')?.hidden, probs: window.__studio.session.built.problems.map((x) => `${x.check} ${x.current} → ${x.required}`) }));
+    console.log('gothic11 生成の終わり', JSON.stringify(verdict), await specsText(p));
+    if (verdict.probs.length) console.log('gothic11 ！！ 作れます で終わっていない（この回は使わない）');
+    await numbers9(p, 'gothic11');
+    await a.hold(N(60), { turn: TURN9 });
+    // 人が直す：確かめるへ
+    await a.press('.tabs [data-mode="refine"]', { n: 18, after: 0, turn: TURN9 });
+    await a.settle(700);
+    await blackVp9(a);
+    await frame11(a, { x: 0.62, y: -0.95, z: 0.62 }, 0.66, -170);
+    a.mark('refine');
+    await a.hold(N(16), { turn: 0.0008 });
+    // 爪を押す（いちばん手前の爪）
+    const ps = [];
+    for (let i = 0; i < 3; i++) ps.push({ i, ...(await prongAt11(p, i)) });
+    ps.sort((q, w) => q.dist - w.dist);
+    const pr = ps[0];
+    console.log('gothic11 押す爪', JSON.stringify(ps));
+    await a.press({ x: pr.x, y: pr.y }, { n: 22, after: 4 });
+    a.mark('pop'); await a.box('pop', '.prong-pop', 6);
+    console.log('gothic11 爪の欄', await p.evaluate(() => document.querySelector('.prong-pop')?.innerText.replace(/\s+/g, ' ').slice(0, 200)));
+    await a.hold(N(20));
+    // 太さのつまみを左へ（0.55 mm）
+    const th = await p.evaluate(() => {
+      const r = document.querySelector('.prong-pop .slider[data-s="pp-dia"] input[type=range]'); const b = r.getBoundingClientRect();
+      const min = +r.min, max = +r.max, v = +r.value, half = 10;
+      const X = (val) => b.x + half + ((val - min) / (max - min)) * (b.width - 2 * half);
+      return { from: { x: X(v), y: b.y + b.height / 2 }, to: { x: X(0.55), y: b.y + b.height / 2 }, v };
+    });
+    await a.drag(th.from, th.to, { n: 30 });
+    await fine(a, 200);
+    a.mark('thin'); await a.box('chip2', '.verdict-chip', 6); await a.box('bad', '.prong-pop .pp-check', 6);
+    console.log('gothic11 細くした', await p.evaluate(() => document.querySelector('.verdict-chip')?.innerText), await p.evaluate(() => document.querySelector('.prong-pop .pp-check')?.innerText.replace(/\s+/g, ' ')));
+    await a.hold(N(46));
+    // 赤の札 → 職人の言葉
+    await a.press('.prong-pop .pp-x', { n: 14, after: 2 });
+    await a.press('.verdict-chip', { n: 18, after: 2 });
+    await a.settle(100);
+    a.mark('reason'); await a.box('fix', '.fix-pop', 6);
+    console.log('gothic11 理由の窓', await p.evaluate(() => document.querySelector('.fix-pop')?.innerText.replace(/\s+/g, ' ')));
+    await a.move({ x: 380, y: 560 }, 14);
+    await a.hold(N(66), { hide: true });
+    await a.move('.fix-pop .fp-every', 18);
+    await a.shot({ rip: 1 });
+    a.mark('press');
+    await p.evaluate(() => document.querySelector('.fix-pop .fp-every').click());
+    await a.shot({ rip: 0.65 }); await a.shot({ rip: 0.3 });
+    await a.until(() => !window.__studio.session.pendingFinal, null, { label: '細かい形', chunk: 50 });
+    await a.settle(200);
+    await blackVp9(a);
+    a.mark('fixed'); await a.box('chip3', '.verdict-chip', 6);
+    console.log('gothic11 直した', await p.evaluate(() => document.querySelector('.verdict-chip')?.innerText), await specsText(p));
+    await a.hold(N(50), { turn: 0.0008 });
+    // 図面（3D の上の表示を「図面」に）→ STL
+    await a.press('.disp [data-disp="draw"]', { n: 20, after: 2 });
+    await a.settle(1200);
+    a.mark('draw'); await a.box('vp', '.vp', 0);
+    await a.hold(N(50));
+    await hideToast.evaluate((e) => e.remove());
+    await a.press('.act-stl', { n: 22, after: 2 });
+    await a.settle(200);
+    a.mark('stl'); await a.box('toast', '.toast', 6);
+    console.log('gothic11 STL', await p.evaluate(() => document.querySelector('.toast')?.innerText));
+    await a.hold(N(46), { hide: true });
+  },
+});
+// 「アールデコな感じ」（2026-11-06 作者の変更：ゴシックは有機的な所がまだ難しい。和の雰囲気にはアールデコが合う）。gothic11 と同じ流れ：
+// 言葉で頼む（本物の Claude）→ 作れます → 人が爪を押して細くする → その場で赤 → 職人の言葉 → まとめて直す → 図面 → STL。
+// 試す回（DECO_TRY=k、DECO_ONLY=1）：生成だけ撮り、設計（石と state）・Claude の作業の記録・道具を呼んだ回数・秒を work/story/_deco/try<k>.json に残す
+const DECO_WISH = process.env.GEN_WISH || 'アールデコな感じ';
+const genChapter = (chName) => async (a) => {
+    const { p } = a;
+    const only = !!process.env.DECO_ONLY;
+    const tryNo = process.env.DECO_USE || process.env.DECO_TRY || '1';
+    const tag = chName === 'gen12' ? (process.env.GEN_TAG || 'goth12') : 'deco11';
+    await studioNow9(a, { query: process.env.DECO_OFFLOAD ? '' : '?nooffload' }); await builtNow9(a);
+    const hideToast = await p.addStyleTag({ content: '.toast{display:none!important} .worklog{max-height:none!important}' });
+    await blackVp9(a);
+    await p.evaluate(() => document.querySelector('.worklog')?.scrollIntoView({ block: 'center' }));
+    await a.settle(300);
+    a.mark('full'); await a.box('wish', '.command', 6);
+    // 最終案 14：印を止めない（作者の声：止まるとラグに見える）。欄へゆっくり → 押す → 打つ間も少しずつ動く → 生成へ
+    await a.drift(N(24), '.wish', { k: 0.3, o: { turn: TURN9 } });
+    await a.press('.wish', { n: 18, after: 2, turn: TURN9 });
+    a.mark('type');
+    await a.typeDrift(DECO_WISH, { each: 4, o: { turn: TURN9 } });
+    a.mark('typed');
+    await a.drift(N(12), '.command button[type="submit"]', { k: 0.45, o: { turn: TURN9 } });
+    await a.box('go', '.command button[type="submit"]', 6);
+    await a.press('.command button[type="submit"]', { n: 10, after: 2 });
+    a.mark('go');
+    const t0 = Date.now();
+    const done = () => { const s = document.querySelector('.make-status')?.textContent || ''; return !/組んで、作れるか/.test(s) && document.querySelectorAll('.worklog li').length > 1; };
+    const probe = () => document.querySelectorAll('.worklog li').length + (document.querySelector('.verdict-chip')?.textContent || '');
+    await a.watch(done, probe, { per: 6, timeout: 600000, onChange: () => p.evaluate(() => { const w = document.querySelector('.worklog'); if (w) w.lastElementChild?.scrollIntoView({ block: 'end' }); }) });
+    const secs = Math.round((Date.now() - t0) / 1000);
+    await fine(a, 400);
+    await blackVp9(a);
+    // 出来上がりの全体の画面では、作業の記録を頭から見せる（最後のまとめの文は、右の欄の下へ。作者の確認 2026-11-06）
+    await p.evaluate(() => { const w = document.querySelector('.worklog'); const c = document.querySelector('.make-panel'); if (w && c) c.scrollTop += w.getBoundingClientRect().top - c.getBoundingClientRect().top - 8; });
+    await a.settle(200);
+    a.mark('done'); await a.box('chip', '.verdict-chip', 6);
+    const res = await p.evaluate(() => {
+      const s = window.__studio.session; const b = s.built; const r = b.ring;
+      return {
+        chip: document.querySelector('.verdict-chip')?.innerText, probs: b.problems.map((x) => `${x.check} ${x.current} → ${x.required}`),
+        specs: document.querySelector('.sb .specs')?.innerText.replace(/\s+/g, ' '),
+        worklog: [...document.querySelectorAll('.worklog li')].map((l) => l.innerText.replace(/\s+/g, ' ')),
+        numbers: { style: r.setting.style, prongs: r.setting.prongs?.length, prongMm: r.setting.prongs?.[0]?.diameterMm, tip: r.setting.prongs?.[0]?.tip, culetGapMm: r.culetGapMm },
+        stone: s.stone, state: s.state,
+      };
+    });
+    console.log('deco11 生成の終わり', JSON.stringify({ chip: res.chip, probs: res.probs, secs }), res.specs);
+    if (res.probs.length) console.log('deco11 ！！ 作れます で終わっていない（この回は使わない）');
+    console.log('deco11 作業の記録', res.worklog.join(' ／ '));
+    // Claude を呼んだ回数と、道具を呼んだ回数（覚えた返事から数える）
+    const dir = claudeDir(chName);
+    let calls = 0, tools = 0; const names = {};
+    if (fs.existsSync(dir)) for (const f of fs.readdirSync(dir).filter((x) => /^\d+\.json$/.test(x)).sort()) {
+      calls++;
+      try { const j = JSON.parse(JSON.parse(fs.readFileSync(`${dir}/${f}`, 'utf8')).body); for (const c of j.content || []) if (c.type === 'tool_use') { tools++; names[c.name] = (names[c.name] || 0) + 1; } } catch {}
+    }
+    fs.mkdirSync(`${OUT}/_deco`, { recursive: true });
+    const stem = tag === 'deco11' ? `try${tryNo}` : `${tag}_try${tryNo}`;
+    // 記録は試す回（DECO_ONLY）だけ書く。撮り直し（覚えた返事）で書くと、本物の回の秒が上書きされる（2026-11-06 一度上書きした）
+    if (only) fs.writeFileSync(`${OUT}/_deco/${stem}.json`, JSON.stringify({ wish: DECO_WISH, try: Number(tryNo), cache: CLAUDE_ALIAS[chName], at: new Date().toISOString(), seconds: secs, apiCalls: calls, toolCalls: tools, toolNames: names, ...res }, null, 1));
+    console.log('deco11 Claude', calls, '回・道具', tools, '回', JSON.stringify(names), secs, '秒');
+    if (only) {
+      // 形を見るための静止画（撮影のこまとは別。斜め・横・上）
+      for (const [k, d] of [['angle', { x: 0.7, y: -0.62, z: 0.42 }], ['side', { x: 0.05, y: -1, z: 0.28 }], ['top', { x: 0.25, y: -0.35, z: 1 }]]) {
+        await look9(a, d, 0.9);
+        await p.screenshot({ path: `${OUT}/_deco/${stem}_${k}.png` });
+      }
+      await a.hold(N(10), { turn: TURN9 });
+      return;
+    }
+    // 最終案 14：出来上がりを長めに撮る（組むときに止まったこまを引きのばさない）。印は作れますの札へ → 確かめるの札の方へ、ゆっくり
+    await a.drift(N(90), '.verdict-chip', { k: 0.55, o: { turn: TURN9 } });
+    await a.drift(N(60), '.tabs [data-mode="refine"]', { k: 0.35, o: { turn: TURN9 } });
+    // 人が直す：確かめるへ
+    await a.press('.tabs [data-mode="refine"]', { n: 18, after: 0, turn: TURN9 });
+    await a.settle(700);
+    await blackVp9(a);
+    await frame11(a, { x: 0.62, y: -0.95, z: 0.62 }, 0.66, -170);
+    a.mark('refine');
+    const n = await p.evaluate(() => window.__studio.session.built.ring.setting.prongs?.length || 0);
+    // 次に押す爪の方へ、ゆっくり（止めない）
+    if (n) { const q0 = await prongAt11(p, 0); await a.drift(N(16), { x: q0.x, y: q0.y }, { k: 0.3, o: { turn: 0.0008 } }); } else await a.hold(N(16), { turn: 0.0008 });
+    if (n) {
+      // 爪を押す（いちばん手前の爪）→ 太さのつまみを左へ（0.55 mm）
+      const ps = [];
+      for (let i = 0; i < n; i++) ps.push({ i, ...(await prongAt11(p, i)) });
+      ps.sort((q, w) => q.dist - w.dist);
+      const pr = ps[0];
+      await a.press({ x: pr.x, y: pr.y }, { n: 22, after: 4 });
+      a.mark('pop'); await a.box('pop', '.prong-pop', 6);
+      await a.drift(N(20), '.prong-pop .slider[data-s="pp-dia"] input[type=range]', { k: 0.6 });
+      const th = await p.evaluate(() => {
+        const r = document.querySelector('.prong-pop .slider[data-s="pp-dia"] input[type=range]'); const b = r.getBoundingClientRect();
+        const min = +r.min, max = +r.max, v = +r.value, half = 10;
+        const X = (val) => b.x + half + ((val - min) / (max - min)) * (b.width - 2 * half);
+        return { from: { x: X(v), y: b.y + b.height / 2 }, to: { x: X(0.55), y: b.y + b.height / 2 }, v };
+      });
+      // 最終案 13（作者の声：細くすると一度にボンと変わる）：つまみを 2 秒かけてゆっくり動かす。アプリは動かしている間も、目盛りが変わるごとに形を作り直す
+      //   （prong-edit.ts の liveLook）。0.70 mm までは作れます、0.65 mm で赤。drag0〜drag1 が押さえている間
+      await a.move(th.from, 12);
+      await a.shot({ rip: 1 });
+      await p.mouse.down();
+      a.mark('drag0');
+      await a.shot({ rip: 0.8 });
+      const dn = Number(process.env.DECO_DRAG_N || 64);
+      for (let k = 1; k <= dn; k++) {
+        const u = k / dn;
+        const e = u < 0.5 ? 2 * u * u : 1 - Math.pow(-2 * u + 2, 2) / 2; // ゆるく始まり、ゆるく止まる
+        // a.move で動かす（マウスの印も、つまみといっしょに動く）
+        await a.move({ x: th.from.x + (th.to.x - th.from.x) * e, y: th.from.y }, 1, { rip: 0.55 });
+        if (k % 8 === 0) console.log('deco11 動かしている', k, await p.evaluate(() => [document.querySelector('.prong-pop .slider[data-s="pp-dia"] input[type=range]')?.value, window.__studio.session.built.ring.setting.prongs.map((q) => q.diameterMm.toFixed(2)).join('/'), document.querySelector('.verdict-chip')?.innerText].join(' ')));
+      }
+      for (let k = 0; k < 2; k++) await a.shot({ rip: 0.55 });
+      await p.mouse.up();
+      a.mark('drag1');
+      await a.shot({ rip: 0.3 });
+      await fine(a, 200);
+      a.mark('thin'); await a.box('chip2', '.verdict-chip', 6); await a.box('bad', '.prong-pop .pp-check', 6);
+      console.log('deco11 細くした', await p.evaluate(() => document.querySelector('.verdict-chip')?.innerText), await p.evaluate(() => document.querySelector('.prong-pop .pp-check')?.innerText.replace(/\s+/g, ' ')));
+      // 最終案 15（作者の声：印がタタタと細かく速く跳ぶ）：赤くなったら、印はつまみからゆっくり漂うだけ（降りる・なぞる・閉じるの細かい動きはやめた）。
+      //   爪の欄は Esc で閉じ、作れない所の札へ、1 つのなめらかな動きで行って押す
+      await a.drift(N(36), { x: a.cur.x - 70, y: a.cur.y + 24 });
+      await p.keyboard.press('Escape');
+      await a.drift(N(4), { x: a.cur.x - 6, y: a.cur.y - 4 });
+    } else {
+      console.log('deco11 爪がない留め方（爪の流れは撮れない）');
+    }
+    await a.press('.verdict-chip', { n: 26, after: 2 });
+    await a.settle(100);
+    a.mark('reason'); await a.box('fix', '.fix-pop', 6);
+    console.log('deco11 理由の窓', await p.evaluate(() => document.querySelector('.fix-pop')?.innerText.replace(/\s+/g, ' ')));
+    // 最終案 14：印は隠さず、職人の言葉の上をゆっくりなぞってから「まとめて直す」へ
+    const fq = await p.evaluate(() => { const w = document.querySelector('.fix-pop'); if (!w) return null; const q = [...w.querySelectorAll('p, blockquote, q, .fp-quote')].find((e) => /「/.test(e.innerText)) || w; const r = q.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height }; });
+    // 最終案 15：言葉の上を 1 つのゆっくりした動きでなぞり、まとめて直すへも 1 つの動きで
+    if (fq) await a.drift(N(66), { x: fq.x + fq.w * 0.62, y: fq.y + fq.h * 0.62 });
+    else await a.hold(N(66));
+    await a.move('.fix-pop .fp-every', 20);
+    await a.shot({ rip: 1 });
+    a.mark('press');
+    await p.evaluate(() => document.querySelector('.fix-pop .fp-every').click());
+    await a.shot({ rip: 0.65 }); await a.shot({ rip: 0.3 });
+    await a.until(() => !window.__studio.session.pendingFinal, null, { label: '細かい形', chunk: 50 });
+    await a.settle(200);
+    await blackVp9(a);
+    a.mark('fixed'); await a.box('chip3', '.verdict-chip', 6);
+    console.log('deco11 直した', await p.evaluate(() => document.querySelector('.verdict-chip')?.innerText), await specsText(p));
+    // 最終案 14：止めずに、次に押す所（図面・STL）へゆっくり
+    await a.drift(N(50), '.verdict-chip', { k: 0.4, o: { turn: 0.0008 } });
+    await a.press('.disp [data-disp="draw"]', { n: 20, after: 2 });
+    await a.settle(1200);
+    a.mark('draw'); await a.box('vp', '.vp', 0);
+    // 最終案 17b（作者の声：図面と STL が速く、飛び飛び）：図面を見せる間は、印はほとんど動かさない（ゆっくり漂う）→
+    //   STL へ 1 つのなめらかな動き（ゆっくり漂ってから速く飛ぶ、のをやめた）→ 押す → 知らせが出たまま、印はゆっくり離れて留まる
+    await a.drift(N(30), { x: a.cur.x + 36, y: a.cur.y + 10 });
+    await hideToast.evaluate((e) => e.remove());
+    await a.move('.act-stl', N(54));
+    a.mark('stl0');
+    await a.press('.act-stl', { n: 1, after: 2 });
+    await a.settle(200);
+    a.mark('stl'); await a.box('toast', '.toast', 6);
+    console.log('deco11 STL', await p.evaluate(() => document.querySelector('.toast')?.innerText));
+    await a.drift(N(80), { x: a.cur.x - 90, y: a.cur.y + 70 });
+};
+Object.assign(CH, { deco11: genChapter('deco11'), gen12: genChapter('gen12') });
+// 模様の試し（別の係が作った頁。#waza/rebuild/moyou?rec）：頁の全体 → 段が 1 つずつ出る → 最後の鐔の形の 3 枚（寄るのは組むとき）
+Object.assign(CH, {
+  moyou11: async (a) => {
+    const { p } = a;
+    await p.goto(`${BASE}/app.html?rec#waza/rebuild/moyou`, { waitUntil: 'load' });
+    await a.settle(1500);
+    await p.addStyleTag({ content: APP_CSS10 });
+    await a.settle(300);
+    a.mark('full'); await a.box('head', '.moyou h2, .moyou h1', 6);
+    console.log('moyou11 段', await p.evaluate(() => document.querySelector('.moyou')?.dataset.step));
+    await a.hold(N(36), { hide: true });
+    for (let k = 1; k <= 5; k++) {
+      await p.keyboard.press('ArrowRight');
+      a.mark(`s${k}`);
+      await a.hold(N(k === 5 ? 60 : 45), { hide: true });
+    }
+    // 最終案 16（作者の声：表が一度に出て、どこを見ればいいか分からない。「9 に」が 5 つの段と合わない）：
+    //   組むときに、本当の手順 → Claude の手順を段ごとに → 本当の工程の 11 行を 1 行ずつ出すための枠（5 つの段がそろった所。頁の px）
+    await a.box('rlT', '.mo-rl.rl-t', 4); await a.box('rlC', '.mo-rl.rl-c', 4); await a.box('rlM', '.mo-rl.rl-m', 4);
+    for (let k = 1; k <= 5; k++) { await a.box(`sh${k}`, `.mo-sh.s${k}`, 2); await a.box(`ct${k}`, `.mo-cell.ct.s${k}`, 4); await a.box(`cc${k}`, `.mo-cell.cc.s${k}`, 4); await a.box(`mk${k}`, `.mo-marks.s${k}`, 4); }
+    const lis = await p.evaluate(() => [...document.querySelectorAll('.mo-marks li')].map((e) => { const r = e.getBoundingClientRect(); return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height), v: e.className, t: e.innerText.replace(/\s+/g, ' ') }; }));
+    console.log('moyou11 本当の工程の行', lis.length, JSON.stringify(lis));
+    lis.forEach((b, i) => a.boxRaw(`li${String(i).padStart(2, '0')}_${b.v}`, b.x, b.y, b.w, b.h));
+    await p.keyboard.press('ArrowRight');
+    a.mark('final');
+    await a.hold(N(40), { hide: true });
+    a.mark('finalIn'); await a.box('final', '.moyou .mo-final', 0);
+    const bigs = await p.evaluate(() => [...document.querySelectorAll('.moyou .mo-final .mo-big')].map((e) => { const r = e.getBoundingClientRect(); return { x: Math.round(r.x), y: Math.round(r.y), w: Math.round(r.width), h: Math.round(r.height) }; }));
+    console.log('moyou11 3 枚', JSON.stringify(bigs), await p.evaluate(() => [window.scrollY, document.documentElement.scrollHeight]));
+    bigs.forEach((b, i) => a.boxRaw(`big${i}`, b.x, b.y, b.w, b.h));
+    await a.hold(N(150), { hide: true });
+  },
+});
+// 結の並び（最終案 11）：アールデコ（本物の Claude の回の設計を、黒の舞台で別の向きから）と、入口のページの地金のみの指輪
+const SHAPES11 = [
+  ['deco', null],
+  ['wing', 'band=wing'],
+  ['crossing', 'band=crossing'],
+];
+const DECO_DESIGN = process.env.DECO_DESIGN || '/private/tmp/claude-503/-Users-ishikawaohri-Desktop-tsugu-craft-repo/bffaf683-dc6f-52c8-8237-fb25fad16c4f/scratchpad/artdeco/artdeco-design.json';
+Object.assign(CH, {
+  shapes11: async (a) => {
+    const { p } = a;
+    for (const [name, q] of SHAPES11) {
+      await p.goto(`${BASE}/studio.html?nointro&rec${q ? `&${q}` : ''}`, { waitUntil: 'load' });
+      await a.until(() => !!(window.__studio && window.__viewer && window.__studio.session && window.__studio.session.built), null, { label: name, chunk: 50 });
+      await a.settle(2500);
+      await new Promise((r) => setTimeout(r, 2000));
+      if (!q) {
+        const d = JSON.parse(fs.readFileSync(DECO_DESIGN, 'utf8'));
+        await p.evaluate((d) => { const s = window.__studio.session; s.state = JSON.parse(JSON.stringify(d.state)); s.build('見本を見る'); }, d);
+        await fine(a, 600);
+        console.log('shapes11 アールデコ', await p.evaluate(() => JSON.stringify(window.__studio.session.built.problems.map((x) => x.check))), await specsText(p));
+      }
+      await a.settle(1500);
+      await p.addStyleTag({ content: STAGE_CSS9 });
+      await p.evaluate(() => {
+        const v = window.__viewer;
+        v.setDisplayMode('render'); v.setPresenting(true);
+        document.querySelector('.t-dims[aria-pressed="true"]')?.click(); document.querySelector('.t-grid[aria-pressed="true"]')?.click();
+        v.setAutoRotate(false); v.keepCamera = true;
+        dispatchEvent(new Event('resize'));
+      });
+      await new Promise((r) => setTimeout(r, 1500));
+      await a.settle(800);
+      // アールデコは、動画の中の向き（斜め上から）と違う、低い横からの向きで
+      await look9(a, q ? { x: 0.66, y: -0.62, z: 0.42 } : { x: -0.85, y: -0.55, z: 0.18 }, q ? 1.0 : 0.92);
+      a.mark(name);
+      await a.hold(N(80), { turn: TURN9, hide: true });
+    }
+  },
+});
+// 結（最終案 11。作者の判断）：指輪は 1 つだけ。アールデコ（本物の Claude の 4 回目の設計）を黒の舞台で、いちばん質の高い描き方で、ゆっくり回す。カメラは動かさない
+Object.assign(CH, {
+  decoring11: async (a) => {
+    const { p } = a;
+    await stage9(a);
+    const d = JSON.parse(fs.readFileSync(DECO_DESIGN, 'utf8'));
+    await p.evaluate((d) => { const s = window.__studio.session; s.state = JSON.parse(JSON.stringify(d.state)); s.build('見本を見る'); }, d);
+    await fine(a, 800);
+    console.log('decoring11', await p.evaluate(() => JSON.stringify(window.__studio.session.built.problems.map((x) => x.check))), await specsText(p));
+    await p.evaluate(() => { const v = window.__viewer; v.setDisplayMode('render'); v.setPresenting(true); if (typeof v.canHighQuality === 'function' ? v.canHighQuality() : v.canHighQuality !== false) v.setHighQuality(true); v.setAutoRotate(false); v.keepCamera = true; });
+    await new Promise((r) => setTimeout(r, 2500));
+    await a.settle(1200);
+    await look9(a, WHOLE9, 1.0);
+    await new Promise((r) => setTimeout(r, 1500));
+    await a.settle(600);
+    a.mark('whole');
+    await a.hold(N(150), { turn: TURN9 * 0.8, hide: true });
+  },
+});
+// 手で変える（最終案 12。作者の声：ゆっくり 1 つより、短く何種類かを。描くそばから確かめるのが分かるように）
+//   断面の点を外へ引きすぎる → 断面の図と 3D の腕が赤く → 少し戻すと赤が消える ／ 確かめるで爪を押す → 尖り爪 → 土台を太く、先を力強く ／ 留め方 6 本爪 → 覆輪
+Object.assign(CH, {
+  ops12: async (a) => {
+    const { p } = a;
+    await studioNow9(a); await builtNow9(a);
+    await p.addStyleTag({ content: OPS_CSS11 });
+    await blackVp11(a);
+    await p.evaluate(() => document.querySelector('.ring-shape [data-sec="hirauchi"]')?.click());
+    await fine(a, 200);
+    await p.evaluate(() => { const d = document.querySelector('.ring-shape details.ring-draw'); if (d) d.open = true; });
+    await a.settle(400);
+    await p.evaluate(() => { const e = document.querySelector('.ring-shape details.ring-draw .sec-edit svg'); const c = document.querySelector('.make-panel'); if (e && c) c.scrollTop += e.getBoundingClientRect().top - c.getBoundingClientRect().top - 150; });
+    await a.settle(300);
+    await frame11(a, DIR11, 0.7, 170);
+    a.mark('full'); await a.box('sec', '.ring-shape details.ring-draw .sec-edit', 4);
+    await a.hold(N(14), { turn: TURN9 });
+    const side = await p.evaluate(() => {
+      const svg = document.querySelector('.ring-shape details.ring-draw .sec-edit svg'); const sr = svg.getBoundingClientRect();
+      const gs = [...svg.querySelectorAll('g.se-h:not(.ghost)')].map((g) => { const r = g.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
+      gs.sort((q, w) => q.y - w.y);
+      return gs.filter((q) => q.y > gs[0].y + 12 && q.y < sr.y + sr.height - 30).sort((q, w) => w.x - q.x)[0];
+    });
+    // 外へ引きすぎる（赤）→ 押さえたまま少し戻す（赤が消える）
+    await a.move(side, 14, { turn: TURN9 });
+    await a.shot({ rip: 1, turn: TURN9 });
+    await p.mouse.down();
+    a.mark('grab');
+    const path = (from, to, n) => Array.from({ length: n }, (_, k) => { const e = ease((k + 1) / n); return { x: from.x + (to.x - from.x) * e, y: from.y + (to.y - from.y) * e }; });
+    const out = { x: side.x + 46, y: side.y - 6 };
+    for (const q of path(side, out, 16)) { await p.mouse.move(q.x, q.y); await a.shot({ rip: 0.55, turn: TURN9 }); }
+    await p.mouse.up();
+    await a.shot({ rip: 0.3, turn: TURN9 });
+    await fine(a, 150);
+    a.mark('red'); console.log('ops12 引きすぎ', JSON.stringify(await probsOf(p)), await p.evaluate(() => document.querySelector('.verdict-chip')?.innerText), await p.evaluate(() => document.querySelector('.ring-shape .se-read')?.innerText.replace(/\s+/g, ' ')));
+    for (let k = 0; k < N(20); k++) await a.shot({ turn: TURN9 });
+    // つまみ直して、少し戻す
+    await a.shot({ rip: 1, turn: TURN9 });
+    await p.mouse.down();
+    const back = { x: side.x + 8, y: side.y };
+    for (const q of path(out, back, 14)) { await p.mouse.move(q.x, q.y); await a.shot({ rip: 0.55, turn: TURN9 }); }
+    await p.mouse.up();
+    await a.shot({ rip: 0.3, turn: TURN9 });
+    await fine(a, 150);
+    a.mark('back'); console.log('ops12 戻した', JSON.stringify(await probsOf(p)), await p.evaluate(() => document.querySelector('.verdict-chip')?.innerText));
+    await a.hold(N(20), { turn: TURN9 });
+    // 確かめるへ：爪を押して形を変える
+    await a.press('.tabs [data-mode="refine"]', { n: 16, after: 0, turn: TURN9 });
+    await a.settle(600);
+    await blackVp11(a);
+    await frame11(a, { x: 0.62, y: -0.95, z: 0.62 }, 0.66, -170);
+    a.mark('refine');
+    await a.hold(N(8), { turn: 0.0008 });
+    const ps = [];
+    for (let i = 0; i < 3; i++) ps.push({ i, ...(await prongAt11(p, i)) });
+    ps.sort((q, w) => q.dist - w.dist);
+    await a.press({ x: ps[0].x, y: ps[0].y }, { n: 16, after: 2 });
+    a.mark('pop'); await a.box('pop', '.prong-pop', 6);
+    await a.hold(N(8));
+    await a.press('.prong-pop [data-tip="oni"]', { n: 12, after: 0 });
+    await fine(a, 150);
+    a.mark('oni'); console.log('ops12 尖り爪', await p.evaluate(() => document.querySelector('.verdict-chip')?.innerText));
+    await a.hold(N(14));
+    await a.press('.prong-pop .pp-strong', { n: 12, after: 0 });
+    await fine(a, 150);
+    a.mark('strong'); console.log('ops12 土台を太く', await p.evaluate(() => document.querySelector('.verdict-chip')?.innerText));
+    await a.hold(N(16));
+    await a.press('.prong-pop .pp-x', { n: 10, after: 2 });
+    // 留め方を変える（手で変える欄の留め方）
+    await a.scroll('.studio-refine [data-k="留め方"][data-v="6"]', { block: 'center', n: 12 });
+    a.mark('setting'); await a.box('settingRow', '.studio-refine .pick:has([data-k="留め方"])', 6);
+    await a.hold(N(6));
+    await a.press('.studio-refine [data-k="留め方"][data-v="6"]', { n: 12, after: 0 });
+    await fine(a, 200);
+    a.mark('six'); console.log('ops12 6 本爪', await p.evaluate(() => document.querySelector('.verdict-chip')?.innerText), JSON.stringify(await probsOf(p)));
+    await a.hold(N(16));
+    await a.press('.studio-refine [data-k="留め方"][data-v="bezel"]', { n: 10, after: 0 });
+    await fine(a, 200);
+    a.mark('bezel'); console.log('ops12 覆輪', await p.evaluate(() => document.querySelector('.verdict-chip')?.innerText), JSON.stringify(await probsOf(p)));
+    await a.hold(N(24), { hide: true });
+  },
+});
+// 断面を手で描く（最終案 13。作者の声：1 点だけでなく、パッパッパと何度も変える。うち 1 回は引きすぎて赤 → 元に戻すと赤が消える。
+//   最終案 12 は、点は動くのにマウスの印が止まっていた → どの操作も a.drag・a.move で動かし、印が点をつまんで運ぶ）
+// 最終案 17b（作者の声）：
+//   ・1 つの点を動かすと 2 つの点が動いて見えた → 左右対称（はじめから入っている）で、反対側の点もいっしょに動いていた（アプリの決まりどおり）。
+//     撮る前に左右対称を切り、動かした点だけが動くようにする（動いた点の数を、動かすたびに数えて残す）
+//   ・動き：点 1・点 2 をパッ・パッと動かす（形は作れるまま）→ 点 3 を引きすぎる（赤：尖りすぎ）→ 離さず、元に戻すも押さずに、
+//     つまんだまま作れる所へ戻す（その場で赤が消える）→ 離す。印はずっと点の上
+Object.assign(CH, {
+  sec13: async (a) => {
+    const { p } = a;
+    await studioNow9(a); await builtNow9(a);
+    await p.addStyleTag({ content: OPS_CSS11 });
+    await blackVp11(a);
+    await p.evaluate(() => document.querySelector('.ring-shape [data-sec="hirauchi"]')?.click());
+    await fine(a, 200);
+    await p.evaluate(() => { const d = document.querySelector('.ring-shape details.ring-draw'); if (d) d.open = true; });
+    await a.settle(400);
+    // 左右対称を切る（撮らない）
+    await p.evaluate(() => { const b = document.querySelector('.ring-shape .se-sym'); if (b && b.getAttribute('aria-pressed') === 'true') b.click(); });
+    await a.settle(200);
+    console.log('sec13 左右対称', await p.evaluate(() => document.querySelector('.ring-shape .se-sym')?.getAttribute('aria-pressed')));
+    await p.evaluate(() => { const e = document.querySelector('.ring-shape details.ring-draw .sec-edit svg'); const c = document.querySelector('.make-panel'); if (e && c) c.scrollTop += e.getBoundingClientRect().top - c.getBoundingClientRect().top - 150; });
+    await a.settle(300);
+    // 最終案 17b：指輪を少し小さく、少し下へ（組むとき、判定の札より下から切り抜くので、左上の見出しと小さな説明に石が重ならないように）
+    await frame11(a, DIR11, Number(process.env.SEC17_FRAC || 0.6), 170);
+    await p.evaluate(({ dx, ey }) => {
+      const v = window.__viewer; const w = v.host.clientWidth || 1; const h = v.host.clientHeight || 1;
+      const dy = h * (v.lift || 0) + ((v.insets?.bottom || 0) - (v.insets?.top || 0)) / 2 - ey;
+      for (const cam of [v.cams.persp, v.cams.ortho]) { cam.setViewOffset(w, h, -dx, dy, w, h); cam.updateProjectionMatrix(); }
+      v.dirty = true; v.draw?.();
+    }, { dx: 170, ey: Number(process.env.SEC17_EY || 45) });
+    await a.settle(300);
+    a.mark('full'); await a.box('sec', '.ring-shape details.ring-draw .sec-edit', 4); await a.box('undo', '.ring-shape .se-undo', 4);
+    const T = { turn: TURN9 };
+    // 今の点（左右対称を切ったので、どの点もつまめる）。i：点の番号、x・y：ページの px、mx・my：断面の mm（SVG の位置）
+    const handles = () => p.evaluate(() => {
+      const svg = document.querySelector('.ring-shape details.ring-draw .sec-edit svg');
+      return [...svg.querySelectorAll('g.se-h:not(.ghost)')].map((g) => {
+        const r = g.getBoundingClientRect();
+        const m = /translate\(([-\d.]+)[ ,]+([-\d.]+)\)/.exec(g.getAttribute('transform') || '') || [0, 0, 0];
+        return { i: +g.dataset.i, x: r.x + r.width / 2, y: r.y + r.height / 2, mx: +m[1], my: +m[2] };
+      });
+    });
+    const state = () => p.evaluate(() => [document.querySelector('.ring-shape .sec-edit')?.classList.contains('spiky') ? '赤' : '—', document.querySelector('.verdict-chip')?.innerText, document.querySelector('.ring-shape .se-read')?.innerText.replace(/\s+/g, ' ').slice(0, 40)].join(' '));
+    const spiky = () => p.evaluate(() => !!document.querySelector('.ring-shape .sec-edit')?.classList.contains('spiky'));
+    /** 動かす前と後の点を比べて、動いた点の番号（左右対称を切ったので、つまんだ 1 つだけのはず） */
+    const movedOf = (H0, H1) => H1.filter((q) => { const o = H0.find((w) => w.i === q.i); return !o || Math.hypot(o.mx - q.mx, o.my - q.my) > 1e-4; }).map((q) => q.i);
+    let H = await handles();
+    console.log('sec13 点', H.length, H.map((q) => `${q.i}:(${q.mx.toFixed(2)},${q.my.toFixed(2)})`).join(' '));
+    const minY = Math.min(...H.map((q) => q.y));
+    const maxY = Math.max(...H.map((q) => q.y));
+    const cx0 = (Math.min(...H.map((q) => q.x)) + Math.max(...H.map((q) => q.x))) / 2;
+    // 点 1：上の列の、真ん中にいちばん近い点 → 上へ（山形）
+    const P1 = H.filter((q) => q.y < minY + 4).sort((q, w) => Math.abs(q.x - cx0) - Math.abs(w.x - cx0))[0];
+    // 点 2：右の辺の、高さの真ん中に近い点 → 外へ（ふくらむ）
+    const mid = (minY + maxY) / 2;
+    const P2 = H.filter((q) => q.x > cx0 + 20 && q.y > minY + 20 && q.y < maxY - 20).sort((q, w) => Math.abs(q.y - mid) - Math.abs(w.y - mid))[0];
+    // 点 3：上の列のいちばん右（上の右の角）→ 外へ引きすぎる → つまんだまま戻す
+    const P3 = H.filter((q) => q.y < minY + 6).sort((q, w) => w.x - q.x)[0];
+    console.log('sec13 選んだ点', JSON.stringify({ P1, P2, P3 }));
+    // 頭：断面の欄へゆっくり（前の図との重ねと、全体から寄る間）
+    await a.drift(N(18), { x: P1.x + 30, y: P1.y + 70 }, { k: 0.75, o: T });
+    // 1 回のつまみ：n こまで to へ（印と点は同じ所）。動いた点の数を数える
+    const quick = async (name, P, dx, dy, { pre = 10, n = 8 } = {}) => {
+      const H0 = await handles();
+      a.mark(`${name}0`);
+      await a.drag({ x: P.x, y: P.y }, { x: P.x + dx, y: P.y + dy }, { n, pre, o: T, hold: 1 });
+      a.mark(`${name}1`);
+      const H1 = await handles();
+      console.log(`sec13 ${name} 動いた点`, JSON.stringify(movedOf(H0, H1)), await state());
+    };
+    await quick('a', P1, 0, -14, { pre: 12, n: 8 });
+    await quick('b', P2, 13, 0, { pre: 9, n: 8 });
+    // 点 3：押したまま 外へ（赤）→ 赤を見せる間も、ほんの少しずつ外へ（印は止めない。点は印の下）→ 離さずに戻す（赤が消える）→ 離す
+    const H0 = await handles();
+    a.mark('c0');
+    await a.move({ x: P3.x, y: P3.y }, 9, T);
+    await a.shot({ ...T, rip: 1 });
+    await p.mouse.down();
+    a.mark('down');
+    await a.shot({ ...T, rip: 0.8 });
+    const path = async (to, n, ez = ease, rip = 0.55) => {
+      const s0 = a.cur;
+      for (let k = 1; k <= n; k++) {
+        const e = ez(k / n);
+        await a.jump({ x: s0.x + (to.x - s0.x) * e, y: s0.y + (to.y - s0.y) * e });
+        await a.shot({ ...T, rip });
+        const red = await spiky();
+        if (red && !('red' in seen)) { seen.red = a.i - 1; a.mark('red'); }
+        if (!red && 'red' in seen && !('clear' in seen)) { seen.clear = a.i - 1; a.mark('clear'); }
+      }
+    };
+    const seen = {};
+    const far = { x: P3.x + Number(process.env.SEC17_FAR || 46), y: P3.y - 4 };
+    await path(far, 15);
+    console.log('sec13 引きすぎ', await state(), JSON.stringify(await probsOf(p)));
+    a.mark('far');
+    await path({ x: far.x + 4, y: far.y - 1 }, N(22), (u) => u);
+    a.mark('back0');
+    const back = { x: P3.x + Number(process.env.SEC17_BACK || 8), y: P3.y - 1 };
+    await path(back, 15);
+    a.mark('back1');
+    console.log('sec13 戻した（押したまま）', await state(), JSON.stringify(await probsOf(p)));
+    await path({ x: back.x - 1, y: back.y }, 3, (u) => u);
+    await p.mouse.up();
+    a.mark('up');
+    await a.shot({ ...T, rip: 0.3 });
+    const H1 = await handles();
+    console.log('sec13 c 動いた点', JSON.stringify(movedOf(H0, H1)), '赤が出た', seen.red, '消えた', seen.clear, await state());
+    await a.drift(N(40), { x: a.cur.x - 50, y: a.cur.y + 40 }, { o: T });
+  },
+});
+// ================================================================ 最終案 14（2026-11-06 夜）
+// 残す（作者の声：Claude は書き写すのでなく、読み取る）。確かめるの「Claude に教える」を、本物の Claude の返事で撮る：
+//   職人の言葉「このサイズ（約 8 mm）の石なら、最低ライン 0.7 ミリは欲しい」→ Claude の案（8.2 mm は職人の 0.70、ほかの大きさは割合から推測）
+//   → これでいい → 赤が消える → 話して直す「18 ミリなら 1.2 は欲しい」→ 18 mm が職人の 1.20 に。
+//   返事は 2026-11-06 に本物の Claude を 1 回通して覚えた 4 つ（_claude9/teach14/000〜003.json。撮り直しでは Claude を呼ばない）。
+//   帳面は新しい工房（公開の目安だけ）で、名前は石川工房。爪を 0.9 mm にして、作れない所 2 つから始める（公開の目安では、この石の爪の最低は 1.22 mm）。
+//   印は止めない（作者の声：止まるとラグに見える）。待つ所は、読ませたい字の上をゆっくりなぞる
+const TEACH1 = 'このサイズ（約 8 mm）の石なら、最低ライン 0.7 ミリは欲しい';
+const TEACH2 = '18 ミリなら 1.2 は欲しい';
+const TEACH_DIR = { x: 0.62, y: -0.95, z: 0.62 };
+/** 確かめるの欄の中で、sel を欄の上から off px の所へ（撮らない） */
+const refineTo = (p, sel, off) => p.evaluate(({ sel, off }) => { const e = document.querySelector(sel); const r = document.querySelector('.studio-refine'); if (e && r) r.scrollTop += e.getBoundingClientRect().top - r.getBoundingClientRect().top - off; }, { sel, off });
+const boxOf = (p, sel) => p.locator(sel).first().boundingBox({ timeout: 3000 }).catch(() => null);
+/** 表の「この案」（なければ表の最後）の行を、左から右へゆっくりなぞる（n こま）。行の高さの真ん中の少し下を通る */
+const traceRow = async (a, rowSel, n, o = {}) => {
+  const b = await boxOf(a.p, rowSel);
+  if (!b) return a.hold(n, o);
+  const y = b.y + b.height * 0.62;
+  await a.drift(Math.max(4, Math.round(n * 0.25)), { x: b.x + b.width * 0.36, y }, { o });
+  await a.drift(n - Math.max(4, Math.round(n * 0.25)), { x: b.x + b.width - 18, y }, { o });
+};
+Object.assign(CH, {
+  teach14: async (a) => {
+    const { p } = a;
+    await studioNow9(a); await builtNow9(a);
+    await p.addStyleTag({ content: OPS_CSS11 });
+    await refine(a);
+    // 公開の目安だけの帳面（新しい工房。職人が初めて教える）
+    await p.evaluate(() => { const s = document.querySelector('.ws-pick'); s.value = '__new'; s.dispatchEvent(new Event('change')); });
+    await a.settle(300);
+    await p.fill('.ws-name', process.env.TEACH_NAME || '石川工房');
+    await p.click('.ws-make');
+    await a.settle(2500);
+    await p.evaluate(() => window.__studio.session.setSetting({ prong_mm: 0.9, reason: '撮る' }));
+    await fine(a, 300);
+    await blackVp11(a);
+    await frame11(a, TEACH_DIR, Number(process.env.TEACH_FRAC || 0.62), Number(process.env.TEACH_DX || -120));
+    console.log('teach14 始め', await p.evaluate(() => document.querySelector('.big-verdict')?.innerText.replace(/\s+/g, ' ')), '／', await p.evaluate(() => document.querySelector('.teach-now')?.innerText.replace(/\s+/g, ' ')));
+    await refineTo(p, '.teach-sec', 6);
+    await a.settle(300);
+    a.mark('full'); await a.box('sec', '.teach-sec', 4); await a.box('field', '.ar-text', 8); await a.box('chip', '.verdict-chip', 6); await a.box('vp', '.vp', 0);
+    // 全体 → 欄へ（はじめから少しずつ動く）
+    await a.drift(N(12), '.ar-text', { k: 0.3 });
+    await a.press('.ar-text', { n: 16, after: 2 });
+    a.mark('type');
+    await a.typeDrift(TEACH1, { each: 1 });
+    a.mark('typed');
+    await a.drift(N(6), '.ar-go', { k: 0.45 });
+    await a.box('go', '.ar-go', 8);
+    await a.press('.ar-go', { n: 10, after: 0 });
+    a.mark('wait');
+    // Claude が読んでいる所（返事は少し待たせてある）：印は案の出る所へゆっくり
+    const go = await boxOf(p, '.ar-go');
+    await a.drift(N(8), { x: go.x + go.width * 0.3, y: go.y + 70 });
+    await a.until(() => /これでいい/.test(document.querySelector('.ar-proposal')?.innerText || ''), null, { label: 'Claude の案', timeout: 240000 });
+    a.mark('proposal');
+    console.log('teach14 案 1', await p.evaluate(() => document.querySelector('.ar-proposal')?.innerText.replace(/\s+/g, ' ')));
+    // 案が欄のまん中へなめらかに動く（アプリの動き。約 0.5 秒）間も、印は案の方へ。動き終わってから枠を測る（撮るこまは N で減らさない）
+    await a.drift(18, { x: a.cur.x - 30, y: a.cur.y - 40 });
+    await a.box('card', '.ar-proposal .proposal-d', 6); await a.box('read', '.ar-proposal .pp-read', 6); await a.box('table', '.ar-proposal .pt-table', 6);
+    a.mark('read');
+    // 読み取りの行 → 表の「この案」の行を左から右へ（推測・職人・推測…）
+    await a.drift(N(14), '.ar-proposal .pp-read', { k: 1 });
+    a.mark('row');
+    await traceRow(a, '.ar-proposal tr.pt-after', N(54));
+    a.mark('rowEnd');
+    await a.box('ok', '.ar-proposal button.ok', 8);
+    await a.press('.ar-proposal button.ok', { n: 16, after: 0 });
+    a.mark('applied');
+    console.log('teach14 知らせ 1', await p.evaluate(() => document.querySelector('.rule-flash')?.innerText.replace(/\s+/g, ' ')), '／', await p.evaluate(() => document.querySelector('.big-verdict')?.innerText.replace(/\s+/g, ' ')));
+    // 赤が消える・欄が上の知らせへ戻る（アプリの動き。約 0.5 秒。N で減らさない）。印は知らせの字へゆっくり
+    await a.drift(20, { x: a.cur.x - 20, y: a.cur.y - 120 });
+    await a.box('flash', '.rule-flash', 6); await a.box('verdict', '.big-verdict', 6); await a.box('chip2', '.verdict-chip', 6);
+    a.mark('flash');
+    await a.drift(N(40), '.big-verdict', { k: 0.6 });
+    a.mark('flashEnd');
+    // 話して直す：欄へ戻る
+    await a.scroll('.ar-text', { block: 'start', n: 18, offset: 150 });
+    a.mark('back');
+    await a.box('card1', '.pt-card', 6);
+    await a.press('.ar-text', { n: 14, after: 2 });
+    a.mark('type2');
+    await a.typeDrift(TEACH2, { each: 1 });
+    a.mark('typed2');
+    await a.drift(N(5), '.ar-go', { k: 0.45 });
+    await a.press('.ar-go', { n: 10, after: 0 });
+    a.mark('wait2');
+    const go2 = await boxOf(p, '.ar-go');
+    await a.drift(N(8), { x: go2.x + go2.width * 0.3, y: go2.y + 70 });
+    await a.until(() => /これでいい/.test(document.querySelector('.ar-proposal')?.innerText || ''), null, { label: 'Claude の案 2', timeout: 240000 });
+    a.mark('proposal2');
+    console.log('teach14 案 2', await p.evaluate(() => document.querySelector('.ar-proposal')?.innerText.replace(/\s+/g, ' ')));
+    await a.drift(18, { x: a.cur.x - 30, y: a.cur.y - 30 });
+    await a.box('card2', '.ar-proposal .proposal-d', 6); await a.box('read2', '.ar-proposal .pp-read', 6); await a.box('table2', '.ar-proposal .pt-table', 6);
+    a.mark('row2');
+    await traceRow(a, '.ar-proposal tr.pt-after', N(44));
+    a.mark('row2End');
+    await a.press('.ar-proposal button.ok', { n: 14, after: 0 });
+    a.mark('applied2');
+    // 欄は上の知らせへ戻る（作れない所 0 → 0）。撮らずに待ち、帳面の表（職人の点と推測の点）を見せる所へ
+    await a.settle(900);
+    console.log('teach14 知らせ 2', await p.evaluate(() => document.querySelector('.rule-flash')?.innerText.replace(/\s+/g, ' ')));
+    await refineTo(p, '.pt-card', 120);
+    await a.settle(200);
+    a.mark('final'); await a.box('ptcard', '.pt-card', 6); await a.box('pttable', '.pt-card .pt-table', 6);
+    console.log('teach14 表', await p.evaluate(() => document.querySelector('.pt-card')?.innerText.replace(/\s+/g, ' ')));
+    await traceRow(a, '.pt-card tr.pt-after', N(50));
+    await a.drift(N(20), '.pt-card .pp-how', { k: 0.4 });
+  },
+});
+// 最終案 14：伝統の仕上げ（2026-11-06 に入った機能。確かめるの「手で変える」の中の「伝統の仕上げ」）。デザインする人への章の 4 秒ほど：
+//   作者の確認（2026-11-06）：布目象嵌はよく見える。槌目はよいが少し粗いので、短く・寄りすぎない。ミル打ちは見せない（粒がのっているように見える）。
+//   1 つ目：寄った絵（指輪と右の欄）で、印が 四分一 → 丸槌目（大きさは中のまま）を押す（銀灰の煮色に、金づちの跡）。
+//   最終案 14b（槌目を 4 種類に作り直した版。作者の確認：くっきり見える）：丸槌目にして、組むときに少し寄って見せる。
+//   2 つ目（いったん元の指輪に戻してから。組むときは切り替え）：赤銅 → 布目象嵌（紫がかった黒に、金の菱つなぎの帯）→ 腕の肌に寄って、ゆっくり回す。
+//   押す所は FINISH_A・FINISH_B（JSON の配列）で替えられる。形は ?nooffload（こまごとに一体の形）
+const TRAD = (k, v) => `.studio-refine .trad button[data-k="${k}"][data-v="${v}"]`;
+const FINISH_A = JSON.parse(process.env.FINISH_A || 'null') || [TRAD('色金', 'shibuichi'), TRAD('槌目', process.env.FINISH_TSUCHIME || 'maru')];
+const FINISH_B = JSON.parse(process.env.FINISH_B || 'null') || [TRAD('色金', 'shakudo'), TRAD('象嵌', 'nunome')];
+const FINISH_CLOSE = { x: 0.55, y: -0.75, z: 0.35 };
+Object.assign(CH, {
+  finish14: async (a) => {
+    const { p } = a;
+    await studioNow9(a, { query: '?nooffload' }); await builtNow9(a);
+    await p.addStyleTag({ content: OPS_CSS11 });
+    await refine(a);
+    await p.evaluate(() => { const d = document.querySelector('.studio-refine .manual'); if (d) d.open = true; });
+    await a.settle(500);
+    await blackVp11(a);
+    await frame11(a, { x: 0.62, y: -0.95, z: 0.62 }, 0.7, Number(process.env.FINISH_DX || 10));
+    await p.evaluate(() => { const t = document.querySelector('.studio-refine .trad'); const r = document.querySelector('.studio-refine'); if (t && r) r.scrollTop += t.getBoundingClientRect().top - r.getBoundingClientRect().top - 70; });
+    await a.settle(300);
+    // 開いてすぐの押しは、効かないことがある（別の係の話）。本当の時計で 5 秒待ってから押す
+    await new Promise((r) => setTimeout(r, 5000));
+    await a.settle(300);
+    const state = () => p.evaluate(() => [window.__studio.session.state.metal, JSON.stringify(window.__studio.session.state.finish || {}), document.querySelector('.verdict-chip')?.innerText].join(' '));
+    const presses = async (list, tag) => {
+      for (const [k, sel] of list.entries()) {
+        if (!(await a.press(sel, { n: 10, after: 0, turn: TURN9 }))) { console.log('finish14 押せない', sel); continue; }
+        await fine(a, 300);
+        await blackVp11(a);
+        a.mark(`${tag}${k}`); await a.box(`${tag}${k}`, sel, 6);
+        console.log('finish14', tag, k, sel, await state());
+        if (list[k + 1]) await a.drift(N(6), list[k + 1], { k: 0.4, o: { turn: TURN9 } });
+      }
+    };
+    // 1 つ目：四分一 → 槌目（中）
+    a.mark('full'); await a.box('trad', '.studio-refine .trad', 6); await a.box('chip', '.verdict-chip', 6);
+    await a.drift(N(6), FINISH_A[0], { k: 0.5, o: { turn: TURN9 } });
+    await presses(FINISH_A, 's');
+    await a.drift(N(24), '.vp', { k: 0.12, o: { turn: TURN9 } });
+    // 元の指輪へ戻す（撮らない。組むときは切り替える）
+    await p.click(TRAD('色金', 'none')).catch(() => {}); await p.click(TRAD('槌目', 'none')).catch(() => {});
+    await fine(a, 300);
+    await blackVp11(a);
+    console.log('finish14 戻した', await state());
+    // 2 つ目：赤銅 → 布目象嵌
+    const b0 = await p.locator(FINISH_B[0]).first().boundingBox();
+    if (b0) { await p.mouse.move(b0.x + b0.width / 2 + 40, b0.y + 60); }
+    a.mark('p2');
+    await a.drift(N(6), FINISH_B[0], { k: 0.5, o: { turn: TURN9 } });
+    await presses(FINISH_B, 'f');
+    await a.drift(N(16), { x: a.cur.x - 40, y: a.cur.y + 30 }, { o: { turn: TURN9 } });
+    // 腕の肌に寄った絵（3D の向きを変えて、ゆっくり回す。印は消す）
+    await p.evaluate(([d, z]) => {
+      const v = window.__viewer || window.__studio.viewer;
+      v.setAutoRotate?.(false); v.keepCamera = true;
+      v.camera.position.copy(v.controls.target).add(d);
+      v.fit();
+      const c = v.camera, t = v.controls.target;
+      c.position.sub(t).multiplyScalar(z).add(t);
+      v.controls.update(); v.dirty = true;
+    }, [FINISH_CLOSE, Number(process.env.FINISH_ZOOM || 0.45)]);
+    await a.settle(600);
+    a.mark('close'); await a.box('vp', '.vp', 0);
+    await a.hold(N(80), { turn: TURN9 * 0.8, hide: true });
+  },
+});
+// 最終案 15（作者の声：前の字の札の方が、見ていて入ってきた）：残すは字の札に戻し、そのあと本物の画面を短く（4〜5 秒）。
+//   1 回目（職人の言葉 → 案 → これでいい）は撮らずに済ませ、2 回目の「話して直す」だけを撮る：欄を押す →「18 ミリなら 1.2 は欲しい」→ Claude に教える →
+//   案（18 mm が 1.20）→ これでいい（1 つのなめらかな動き）→ 帳面の表。寄りは中くらい（推測の印には寄らない）。返事は teach14 と同じ覚えた 4 つ
+Object.assign(CH, {
+  teach15: async (a) => {
+    const { p } = a;
+    await studioNow9(a); await builtNow9(a);
+    await p.addStyleTag({ content: OPS_CSS11 });
+    await refine(a);
+    await p.evaluate(() => { const s = document.querySelector('.ws-pick'); s.value = '__new'; s.dispatchEvent(new Event('change')); });
+    await a.settle(300);
+    await p.fill('.ws-name', process.env.TEACH_NAME || '石川工房');
+    await p.click('.ws-make');
+    await a.settle(2500);
+    await p.evaluate(() => window.__studio.session.setSetting({ prong_mm: 0.9, reason: '撮る' }));
+    await fine(a, 300);
+    // 1 回目（撮らない）
+    await refineTo(p, '.teach-sec', 6);
+    await p.click('.ar-text'); await p.keyboard.insertText(TEACH1); await p.click('.ar-go');
+    await a.until(() => /これでいい/.test(document.querySelector('.ar-proposal')?.innerText || ''), null, { label: 'Claude の案 1', timeout: 240000 });
+    await a.settle(900);
+    await p.click('.ar-proposal button.ok');
+    await a.settle(1500);
+    await fine(a, 300);
+    await blackVp11(a);
+    await frame11(a, TEACH_DIR, Number(process.env.TEACH_FRAC || 0.6), Number(process.env.TEACH_DX || 160));
+    console.log('teach15 1 回目のあと', await p.evaluate(() => document.querySelector('.rule-flash')?.innerText.replace(/\s+/g, ' ')));
+    // 2 回目（撮る）
+    await refineTo(p, '.ar-text', 150);
+    await a.settle(400);
+    // 最終案 16（作者の声：「違えば、ひとこと話すだけで直せます」が速くて追えない）：打つのは 1 字 2 こま、Claude の案を読む間も長く。
+    //   組むときは、どこも等倍（止めずに、動きそのものをゆっくり）。はじめの印は欄の近くに置く（欄までの道のりを短く）
+    const fld = await boxOf(p, '.ar-text');
+    if (fld) await a.jump({ x: fld.x + fld.width * 0.62, y: fld.y - 46 });
+    a.mark('full'); await a.box('field', '.ar-text', 8); await a.box('ptcard0', '.pt-card', 6);
+    await a.drift(N(8), '.ar-text', { k: 0.45 });
+    await a.press('.ar-text', { n: 12, after: 2 });
+    a.mark('type');
+    await a.typeDrift(TEACH2, { each: 2 });
+    a.mark('typed');
+    await a.drift(N(6), '.ar-go', { k: 0.4 });
+    await a.press('.ar-go', { n: 12, after: 0 });
+    a.mark('wait');
+    const go = await boxOf(p, '.ar-go');
+    await a.drift(N(12), { x: go.x + go.width * 0.4, y: go.y + 60 });
+    await a.until(() => /これでいい/.test(document.querySelector('.ar-proposal')?.innerText || ''), null, { label: 'Claude の案 2', timeout: 240000 });
+    a.mark('proposal');
+    console.log('teach15 案 2', await p.evaluate(() => document.querySelector('.ar-proposal')?.innerText.replace(/\s+/g, ' ')));
+    // 案の表の 18 mm（1.40 → 1.20）の方へ、ゆっくり
+    const tb = await boxOf(p, '.ar-proposal .pt-table');
+    await a.drift(N(30), tb ? { x: tb.x + tb.width * 0.82, y: tb.y + tb.height * 0.55 } : { x: a.cur.x - 20, y: a.cur.y + 10 });
+    await a.box('card', '.ar-proposal .proposal-d', 6); await a.box('read', '.ar-proposal .pp-read', 6); await a.box('table', '.ar-proposal .pt-table', 6); await a.box('ok', '.ar-proposal button.ok', 8);
+    a.mark('read');
+    // これでいいへ、1 つのなめらかな動き
+    await a.press('.ar-proposal button.ok', { n: 22, after: 0 });
+    a.mark('applied');
+    await a.settle(900);
+    await refineTo(p, '.pt-card', 150);
+    await a.settle(200);
+    a.mark('final'); await a.box('ptcard', '.pt-card', 6); await a.box('pttable', '.pt-card .pt-table', 6);
+    console.log('teach15 表', await p.evaluate(() => document.querySelector('.pt-card')?.innerText.replace(/\s+/g, ' ')));
+    await a.drift(N(40), '.pt-card .pt-table', { k: 0.25 });
+  },
+});
+// 最終案 15（作者の声：見た目だけでは弱い。作り方まで教えるのが大事）：伝統の仕上げのあと、布目象嵌の作り方（手順の札）まで。
+//   1 つ目：四分一 → 丸槌目（中）。2 つ目（元の指輪に戻してから）：赤銅 → 布目象嵌 → 手順を押す → 布目象嵌の札（布目を切る → 純金を打ちこむ → …）をゆっくり送る
+Object.assign(CH, {
+  finish15: async (a) => {
+    const { p } = a;
+    await studioNow9(a, { query: '?nooffload' }); await builtNow9(a);
+    await p.addStyleTag({ content: OPS_CSS11 });
+    await refine(a);
+    await p.evaluate(() => { const d = document.querySelector('.studio-refine .manual'); if (d) d.open = true; });
+    await a.settle(500);
+    await blackVp11(a);
+    await frame11(a, { x: 0.62, y: -0.95, z: 0.62 }, 0.7, Number(process.env.FINISH_DX || 10));
+    await p.evaluate(() => { const t = document.querySelector('.studio-refine .trad'); const r = document.querySelector('.studio-refine'); if (t && r) r.scrollTop += t.getBoundingClientRect().top - r.getBoundingClientRect().top - 70; });
+    await a.settle(300);
+    await new Promise((r) => setTimeout(r, 5000));
+    await a.settle(300);
+    const state = () => p.evaluate(() => [window.__studio.session.state.metal, JSON.stringify(window.__studio.session.state.finish || {}), document.querySelector('.verdict-chip')?.innerText].join(' '));
+    const presses = async (list, tag) => {
+      for (const [k, sel] of list.entries()) {
+        if (!(await a.press(sel, { n: 12, after: 0, turn: TURN9 }))) { console.log('finish15 押せない', sel); continue; }
+        await fine(a, 300);
+        await blackVp11(a);
+        a.mark(`${tag}${k}`); await a.box(`${tag}${k}`, sel, 6);
+        console.log('finish15', tag, k, sel, await state());
+        if (list[k + 1]) await a.drift(N(6), list[k + 1], { k: 0.4, o: { turn: TURN9 } });
+      }
+    };
+    a.mark('full'); await a.box('trad', '.studio-refine .trad', 6);
+    await a.drift(N(6), FINISH_A[0], { k: 0.5, o: { turn: TURN9 } });
+    await presses(FINISH_A, 's');
+    await a.drift(N(24), '.vp', { k: 0.12, o: { turn: TURN9 } });
+    await p.click(TRAD('色金', 'none')).catch(() => {}); await p.click(TRAD('槌目', 'none')).catch(() => {});
+    await fine(a, 300);
+    await blackVp11(a);
+    a.mark('p2');
+    await a.drift(N(6), FINISH_B[0], { k: 0.5, o: { turn: TURN9 } });
+    await presses(FINISH_B, 'f');
+    await a.drift(N(14), { x: a.cur.x - 36, y: a.cur.y - 40 }, { o: { turn: TURN9 } });
+    // 作り方：手順を押す（1 つのなめらかな動き）→ 押したあとは、欄の方へゆっくり
+    // 最終案 15（作者の声：印がタタタと速い）：手順のタブまでは遠い（約 800 px）。組むときは、寄った絵から全体へ切り替える所（cutC）なので、
+    //   印をタブの近くへ置き直してから押す（等倍で見せられる長さに）
+    const tab = await boxOf(p, '.tabs [data-mode="hand"]');
+    if (tab) await a.jump({ x: tab.x + tab.width / 2 + 150, y: tab.y + tab.height / 2 + 130 });
+    a.mark('cutC');
+    await a.press('.tabs [data-mode="hand"]', { n: 14, after: 2, turn: TURN9 });
+    await a.settle(800);
+    await blackVp11(a);
+    await a.drift(N(14), { x: a.cur.x + 120, y: a.cur.y + 90 }, { o: { turn: TURN9 } });
+    a.mark('hand');
+    const cards = await p.evaluate(() => [...document.querySelectorAll('.build-panel .mk-card')].map((c, i) => `${i + 1}:${c.querySelector('h3')?.innerText || ''}`));
+    console.log('finish15 手順の札', cards.join(' ／ '));
+    const idx = await p.evaluate(() => { const cs = [...document.querySelectorAll('.build-panel .mk-card')]; return cs.findIndex((c) => /布目を切る/.test(c.querySelector('h3')?.innerText || '')) + 1; });
+    const cS = (k) => `.build-panel .mk-card:nth-child(${k})`;
+    // 布目を切るの札を上へ（撮らない。組むときは重ねて替える）
+    await p.evaluate((sel) => { const e = document.querySelector(sel); let c = e?.parentElement; while (c && !(c.scrollHeight > c.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(c).overflowY))) c = c.parentElement; if (e && c) c.scrollTop += e.getBoundingClientRect().top - c.getBoundingClientRect().top - 12; }, cS(idx));
+    await a.settle(300);
+    // 札の題の左へ印を置き直し（組むときは、全体から札へ重ねて替える所なので見えない）、題の上をゆっくりなぞる
+    const c0 = await boxOf(p, `${cS(idx)} h3`);
+    if (c0) await a.jump({ x: c0.x - 6, y: c0.y + c0.height * 0.65 });
+    a.mark('card0'); await a.box('card0', cS(idx), 4);
+    if (c0) await a.drift(N(26), { x: c0.x + c0.width + 16, y: c0.y + c0.height * 0.65 }, { o: { turn: TURN9 } });
+    for (const k of [1, 2]) {
+      await glideTo(a, cS(idx + k), 70, 22);
+      a.mark(`card${k}`); await a.box(`card${k}`, cS(idx + k), 4);
+      const hk = await boxOf(p, `${cS(idx + k)} h3`);
+      if (hk) await a.drift(N(26), { x: hk.x + hk.width + 16, y: hk.y + hk.height * 0.65 }, { o: { turn: TURN9 } });
+    }
+    await a.drift(N(20), { x: a.cur.x - 30, y: a.cur.y + 40 }, { o: { turn: TURN9 } });
+  },
+});
+// 学ぶ（最終案 11）：作者の決めた、少し専門的で具体的な問い。答えは帳面の「三角の石を 3 本爪で留めるとき」の決まりから出るはず（職人・日付が映るか確かめる）
+// 最終案 14（作者の声）：問いは、職人が言っていない大きさの石（長辺 9.3 mm）。答えは帳面の職人の点（メレ 2.5 mm・0.6 mm、8.2 mm・0.7 mm）から割合で推し量る（推測）。
+//   本物の Claude の返事は _claude9/learn11/000.json（2026-11-06。前の 8.8 mm の返事は 000_88.json。数の確かめで画面の計算に替わるので使わない）。
+//   答えと表（職人 0.60・0.70、推測 0.73、ふつう 0.83〜1.04）を読める所で止め、印はその上をなぞる → 職人の言葉（名前・日付）までゆっくり送る
+const LEARN11 = '長辺 9.3 mm の三角の石を留めたい。爪の太さは？';
+/** sel の上の端を、いちばん近い動かせる親の上から off px の所へ（撮らない） */
+const scrollTopTo = (p, sel, off) => p.evaluate(({ sel, off }) => {
+  const el = document.querySelector(sel);
+  if (!el) return false;
+  let c = el.parentElement;
+  while (c && !(c.scrollHeight > c.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(c).overflowY))) c = c.parentElement;
+  c = c || document.scrollingElement;
+  const top = c === document.scrollingElement ? 0 : c.getBoundingClientRect().top;
+  c.scrollTop += el.getBoundingClientRect().top - top - off;
+  return true;
+}, { sel, off });
+/** sel の上の端が、画面の上から y px に来るまで、いちばん近い動かせる親を n こまかけてなめらかに送る（撮る） */
+const glideTo = async (a, sel, y, n = 18) => {
+  const plan = await a.p.evaluate(({ sel, y }) => {
+    const el = document.querySelector(sel);
+    if (!el) return null;
+    let c = el.parentElement;
+    while (c && !(c.scrollHeight > c.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(c).overflowY))) c = c.parentElement;
+    c = c || document.scrollingElement;
+    window.__scr = c;
+    return { before: c.scrollTop, delta: el.getBoundingClientRect().top - y };
+  }, { sel, y });
+  if (!plan) { console.log('送る先がない', sel); return; }
+  for (let k = 1; k <= n; k++) {
+    const v = plan.before + plan.delta * ease(k / n);
+    await a.p.evaluate((v) => { window.__scr.scrollTop = v; }, v);
+    await a.shot();
+  }
+};
+Object.assign(CH, {
+  learn11: async (a) => {
+    const { p } = a;
+    await app10(a, '#learn');
+    // 最終案 15（作者の声：印がタタタと速い）：はじめの印は聞く欄の近くに置く（欄までの道のりを短く。組むときに等倍くらいで見せる）
+    const ta = await boxOf(p, '.composer textarea');
+    if (ta) await a.jump({ x: ta.x + ta.width * 0.6, y: ta.y - 30 });
+    a.mark('full'); await a.box('composer', '.composer', 6);
+    await a.drift(N(10), '.composer textarea', { k: 0.4 });
+    await a.press('.composer textarea', { n: 10, after: 2 });
+    a.mark('type');
+    await a.typeDrift(process.env.CAP_TEST ? LEARN11.slice(0, 3) : LEARN11, { each: 1 });
+    a.mark('typed');
+    await a.drift(N(12), '.composer .send', { k: 0.5 });
+    await a.box('send', '.composer .send', 6);
+    await a.press('.composer .send', { n: 12, after: 2 });
+    a.mark('wait');
+    // 答えを待つ間（返事は少し待たせてある）：印は答えの出る所へゆっくり（最終案 15：8 → 26 こま。返事はこの後に来るよう、待たせる時間も長く）
+    const th = await boxOf(p, '.thread');
+    await a.drift(N(26), { x: th.x + th.width * 0.3, y: th.y + th.height * 0.35 });
+    await a.until(() => !!document.querySelector('.thread .a-short'), null, { label: '学ぶの答え', timeout: 240000 });
+    await a.settle(700);
+    // 問いの吹き出し（長辺 9.3 mm…）を上に。その下に答えの文と表が並ぶ
+    await scrollTopTo(p, '.thread > .q', 58);  // 上の帯（44 px）の下
+    await a.settle(200);
+    a.mark('answer'); await a.box('q', '.thread > .q', 6); await a.box('answer', '.thread .a-short', 8); await a.box('thread', '.thread', 6); await a.box('table', '.thread .pt-learn', 6);
+    console.log('learn11 の答え', await p.evaluate(() => [...document.querySelectorAll('.thread .a-short, .thread .pt-learn, .thread .a-voice, .thread .a-meta')].map((e) => e.innerText.replace(/\s+/g, ' ')).join(' ／ ').slice(0, 900)));
+    // 答えの文をなぞる（職人の 2 つの点 → この石なら約 0.73 mm）→ 表の「推測」の列へ
+    const s1 = await boxOf(p, '.thread .a-short');
+    // 最終案 15（作者の声：印がタタタと速く動く）：なぞる道のりを短く、ゆっくり（組むときも等倍くらい）
+    // 最終案 15（2 回目）：組むときに等倍で見せられる長さに（1.2 倍で組むと、こまが飛んでタタタに見える）
+    if (s1) {
+      await a.drift(N(16), { x: s1.x + 40, y: s1.y + s1.height * 0.3 });
+      await a.drift(N(22), { x: s1.x + s1.width * 0.45, y: s1.y + s1.height * 0.36 });
+      await a.drift(N(8), { x: s1.x + s1.width * 0.5, y: s1.y + s1.height * 0.7 });
+    }
+    a.mark('table0');
+    const t1 = await boxOf(p, '.thread .pt-learn .pt-table');
+    if (t1) {
+      await a.drift(N(8), { x: t1.x + t1.width * 0.55, y: t1.y + t1.height * 0.5 });
+      await a.drift(N(12), { x: t1.x + t1.width * 0.86, y: t1.y + t1.height * 0.56 });
+    }
+    a.mark('table1');
+    // 職人の言葉（名前・日付）まで、ゆっくり送る
+    await glideTo(a, '.thread .a-voice', 330, 15);  // 職人の言葉を、下の聞く欄（464 px から）の上へ
+    a.mark('voice'); await a.box('voiceBox', '.thread .a-voice', 6);
+    const v1 = await boxOf(p, '.thread .a-voice');
+    if (v1) await a.drift(N(46), { x: v1.x + v1.width * 0.7, y: v1.y + v1.height * 0.45 });
+    await a.drift(N(20), { x: (v1 ? v1.x + v1.width * 0.5 : 400), y: (v1 ? v1.y + v1.height + 30 : 400) }, { k: 0.5 });
+  },
+});
+// 最終案 16b（作者の頼み）：伝統の仕上げは、石のない地金のみの指輪（変わった断面「くぼみ」）で見せる（3ce6fb6 の布目象嵌の模様・地金のみの指輪の仕上げ・新しい赤銅の色）。
+//   赤銅（煮色）→ 布目象嵌 → 麻の葉 → 青海波（模様がその場で替わり、緑の点で作れると分かる）→ 手順を押す → 布目を切る（この模様の数字）→ 純金を打ちこむ
+const FIN16_DIR = { x: 0.42, y: -1.0, z: 0.55 };
+/** sel の上の端が、画面の上から y px に来るよう、いちばん近い動かせる親を送る（撮らない） */
+const scrollToY = (p, sel, y) => p.evaluate(({ sel, y }) => {
+  const el = document.querySelector(sel);
+  if (!el) return false;
+  let c = el.parentElement;
+  while (c && !(c.scrollHeight > c.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(c).overflowY))) c = c.parentElement;
+  c = c || document.scrollingElement;
+  c.scrollTop += el.getBoundingClientRect().top - y;
+  return true;
+}, { sel, y });
+Object.assign(CH, {
+  finish16: async (a) => {
+    const { p } = a;
+    await studioNow9(a, { query: '?nooffload' }); await builtNow9(a);
+    await p.addStyleTag({ content: OPS_CSS11 });
+    await p.click('.kinds [data-kind="band"]'); await a.settle(1500);
+    await p.click(`.band-ctrl [data-sec="${process.env.FIN16_SEC || 'kubomi'}"]`); await a.settle(1500);
+    await new Promise((r) => setTimeout(r, 2000)); await a.settle(500);
+    await blackVp11(a);
+    await frame11(a, FIN16_DIR, Number(process.env.FIN16_FRAC || 0.62), Number(process.env.FIN16_DX || 190));
+    await p.evaluate(({ dx, ey }) => {
+      const v = window.__viewer; const w = v.host.clientWidth || 1; const h = v.host.clientHeight || 1;
+      const dy = h * (v.lift || 0) + ((v.insets?.bottom || 0) - (v.insets?.top || 0)) / 2 - ey;
+      for (const cam of [v.cams.persp, v.cams.ortho]) { cam.setViewOffset(w, h, -dx, dy, w, h); cam.updateProjectionMatrix(); }
+      v.dirty = true; v.draw?.();
+    }, { dx: Number(process.env.FIN16_DX || 190), ey: Number(process.env.FIN16_EY || 60) });
+    // 伝統の仕上げの題を、画面の上から 104 px に（色金の行が寄りの上の方に入る）
+    await scrollToY(p, '.band-ctrl .band-trad h4', 104);
+    await a.settle(400);
+    await new Promise((r) => setTimeout(r, 3000));
+    await a.settle(400);
+    const BT = (k, v) => `.band-ctrl [data-bt="${k}"][data-v="${v}"]`;
+    const info = () => p.evaluate(() => [document.querySelector('.band-ctrl .nm-panel h5')?.innerText.replace(/\s+/g, ' '), document.querySelector('.verdict-chip, .big-verdict b')?.innerText].join(' ／ '));
+    const b0 = await boxOf(p, BT('metal', 'shakudo'));
+    if (b0) await a.jump({ x: b0.x + b0.width / 2 - 150, y: b0.y + b0.height / 2 + 90 });
+    a.mark('full'); await a.box('trad', '.band-ctrl .band-trad', 4);
+    // 赤銅（煮色で、ほとんど黒に）
+    await a.drift(N(8), BT('metal', 'shakudo'), { k: 0.45 });
+    await a.press(BT('metal', 'shakudo'), { n: 12, after: 2 });
+    await a.settle(600); await blackVp11(a);
+    a.mark('s0');
+    // 布目象嵌（はじめの模様は菱つなぎ）
+    await a.drift(N(6), BT('inlay', 'nunome'), { k: 0.4 });
+    await a.press(BT('inlay', 'nunome'), { n: 14, after: 2 });
+    await a.settle(800); await blackVp11(a);
+    a.mark('s1'); console.log('finish16 布目象嵌', await info());
+    // 模様の欄が見えるまで、欄をなめらかに送る（印は模様の札の方へ）
+    await glideTo(a, '.band-ctrl .nm-panel', Number(process.env.FIN16_NMY || 214), 14);
+    a.mark('nm'); await a.box('nm', '.band-ctrl .nm-panel', 4);
+    await a.drift(N(6), '.band-ctrl [data-nm-pat="asanoha"]', { k: 0.5 });
+    await a.press('.band-ctrl [data-nm-pat="asanoha"]', { n: 10, after: 2 });
+    await a.settle(800); await blackVp11(a);
+    a.mark('s2'); console.log('finish16 麻の葉', await info());
+    await a.drift(N(4), '.band-ctrl [data-nm-pat="seigaiha"]', { k: 0.5 });
+    await a.press('.band-ctrl [data-nm-pat="seigaiha"]', { n: 8, after: 2 });
+    await a.settle(800); await blackVp11(a);
+    a.mark('s3'); console.log('finish16 青海波', await info());
+    await a.box('pat', '.band-ctrl [data-nm-pat="seigaiha"]', 4);
+    // 作れます（緑の点・緑の札）の上へ
+    const okSel = '.band-ctrl .nm-panel .nm-ok, .band-ctrl .nm-panel .nm-verdict, .band-ctrl .nm-panel [class*="ok"]';
+    const ob = await boxOf(p, okSel);
+    if (ob) await a.drift(N(18), { x: ob.x + ob.width * 0.3, y: ob.y + ob.height * 0.5 });
+    else await a.drift(N(18), { x: a.cur.x - 20, y: a.cur.y + 120 });
+    a.mark('ok');
+    await a.drift(N(14), { x: a.cur.x + 30, y: a.cur.y + 10 });
+    // 作り方：手順を押す（寄りから全体へ切り替える所で、印をタブの近くへ置き直す）
+    const tab = await boxOf(p, '.tabs [data-mode="hand"]');
+    if (tab) await a.jump({ x: tab.x + tab.width / 2 + 150, y: tab.y + tab.height / 2 + 130 });
+    a.mark('cutC');
+    await a.press('.tabs [data-mode="hand"]', { n: 14, after: 2 });
+    await a.settle(800);
+    await blackVp11(a);
+    await a.drift(N(14), { x: a.cur.x + 120, y: a.cur.y + 90 });
+    a.mark('hand');
+    const cards = await p.evaluate(() => [...document.querySelectorAll('.build-panel .mk-card')].map((c, i) => `${i + 1}:${c.querySelector('h3')?.innerText || ''}`));
+    console.log('finish16 手順の札', cards.join(' ／ '));
+    const idx = await p.evaluate(() => { const cs = [...document.querySelectorAll('.build-panel .mk-card')]; return cs.findIndex((c) => /布目を切る/.test(c.querySelector('h3')?.innerText || '')) + 1; });
+    const cS = (k) => `.build-panel .mk-card:nth-child(${k})`;
+    console.log('finish16 布目を切る', await p.evaluate((sel) => document.querySelector(sel)?.innerText.replace(/\s+/g, ' ').slice(0, 300), cS(idx)));
+    await p.evaluate((sel) => { const e = document.querySelector(sel); let c = e?.parentElement; while (c && !(c.scrollHeight > c.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(c).overflowY))) c = c.parentElement; if (e && c) c.scrollTop += e.getBoundingClientRect().top - c.getBoundingClientRect().top - 12; }, cS(idx));
+    await a.settle(300);
+    const c0 = await boxOf(p, `${cS(idx)} h3`);
+    if (c0) await a.jump({ x: c0.x - 6, y: c0.y + c0.height * 0.65 });
+    a.mark('card0'); await a.box('card0', cS(idx), 4);
+    if (c0) await a.drift(N(26), { x: c0.x + c0.width + 16, y: c0.y + c0.height * 0.65 });
+    await glideTo(a, cS(idx + 1), 70, 22);
+    a.mark('card1'); await a.box('card1', cS(idx + 1), 4);
+    const h1 = await boxOf(p, `${cS(idx + 1)} h3`);
+    if (h1) await a.drift(N(26), { x: h1.x + h1.width + 16, y: h1.y + h1.height * 0.65 });
+    await a.drift(N(30), { x: a.cur.x - 30, y: a.cur.y + 40 });
+  },
+});
+// 最終案 17（作者の声：麻の葉 → 青海波は、見本を選んでいるだけに見える。模様を「作る」所と、作れるかの答え（作れない → 理由 → 直すと作れる）を見せたい）：
+//   赤銅・布目象嵌の地金のみの指輪（くぼみ）で、自分の模様（4×4 のマス目）を押して形を作る → 線の太さを細くすると赤（線が細すぎる・資料の線の太さ）→ 戻すと作れます → 布目を切るの札
+Object.assign(CH, {
+  finish17: async (a) => {
+    const { p } = a;
+    await studioNow9(a, { query: '?nooffload' }); await builtNow9(a);
+    await p.addStyleTag({ content: OPS_CSS11 });
+    await p.click('.kinds [data-kind="band"]'); await a.settle(1500);
+    await p.click(`.band-ctrl [data-sec="${process.env.FIN16_SEC || 'kubomi'}"]`); await a.settle(1500);
+    await p.click('.band-ctrl [data-bt="metal"][data-v="shakudo"]'); await a.settle(1200);
+    await p.click('.band-ctrl [data-bt="inlay"][data-v="nunome"]'); await a.settle(1500);
+    // 「模様を自分で変える」は、撮る前に開いておく（開いたままになる）
+    await p.click('.band-ctrl .nm-own > summary'); await a.settle(600);
+    await new Promise((r) => setTimeout(r, 2000)); await a.settle(500);
+    await blackVp11(a);
+    await frame11(a, FIN16_DIR, Number(process.env.FIN16_FRAC || 0.62), Number(process.env.FIN16_DX || 190));
+    await p.evaluate(({ dx, ey }) => {
+      const v = window.__viewer; const w = v.host.clientWidth || 1; const h = v.host.clientHeight || 1;
+      const dy = h * (v.lift || 0) + ((v.insets?.bottom || 0) - (v.insets?.top || 0)) / 2 - ey;
+      for (const cam of [v.cams.persp, v.cams.ortho]) { cam.setViewOffset(w, h, -dx, dy, w, h); cam.updateProjectionMatrix(); }
+      v.dirty = true; v.draw?.();
+    }, { dx: Number(process.env.FIN16_DX || 190), ey: Number(process.env.FIN16_EY || 60) });
+    // 模様の札の段を、画面の上から 150 px に（上に「象嵌 布目象嵌」の行が見える）
+    await scrollToY(p, '.band-ctrl .nm-grid', Number(process.env.FIN17_CARDS_Y || 168));
+    await a.settle(400);
+    await new Promise((r) => setTimeout(r, 2500));
+    await a.settle(400);
+    const info = () => p.evaluate(() => [document.querySelector('.band-ctrl .nm-panel h5')?.innerText.replace(/\s+/g, ' '), [...document.querySelectorAll('.band-ctrl .nm-cell')].map((c) => (c.getAttribute('aria-pressed') === 'true' ? '1' : '0')).join(''), document.querySelector('.band-ctrl .nm-checks')?.innerText.replace(/\s+/g, ' ').slice(0, 120)].join(' ／ '));
+    const jz = await boxOf(p, '.band-ctrl [data-nm-pat="jiyu"]');
+    if (jz) await a.jump({ x: jz.x + jz.width / 2 - 130, y: jz.y + jz.height / 2 + 110 });
+    a.mark('full'); await a.box('trad', '.band-ctrl .band-trad', 4);
+    // 自分の模様（はじめは真ん中の 2 × 2 のマス）
+    await a.drift(N(8), '.band-ctrl [data-nm-pat="jiyu"]', { k: 0.45 });
+    await a.press('.band-ctrl [data-nm-pat="jiyu"]', { n: 12, after: 2 });
+    await a.settle(800); await blackVp11(a);
+    a.mark('s2'); console.log('finish17 自分の模様', await info());
+    // マス目が見えるまで、欄をなめらかに送る
+    await glideTo(a, '.band-ctrl .nm-cells', Number(process.env.FIN17_CELLS_Y || 470), 18);
+    a.mark('grid'); await a.box('cells', '.band-ctrl .nm-cells', 6);
+    // マスを 3 つ足す（つながったまま。指輪の模様がその場で変わる）
+    const cells = (process.env.FIN17_CELLS || '1,14,4').split(',').map(Number);
+    for (const [k, i] of cells.entries()) {
+      const sel = `.band-ctrl .nm-cell[data-i="${i}"]`;
+      if (k === 0) await a.drift(N(6), sel, { k: 0.5 });
+      await a.press(sel, { n: k === 0 ? 10 : 8, after: 2 });
+      await a.settle(700); await blackVp11(a);
+      a.mark(`c${k}`); console.log('finish17 マス', i, await info());
+    }
+    // 線の太さの段が見えるまで、欄を上へ送る（上に「作れます」の札）
+    await glideTo(a, '.band-ctrl .nm-checks', Number(process.env.FIN17_CHECKS_Y || 150), 18);
+    a.mark('line'); await a.box('checks0', '.band-ctrl .nm-checks', 6);
+    const lm = '.band-ctrl .nm-panel .slider[data-s="nm-line"] .sl-step[data-d="-1"]';
+    const lp = '.band-ctrl .nm-panel .slider[data-s="nm-line"] .sl-step[data-d="1"]';
+    await a.drift(N(6), lm, { k: 0.5 });
+    await a.press(lm, { n: 10, after: 2 });
+    await a.settle(800); await blackVp11(a);
+    a.mark('red'); console.log('finish17 赤', await info());
+    await a.box('checks', '.band-ctrl .nm-checks', 6); await a.box('bad', '.band-ctrl .nm-checks .nm-bad li', 6);
+    // 赤い理由の字の上を、ゆっくりなぞる
+    const bd = await boxOf(p, '.band-ctrl .nm-checks .nm-bad li');
+    if (bd) {
+      await a.drift(N(14), { x: bd.x + 30, y: bd.y + 18 });
+      await a.drift(N(22), { x: bd.x + bd.width * 0.8, y: bd.y + 42 });
+    }
+    a.mark('read');
+    await a.press(lp, { n: 14, after: 2 });
+    await a.settle(800); await blackVp11(a);
+    a.mark('ok'); console.log('finish17 戻した', await info());
+    await a.box('checks2', '.band-ctrl .nm-checks', 6);
+    const ok = await boxOf(p, '.band-ctrl .nm-checks .nm-ok');
+    if (ok) await a.drift(N(14), { x: ok.x + ok.width * 0.25, y: ok.y + ok.height * 0.5 });
+    await a.drift(N(10), { x: a.cur.x + 20, y: a.cur.y + 8 });
+    // 作り方：手順を押す（寄りから全体へ切り替える所で、印をタブの近くへ置き直す）
+    const tab = await boxOf(p, '.tabs [data-mode="hand"]');
+    if (tab) await a.jump({ x: tab.x + tab.width / 2 + 150, y: tab.y + tab.height / 2 + 130 });
+    a.mark('cutC');
+    await a.press('.tabs [data-mode="hand"]', { n: 14, after: 2 });
+    await a.settle(800);
+    await blackVp11(a);
+    await a.drift(N(14), { x: a.cur.x + 120, y: a.cur.y + 90 });
+    a.mark('hand');
+    const idx = await p.evaluate(() => { const cs = [...document.querySelectorAll('.build-panel .mk-card')]; return cs.findIndex((c) => /布目を切る/.test(c.querySelector('h3')?.innerText || '')) + 1; });
+    const cS = (k) => `.build-panel .mk-card:nth-child(${k})`;
+    console.log('finish17 布目を切る', await p.evaluate((sel) => document.querySelector(sel)?.innerText.replace(/\s+/g, ' ').slice(0, 320), cS(idx)));
+    await p.evaluate((sel) => { const e = document.querySelector(sel); let c = e?.parentElement; while (c && !(c.scrollHeight > c.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(c).overflowY))) c = c.parentElement; if (e && c) c.scrollTop += e.getBoundingClientRect().top - c.getBoundingClientRect().top - 12; }, cS(idx));
+    await a.settle(300);
+    const c0 = await boxOf(p, `${cS(idx)} h3`);
+    if (c0) await a.jump({ x: c0.x - 6, y: c0.y + c0.height * 0.65 });
+    a.mark('card0'); await a.box('card0', cS(idx), 4);
+    // 題 → この模様の数字（「この指輪では…」）の行へ、ゆっくり
+    if (c0) await a.drift(N(20), { x: c0.x + c0.width + 16, y: c0.y + c0.height * 0.65 });
+    const num = await p.evaluate((sel) => { const card = document.querySelector(sel); if (!card) return null; const w = document.createTreeWalker(card, NodeFilter.SHOW_TEXT); let n; while ((n = w.nextNode())) { const i = n.textContent.indexOf('この指輪では'); if (i >= 0) { const r = document.createRange(); r.setStart(n, i); r.setEnd(n, Math.min(n.textContent.length, i + 6)); const b = r.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width, h: b.height }; } } return null; }, cS(idx));
+    if (num) { a.boxRaw('num', Math.round(num.x - 4), Math.round(num.y - 4), 300, Math.round(num.h + 30)); await a.drift(N(20), { x: num.x + 8, y: num.y + num.h * 0.7 }); }
+    a.mark('num');
+    await a.drift(N(30), { x: a.cur.x + 160, y: a.cur.y + 14 });
+    await a.drift(N(20), { x: a.cur.x - 30, y: a.cur.y + 30 });
+  },
+});
+// 最終案 16（作者の声：本物の指輪が、アールデコの生成のすぐあとに急に出て、その指輪だと思われる）：その前に、テンションの「浅く留めたいとき」を短く。
+//   作者が実際に作った指輪の値：三角を長い辺の両はしの角で挟む（両方くぼみ。挟む向き corner）・SV925・ø 4 mm・14 号・くぼみ 0.5 mm ずつ → 留まる見込み。
+//   撮るのは、くぼみ 0.35 mm（ぎりぎり）から ＋ を 3 回押して 0.50 mm へ。押すたびに、留めるのに要る詰める量と開きを、その場で計算し直す
+const TENSION_DIR = { x: 0.62, y: -0.95, z: 0.62 };
+Object.assign(CH, {
+  tension16: async (a) => {
+    const { p } = a;
+    // 欄の中で「浅く留めたいとき」を置く高さ（欄の上から px）。最終案 17c：事実の表が下の帯にかからないよう、少し上へ
+    const TOFF = Number(process.env.TENSION_OFF || 40);
+    await studioNow9(a, { query: '?nooffload' }); await builtNow9(a);
+    await p.addStyleTag({ content: OPS_CSS11 });
+    await p.evaluate(({ pit, g0 }) => {
+      const s = window.__studio.session;
+      s.setSetting({ style: 'tension', reason: '撮る' });
+      // 最終案 17（作者の本物の指輪）：短い辺を溝に・反対の角をくぼみに（挟む向き side）
+      // 最終案 17c（アプリの計算に、広げたあと戻りきらない分が入った）：くぼみ 0.25・溝 0.3 mm（足りない）から始める
+      s.setSetting({ tension_grip: 'side', reason: '撮る' });
+      s.setShank({ metal: 'sv925', gou: 14, reason: '撮る' });
+      s.setTensionDepths(pit, g0);
+    }, { pit: Number(process.env.TENSION_PIT || 0.25), g0: Number(process.env.TENSION_GROOVE0 || 0.3) });
+    await fine(a, 600);
+    await refine(a);
+    await fine(a, 300);
+    await blackVp11(a);
+    await frame11(a, TENSION_DIR, Number(process.env.TENSION_FRAC || 0.52), Number(process.env.TENSION_DX || 190));
+    // 指輪を少し下へ（組むとき、左上の見出しと重ならないように）
+    await p.evaluate(({ dx, ey }) => {
+      const v = window.__viewer; const w = v.host.clientWidth || 1; const h = v.host.clientHeight || 1;
+      const dy = h * (v.lift || 0) + ((v.insets?.bottom || 0) - (v.insets?.top || 0)) / 2 - ey;
+      for (const cam of [v.cams.persp, v.cams.ortho]) { cam.setViewOffset(w, h, -dx, dy, w, h); cam.updateProjectionMatrix(); }
+      v.dirty = true; v.draw?.();
+    }, { dx: Number(process.env.TENSION_DX || 190), ey: Number(process.env.TENSION_EY || 90) });
+    await refineTo(p, '.tn-hold', TOFF);
+    await a.settle(300);
+    await new Promise((r) => setTimeout(r, 4000));
+    await a.settle(300);
+    const plusOf = (k) => `.tn-hold .slider[data-s="r-hold-${k}"] .sl-step[data-d="1"]`;
+    // 最終案 17c：くぼみの ＋ を 3 回（0.25 → 0.40。0.30 で足りない → ぎりぎり）→ 溝の ＋ を 2 回（0.30 → 0.40）。作者の 0.4 / 0.4 はぎりぎり・職人が確かめる
+    const steps = (process.env.TENSION_STEPS || 'pit,pit,pit,groove,groove').split(',');
+    const plus = plusOf(steps[0]);
+    // 最終案 17c：事実の表は、石を留めるのに縮める量・安全に縮められる量（戻りきらない分を引いて）・限界・図面の開き・戻りきらずに残る量・作る時の開き・広げる量・広げられる限界
+    const state = () => p.evaluate(() => [document.querySelector('.tn-hold .tn-verdict')?.innerText.replace(/\s+/g, ' '), [...document.querySelectorAll('.tn-hold .tn-facts > div')].map((d) => `${d.querySelector('dt')?.innerText}=${d.querySelector('dd')?.innerText.replace(/\s+/g, '')}`).join(' ')].join(' ／ '));
+    console.log('tension16 はじめ', await state());
+    const pb = await boxOf(p, plus);
+    if (pb) await a.jump({ x: pb.x + pb.width / 2 - 140, y: pb.y + pb.height / 2 + 120 });
+    a.mark('full'); await a.box('hold', '.tn-hold', 6); await a.box('verdict', '.tn-hold .tn-verdict', 6); await a.box('facts', '.tn-hold .tn-facts', 6); await a.box('plus', plus, 6);
+    // 最終案 17c：はじめの「足りない」を読める間（約 1 秒）、印は答えの札のそばから ＋ の手前へゆっくり漂う
+    if (pb) await a.drift(N(Number(process.env.TENSION_HEAD || 32)), { x: pb.x + pb.width / 2 - 26, y: pb.y + pb.height / 2 + 26 });
+    else await a.drift(N(10), plus, { k: 0.45 });
+    // 押すと欄が描き直され、上の札（注意の行）の高さが変わって、この札が下へずれる。押したすぐあとに同じ所へ戻す（ずれは映らない）
+    // 作者の声（17 は少し速い）：押す間を 2 倍ほどに。押したあと、印は ＋ のそばでゆっくり漂う（止めない）。押すとき、欄がずれないよう押したすぐあとに同じ所へ戻す
+    for (let k = 1; k <= steps.length; k++) {
+      const sel = plusOf(steps[k - 1]);
+      // 最初と、くぼみの ＋ から溝の ＋ へ移る所は、ゆっくり（1 こま 6 px ほど）
+      const c = await a.move(sel, k === 1 ? 8 : steps[k - 1] !== steps[k - 2] ? 11 : 4);
+      await a.shot({ rip: 1 });
+      await p.mouse.click(c.x, c.y);
+      await refineTo(p, '.tn-hold', TOFF);
+      await a.shot({ rip: 0.65 }); await a.shot({ rip: 0.3 });
+      await fine(a, 200);
+      await refineTo(p, '.tn-hold', TOFF);
+      await blackVp11(a);
+      a.mark(`p${k}`);
+      console.log('tension16 押した', k, steps[k - 1], await state());
+      if (k < steps.length) await a.drift(N(Number(process.env.TENSION_GAP || 6)), { x: c.x + 5, y: c.y + 7 });
+    }
+    await a.box('verdict2', '.tn-hold .tn-verdict', 6); await a.box('facts2', '.tn-hold .tn-facts', 6);
+    for (let r = 1; r <= 8; r++) await a.box(`row${r}`, `.tn-hold .tn-facts > div:nth-child(${r})`, 2);
+    const vb = await boxOf(p, '.tn-hold .tn-verdict');
+    if (vb) await a.drift(N(24), { x: vb.x + vb.width * 0.32, y: vb.y + vb.height * 0.4 });
+    a.mark('ok');
+    const fb = await boxOf(p, '.tn-hold .tn-facts');
+    if (fb) await a.drift(N(40), { x: fb.x + fb.width * 0.9, y: fb.y + 30 });
+    await a.drift(N(30), { x: a.cur.x - 40, y: a.cur.y + 30 });
+  },
+});
 // 動かない画面（時計は本物のまま。Claude は呼ばない）
 const STILLS9 = {
-  // 毛彫り：本当の帳面のまま（?rec&flow）。作者の言葉「線の幅と深さ」。学ぶ人が聞く → 帳面から答える（合言葉なし）
+  // 毛彫り：本当の帳面のまま（?rec&flow）。作者の言葉「彫りの深さ」（職人の名前は見本の山田）。学ぶ人が聞く → 帳面から答える（合言葉なし）
   kebori9: [[480, 900], 4, async (s) => {
     const { p } = s;
     await p.goto(`${BASE}/app.html?rec&flow#waza/kebori`, { waitUntil: 'load' });
@@ -2781,7 +4533,7 @@ const STILLS9 = {
     await s.wait(1200);
     await p.addStyleTag({ content: 'header.bar{display:none!important} body{background:#101012!important}' });
     await s.hideFixed();
-    await p.fill('.composer textarea', '毛彫りの線の幅と深さは？');
+    await p.fill('.composer textarea', '彫りの深さは？');  // 最終案 11（作者）：映像は洋彫りなので「毛彫り」と言わない。最終案 15：決まりが深さだけになった（作者の言葉）
     await s.shot('ask');
     await p.evaluate(() => document.querySelector('.composer .send').click());
     await s.wait(700);

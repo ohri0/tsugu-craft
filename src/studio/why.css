@@ -91,7 +91,7 @@
 .lf { position: relative; max-width: 860px; margin: 44px auto 12px; padding: 0 clamp(20px, 5vw, 32px); }
 .lf-lab { margin: 0 !important; font: 400 16px/1.6 var(--t-mincho) !important; letter-spacing: 0.1em; }
 .lf-track { position: relative; height: 86px; border-bottom: 1px solid rgba(244, 241, 234, 0.4); }
-.lf-band { position: absolute; bottom: -6px; width: clamp(56px, 14%, 120px); height: 11px; transform: translateX(-50%); background: linear-gradient(90deg, transparent, rgba(244, 241, 234, 0.95) 34%, rgba(244, 241, 234, 0.95) 66%, transparent); font-style: normal; }
+.lf-band { position: absolute; bottom: -6px; width: max(64px, 17%); /* 1 回の制作は何年もかかる（作者：10 年近くのイメージ。年数は書かない） */ height: 11px; transform: translateX(-50%); background: linear-gradient(90deg, transparent, rgba(244, 241, 234, 0.95) 34%, rgba(244, 241, 234, 0.95) 66%, transparent); font-style: normal; }
 .lf-band b { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); display: grid; justify-items: center; gap: 3px; white-space: nowrap; font: 400 16px/1.2 var(--t-mincho); }
 .lf-band small { font: 400 14.5px/1.2 var(--t-sans); opacity: 0.86; }
 .lf-life { position: relative; height: 3px; margin-top: 26px; background: var(--t-white); }

@@ -4,7 +4,7 @@ import type { ProngLook, ProngTip } from "../geometry/setting";
 import type { Viewer } from "../ui/viewer";
 import { GUIDES, GUIDE_NOTE } from "../rules/guides";
 import type { Built, RingSession } from "./session";
-import { bindSlider, sliderHtml, type SliderSpec } from "./slider";
+import { bindSlider, liveWait, sliderHtml, type SliderSpec } from "./slider";
 
 /** 押した所から爪を探す距離（画面の px）：マウスと指 */
 const PICK_PX = { mouse: 6, touch: 20 };
@@ -21,6 +21,8 @@ export interface ProngEditHost {
   toast: (t: string) => void;
   /** 先の形の名前 */
   tipLabel: Record<ProngTip, string>;
+  /** つまみを動かしている間は true、離したら false（画面の欄を描き直さない。指の下のつまみが消えないように） */
+  hold?: (on: boolean) => void;
 }
 
 export interface ProngEditUi {
@@ -74,6 +76,55 @@ export function setupProngEdit(host: ProngEditHost): ProngEditUi {
     if (!s || index === null) return;
     s.setProngLook(scope === "all" ? null : index, patch);
   };
+
+  // つまみを動かしている間も、目盛りが 1 つ変わるごとに形を作り直して見せる（2026-11-06 作者の声：離したときに一度に変わると、ボンと跳んで見える）。
+  // 作り直しは「すぐの形」（session.build。一体の形は別の糸）。1 こまに 1 回まで、遅い機械では前の作り直しと同じ時間だけ休んで、指の動きを止めない
+  let dragging = false;
+  let liveNext: ProngLook | null = null;
+  let liveKey = "";
+  let liveRaf = 0;
+  let liveTimer = 0;
+  let liveCost = 0;
+  let liveAt = 0;
+  const endLive = () => {
+    cancelAnimationFrame(liveRaf);
+    clearTimeout(liveTimer);
+    liveRaf = 0;
+    liveTimer = 0;
+    liveNext = null;
+    liveKey = "";
+    if (!dragging) return;
+    dragging = false;
+    host.hold?.(false);
+  };
+  const runLive = () => {
+    liveRaf = 0;
+    const patch = liveNext;
+    liveNext = null;
+    if (!patch || !dragging) return;
+    const t0 = performance.now();
+    apply(patch);
+    liveAt = performance.now();
+    liveCost = liveAt - t0;
+  };
+  const liveLook = (patch: ProngLook) => {
+    if (!dragging) {
+      dragging = true;
+      host.hold?.(true);
+    }
+    const k = JSON.stringify(patch);
+    if (k === liveKey) return;
+    liveKey = k;
+    liveNext = patch;
+    if (liveRaf || liveTimer) return;
+    const wait = liveWait(liveAt, liveCost, performance.now());
+    if (wait > 0)
+      liveTimer = window.setTimeout(() => {
+        liveTimer = 0;
+        liveRaf = requestAnimationFrame(runLive);
+      }, wait);
+    else liveRaf = requestAnimationFrame(runLive);
+  };
   const render = () => {
     const l = lookNow();
     if (!l || index === null) return;
@@ -88,7 +139,19 @@ export function setupProngEdit(host: ProngEditHost): ProngEditUi {
       <div class="pp-check">${checkHtml()}</div>
       <div class="pp-foot"><button type="button" class="link pp-reset">${scope === "all" ? "全部の爪の直しを消す" : "この爪の直しを消す"}</button></div>
       <p class="hint">数字は仮です。${GUIDE_NOTE}</p>`;
-    for (const { spec, key } of list) bindSlider(pop, spec, (v) => apply({ [key]: v }));
+    for (const { spec, key } of list)
+      bindSlider(
+        pop,
+        spec,
+        (v) => {
+          // 離したとき：欄を描き直せるようにしてから、決めた値で作り直す
+          endLive();
+          apply({ [key]: v });
+        },
+        (v) => liveLook({ [key]: v }),
+      );
+    // 元の値に戻して離したとき（値が変わらないので上は呼ばれない）も、動かしている間の印を外す
+    pop.querySelectorAll<HTMLInputElement>('input[type="range"]').forEach((r) => r.addEventListener("change", endLive));
     pop.querySelector(".pp-x")!.addEventListener("click", close);
     pop.querySelectorAll<HTMLButtonElement>("[data-scope]").forEach((b) =>
       b.addEventListener("click", () => {
@@ -111,6 +174,7 @@ export function setupProngEdit(host: ProngEditHost): ProngEditUi {
     viewer.markSetting(pr ? { start: start + pr.triangles.start, count: pr.triangles.count } : null);
   };
   function close() {
+    endLive();
     if (index === null) return;
     index = null;
     pop.hidden = true;
@@ -177,7 +241,8 @@ export function setupProngEdit(host: ProngEditHost): ProngEditUi {
       if (b.ring.setting.style !== "prong" || index >= b.ring.setting.prongs.length) return close();
       mark(b);
       const l = lookNow();
-      if (l && keyOf(l) !== shown) render();
+      // つまみを動かしている間は欄を描き直さない（指の下のつまみが消える）。確かめの結果だけ、その場で替える
+      if (!dragging && l && keyOf(l) !== shown) render();
       else {
         const box = pop.querySelector(".pp-check");
         if (box) box.innerHTML = checkHtml();

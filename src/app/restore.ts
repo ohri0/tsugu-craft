@@ -29,6 +29,7 @@ import {
   removeTechRule,
   renameProject,
   resultFor,
+  setPattern as setPatternOf,
   setResult,
   sourceText,
   stageOf,
@@ -48,6 +49,7 @@ import { bookText } from "../rebuild/book";
 import { PHOTO_SEND, photosToSend, restoreContent, restorePrompt, ruleRequest, techRulePrompt } from "../rebuild/restore-prompt";
 import { parseRestoration, PROPOSE_RESTORATION } from "../rebuild/restore-tools";
 import { callTool } from "../rebuild/run";
+import { drawThumb, makePattern, mountPatternView, patternBusy, patternHash } from "./pattern-view";
 import { askConfirm } from "./confirm";
 import { flash } from "./interview";
 import { masterName } from "./master";
@@ -97,10 +99,44 @@ const watchers = new Map<string, () => void>();
 /** 前に開いた画面の写真の URL を返す */
 let releasePhotos: () => void = () => undefined;
 
+/** 作り話の例（一覧の「例を見る」）。id → 読み込み。模様の見込みつきの例は、技の一覧からも直接開く */
+export const MOYOU_SAMPLE_ID = "demo-amadare";
+const SAMPLES: Record<string, () => Promise<unknown>> = {
+  rmw3fsef87cep: async () => (await import("../../research/restore/sample.json")).default,
+  [MOYOU_SAMPLE_ID]: async () => (await import("../../research/restore/sample-moyou.json")).default,
+};
+
 export function mountRestore(root: HTMLElement, sub: string, opts: { onBack: () => void }): void {
   releasePhotos();
-  if (sub) mountProject(root, sub);
+  const moyou = /^([A-Za-z0-9_-]+)\/moyou(?:\/(\d+))?$/.exec(sub);
+  if (moyou) void mountMoyouPage(root, moyou[1], moyou[2] ? Number(moyou[2]) : null);
+  else if (sub) mountProject(root, sub);
   else mountList(root, opts);
+}
+
+/** 作り話の例を、このブラウザの記録にする（もうあれば、それを使う） */
+async function openSample(id: string): Promise<RestoreProject | null> {
+  const have = loadProject(id);
+  if (have) return have;
+  const load = SAMPLES[id];
+  if (!load) return null;
+  try {
+    const r = await bringIn(await load());
+    return r.ok ? r.project : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 模様の見込みの頁。例の記録がまだなければ読み込む */
+async function mountMoyouPage(root: HTMLElement, id: string, version: number | null) {
+  const project = loadProject(id) ?? (await openSample(id));
+  if (!project) {
+    root.innerHTML = `<section class="view rs"><button type="button" class="rs-back">← 途切れた技の一覧</button><p class="rs-empty">この記録は、このブラウザにありません。</p></section>`;
+    root.querySelector(".rs-back")!.addEventListener("click", () => (location.hash = "#waza/restore"));
+    return;
+  }
+  mountPatternView(root, project, version, { onBack: () => (location.hash = `#waza/restore/${project.id}`) });
 }
 
 // ---- 読み込み ----
@@ -158,7 +194,7 @@ function mountList(root: HTMLElement, opts: { onBack: () => void }) {
   const projects = listProjects();
   root.innerHTML = `
   <section class="view rs">
-    <button type="button" class="rs-back">← 技を選ぶ</button>
+    <button type="button" class="rs-back">← 技の一覧</button>
     <h2 class="rs-title">途切れた技</h2>
     <p class="rs-lead">分かることを入れると、Claude が作り方の案を出します。</p>
     <div class="rs-start">
@@ -182,7 +218,7 @@ function mountList(root: HTMLElement, opts: { onBack: () => void }) {
             .join("")}</ul>`
         : ""
     }
-    <div class="rs-quiet"><button type="button" class="linklike rs-sample">例を見る</button></div>
+    <div class="rs-quiet"><button type="button" class="linklike rs-sample" data-sample="rmw3fsef87cep">例を見る</button><button type="button" class="linklike rs-sample" data-sample="${MOYOU_SAMPLE_ID}">模様の見込みつきの例を見る</button></div>
     ${
       projects.length
         ? `<details class="rs-fold"><summary>記録</summary><div class="rs-fold-body"><div class="rs-file-acts"><label class="ghost btnlike rs-import">ファイルを読み込む<input type="file" accept=".json,application/json" hidden></label></div></div></details>`
@@ -208,22 +244,13 @@ function mountList(root: HTMLElement, opts: { onBack: () => void }) {
   });
   const input = root.querySelector<HTMLInputElement>(".rs-import input");
   if (input) wireImport(input, say);
-  $(".rs-sample").addEventListener("click", async () => {
-    try {
-      const raw = (await import("../../research/restore/sample.json")).default as unknown;
-      const id = (raw as { project?: { id?: string } }).project?.id;
-      // もう開いたことがあれば、それを開く
-      if (id && loadProject(id)) {
-        location.hash = `#waza/restore/${id}`;
-        return;
-      }
-      const r = await bringIn(raw);
-      if (!r.ok) return void say(r.error);
-      location.hash = `#waza/restore/${r.project.id}`;
-    } catch {
-      say("例を読み込めませんでした。");
-    }
-  });
+  root.querySelectorAll<HTMLButtonElement>(".rs-sample").forEach((b) =>
+    b.addEventListener("click", async () => {
+      const p = await openSample(b.dataset.sample!);
+      if (!p) return void say("例を読み込めませんでした。");
+      location.hash = `#waza/restore/${p.id}`;
+    }),
+  );
 }
 
 // ---- 一つの技 ----
@@ -676,6 +703,7 @@ function mountProject(root: HTMLElement, id: string) {
       ${latest ? `<p class="rs-soft">これは案です。確かな作り方ではありません。試して確かめてください。</p>` : `<p class="rs-soft">前の案です。<button type="button" class="linklike rs-to-latest">今の案に戻る</button></p>`}
       <p class="rs-sum">${says(plan.summary, plan)}</p>
       ${notes.map((n) => `<p class="rs-unsourced">${says(n, plan)}</p>`).join("")}
+      ${moyouBox(plan)}
       <ol class="rs-steps">${plan.steps.map((s, i) => stepCard(plan, s, i)).join("")}</ol>
       ${
         project.plans.length > 1
@@ -702,6 +730,45 @@ function mountProject(root: HTMLElement, id: string) {
       viewing = null;
       paintPlan();
     });
+    const thumb = box.querySelector<HTMLCanvasElement>(".rs-moyou-link canvas");
+    if (thumb && plan.pattern) drawThumb(thumb, plan.pattern.prediction);
+    box.querySelector(".rs-moyou-go")?.addEventListener("click", () => void askPattern(plan));
+  }
+
+  /** 案の欄の、模様の見込みへの入口：あれば小さな絵と、見る頁へ。なければ作るボタン */
+  function moyouBox(plan: RestorePlan): string {
+    const rec = plan.pattern;
+    if (rec) {
+      const pr = rec.prediction;
+      return `<div class="rs-moyou"><a class="rs-moyou-link" href="${patternHash(project.id, plan.version)}">${pr.applicable ? `<canvas width="96" height="96" aria-hidden="true"></canvas>` : `<span></span>`}
+        <span><b>${pr.applicable ? "この手順で作ると、こんな模様になりそう" : "模様の計算に合わない技、と Claude が答えました"}</b><small>${says(pr.applicable ? pr.summary : pr.reason, plan)}</small></span><span class="rs-go-mark" aria-hidden="true">›</span></a></div>`;
+    }
+    const busy = patternBusy(project.id, plan.version);
+    const older = project.plans.some((v) => v.version < plan.version && v.pattern);
+    return `<div class="rs-moyou"><button type="button" class="ghost rs-big is-quiet rs-moyou-go"${busy ? " disabled" : ""}>${busy ? "Claude が考えています…" : "この手順で作ると、どんな模様になるか見る"}</button>
+      <p class="rs-moyou-note">${older ? "前の案の見込みがあります。この案でも作ると、並べて比べられます。" : "Claude が手順を計算の操作に置きかえ、形だけで描きます（1 分ほど）。"}</p><p class="rs-moyou-st" role="status"></p></div>`;
+  }
+
+  async function askPattern(plan: RestorePlan) {
+    const btn = panel(2).querySelector<HTMLButtonElement>(".rs-moyou-go");
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Claude が考えています…（1 分ほど）";
+    }
+    const r = await makePattern(project, plan.version);
+    if (!r.ok) {
+      if (viewEl.isConnected) {
+        paintPlan();
+        const st = panel(2).querySelector(".rs-moyou-st");
+        if (st) st.textContent = r.error;
+      }
+      return;
+    }
+    // 待っている間に入れたことは消さない：今の記録に、見込みだけを足す
+    const current = viewEl.isConnected ? project : (loadProject(project.id) ?? project);
+    const rec = r.project.plans.find((v) => v.version === plan.version)?.pattern;
+    if (rec) commit(setPatternOf(current, plan.version, rec, today()));
+    if (viewEl.isConnected) location.hash = patternHash(project.id, plan.version);
   }
 
   // ---- ③ 試して、結果を入れる ----

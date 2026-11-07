@@ -3,11 +3,11 @@
 // 指輪の石留め（#waza/ring）も同じ形で、見出しに「設計で試す」を置く。六つの技は #waza/bezel・milgrain・tsuchime・kebori・nunome・mokume。
 import { activeRules, editRule, ledgerText, removedList, removeRule, restoreRule, seedLedger, sourceLabel, type Ledger, type Rule } from "../rules/ledger";
 import { answerToDraft, applyDraft, ringAnswerToDraft, ringGaps, techGaps, type Gap, type RuleDraft } from "../rules/gaps";
-import { askedGroupId, flowState, FLOW_STEPS, openQuestions, questionGap, type FlowStepId } from "../rules/flow";
+import { askedGroupId, flowState, FLOW_STEPS, openQuestions, questionGap, stepAfter, type FlowStepId } from "../rules/flow";
 import { importRecord } from "../craft/record";
 import { markAnswered } from "../rules/teacher-queue";
 import { mountMotion, savedRecords, storeRecord } from "../ui/motion-ui";
-import { flowCounts, flowStrip, isMihonSource, ruleWord, stepHref } from "./flow-view";
+import { flowCounts, flowStrip, isMihonSource, ruleWord, stepHref, techName } from "./flow-view";
 import { clipUrl, flowUI, isMihon, MIHON_CLIPS, MIHON_NAME, mihonAnswer } from "./mihon";
 import { putVideo } from "./video-store";
 import type { ParamId } from "../rules/ledger";
@@ -19,6 +19,7 @@ import { flash, mountInterview, type InterviewTarget } from "./interview";
 import { openRuleEditor, removedRulesHtml } from "./rule-editor";
 import { masterName, sourceName } from "./master";
 import { esc, store } from "./store";
+import { mountRequests } from "./model-requests";
 
 const RING = "指輪の石留め（一粒石の指輪）";
 
@@ -131,41 +132,50 @@ export function mountTech(root: HTMLElement, id: HowtoId, opts: { gapId?: string
       <p class="small muted">数字は公開の資料から（出どころのリンクつき）。目安・最後は職人が決める。</p>`;
   const blocks = {
     howto: flow
-      ? `<section class="tp-block" id="tp-howto"><details class="tp-more tp-howto-more"><summary>作り方を見る <small>${howto.steps.length} 工程 ・ 公開の資料から</small></summary>${howtoBody}</details></section>`
+      ? `<section class="tp-block" id="tp-howto"><details class="tp-more tp-howto-more"><summary>作り方を見る <small>${howto.steps.length} 工程 ・ 公開の資料から</small></summary><p class="tp-howto-lead">${esc(info.lead)}</p>${howtoBody}</details></section>`
       : `<section class="tp-block" id="tp-howto"><h3>${num(1)}作り方 <small>${howto.steps.length} 工程</small></h3>${howtoBody}</section>`,
     rules: `<section class="tp-block" id="tp-rules">
       <h3>${num(2)}${flow ? "帳面に残った決まり" : "職人の決まり"} <small class="rule-n"></small></h3>
+      ${flow ? `<p class="small muted tp-rules-why">職人の答えが入り、学ぶ人への答えになります。</p>` : ""}
       <ul class="rule-cards tp-mine"></ul>
       <div class="tp-pub"></div>
       <div class="tp-removed"></div>
     </section>`,
     ask: `<section class="tp-block fl-panel" id="tp-ask">
-      <h3>${num(3)}${flow ? "聞かれたことに答える" : "Claude から質問"} <small class="gap-n"></small></h3>
-      <p class="small muted">${flow ? "声か字で答えます。「これでいい」を押すと、だれの言葉か・いつかと一緒に帳面に残ります。" : "資料に無い所・食いちがう所を、Claude が 1 つずつ聞きます。答えると、職人の決まりとして ② に入ります。"}</p>
+      <h3>${flow ? `<span class="fl-h-n">1</span>` : num(3)}${flow ? "聞かれたことに答える" : "Claude から質問"} <small class="gap-n"></small></h3>
+      <p class="small muted">${flow ? "答えは「帳面に残った決まり」に入ります。" : "資料に無い所・食いちがう所を、Claude が 1 つずつ聞きます。答えると、職人の決まりとして ② に入ります。"}</p>
       <div class="iv-card iv-root"></div>
       <details class="tp-gaps"><summary>まだ決まっていない所の一覧</summary><ul class="nk-gaps"></ul></details>
+      ${flow ? `<div class="fl-next-slot" data-for="answer"></div>` : ""}
     </section>`,
   };
-  root.innerHTML = `
-  <section class="view waza tp">
-    <button type="button" class="back">← 技を選ぶ</button>
+  // 2026-11-06（作者：パッと見て何のページか分からない）：流れの画面では、技の名前は上の細い行に置き、
+  // いちばん大きな字で「このページは何をする所か」を 1 行で言う。技の説明は「作り方を見る」の中へ
+  const head = flow
+    ? `<div class="tp-crumb"><button type="button" class="back">← 技の一覧</button><span class="tp-crumb-tech"><span class="bt-mark" aria-hidden="true">${esc(info.mark)}</span><b>${esc(techName(id))}</b></span>${id === "ring" ? `<a class="tp-try tp-try-sm" href="studio.html">設計で試す ›</a>` : ""}</div>
+    <header class="tp-head tp-purpose"><h2>職人が残し、学ぶ人が受け取る</h2></header>`
+    : `<button type="button" class="back">← 技を選ぶ</button>
     <header class="tp-head">
       <span class="bt-mark" aria-hidden="true">${esc(info.mark)}</span>
       <div class="tp-hb">
         <h2>${esc(info.name)}</h2>
         <p class="lead">${esc(info.lead)}</p>
       </div>
-    </header>
+    </header>`;
+  root.innerHTML = `
+  <section class="view waza tp${flow ? " tp-flow" : ""}">
+    ${head}
     ${flow ? `<div class="fl-slot"></div><div class="fl-now"></div>` : ""}
-    ${id === "ring" ? `<a class="${flow ? "ghost btnlike" : "primary"} tp-try" href="studio.html">設計で試す <span aria-hidden="true">›</span></a>` : ""}
+    ${id === "ring" && !flow ? `<a class="primary tp-try" href="studio.html">設計で試す <span aria-hidden="true">›</span></a>` : ""}
     ${
       flow
         ? `${blocks.ask}
     <section class="tp-block fl-panel" id="tp-model" hidden>
-      <h3>手本を残す <small class="model-n"></small></h3>
-      <p class="small muted">学ぶ人が、自分の手の動きと比べられるようになります。</p>
+      <h3><span class="fl-h-n">2</span>手本を残す <small class="model-n"></small></h3>
+      <div class="mreq-slot" hidden></div>
       <ul class="tp-models"></ul>
       <div class="model-root motion-root"></div>
+      <div class="fl-next-slot" data-for="model"></div>
     </section>
     ${blocks.rules}${blocks.howto}`
         : `<nav class="tp-toc" aria-label="この頁の中">
@@ -220,14 +230,14 @@ export function mountTech(root: HTMLElement, id: HowtoId, opts: { gapId?: string
     modelMounted = true;
     const box = $(".model-root");
     if (isMihon()) {
-      box.innerHTML = `<div class="mihon-model"><video src="${clipUrl(MIHON_CLIPS.master)}" muted playsinline controls preload="auto"></video><p class="small muted">手を絵で描いた作り話の動画です。本物の職人の手ではありません。</p><button type="button" class="primary use-mihon-model">この動画を手本にする</button></div>`;
+      box.innerHTML = `<div class="mihon-model"><video src="${clipUrl(MIHON_CLIPS.master)}" muted playsinline controls preload="auto"></video><p class="small muted">見本：職人の本物の手元（ヤスリがけ。毛彫りの動画ではありません）。学ぶ人の手は、同じ職人が撮った「よくない例」です。</p><button type="button" class="primary use-mihon-model">この動画を手本にする</button></div>`;
       box.querySelector(".use-mihon-model")!.addEventListener("click", async (e) => {
         const b = e.currentTarget as HTMLButtonElement;
         b.disabled = true;
         const record = importRecord(await (await fetch(MIHON_CLIPS.master.record)).text());
         const video = await (await fetch(clipUrl(MIHON_CLIPS.master))).blob();
         await putVideo(record.id, video);
-        const title = `${info.name}の手本（作り話）`;
+        const title = "手本の例（ヤスリがけ）";
         storeRecord({ ...record, technique: id, title, craftsman: MIHON_NAME });
         b.hidden = true;
         modelSaved(title);
@@ -264,13 +274,20 @@ export function mountTech(root: HTMLElement, id: HowtoId, opts: { gapId?: string
       : savedNote === "model"
         ? `<div class="fl-saved"><p class="eyebrow">手本を残しました</p><small>学ぶ人が、手の動きを比べられるようになりました。</small></div>`
         : "";
-    const go = nextInfo && nextInfo.id !== panel ? `<a class="primary fl-go" href="${stepHref(id, nextInfo.id)}" data-step="${nextInfo.id}">次：${esc(nextInfo.next)} <span aria-hidden="true">›</span></a>` : "";
-    const finished = !st.nextId ? `<p class="fl-done">この技は、ひととおり通りました。届いた質問に答えるほど、帳面が育ちます。</p>` : "";
+    // いちばん目立つボタンは 1 つだけ。段を開いて作業している間は出さず（作業の「決まりにする」などと並ばないように）、
+    // 残したあとか、この頁で開く段がないときだけ、上に「次：…」を出す。作業中は段のいちばん下に、控えめな「次へ」
+    const showGo = !!nextInfo && nextInfo.id !== panel && (savedNote !== "" || panel === null);
+    const go = showGo && nextInfo ? `<a class="primary fl-go" href="${stepHref(id, nextInfo.id)}" data-step="${nextInfo.id}">次：${esc(nextInfo.next)} <span aria-hidden="true">›</span></a>` : "";
+    const finished = !st.nextId && panel === null ? `<p class="fl-done">この技は、ひととおり通りました。届いた質問に答えるほど、帳面が育ちます。</p>` : "";
     $(".fl-now").innerHTML = saved + go + finished;
+    root.querySelectorAll<HTMLElement>(".fl-next-slot").forEach((slot) => {
+      const after = stepAfter(slot.dataset.for as FlowStepId);
+      slot.innerHTML = after && !showGo ? `<a class="ghost btnlike fl-next" href="${stepHref(id, after.id)}" data-step="${after.id}">次の段へ：${esc(after.next)} <span aria-hidden="true">›</span></a>` : "";
+    });
     $<HTMLElement>("#tp-ask").hidden = panel !== "answer";
     $<HTMLElement>("#tp-model").hidden = panel !== "model";
     // 同じ頁の中の段は、頁を開き直さずに切り替える（書きかけの答えが消えないように）
-    root.querySelectorAll<HTMLAnchorElement>('.fl-slot a[data-step="answer"], .fl-slot a[data-step="model"], .fl-now a[data-step="answer"], .fl-now a[data-step="model"], .fl-slot .fl-back').forEach((a) =>
+    root.querySelectorAll<HTMLAnchorElement>('.fl-slot a[data-step="answer"], .fl-slot a[data-step="model"], .fl-now a[data-step="answer"], .fl-now a[data-step="model"], .fl-next[data-step="model"], .fl-slot .fl-back').forEach((a) =>
       a.addEventListener("click", (e) => {
         e.preventDefault();
         savedNote = "";
@@ -278,6 +295,8 @@ export function mountTech(root: HTMLElement, id: HowtoId, opts: { gapId?: string
       }),
     );
     const mine = savedRecords().filter((r) => (r.technique ?? "ring") === id);
+    // 学ぶ人から、この技の手本を頼まれていれば、ここに出す
+    mountRequests($(".mreq-slot"), id);
     $(".model-n").textContent = `残した手本 ${mine.length}`;
     $(".tp-models").innerHTML = mine.map((r) => `<li><b>${esc(r.title)}</b><small>${r.craftsman === MIHON_NAME ? "作り話の例" : esc(r.craftsman || "名前なし")} ・ ${esc(r.date)} ・ ${Math.round(r.durationS)} 秒</small></li>`).join("");
   }
@@ -307,7 +326,8 @@ export function mountTech(root: HTMLElement, id: HowtoId, opts: { gapId?: string
 
   function render() {
     const { rules, gaps } = current(id);
-    const mine = rules.filter((r) => r.source.kind === "craftsman").reverse();
+    // 見本は作り話の決まりだけ（本当の職人の言葉は見本に混ぜない）
+    const mine = rules.filter((r) => r.source.kind === "craftsman" && (!isMihon() || isMihonSource(r))).reverse();
     const rest = rules.filter((r) => r.source.kind !== "craftsman");
     $(".rule-n").textContent = `${flow ? ruleWord() : "職人"} ${mine.length} ・ 資料 ${rest.length}`;
     $(".tp-mine").innerHTML = mine.length

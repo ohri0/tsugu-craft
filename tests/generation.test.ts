@@ -270,10 +270,11 @@ describe("一粒石の指輪の腕の形", () => {
     expect(s.built!.ring.ringPositions.shank.length).toBeGreaterThan(0);
     expect(s.built!.problems).toEqual([]);
   });
-  it("腕の決まった断面の平打ちは、見本の平甲丸と同じ線。半甲丸は見本にないが名前は出す", () => {
+  it("腕の決まった断面の平打ちは、見本の平甲丸と同じ線。半甲丸は、いちばん近い平甲丸と呼ぶ（作ると確かめるで名前をそろえる）", () => {
     expect(ringSectionKind({ shankSection: "hirauchi" }, 2.2, 1.6)).toBe("hirakouman");
-    expect(ringSectionKind({ shankSection: "hangouman" }, 2.2, 1.6)).toBeNull();
-    expect(ringSectionWord({ shankSection: "hangouman" }, 2.2, 1.6)).toBe("半甲丸");
+    expect(ringSectionKind({ shankSection: "hangouman" }, 2.2, 1.6)).toBe("hirakouman");
+    expect(ringSectionWord({ shankSection: "hangouman" }, 2.2, 1.6)).toBe("平甲丸");
+    expect(ringSectionWord({ shankSection: "hirauchi" }, 2.2, 1.6)).toBe("平甲丸");
     expect(ringSectionKind({}, 2.2, 1.6)).toBe("kouman");
   });
   it("手で描いた線は free", () => {

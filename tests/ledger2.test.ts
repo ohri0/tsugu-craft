@@ -49,9 +49,9 @@ describe("はじめから入れた決まりの出どころ", () => {
     expect(new Set(pub.map((r) => r.id)).size).toBe(pub.length);
   });
 
-  it("職人の決まりは 11 こ（爪の最低の太さ・角に 1 本ずつ・腕の間に挟む・覆輪の壁・ロウ付けのあとの冷まし方・爪は腕を避ける・爪の下は石座に沿う・小さな石は別の留め方・テンションの深さ・テンションの地金・細い溝は手で彫る）、名前は石川", () => {
+  it("職人の決まりは 12 こ（爪の最低の太さ・角に 1 本ずつ・腕の間に挟む・覆輪の壁・ロウ付けのあとの冷まし方・爪は腕を避ける・爪の下は石座に沿う・小さな石は別の留め方・三角の短い辺を溝に入れるときの深さ・テンションの地金・細い溝は手で彫る・腕の幅の細さの目安）、名前は石川", () => {
     const mine = activeRules(ring).filter((r) => r.source.kind === "craftsman");
-    expect(mine).toHaveLength(11);
+    expect(mine).toHaveLength(12);
     for (const r of mine) expect(sourceLabel(r.source)).toBe("職人：石川");
   });
 });
@@ -67,7 +67,9 @@ describe("腕の厚み・幅も帳面の値で確かめる", () => {
   it("資料の値（guides.ts と同じ）が入り、職人の値で置き換わる", () => {
     const g = effectiveGuides(ring);
     expect(g.band.minThicknessMm).toBe(1.2);
-    expect(g.band.minWidthMm).toBe(1.7);
+    // 腕の幅は、資料の 1.7 mm ではなく、職人 石川の決まり（0.6 mm 以下は赤。2026-11-06）
+    expect(g.band.minWidthMm).toBe(0.6);
+    expect(activeRules(ring).some((r) => r.id === "shank-min-width")).toBe(false);
     const l = addRule(ring, { title: "腕", text: "腕は 1.5 mm 以上", reason: "r", param: "band.minThicknessMm", value: 1.5, source: { kind: "craftsman", name: "石川" }, date: "2026-11-04" });
     const g2 = effectiveGuides(l);
     expect(g2.band.minThicknessMm).toBe(1.5);
@@ -77,7 +79,9 @@ describe("腕の厚み・幅も帳面の値で確かめる", () => {
   it("聞き取りは、腕の値も資料のままか聞く", () => {
     const ids = ringGaps(ring).map((x) => x.id);
     expect(ids).toContain("ring:band.minThicknessMm");
-    expect(ids).toContain("ring:band.minWidthMm");
+    // 腕の幅は職人がもう話した（2026-11-06）ので聞かない。公開情報だけの帳面では、資料の言葉を職人に確かめる
+    expect(ids).not.toContain("ring:band.minWidthMm");
+    expect(ringGaps(seedLedger()).map((x) => x.id)).toContain("ring:confirm:shank-min-width");
   });
   it("未確認の言葉の決まりは、職人に確かめる問いになる。「はい」でその決まりを置き換える", () => {
     const g = ringGaps(ring).find((x) => x.id === "ring:confirm:cushion-double-prong")!;

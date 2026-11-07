@@ -1,6 +1,7 @@
 // 数のつまみ：つまみ（指でも押さえやすい太さ）・その場で打てる数の欄・−／＋ の 1 目盛りのボタン。
 // スマホ（とくに iPhone の Safari）で、細いつまみを指で合わせにくいという作者の声から（2026-11-03）。
 // 形を作る処理は重いので、つまみを動かしている間は数の表示だけ変え、指を離したとき・数を打ち終えたとき・−／＋ を押したときに決める。
+// 軽い作り直しで済む所（onLive を渡す所。腕の幅・石の大きさ・爪の欄）は、動かしている間も形を変えて見せる（間は liveWait）。
 
 export interface SliderSpec {
   /** 見分けるための名前（class にも使う） */
@@ -33,6 +34,14 @@ export function snapValue(raw: number | string, min: number, max: number, step: 
   const n = Math.round((c - min) / step);
   const out = Math.min(max, min + n * step);
   return Number(out.toFixed(decimals(step)));
+}
+
+/**
+ * つまみを動かしている間に形を作り直すとき、次の作り直しまで待つ時間（ms）。
+ * 前の作り直しにかかった時間と同じだけ休む（スマホのように遅い機械でも、つまみが指について動く）。待つのは長くても 400 ms
+ */
+export function liveWait(lastEnd: number, lastCost: number, now: number): number {
+  return Math.max(0, Math.min(400, lastCost) - (now - lastEnd));
 }
 
 /** 数の表示（目盛りの桁で） */

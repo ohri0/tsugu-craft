@@ -5,9 +5,12 @@
 // 道具の入力と結果は Claude とやり取りするので、名前は snake_case にそろえる。
 import { MAKING_STEPS, MAKING_STEP_IDS, type MakingStepId } from "../rules/making.js";
 import { GUIDE_NOTE, GUIDES } from "../rules/guides.js";
-import { PARAMS, type ParamId } from "../rules/ledger.js";
+import { OFFERED_PARAM_IDS, PARAMS, type ParamId } from "../rules/ledger.js";
 import { SECTION_INPUT, sectionCurveProblem } from "../geometry/section-input.js";
 import type { ReliefKind } from "../geometry/shank-relief.js";
+import { FINISHES_OFFERED, MILGRAIN_OFFERED } from "../geometry/finish.js";
+import { JIYU_N, NUNOME_LABEL, NUNOME_PATTERNS, NUNOME_RANGE, nunomeWords, validateNunome, type NunomeDesign, type NunomePattern } from "../geometry/nunome.js";
+import type { holdForClaude } from "../rules/tension-hold.js";
 import type { ClaudeTool } from "./wire.js";
 
 export const TOOL_NAMES = ["set_setting", "set_shank", "check", "look", "propose_rule", "ask_teacher", "set_stones", "choose_stone"] as const;
@@ -24,7 +27,7 @@ export function isToolName(name: string): name is ToolName {
  * 1 回だけ呼んで結果を受け取る道具（組み立て直す：src/rebuild/tools.ts・src/rebuild/restore-tools.ts、赤ペン：src/claude/redpen.ts、聞き取り：src/claude/gap.ts）。
  * 定義はそちらに置き、サーバーが「継ぐ」の道具として通す名前だけをここに書く。
  */
-export const STRUCTURED_TOOL_NAMES = ["propose_process", "grade_process", "red_pen", "make_band", "sort_tips", "ask_gap", "gap_rule", "propose_restoration"] as const;
+export const STRUCTURED_TOOL_NAMES = ["propose_process", "grade_process", "red_pen", "make_band", "sort_tips", "ask_gap", "gap_rule", "propose_restoration", "predict_pattern"] as const;
 
 /** サーバー（api/claude.ts）が通す道具の名前 */
 export function isAllowedToolName(name: string): boolean {
@@ -70,6 +73,20 @@ export interface ProposeRuleInput {
   by_size?: { up_to_mm: number; value: number }[];
   /** 機械で確かめない決まりのとき、作り方のどの工程の決まりか */
   steps?: MakingStepId[];
+  /** 職人が話した石の大きさ（mm。「このサイズ」なら今の設計の石の大きさ）。value はこの大きさの値 */
+  stone_mm?: number;
+  /**
+   * 石の大きさごとの点。craftsman：職人が言った点。inferred：Claude が職人の点から割合で推し量った点（職人はまだ確かめていない）。
+   * why：職人の点なら職人の言葉の短い引用、推測ならどう出したか
+   */
+  points?: ProposePoint[];
+}
+
+export interface ProposePoint {
+  stone_mm: number;
+  value: number;
+  by: "craftsman" | "inferred";
+  why: string;
 }
 
 export interface ProposeRuleResult {
@@ -103,9 +120,98 @@ export type HeightChoice = keyof typeof GUIDES.height.options;
 export type Orientation = "along" | "across";
 /** 石座と腕の付け方：on＝腕の上にのせる、between＝腕の間に挟む */
 export type Join = "on" | "between";
-/** テンションの挟む向き：short＝狭い幅を挟む、long＝長い向きを挟む、corner＝向かい合う角をくぼみに */
-export type TensionGripChoice = "short" | "long" | "corner";
-export type Metal = "pt900" | "k18yg" | "k18wg" | "k18pg" | "sv925";
+/** テンションの挟む向き：short＝狭い幅を挟む、long＝長い向きを挟む、corner＝向かい合う角をくぼみに、side＝（三角）短い辺を溝に・反対の角をくぼみに */
+export type TensionGripChoice = "short" | "long" | "corner" | "side";
+export type Metal = "pt900" | "k18yg" | "k18wg" | "k18pg" | "sv925" | "shakudo" | "shibuichi" | "copper";
+/** 煮色（にいろ）で色を出す色金（伝統の仕上げ） */
+export const IROGANE = ["shakudo", "shibuichi", "copper"] as const satisfies readonly Metal[];
+export const isIrogane = (m: Metal): m is (typeof IROGANE)[number] => (IROGANE as readonly string[]).includes(m);
+
+/** 伝統の仕上げの入力（set_shank の finish）。書いた項目だけが変わる。none でなくす */
+export interface FinishInput {
+  tsuchime?: "none" | "small" | "medium" | "large";
+  /** 槌目の種類：maru＝丸槌目、kaku＝角槌目（平槌目）、tate＝縦槌目（筋目）、arashi＝荒らし槌目 */
+  tsuchime_style?: "maru" | "kaku" | "tate" | "arashi";
+  tsuchime_area?: "outer" | "all";
+  milgrain?: "none" | "edges";
+  inlay?: "none" | "nunome";
+  /** 布目象嵌の模様（書くと象嵌が入る）。書いた項目だけが変わる（2026-11-07） */
+  inlay_pattern?: NunomePattern;
+  inlay_scale_mm?: number;
+  inlay_line_mm?: number;
+  inlay_width_mm?: number;
+  /** はめこむ地金：gold＝純金、silver＝純銀、auto＝地金で決める（金の地金には純銀、ほかには純金） */
+  inlay_metal?: "gold" | "silver" | "auto";
+  inlay_border?: boolean;
+  /** 模様を入れる回り：full＝一周、half＝上の半周、third＝上の三分の一 */
+  inlay_around?: "full" | "half" | "third";
+  inlay_foil_mm?: number;
+  inlay_rotate_deg?: number;
+  inlay_stretch?: number;
+  inlay_mirror?: boolean;
+  inlay_offset_mm?: number;
+  inlay_cells?: string;
+}
+export const FINISH_KEYS = { tsuchime: ["none", "small", "medium", "large"], tsuchime_style: ["maru", "kaku", "tate", "arashi"], tsuchime_area: ["outer", "all"], milgrain: ["none", "edges"], inlay: ["none", "nunome"], inlay_pattern: NUNOME_PATTERNS, inlay_metal: ["gold", "silver", "auto"], inlay_around: ["full", "half", "third"] } as const;
+/** 布目象嵌の数の入力（mm・度・倍）と、模様の値の名前 */
+export const INLAY_NUMBERS = {
+  inlay_scale_mm: "scaleMm",
+  inlay_line_mm: "lineMm",
+  inlay_width_mm: "widthMm",
+  inlay_foil_mm: "foilMm",
+  inlay_rotate_deg: "rotateDeg",
+  inlay_stretch: "stretch",
+  inlay_offset_mm: "offsetMm",
+} as const satisfies Record<string, keyof typeof NUNOME_RANGE>;
+const INLAY_BOOLS = { inlay_border: "border", inlay_mirror: "mirror" } as const;
+const AROUND_OF = { full: 1, half: 0.5, third: 0.34 } as const;
+
+/** 道具の仕上げの入力 → 布目象嵌の模様の、変える値だけ */
+export function nunomePatchOf(input: FinishInput): Partial<NunomeDesign> {
+  const out: Partial<NunomeDesign> = {};
+  if (input.inlay_pattern) out.pattern = input.inlay_pattern;
+  for (const [k, key] of Object.entries(INLAY_NUMBERS)) {
+    const v = input[k as keyof typeof INLAY_NUMBERS];
+    if (typeof v === "number") out[key] = v;
+  }
+  for (const [k, key] of Object.entries(INLAY_BOOLS)) {
+    const v = input[k as keyof typeof INLAY_BOOLS];
+    if (typeof v === "boolean") out[key] = v;
+  }
+  if (input.inlay_around) out.around = AROUND_OF[input.inlay_around];
+  if (input.inlay_metal) out.metal = input.inlay_metal === "auto" ? undefined : input.inlay_metal;
+  if (input.inlay_cells) out.cells = input.inlay_cells;
+  return out;
+}
+
+/** 布目象嵌の模様の値 → 道具の仕上げの入力（画面の直し方と、Claude への直し方の例） */
+export function nunomeInput(p: Partial<NunomeDesign>): FinishInput {
+  const out: FinishInput = { inlay: "nunome" };
+  if (p.pattern) out.inlay_pattern = p.pattern;
+  for (const [k, key] of Object.entries(INLAY_NUMBERS)) {
+    const v = p[key];
+    if (typeof v === "number") (out as Record<string, unknown>)[k] = v;
+  }
+  for (const [k, key] of Object.entries(INLAY_BOOLS)) {
+    const v = p[key];
+    if (typeof v === "boolean") (out as Record<string, unknown>)[k] = v;
+  }
+  if (p.around !== undefined) out.inlay_around = p.around >= 0.999 ? "full" : p.around >= 0.45 ? "half" : "third";
+  if ("metal" in p) out.inlay_metal = p.metal ?? "auto";
+  if (p.cells) out.inlay_cells = p.cells;
+  return out;
+}
+
+/** 布目象嵌の今の状態（Claude への返事） */
+export function nunomeState(d: NunomeDesign, goldBase: boolean): Pick<FinishState, "inlay_pattern" | "inlay_scale_mm" | "inlay_line_mm" | "inlay_width_mm" | "inlay_words"> {
+  return { inlay_pattern: d.pattern, inlay_scale_mm: d.scaleMm, inlay_line_mm: d.lineMm, inlay_width_mm: d.widthMm, inlay_words: nunomeWords(d, goldBase) };
+}
+/** Claude に出す仕上げの項目（仕上げは FINISHES_OFFERED のときだけ。ミル打ちは MILGRAIN_OFFERED のときだけ） */
+export const FINISH_OFFERED_KEYS = (Object.keys(FINISH_KEYS) as (keyof typeof FINISH_KEYS)[]).filter((k) => FINISHES_OFFERED && (MILGRAIN_OFFERED || k !== "milgrain"));
+/** Claude に出す、機械で確かめる値（布目象嵌の値 inlay.* は FINISHES_OFFERED のときだけ。目安帳に前からある決まりは、そのまま読める） */
+export const OFFERED_PARAMS = OFFERED_PARAM_IDS;
+/** Claude に出す地金（色金は FINISHES_OFFERED のときだけ） */
+export const OFFERED_METALS: readonly Metal[] = ["pt900", "k18yg", "k18wg", "k18pg", "sv925", ...(FINISHES_OFFERED ? IROGANE : [])];
 export type View = "top" | "side" | "front" | "angle";
 
 export type ProngTipChoice = "round" | "oni";
@@ -174,6 +280,8 @@ export interface ShankStationInput {
   section_curve?: SectionCurveInput;
   /** 腕を指の向きへ寄せる量（mm）。片方の肩が指先の側へ寄ると、もう片方は付け根の側へ寄る（S の字の流れ） */
   sway_mm?: number;
+  /** ひとつ上の場所からここまでを、なめらかにつながず段で変える（段々の肩） */
+  step?: boolean;
 }
 
 /** 腕の彫り。pattern が none なら彫りをなくす */
@@ -207,6 +315,8 @@ export interface SetShankInput {
   relief_more?: ShankReliefInput[];
   gou?: number;
   metal?: Metal;
+  /** 伝統の仕上げ（槌目・ミル打ち・布目象嵌） */
+  finish?: FinishInput;
   reason: string;
 }
 
@@ -279,6 +389,27 @@ export interface ShankState {
   /** ぐるりと見て、いちばん細い幅といちばん薄い厚み（確かめの目安と比べる数） */
   min_width_mm?: number;
   min_thickness_mm?: number;
+  /** 伝統の仕上げ（なければ鏡面） */
+  finish?: FinishState;
+}
+
+/** 伝統の仕上げの今の状態（Claude への返事） */
+export interface FinishState {
+  tsuchime?: "small" | "medium" | "large";
+  tsuchime_style?: "maru" | "kaku" | "tate" | "arashi";
+  tsuchime_area?: "outer" | "all";
+  tsuchime_mark_mm?: number;
+  milgrain?: "edges";
+  milgrain_beads?: number;
+  milgrain_bead_mm?: number;
+  inlay?: "nunome";
+  inlay_pattern?: NunomePattern;
+  inlay_scale_mm?: number;
+  inlay_line_mm?: number;
+  inlay_width_mm?: number;
+  inlay_words?: string;
+  /** ふつうの言葉で */
+  words: string;
 }
 
 export interface SetShankResult {
@@ -311,6 +442,11 @@ export interface CheckResult {
   problems: CheckProblem[];
   /** 確かめて問題がなかった項目 */
   passed: string[];
+  /**
+   * 止めない注意（作れない所ではない）。腕の幅の黄色（細め）・オレンジ（かなり細い）、手で彫る細い溝。
+   * problems とちがい、直さなくても作れる。お客さまの希望が細さなら、そのままでよい
+   */
+  cautions: { check: string; level: "yellow" | "orange"; where: string; current: string; text: string }[];
   note: string;
   /**
    * テンションのとき：地金ごとの大まかな計算（どれだけ小さめに作り、どれだけ広げて入れるか。合否にしない・最後は職人が決める）。
@@ -335,11 +471,15 @@ export interface CheckResult {
       make_gap_mm: number | null;
       spread_mm: number | null;
       grip_mm: number | null;
+      /** 広げたあと、戻りきらずに開いたまま残る量（仮。grip_mm はこれを引いた量） */
+      stays_open_after_spread_mm: number | null;
       stays_bent_mm: number | null;
       slide_smaller_by_mm: number | null;
     }[];
     note: string;
     cautions: { title: string; text: string }[];
+    /** 外れにくさの目安（今の地金・今の深さ。落とす高さと摩擦は仮。合否にしない。src/rules/tension-hold.ts） */
+    hold?: ReturnType<typeof holdForClaude>;
   };
 }
 
@@ -376,12 +516,15 @@ export interface ToolHost<S = unknown> {
 // ---- 入力の受け付け範囲 ----
 // 職人の目安ではなく「明らかにおかしい値を道具に通さない」ための範囲。目安との比べは check がする。
 
+/** 腕の幅の 3 段の言葉（Claude に渡す。値は guides.ts、職人 石川の決まり 2026-11-06） */
+export const BAND_WIDTH_WORDS = `腕の幅は ${GUIDES.band.widthYellowMm} mm 以下で黄色の注意、${GUIDES.band.widthOrangeMm} mm より細いとオレンジの注意（どちらも止めない。cautions に出る）、${GUIDES.band.minWidthMm} mm 以下は赤（problems に出る。作れなくはないが職人の決まりで赤）。帳面で工房ごとに変わることがある`;
+
 export const INPUT_BOUNDS = {
   prong_count: [3, 8],
   prong_mm: [0.3, 3],
   prong_position: [0, 9999],
   value: [0, 100],
-  width_mm: [1, 10],
+  width_mm: [GUIDES.band.inputMinWidthMm, 10],
   thickness_mm: [0.8, 5],
   gou: [1, 30],
   count: [GUIDES.multi.rowCount[0], GUIDES.multi.rowCount[2]],
@@ -397,6 +540,8 @@ export const INPUT_BOUNDS = {
   relief_deg: [15, 180],
   relief_columns: [1, 3],
   stone_long_mm: [3, 14],
+  /** 決まりの点の石の大きさ（mm。石の大きさの段と同じ範囲） */
+  stone_size_mm: [0.5, 30],
   culet_gap_mm: [GUIDES.height.minFingerGapMm, 6],
 } as const;
 
@@ -408,6 +553,23 @@ const range = (k: keyof typeof INPUT_BOUNDS, unit = "") =>
   `${INPUT_BOUNDS[k][0]}〜${INPUT_BOUNDS[k][1]}${unit}`;
 
 /** 断面の線の入力の形（set_shank のいちばん上の断面と、場所ごとの断面で同じ） */
+/**
+ * 腕の彫りの模様の名前（geometry/shank-relief.ts の RELIEF_KINDS と同じ並び。tests/shank-loft.test.ts が見る）。
+ * ここに置くのは、公開先の関数（api/claude.ts）がこのファイルだけを読むため（形の処理を持ち込まない）
+ */
+export const RELIEF_PATTERNS = ["arch", "diamond", "wave", "beads", "lines", "leaf", "mil", "blade", "chevron", "zigzag", "fan", "steps", "panel", "flutes"] as const satisfies readonly ReliefKind[];
+
+/**
+ * 模様の説明。線の性格ごとにまとめる（どの言葉にどれ、とは決めない。Claude が言葉の性格から選ぶ）
+ */
+export const RELIEF_PATTERN_WORDS =
+  "直線・水平と垂直・平らな面の模様：steps＝段の窓（長方形の窓の中が、平らな面のまま段々に深くなる。小さな四角い石を並べた列のようにも見える）、panel＝長方形の区切り（細長い長方形の窓の列。輪郭の線と浅い平らな底）、flutes＝平行の溝（腕に沿って続く細い溝を、幅の向きに等しい間で並べる）、lines＝腕を横切る筋。" +
+  "幾何学の繰り返し・角の立つ模様：chevron＝山形（V の線が腕に沿って重なる。先は石座の側を向き、列の真ん中で左右対称）、zigzag＝ジグザグ（腕に沿う、角の立った折れ線）、diamond＝菱の格子。" +
+  "中心から広がる模様：fan＝扇（かなめから骨が石座の側へ広がり、外の弧で閉じる。日の出のような放射。平らな面に、片側 1〜2 つを大きく）。" +
+  "縦に高く伸びて先が尖る模様：arch＝先の鋭く尖った縦長の窓（幅があれば、中に 2 つの小窓と丸窓）、blade＝尖った葉（肩に少しだけ）。" +
+  "曲線・やわらかい模様：wave＝腕に沿う波の線、leaf＝葉とつる、beads＝丸い粒のくぼみの列。" +
+  "縁を飾る：mil＝縁の粒（帯の上面を削って粒を連ねる。縁取りの上に）";
+
 const SECTION_CURVE_SCHEMA = {
   type: "object",
   description:
@@ -433,6 +595,49 @@ const SECTION_CURVE_SCHEMA = {
   additionalProperties: false,
 } as const;
 
+/** 色金の言葉（set_shank の metal。FINISHES_OFFERED のときだけ） */
+const FINISH_METAL_WORDS =
+  "色金（いろがね。煮色＝にいろ で色を出す伝統の地金）：shakudo＝赤銅（煮色で、ほとんど黒。うっすら青紫の艶）、shibuichi＝四分一（煮色で銀灰）、copper＝銅（煮色で赤茶）。「四分一の煮色に」なら shibuichi";
+
+/** 伝統の仕上げの入力の形（set_shank の finish。FINISHES_OFFERED のときだけ Claude に出す） */
+const FINISH_SCHEMA = {
+  type: "object",
+  description:
+    "伝統の仕上げ（彫金・鍛金の技）。書いた項目だけが変わり、none でなくす。" +
+    `tsuchime＝槌目（金づちの跡を模様として残す。small・medium・large は跡の大きさ ${GUIDES.finish.tsuchime.small.markMm}・${GUIDES.finish.tsuchime.medium.markMm}・${GUIDES.finish.tsuchime.large.markMm} mm、仮の値）、` +
+    `tsuchime_style＝槌目の種類（maru＝丸槌目：丸いくぼみ。kaku＝角槌目・平槌目：平らな小さな面。tate＝縦槌目・筋目：腕に沿って細長い跡。arashi＝荒らし槌目：細かく密で、つやを抑える。大きさは選ばず ${GUIDES.finish.tsuchimeStyle.arashi.markMm} mm。省くと丸槌目）、` +
+    "tsuchime_area＝打つ所（outer＝腕の外側、all＝外側と横）、" +
+    (MILGRAIN_OFFERED ? `milgrain＝ミル打ち（edges＝腕の外の面の両縁の細い縁に、ø${GUIDES.finish.milgrain.beadMm} mm の粒を一列ずつ、半分沈めて並べる。形と STL に入る）、` : "") +
+    "inlay＝象嵌（nunome＝布目象嵌：腕の真ん中に、色のちがう地金の帯の模様。純金・純銀の線や平金を打ちこむ）。" +
+    `inlay_pattern＝布目象嵌の模様（${NUNOME_PATTERNS.map((k) => `${k}＝${NUNOME_LABEL[k]}`).join("、")}。「麻の葉の布目象嵌で」なら asanoha。書くと象嵌が入る）、` +
+    `inlay_scale_mm＝模様の大きさ（くり返し 1 つ分 mm）、inlay_line_mm＝線の太さ（打ちこむ線の直径 mm。資料の線は ${GUIDES.inlay.wireMinMm}〜${GUIDES.inlay.wireMaxMm} mm）、inlay_width_mm＝帯の幅（mm）、` +
+    "inlay_metal＝はめこむ地金（gold＝純金、silver＝純銀、auto＝地金で決める）、inlay_border＝帯の両縁の線、inlay_around＝入れる回り（full＝一周、half＝上の半周、third＝上の三分の一）、" +
+    `inlay_foil_mm＝平金の厚み（市松・自分の模様）、inlay_rotate_deg＝模様を回す、inlay_stretch＝腕に沿って伸ばす倍、inlay_mirror＝上下に裏返す、inlay_offset_mm＝腕に沿ってずらす、inlay_cells＝自分の模様の ${JIYU_N}×${JIYU_N} のマス目（"0" と "1"）。` +
+    "線が細すぎる・線の間がせまい・小さなかけら・帯が腕の面からはみ出す・平金の厚みは check が見る（作れない形だけ。好みは見ない）。" +
+    `槌目は跡の深さだけ腕が薄くなる${MILGRAIN_OFFERED ? "。ミルの粒は腕の幅に収まる必要がある" : ""}（check が見る）`,
+  properties: {
+    tsuchime: { type: "string", enum: [...FINISH_KEYS.tsuchime], description: "槌目の跡の大きさ。none でやめる" },
+    tsuchime_style: { type: "string", enum: [...FINISH_KEYS.tsuchime_style], description: "槌目の種類。省くと今の種類（はじめは maru）" },
+    tsuchime_area: { type: "string", enum: [...FINISH_KEYS.tsuchime_area], description: "槌目を打つ所。省くと outer" },
+    ...(MILGRAIN_OFFERED ? { milgrain: { type: "string", enum: [...FINISH_KEYS.milgrain], description: "ミル打ち。none でやめる" } } : {}),
+    inlay: { type: "string", enum: [...FINISH_KEYS.inlay], description: "象嵌。none でやめる" },
+    inlay_pattern: { type: "string", enum: [...NUNOME_PATTERNS], description: "布目象嵌の模様" },
+    inlay_scale_mm: { type: "number", description: `模様の大きさ（mm、${NUNOME_RANGE.scaleMm[0]}〜${NUNOME_RANGE.scaleMm[1]}）` },
+    inlay_line_mm: { type: "number", description: `線の太さ（mm、${NUNOME_RANGE.lineMm[0]}〜${NUNOME_RANGE.lineMm[1]}）` },
+    inlay_width_mm: { type: "number", description: `帯の幅（mm、${NUNOME_RANGE.widthMm[0]}〜${NUNOME_RANGE.widthMm[1]}）` },
+    inlay_metal: { type: "string", enum: [...FINISH_KEYS.inlay_metal], description: "はめこむ地金" },
+    inlay_border: { type: "boolean", description: "帯の両縁の線" },
+    inlay_around: { type: "string", enum: [...FINISH_KEYS.inlay_around], description: "模様を入れる回り" },
+    inlay_foil_mm: { type: "number", description: `平金の厚み（mm、${NUNOME_RANGE.foilMm[0]}〜${NUNOME_RANGE.foilMm[1]}）` },
+    inlay_rotate_deg: { type: "number", description: `模様を回す（度、${NUNOME_RANGE.rotateDeg[0]}〜${NUNOME_RANGE.rotateDeg[1]}）` },
+    inlay_stretch: { type: "number", description: `腕に沿って伸ばす（倍、${NUNOME_RANGE.stretch[0]}〜${NUNOME_RANGE.stretch[1]}）` },
+    inlay_mirror: { type: "boolean", description: "上下に裏返す" },
+    inlay_offset_mm: { type: "number", description: `腕に沿ってずらす（mm、${NUNOME_RANGE.offsetMm[0]}〜${NUNOME_RANGE.offsetMm[1]}）` },
+    inlay_cells: { type: "string", description: `自分の模様のマス目（"0" と "1" を ${JIYU_N * JIYU_N} 字。上の行から）` },
+  },
+  additionalProperties: false,
+};
+
 export const TOOLS: ClaudeTool[] = [
   {
     name: "set_setting",
@@ -454,7 +659,7 @@ export const TOOLS: ClaudeTool[] = [
           type: "string",
           enum: ["prong", "bezel", "tension"],
           description:
-            `留め方。prong＝爪留め、bezel＝覆輪（石の縁をぐるりと壁で包む。いちばん取れにくいが、見た目が大きく変わる）、tension＝テンション（開いた腕の両はしで石を挟む。三角の石は、片方の端のくぼみに角の先を ${GUIDES.tension.cornerPitMm} mm、もう片方の端の溝に辺を ${GUIDES.tension.edgeGrooveMm} mm 入れる。職人の値。腕は φ${GUIDES.tension.wireMm} mm の丸線に替わる。地金は加工硬化した硬い状態が条件。爪・高さ・向きの項目は使わない。挟む向きは tension_grip。check の tension_calc に、地金ごとの大まかな計算がある）`,
+            `留め方。prong＝爪留め、bezel＝覆輪（石の縁をぐるりと壁で包む。いちばん取れにくいが、見た目が大きく変わる）、tension＝テンション（開いた腕の両はしで石を挟む。三角の石は、片方の端のくぼみに角の先を、もう片方の端の溝に辺を入れる。深さの既定は、広げたあと戻りきらない分を見込んで、広げる量がいちばん少なく留まる見込みになる計算のおすすめ（仮。check の tension_calc.hold.advice）。tension_grip の side なら、いちばん短い辺を溝に ${GUIDES.tension.shortSideGrooveMm} mm・反対の角をくぼみに ${GUIDES.tension.shortSidePitMm} mm（作者が実際に作った指輪の向きと深さ。職人の値）。腕は φ${GUIDES.tension.wireMm} mm の丸線に替わる。地金は加工硬化した硬い状態が条件。爪・高さ・向きの項目は使わない。挟む向きは tension_grip。check の tension_calc に、地金ごとの大まかな計算がある）`,
         },
         prong_positions: {
           type: "array",
@@ -487,9 +692,9 @@ export const TOOLS: ClaudeTool[] = [
         },
         tension_grip: {
           type: "string",
-          enum: ["short", "long", "corner"],
+          enum: ["short", "long", "corner", "side"],
           description:
-            "テンションで石のどこを挟むか（テンションのときだけ。石の形で選べないものは、自動で short になる）。short＝いちばん狭い幅を挟む（長い向きは腕の幅の外へ出る）、long＝長い向きを挟む（短い辺や丸い端を溝に。開きは広くなる）、corner＝向かい合う 2 つの角をくぼみに（横にずれないが、挟む力が角の先にかかる）",
+            `テンションで石のどこを挟むか（テンションのときだけ。石の形で選べないものは、自動で short になる。三角は short・side・corner、しずく形は short だけ）。short＝いちばん狭い幅を挟む（長い向きは腕の幅の外へ出る。三角は、いちばん長い辺を溝に・向かいの角をくぼみに）、side＝三角だけ。いちばん短い辺を溝に・反対の角（いちばん長い辺の片はし）をくぼみに（角から辺までが short より長い。作者が実際に作った指輪の向き。深さの既定はくぼみ ${GUIDES.tension.shortSidePitMm} mm・溝 ${GUIDES.tension.shortSideGrooveMm} mm）、long＝長い向きを挟む（短い辺や丸い端を溝に。開きは広くなる）、corner＝向かい合う 2 つの角をくぼみに（横にずれないが、挟む力が角の先にかかる。三角は、いちばん長い辺の両はしの角を挟み、残りの角は腕の幅の外へ出る）`,
         },
         prong_tip: {
           type: "string",
@@ -536,7 +741,7 @@ export const TOOLS: ClaudeTool[] = [
           description:
             `腕の場所ごとの形（${range("stations", " か所")}、角度の小さい順。空の並びは、どこも同じ形に戻す）。左右は同じ。いちばん上の形は width_mm・thickness_mm・断面で決まり、ここにはそれより下の場所を書く。間はなめらかにつながる。` +
             "肩を細く・太くする、下を薄く軽くする、上は稜線で下は指に沿う丸みにする、腕を S の字に流す、などに使う。石座のそばは、腕の端が石座に当たるので、いちばん上の形のまま保たれる（石の大きさで約 20〜40° まで）。" +
-            `どの場所も確かめの目安（幅 ${GUIDES.band.minWidthMm} mm・厚み ${GUIDES.band.minThicknessMm} mm 以上）を check で見る。`,
+            `どの場所も、厚み ${GUIDES.band.minThicknessMm} mm 以上（目安）と、腕の幅の職人の決まりを check で見る（${BAND_WIDTH_WORDS}）。`,
           items: {
             type: "object",
             properties: {
@@ -546,6 +751,12 @@ export const TOOLS: ClaudeTool[] = [
               section: { type: "string", enum: ["kouman", "hirauchi", "hangouman", "kaku"], description: "この場所の断面（決まった形）。省くと、ひとつ上の場所と同じ" },
               section_curve: { ...SECTION_CURVE_SCHEMA, description: "この場所の断面の線。書き方はいちばん上の section_curve と同じ。section より先に使う" },
               sway_mm: { type: "number", description: `腕を指の向きへ寄せる量（mm、${range("sway_mm", " mm")}）。片方の肩が指先の側へ寄ると、もう片方は付け根の側へ寄り、腕が S の字に流れる。いちばん下（180°）では 0` },
+              step: {
+                type: "boolean",
+                description:
+                  "true なら、ひとつ上の場所からこの場所までを、なめらかにつながず段で変える（ひとつ上の幅・厚み・断面のまま進み、この場所の手前で短い立ち上がりで替わる。階段の段）。" +
+                  "肩に 2〜3 か所、10〜15° おきに置き、幅を 0.6〜1 mm・厚みを 0.3〜0.5 mm ずつ減らすと、石座から段々に下がる肩になる（上からも横からも段が見える）。省くと、なめらかにつなぐ",
+              },
             },
             required: ["at_deg", "width_mm", "thickness_mm"],
             additionalProperties: false,
@@ -559,10 +770,10 @@ export const TOOLS: ClaudeTool[] = [
           properties: {
             pattern: {
               type: "string",
-              enum: ["none", "arch", "diamond", "wave", "beads", "lines", "leaf", "mil", "blade"],
-              description: "模様。arch＝先の鋭く尖った縦長の窓が腕に沿って並ぶ（幅があれば、中に 2 つの小窓と丸窓）、diamond＝菱の格子、wave＝腕に沿う波の線、beads＝丸い粒のくぼみの列、lines＝腕を横切る筋、leaf＝葉とつる、mil＝縁の粒（帯の上面を削って粒を連ねる。縁取りの上に）、blade＝尖った葉（肩に少しだけ）、none＝彫りをなくす",
+              enum: ["none", ...RELIEF_PATTERNS],
+              description: `模様。${RELIEF_PATTERN_WORDS}、none＝彫りをなくす`,
             },
-            count: { type: "integer", description: `片側の腕に並べる数（${range("relief_count", " つ")}）。省くと 4` },
+            count: { type: "integer", description: `片側の腕に並べる数（${range("relief_count", " つ")}）。省くと 4。平行の溝では、はじめと終わりの消える長さだけが変わる（溝の数は幅で決まる）` },
             depth_mm: { type: "number", description: `彫りの深さ（mm、${range("relief_depth", " mm")}）。省くと ${GUIDES.band.relief.depthMm} mm` },
             from_deg: { type: "number", description: `彫り始める場所（いちばん上からの角度、度、${range("relief_deg")}）。省くと 25` },
             to_deg: { type: "number", description: `彫り終わる場所（度、${range("relief_deg")}）。省くと 100。指の真横が 90` },
@@ -575,11 +786,11 @@ export const TOOLS: ClaudeTool[] = [
         },
         relief_more: {
           type: "array",
-          description: `重ねて彫る模様（${range("relief_more", " つ")}。relief があるときだけ。空の並びでなくす）。窓は溝の中、粒は縁取りの上、葉は肩に、のように場所を分けると、断面と彫りが一体に見える`,
+          description: `重ねて彫る模様（${range("relief_more", " つ")}。relief があるときだけ。空の並びでなくす）。溝の中に 1 つの模様、縁取りの上に粒、肩に別の模様、のように場所を分けると、断面と彫りが一体に見える`,
           items: {
             type: "object",
             properties: {
-              pattern: { type: "string", enum: ["arch", "diamond", "wave", "beads", "lines", "leaf", "mil", "blade"], description: "模様。relief と同じ" },
+              pattern: { type: "string", enum: [...RELIEF_PATTERNS], description: "模様。relief と同じ" },
               count: { type: "integer", description: "片側の腕に並べる数" },
               depth_mm: { type: "number", description: "深さ（mm）" },
               from_deg: { type: "number", description: "彫り始める場所（度）" },
@@ -595,9 +806,13 @@ export const TOOLS: ClaudeTool[] = [
         gou: { type: "integer", description: `指輪のサイズ（日本の号数、${range("gou", " 号")}）。号数から内径が決まる` },
         metal: {
           type: "string",
-          enum: ["pt900", "k18yg", "k18wg", "k18pg", "sv925"],
-          description: "地金。pt900＝プラチナ、k18yg＝18 金イエロー、k18wg＝18 金ホワイト、k18pg＝18 金ピンク、sv925＝シルバー",
+          enum: [...OFFERED_METALS],
+          description:
+            "地金。pt900＝プラチナ、k18yg＝18 金イエロー、k18wg＝18 金ホワイト、k18pg＝18 金ピンク、sv925＝シルバー。" +
+            (FINISHES_OFFERED ? FINISH_METAL_WORDS : ""),
         },
+        // 伝統の仕上げは FINISHES_OFFERED のときだけ出す（2026-11-07 作者の判断で、提出には出さない）
+        ...(FINISHES_OFFERED ? { finish: FINISH_SCHEMA } : {}),
         reason: { type: "string", description: "なぜこう変えるか。短く書く（作業の記録に残る）" },
       },
       required: ["reason"],
@@ -608,6 +823,7 @@ export const TOOLS: ClaudeTool[] = [
     name: "check",
     description:
       "今の指輪を職人の目安で確かめる。問題の一覧（どこ・今の値・必要な値・理由・直し方の選択肢と見た目への影響）と、問題のなかった項目を返す。" +
+      `cautions は止めない注意で、作れない所ではない（${BAND_WIDTH_WORDS}）。注意だけなら直さなくてよく、希望が細さなら、そのままにする。` +
       "選択肢は答えではない。どれを選ぶかは、お客さまの希望から決めて、理由を残す。" +
       `値はすべて目安で、最後は職人が決める（${GUIDE_NOTE}）。`,
     strict: true,
@@ -647,10 +863,10 @@ export const TOOLS: ClaudeTool[] = [
         quote: { type: "string", description: "職人の言葉そのまま（短く）" },
         param: {
           type: "string",
-          enum: Object.keys(PARAMS),
+          enum: [...OFFERED_PARAMS],
           description:
             "機械で確かめる値のどれに当たるか：" +
-            Object.entries(PARAMS)
+            OFFERED_PARAMS.map((k) => [k, PARAMS[k]] as const)
               .map(([k, v]) => `${k}＝${v.label}${v.unit ? `（${v.unit}）` : ""}`)
               .join("、"),
         },
@@ -663,6 +879,29 @@ export const TOOLS: ClaudeTool[] = [
             type: "object",
             properties: { up_to_mm: { type: "number" }, value: { type: "number" } },
             required: ["up_to_mm", "value"],
+            additionalProperties: false,
+          },
+        },
+        stone_mm: {
+          type: "number",
+          description:
+            "職人が話した石の大きさ（mm。石の大きさ ＝（長辺 ＋ 幅）÷ 2）。「このサイズ」「この石」と言ったら、今の設計の石の大きさ。value はこの大きさの値。石の大きさの話でなければ付けない",
+        },
+        points: {
+          type: "array",
+          description:
+            "爪の太さ（prong.minDiameterMm）のように、石の大きさで値が変わる決まりのときだけ付ける。石の大きさごとの点。" +
+            "by＝craftsman は職人が言った点（職人が言った数字だけ。「この爪で十分」なら今の爪の太さ）。by＝inferred は、職人の点から割合で推し量った、ほかの大きさの値（職人はまだ確かめていない）。" +
+            "why は、職人の点なら職人の言葉の短い引用、推測ならどう出したか（例：公開の目安の線を職人の 8 mm・0.7 mm に合わせて割合でずらした）",
+          items: {
+            type: "object",
+            properties: {
+              stone_mm: { type: "number", description: "石の大きさ（mm）" },
+              value: { type: "number", description: "その大きさの値（mm）" },
+              by: { type: "string", enum: ["craftsman", "inferred"] },
+              why: { type: "string" },
+            },
+            required: ["stone_mm", "value", "by", "why"],
             additionalProperties: false,
           },
         },
@@ -780,6 +1019,7 @@ const BOUND_OF: Record<string, keyof typeof INPUT_BOUNDS> = {
   sway_mm: "sway_mm",
   culet_gap_mm: "culet_gap_mm",
   long_mm: "stone_long_mm",
+  stone_mm: "stone_size_mm",
 };
 
 function checkNumber(key: string, v: unknown, integer: boolean): string | null {
@@ -809,13 +1049,14 @@ function checkProp(key: string, s: PropSchema, v: unknown): string | null {
       if (!Array.isArray(v)) return `${key} は番号の並びで書いてください`;
       // 場所ごとの形は checkStations が見る
       if (key === "stations" || key === "relief_more") return null;
+      if (key === "points") return checkPoints(v);
       if (s.items?.type === "object") return checkSizeSteps(key, v);
-      // 文字の並び（決まりが効く工程 steps など）。前は番号の並びとして見ていて、工程を付けた決まりの案がいつも断られていた（2026-11-07 の試し）
+      // 文字の並び（propose_rule の steps など）。前は数として確かめて、工程を付けた決まりの案をいつも断っていた（2026-11-06 本物の Claude で見つけた）
       if (s.items?.type === "string") {
-        const allowed = s.items.enum;
+        const allowed = (s.items as { enum?: readonly string[] }).enum;
         for (const item of v) {
           if (typeof item !== "string") return `${key} は文字の並びで書いてください`;
-          if (allowed && !allowed.includes(item)) return `${key} は ${allowed.join(" / ")} から選んでください（今は ${item}）`;
+          if (allowed && !allowed.includes(item)) return `${key} は ${allowed.join(" / ")} のどれかです（今は ${item}）`;
         }
         return null;
       }
@@ -844,7 +1085,7 @@ function checkStations(v: unknown): string | null {
   const [, most] = INPUT_BOUNDS.stations;
   if (v.length > most) return `腕の場所は ${most} か所までです（今は ${v.length} か所）`;
   let prev = 0;
-  const allowed = new Set(["at_deg", "width_mm", "thickness_mm", "section", "section_curve", "sway_mm"]);
+  const allowed = new Set(["at_deg", "width_mm", "thickness_mm", "section", "section_curve", "sway_mm", "step"]);
   for (const st of v as Record<string, unknown>[]) {
     if (typeof st !== "object" || st === null || Array.isArray(st)) return "腕の場所は {at_deg, width_mm, thickness_mm} の形で書いてください";
     for (const k of Object.keys(st)) if (!allowed.has(k)) return `腕の場所に ${k} という項目はありません`;
@@ -861,6 +1102,7 @@ function checkStations(v: unknown): string | null {
       if (e) return e;
       if (at >= 180 && st.sway_mm !== 0) return "いちばん下（180°）では、腕を指の向きへ寄せられません（sway_mm は 0）";
     }
+    if (st.step !== undefined && typeof st.step !== "boolean") return "腕の場所の step は true か false で書いてください";
     if (st.section !== undefined && !["kouman", "hirauchi", "hangouman", "kaku"].includes(st.section as string)) return `場所ごとの断面は kouman / hirauchi / hangouman / kaku のどれかです（今は ${String(st.section)}）`;
     if (st.section_curve !== undefined) {
       const e = checkSectionCurve(st.section_curve);
@@ -874,7 +1116,7 @@ function checkStations(v: unknown): string | null {
 function checkRelief(v: unknown): string | null {
   const r = v as Record<string, unknown> | null;
   if (typeof r !== "object" || r === null || Array.isArray(r)) return "腕の彫りは {pattern, …} の形で書いてください";
-  const kinds = ["none", "arch", "diamond", "wave", "beads", "lines", "leaf", "mil", "blade"];
+  const kinds: readonly string[] = ["none", ...RELIEF_PATTERNS];
   if (!kinds.includes(r.pattern as string)) return `腕の彫りの模様は ${kinds.join(" / ")} のどれかです（今は ${String(r.pattern)}）`;
   const bounds: Record<string, keyof typeof INPUT_BOUNDS> = { count: "relief_count", depth_mm: "relief_depth", from_deg: "relief_deg", to_deg: "relief_deg", columns: "relief_columns", across_from: "relief_across", across_to: "relief_across" };
   for (const k of Object.keys(r)) {
@@ -889,6 +1131,36 @@ function checkRelief(v: unknown): string | null {
   if ((r.across_from === undefined) !== (r.across_to === undefined)) return "腕の彫りの帯は、across_from と across_to を両方書いてください";
   if (typeof r.across_from === "number" && typeof r.across_to === "number" && r.across_from >= r.across_to) return "腕の彫りの帯は、across_from を across_to より小さくしてください";
   return null;
+}
+
+/** 伝統の仕上げ：知らない項目と、選べない値を断る */
+function checkFinish(v: unknown): string | null {
+  const f = v as Record<string, unknown> | null;
+  if (typeof f !== "object" || f === null || Array.isArray(f)) return `仕上げは {${FINISH_OFFERED_KEYS.join(", ")}} の形で書いてください`;
+  const keys = Object.keys(f);
+  if (!keys.length) return "仕上げに変える項目がありません";
+  const patch: Record<string, unknown> = {};
+  for (const k of keys) {
+    if (k in INLAY_NUMBERS) {
+      const v = f[k];
+      const [lo, hi] = NUNOME_RANGE[INLAY_NUMBERS[k as keyof typeof INLAY_NUMBERS]];
+      if (typeof v !== "number" || !Number.isFinite(v) || v < lo || v > hi) return `仕上げの ${k} は ${lo}〜${hi} の数です（今は ${String(v)}）`;
+      continue;
+    }
+    if (k in INLAY_BOOLS) {
+      if (typeof f[k] !== "boolean") return `仕上げの ${k} は true か false です`;
+      continue;
+    }
+    if (k === "inlay_cells") {
+      patch.cells = f[k];
+      continue;
+    }
+    const allowed = (FINISH_OFFERED_KEYS as readonly string[]).includes(k) ? (FINISH_KEYS as Record<string, readonly string[]>)[k] : undefined;
+    if (!allowed) return `仕上げに ${k} という項目はありません`;
+    if (!allowed.includes(f[k] as string)) return `仕上げの ${k} は ${allowed.join(" / ")} のどれかです（今は ${String(f[k])}）`;
+  }
+  if (f.inlay === "none" && keys.some((k) => k.startsWith("inlay_"))) return "象嵌をやめる（inlay: none）ときは、模様の項目を書かないでください";
+  return validateNunome(patch);
 }
 
 /** 石の大きさの段：大きさは 0.5〜30 mm で小さい順、値は 0〜100 */
@@ -907,6 +1179,27 @@ function checkSizeSteps(key: string, v: unknown[]): string | null {
   return null;
 }
 
+/** 石の大きさごとの点：大きさは 0.5〜30 mm、値は 0〜100、by は craftsman か inferred、同じ大きさの職人の点は 1 つ */
+function checkPoints(v: unknown[]): string | null {
+  if (v.length === 0 || v.length > 16) return "points は 1〜16 点で書いてください";
+  const [lo, hi] = INPUT_BOUNDS.stone_size_mm;
+  const seen: number[] = [];
+  for (const item of v) {
+    const r = item as { stone_mm?: unknown; value?: unknown; by?: unknown; why?: unknown } | null;
+    if (typeof r !== "object" || r === null || Array.isArray(r)) return "points は {stone_mm, value, by, why} の並びで書いてください";
+    for (const k of Object.keys(r)) if (!["stone_mm", "value", "by", "why"].includes(k)) return `points に ${k} という項目はありません`;
+    if (typeof r.stone_mm !== "number" || !Number.isFinite(r.stone_mm) || r.stone_mm < lo || r.stone_mm > hi) return `points の stone_mm は ${lo}〜${hi} mm で書いてください`;
+    if (typeof r.value !== "number" || !Number.isFinite(r.value) || r.value <= 0 || r.value > 100) return "points の value は 0 より大きく 100 以下で書いてください";
+    if (r.by !== "craftsman" && r.by !== "inferred") return "points の by は craftsman か inferred です";
+    if (r.why !== undefined && typeof r.why !== "string") return "points の why は文字で書いてください";
+    if (r.by === "craftsman") {
+      if (seen.some((s) => Math.abs(s - (r.stone_mm as number)) < 1e-9)) return `同じ石の大きさ（${r.stone_mm} mm）に職人の点が 2 つあります`;
+      seen.push(r.stone_mm);
+    }
+  }
+  return null;
+}
+
 /** 道具の名前と入力を、定義の形と受け付け範囲で確かめる */
 export function parseToolCall(name: string, input: unknown): ParseResult {
   const tool = TOOLS.find((t) => t.name === name);
@@ -916,7 +1209,17 @@ export function parseToolCall(name: string, input: unknown): ParseResult {
   }
   const schema = tool.input_schema as { properties?: Record<string, PropSchema>; required?: readonly string[] };
   const props = schema.properties ?? {};
-  const record = input as Record<string, unknown>;
+  let record = input as Record<string, unknown>;
+  // 伝統の仕上げを出さない間（FINISHES_OFFERED が false）：仕上げと色金は道具に無い。届いても止めずに外す（前の会話や記録から来ても読めるように）
+  if (name === "set_shank" && !FINISHES_OFFERED && (record.finish !== undefined || (typeof record.metal === "string" && (IROGANE as readonly string[]).includes(record.metal)))) {
+    const { finish: _finish, ...rest } = record;
+    if (typeof rest.metal === "string" && (IROGANE as readonly string[]).includes(rest.metal)) delete rest.metal;
+    if (!Object.keys(rest).some((k) => k !== "reason" && rest[k] !== undefined)) {
+      return { ok: false, error: "伝統の仕上げ（槌目・ミル打ち・象嵌）と色金（赤銅・四分一・銅）は、今は選べません。ほかの項目で形を変えてください" };
+    }
+    record = rest;
+    input = rest;
+  }
   for (const key of schema.required ?? []) {
     if (record[key] === undefined) return { ok: false, error: `${key} がありません` };
   }
@@ -927,8 +1230,17 @@ export function parseToolCall(name: string, input: unknown): ParseResult {
     const e = checkProp(key, s, value);
     if (e) return { ok: false, error: e };
   }
+  // 石の大きさの点だけ付けて value を忘れたとき：職人の点（stone_mm の点、なければ最後の職人の点）の値を value にする（決まりの中身は変えない）
+  if (name === "propose_rule" && record.param !== undefined && record.value === undefined && Array.isArray(record.points)) {
+    const craft = (record.points as unknown[]).filter((x): x is ProposePoint => typeof x === "object" && x !== null && (x as ProposePoint).by === "craftsman" && typeof (x as ProposePoint).value === "number");
+    const at = craft.find((x) => typeof record.stone_mm === "number" && Math.abs(x.stone_mm - record.stone_mm) < 1e-9) ?? craft[craft.length - 1];
+    if (at) return parseToolCall(name, { ...record, value: at.value });
+  }
   if (name === "propose_rule" && (record.param === undefined) !== (record.value === undefined)) {
     return { ok: false, error: "param と value は、両方付けるか、両方付けないかにしてください" };
+  }
+  if (name === "propose_rule" && (record.points !== undefined || record.stone_mm !== undefined) && record.param === undefined) {
+    return { ok: false, error: "stone_mm と points は、値（param と value）のある決まりにだけ付けてください" };
   }
   if (name === "ask_teacher") {
     for (const key of ["question", "why_unanswered"] as const) {
@@ -951,6 +1263,10 @@ export function parseToolCall(name: string, input: unknown): ParseResult {
     }
     if (record.relief !== undefined) {
       const e = checkRelief(record.relief);
+      if (e) return { ok: false, error: e };
+    }
+    if (record.finish !== undefined) {
+      const e = checkFinish(record.finish);
       if (e) return { ok: false, error: e };
     }
     if (record.relief_more !== undefined) {

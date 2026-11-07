@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import repo from "../ledger/jewelry.json";
 import bandShowcase from "../src/lp/band-showcase.json";
+import artdeco from "../src/lp/artdeco.json";
 import { activeRules, ledgerCounts, type Ledger } from "../src/rules/ledger";
 
 const src = readFileSync(new URL("../src/lp/main.ts", import.meta.url), "utf8");
@@ -19,11 +20,15 @@ describe("入口のページ", () => {
     expect(src).toContain("切り口を見せています");
   });
 
-  it("ゴシックの絵は人が数字を整えたと正直に書く", () => {
-    expect(src).toContain("ring-gothic-attack");
-    expect(src).not.toContain("ring-gothic-heavy");
-    expect(src).toContain("人が数字を整えたものです");
-    expect(src).toContain("Claude は呼んでいません");
+  it("言葉の場面の絵は、本物の Claude が「アールデコな感じ」から組んだ形 1 つだけ。回数は書かない（2026-11-06 作者：何度も失敗したように読める）", () => {
+    const c = artdeco.claude;
+    expect(src).toContain("ring-artdeco");
+    expect(src).not.toContain(`Claude ${c.calls} 回`);
+    expect(src).toContain(`「${artdeco.wish}」とだけ頼み`);
+    expect(src).toContain(`「${artdeco.wish}」</p>`);
+    expect(src).not.toContain("ring-claude-gothic");
+    expect(src).not.toContain("ring-gothic-attack");
+    expect(src).not.toContain("人が数字を整え");
   });
 
   it("欄を隠している三石・石を並べる節を書かない", () => {

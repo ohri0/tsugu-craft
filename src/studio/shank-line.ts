@@ -3,14 +3,15 @@
 // 画面の組み立てはここにまとめ、main.ts は呼ぶだけにする。
 import { SHANK_SECTION_LABEL, SHANK_SECTIONS, type ShankSection, type ShankStation } from "../geometry/shank";
 import { RELIEF_KINDS, RELIEF_LABEL, type ReliefKind, type ReliefParams } from "../geometry/shank-relief";
-import { GUIDES } from "../rules/guides";
+import { GUIDES, type Guides } from "../rules/guides";
+import { WIDTH_NOTE_TEXT, widthFixMm, widthLevel } from "../rules/checks";
 import { bindSlider, sliderHtml, type SliderSpec } from "./slider";
 import { stationTo, type RingSession, type RingState } from "./session";
 import type { SetShankInput } from "../claude/tools";
 import { startShape, type SectionShape } from "./section-edit";
 
 /** つまみの範囲（形を作るための決まり。目安との比べは確かめがする） */
-export const SHANK_RANGE = { width: [1, 6, 0.05], thickness: [0.8, 4, 0.05], at: [30, 150, 5], sway: [-2, 2, 0.1] } as const;
+export const SHANK_RANGE = { width: [GUIDES.band.inputMinWidthMm, 6, 0.05], thickness: [0.8, 4, 0.05], at: [30, 150, 5], sway: [-2, 2, 0.1] } as const;
 const RANGE = SHANK_RANGE;
 /** 「場所で変える」を押したときの、はじめの置き方（肩と下。形を作るための決まり） */
 const START = { shoulderDeg: 70, bottomDeg: 180, bottomRatio: 0.85 };
@@ -24,11 +25,14 @@ export function sectionTarget(s: RingState): number | null {
   return drawTarget;
 }
 
-/** 場所ごとの形を、はじめて入れるときの形：肩はいちばん上と同じ、下は少し細く薄く（目安より細くはしない） */
+/**
+ * 場所ごとの形を、はじめて入れるときの形：肩はいちばん上と同じ、下は少し細く薄く。
+ * 厚みは目安より薄くしない。幅は職人が「許容」と言った細さ（widthFixMm）より細くしない（上がそれより細ければ、上と同じ）
+ */
 export function startStations(widthMm: number, thicknessMm: number, g = GUIDES): ShankStation[] {
   return [
     { atDeg: START.shoulderDeg, widthMm, thicknessMm },
-    { atDeg: START.bottomDeg, widthMm: round(Math.max(g.band.minWidthMm, widthMm * START.bottomRatio)), thicknessMm: round(Math.max(g.band.minThicknessMm, thicknessMm * START.bottomRatio)) },
+    { atDeg: START.bottomDeg, widthMm: round(Math.max(Math.min(widthMm, widthFixMm(g)), widthMm * START.bottomRatio)), thicknessMm: round(Math.max(g.band.minThicknessMm, thicknessMm * START.bottomRatio)) },
   ];
 }
 
@@ -62,8 +66,25 @@ const reliefSpecs = (r: ReliefParams): SliderSpec[] => [
 
 const toggle = (key: string, value: string, on: boolean, label: string) => `<button type="button" data-line="${key}" data-v="${value}" aria-pressed="${on}">${label}</button>`;
 
+/** 腕の幅のつまみに、段の色（黄色・オレンジ・赤）の印を付ける */
+function widthMarked(html: string, lv: ReturnType<typeof widthLevel>): string {
+  return lv ? html.replace('<div class="slider"', `<div class="slider w-${lv}"`) : html;
+}
+
+/** 細い場所の言葉（つまみの下。黄色・オレンジは止めない注意、赤は作れない所） */
+function widthNotesHtml(list: readonly ShankStation[], g: Guides = GUIDES): string {
+  return list
+    .map((st) => {
+      const lv = widthLevel(st.widthMm, g);
+      if (!lv) return "";
+      const word = lv === "red" ? `${g.band.minWidthMm} mm 以下は赤（作れなくはないが、職人の決まりで赤）` : `${WIDTH_NOTE_TEXT[lv]}（止めません）`;
+      return `<small class="w-note w-${lv}"><b>${placeName(st)}の幅 ${st.widthMm.toFixed(2)} mm</b>${word}</small>`;
+    })
+    .join("");
+}
+
 /** 欄の HTML。テンション・丸線の腕には出さない（どこも同じ形） */
-export function shankLineHtml(s: RingState): string {
+export function shankLineHtml(s: RingState, g: Guides = GUIDES): string {
   if (s.style === "tension" || s.shankSection === "maru") return "";
   const list = s.shankStations ?? [];
   const on = list.length > 0;
@@ -72,16 +93,18 @@ export function shankLineHtml(s: RingState): string {
     <div class="pick"><span>腕の線</span><div>${toggle("mode", "same", !on, "どこも同じ")}${toggle("mode", "vary", on, "場所で変える")}</div></div>
     ${
       on
-        ? `<div class="sliders">${list.flatMap((st, i) => specs(st, i).map(sliderHtml)).join("")}</div>
+        ? `<div class="sliders">${list.flatMap((st, i) => specs(st, i).map((sp) => widthMarked(sliderHtml(sp), sp.cls === `sl-w${i}` ? widthLevel(st.widthMm, g) : null))).join("")}</div>
+      ${widthNotesHtml(list, g)}
       ${list
         .map((st, i) => {
           const cur = st.curve ? "free" : (st.section ?? "same");
-          const opts: [string, string][] = [["same", "上と同じ"], ...SHANK_SECTIONS.map((k) => [k, SHANK_SECTION_LABEL[k]] as [string, string]), ...(st.curve ? [["free", SHANK_SECTION_LABEL.free] as [string, string]] : [])];
+          // 半甲丸は平甲丸と同じ名前で出るので、選んでいないときは出さない（2026-11-06）
+          const opts: [string, string][] = [["same", "上と同じ"], ...SHANK_SECTIONS.filter((k) => k !== "hangouman" || cur === "hangouman").map((k) => [k, SHANK_SECTION_LABEL[k]] as [string, string]), ...(st.curve ? [["free", SHANK_SECTION_LABEL.free] as [string, string]] : [])];
           return `<div class="pick"><span>${placeName(st)}の断面</span><div>${opts.map(([v, l]) => toggle(`section:${i}`, v, v === cur, l)).join("")}</div></div>`;
         })
         .join("")}
       <div class="pick"><span>図で描く断面</span><div>${toggle("draw", "top", target === null, "石座のそば")}${list.map((st, i) => toggle("draw", String(i), target === i, placeName(st))).join("")}</div></div>
-      <small class="sl-note">石座のそばの幅と厚みは、上の断面の図で決めます。腕の端が石座に当たる所は、石座のそばの形のままです。流れは、片方の肩が指先へ寄ると、もう片方は付け根へ寄ります。${GUIDES.band.minWidthMm} mm・${GUIDES.band.minThicknessMm} mm より細い・薄い場所は、確かめが知らせます（目安・最後は職人が決める）。</small>`
+      <small class="sl-note">石座のそばの幅と厚みは、上の断面の図で決めます。腕の端が石座に当たる所は、石座のそばの形のままです。流れは、片方の肩が指先へ寄ると、もう片方は付け根へ寄ります。${GUIDES.band.minThicknessMm} mm より薄い場所と、細い場所（幅 ${GUIDES.band.widthYellowMm} mm 以下は黄色、${GUIDES.band.widthOrangeMm} mm より細いとオレンジ、${GUIDES.band.minWidthMm} mm 以下は赤）は、確かめが知らせます（目安・最後は職人が決める）。</small>`
         : ""
     }
     <div class="pick"><span>腕の彫り</span><div>${toggle("relief", "none", !s.shankRelief, "なし")}${RELIEF_KINDS.map((k) => toggle("relief", k, s.shankRelief?.kind === k, RELIEF_LABEL[k])).join("")}</div></div>
@@ -156,7 +179,7 @@ export function bindShankLine(box: HTMLElement, session: RingSession, redraw: ()
         const i = Number(key.split(":")[1]);
         const st = list[i];
         if (v === "free") return;
-        send(list.map((q, k) => (k === i ? { atDeg: st.atDeg, widthMm: st.widthMm, thicknessMm: st.thicknessMm, swayMm: st.swayMm, ...(v === "same" ? {} : { section: v as ShankStation["section"] }) } : q)));
+        send(list.map((q, k) => (k === i ? { atDeg: st.atDeg, widthMm: st.widthMm, thicknessMm: st.thicknessMm, swayMm: st.swayMm, ...(st.step ? { step: true } : {}), ...(v === "same" ? {} : { section: v as ShankStation["section"] }) } : q)));
       }
     }),
   );
