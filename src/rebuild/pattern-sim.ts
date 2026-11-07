@@ -54,6 +54,12 @@ export type PatternOp =
        * 強い打ちや曲げは、金属を板の幅ほどの大きさで上下と横に動かす。小さな打ちと重なって、削ると大きな輪（目）とうねりになる
        */
       swell?: number;
+      /**
+       * 熱して叩くのをくり返す回数（無いか 1 なら 1 回＝前のまま。2026-11-08 回 6）。uneven があるときだけ使う。
+       * 2 回目からの打ちむらは、前の回に重ねて、あとの回ほど小さく浅い（PATTERN_VALUES.hammer.passScale。仮）。
+       * どの回の打ちも、この操作ののばしたあとの板の上に置く（回ごとののばしの割合は分からないので、分けない）
+       */
+      heats?: number;
     }
   /**
    * 棒にしてねじる（板の長さの中で turns 回まわす）。bars＝ねじった棒を何本、横に並べてつなぐか（無ければ 1 本）。
@@ -69,7 +75,7 @@ export type PatternOp =
    * 叩いて平らにする。uneven・swell は forge_thin と同じ意味（無いか 0 なら、むらなし＝前のまま。2026-11-08 回 4）。
    * 手の槌で平らにするときも、打ちは同じでない。前に彫った溝は、そのむらで曲がり、まわりの金属が流れこんでなだらかにふさがる
    */
-  | { op: "flatten"; uneven?: number; swell?: number }
+  | { op: "flatten"; uneven?: number; swell?: number; heats?: number }
   /** 表を平らに削る（depth は板の厚みに対して） */
   | {
       op: "grind";
@@ -174,7 +180,7 @@ interface Stage {
   /** 彫ったあと、平らにされたか（裏から打ち出したものは、削られたか） */
   flattened?: boolean;
   /** 打ちむら（forge_thin の uneven）：1 回ずつの打ちの所（この操作のあとの板の大きさで）、半径、向き（1＝表から、-1＝裏から） */
-  dents?: { x: number; y: number; r: number; s: number }[];
+  dents?: { x: number; y: number; r: number; s: number; a?: number }[];
   /** 大きな打ちと曲げ（forge_thin の swell）：所、幅の向きの半径 r、長さの向きの半径 ry、向き */
   swells?: { x: number; y: number; r: number; ry: number; s: number }[];
   /** 削る面のうねり（grind の wave） */
@@ -226,7 +232,7 @@ function reflect01(v: number): number {
  * 叩く操作（forge_thin・flatten）の打ちむらと、大きな打ち・曲げの所を、その時の板（W×H）の上にちらす。
  * forge_thin の計算は前のまま（2026-11-08 回 4 に、flatten でも使えるように関数に出しただけ。たねも同じ）
  */
-function hammerMarks(st: Stage, op: { uneven?: number; swell?: number }, W: number, H: number, notes: string[]): void {
+function hammerMarks(st: Stage, op: { uneven?: number; swell?: number; heats?: number }, W: number, H: number, notes: string[]): void {
   // 打ちむら：のばしたあとの板の上に、打った所をちらす（数は板の広さに比べて。仮）
   if (op.uneven && op.uneven > 0) {
     const hv = PATTERN_VALUES.hammer;
@@ -238,6 +244,14 @@ function hammerMarks(st: Stage, op: { uneven?: number; swell?: number }, W: numb
       r: hv.radius * W * (1 - hv.radiusMix / 2 + hv.radiusMix * r()),
       s: r() < 0.5 ? 1 : -1,
     }));
+    // 熱して叩くのをくり返す：2 回目からの打ちは、あとの回ほど小さく浅く、数は多い（別のたねで。1 回目の打ちの所は変えない。2026-11-08 回 6）
+    const heats = op.heats ? Math.round(clampTo(op.heats, PATTERN_LIMITS.heats)) : 1;
+    for (let k = 1; k < heats; k++) {
+      const sc = hv.passScale ** k;
+      const rk = rng(st.seed + 23 + k);
+      const nk = Math.max(1, Math.round(n / sc));
+      for (let i = 0; i < nk; i++) st.dents.push({ x: rk() * W, y: rk() * H, r: hv.radius * sc * W * (1 - hv.radiusMix / 2 + hv.radiusMix * rk()), s: rk() < 0.5 ? 1 : -1, a: sc });
+    }
     // 大きな打ちと曲げ（別のたねで。小さな打ちの所は変えない）
     if (op.swell && op.swell > 0) {
       const sv = PATTERN_VALUES.swell;
@@ -253,6 +267,7 @@ function hammerMarks(st: Stage, op: { uneven?: number; swell?: number }, W: numb
     }
 
   } else if (op.swell && op.swell > 0) notes.push("大きな打ち・曲げ（swell）は、打ちむらの深さ（uneven）が 0 なので描きませんでした。");
+  if (!(op.uneven && op.uneven > 0) && op.heats && op.heats > 1) notes.push("熱して叩くくり返し（heats）は、打ちむらの深さ（uneven）が 0 なので描きませんでした。");
 }
 
 /**
@@ -391,6 +406,8 @@ export function buildSim(ops: readonly PatternOp[], seed = 7, opts: { bond?: Bon
     graded = 0;
   }
   if (stages.some((s) => s.dents)) notes.push("叩くときの打ちむら（1 回ずつの打ちで層が少し上下にずれる）は、跡の大きさ・数・深さを仮に決めて描きました。");
+  if (stages.some((s) => s.dents && "heats" in s.op && (s.op.heats ?? 1) > 1))
+    notes.push("熱して叩くくり返しは、2 回目からの打ちを、あとの回ほど小さく浅く、数を多くして、前の回の跡に重ねて描きました（小さくなる割合は仮。本当の回数と打ち方は分かっていません）。");
   if (stages.some((s) => s.swells))
     notes.push("大きな打ちと曲げ（金属を板の幅ほどの大きさで動かす）は、数・大きさ・ずれの深さを仮に決めて描きました。削ると、ふくらみの所に輪（目）が出ます。本当の打ち方は分かっていません。");
 
@@ -601,7 +618,7 @@ export interface Trace {
  * 打ちむらをもどす：打った所の下では、層が押し下げられ（裏からなら押し上げられ）、金属は外へ逃げた。
  * (x, y, u) にある物が、打つ前にどこにあったかを返す。amp は上下のずれの大きさ（板の厚みに対して）。ずれは表と裏のごく近くでは消える
  */
-export function undent(dents: readonly { x: number; y: number; r: number; s: number }[], amp: number, x: number, y: number, u: number): [number, number, number] {
+export function undent(dents: readonly { x: number; y: number; r: number; s: number; a?: number }[], amp: number, x: number, y: number, u: number): [number, number, number] {
   const hv = PATTERN_VALUES.hammer;
   let dz = 0;
   let dx = 0;
@@ -611,7 +628,8 @@ export function undent(dents: readonly { x: number; y: number; r: number; s: num
     const ey = y - d.y;
     const q = (ex * ex + ey * ey) / (d.r * d.r);
     if (q > 9) continue;
-    const e = Math.exp(-q);
+    // a＝くり返しの 2 回目からの打ちの、ずれの大きさ（無ければ 1＝前のまま）
+    const e = d.a === undefined ? Math.exp(-q) : d.a * Math.exp(-q);
     dz += d.s * e;
     // 外へ逃げる量（跡のふちでいちばん大きい）
     dx += (ex / d.r) * e * d.r;

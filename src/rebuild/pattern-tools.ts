@@ -135,6 +135,8 @@ export interface PredictedOp {
   across: number;
   /** 並べる・散らす物の、板全体（品物 1 つ）の数（使わなければ 0。古い記録には無い） */
   count: number;
+  /** forge_thin・flatten：熱して叩くのをくり返す回数（道具の count から。2 以上のときだけ。2026-11-08 回 6） */
+  heats?: number;
   /** stack・plate：metals と同じ順の、層の厚さの割合（同じ厚さなら空。古い記録には無い） */
   thickness: number[];
   /** 操作の選び（使わなければ "-"） */
@@ -249,7 +251,8 @@ export const PREDICT_PATTERN: ClaudeTool = {
             },
             count: {
               type: "integer",
-              description: `並べる・散らす物を、品物 1 つ（板全体）でいくつにするか（${range("items")}）。手がかりの「10 ほど」なら 10。使える操作と選び：${COUNT_USE}。幅の中の数（across）で並べるときと、ほかの操作では 0`,
+              description: `並べる・散らす物を、品物 1 つ（板全体）でいくつにするか（${range("items")}）。手がかりの「10 ほど」なら 10。使える操作と選び：${COUNT_USE}。幅の中の数（across）で並べるときは 0。` +
+                `forge_thin・flatten では、熱して叩くのをくり返す回数（${range("heats")}。size の打ちむらがあるときだけ。2 回目からの打ちは、あとの回ほど小さく浅く、前の回の跡に重なる。0 か 1＝1 回）。ほかの操作では 0`,
             },
             thickness: {
               type: "array",
@@ -296,7 +299,7 @@ function num(v: unknown, lim: Lim, int: boolean, where: string, warnings: string
 /** 1 つの操作を確かめる。使わない値は空や 0 にそろえる */
 function readOp(o: Record<string, unknown>, op: ToolOp, where: string, warnings: string[]): Omit<PredictedOp, "op" | "step" | "why" | "assumed"> | { error: string } {
   const use = USE[op];
-  const out = { metals: [] as MetalId[], amount: 0, size: 0, across: 0, count: 0, thickness: [] as number[], choice: "-" as Choice };
+  const out: { metals: MetalId[]; amount: number; size: number; across: number; count: number; thickness: number[]; choice: Choice; heats?: number } = { metals: [], amount: 0, size: 0, across: 0, count: 0, thickness: [], choice: "-" };
   let given = 0;
   if (use.metals) {
     const v = o.metals;
@@ -330,7 +333,11 @@ function readOp(o: Record<string, unknown>, op: ToolOp, where: string, warnings:
   }
   // 板全体の数（無い・0 なら使わない。古い記録には無い）
   if (typeof o.count === "number" && Number.isFinite(o.count) && o.count > 0) {
-    if (countable(op, out.choice)) out.count = num(o.count, PATTERN_LIMITS.items, true, where, warnings)!;
+    // 2026-11-08 回 6：forge_thin・flatten の count は、熱して叩くのをくり返す回数（1 なら前のまま）
+    if (op === "forge_thin" || op === "flatten") {
+      const h = num(o.count, PATTERN_LIMITS.heats, true, where, warnings)!;
+      if (h > 1) out.heats = h;
+    } else if (countable(op, out.choice)) out.count = num(o.count, PATTERN_LIMITS.items, true, where, warnings)!;
     else warnings.push(`${where}：${op}${out.choice !== "-" ? `（${out.choice}）` : ""} では count（板全体の数）は使わないので、使いませんでした`);
   }
   if (out.count > 0) {
@@ -457,6 +464,7 @@ export function toPatternOp(o: PredictedOp): PatternOp {
         direction: o.choice as (typeof DIRECTIONS)[number],
         ...(o.size > 0 ? { uneven: o.size } : {}),
         ...(o.across > 0 ? { swell: o.across } : {}),
+        ...(o.heats && o.heats > 1 ? { heats: o.heats } : {}),
       };
     case "twist":
       return { op: "twist", turns: o.amount, ...(o.across > 1 ? { bars: o.across } : {}) };
@@ -464,7 +472,7 @@ export function toPatternOp(o: PredictedOp): PatternOp {
     case "punch":
       return { op: "carve", side: o.op === "carve" ? "top" : "back", shape: o.choice as CarveShape, depth: o.amount, size: o.size, across: o.across, ...cnt(o) };
     case "flatten":
-      return { op: "flatten", ...(o.size > 0 ? { uneven: o.size } : {}), ...(o.across > 0 ? { swell: o.across } : {}) };
+      return { op: "flatten", ...(o.size > 0 ? { uneven: o.size } : {}), ...(o.across > 0 ? { swell: o.across } : {}), ...(o.heats && o.heats > 1 ? { heats: o.heats } : {}) };
     case "grind":
       return { op: "grind", depth: o.amount, ...(o.size > 0 ? { wave: o.size } : {}), ...(o.across > 0 ? { ripples: o.across } : {}) };
     case "rearrange":
@@ -553,6 +561,8 @@ const KIND_WORD: Record<ColorKind, string> = { none: "出さない", etch: "酸�
 const QUALITY_WORD: Record<(typeof QUALITIES)[number], string> = { good: "よくつながる", partial: "ところどころつながらない", poor: "つながらない所が多い" };
 const pct = (v: number) => `${Math.round(v * 100)}%`;
 /** 板全体の数の言い方（count が無ければ空） */
+/** 熱して叩くくり返し（2026-11-08 回 6） */
+const heatWords = (o: PredictedOp) => (o.size > 0 && o.heats && o.heats > 1 ? `。熱して叩くのを ${o.heats} 回くり返す（あとの回ほど小さな打ち）` : "");
 const allOf = (o: PredictedOp) => (o.count > 0 ? `板全体に ${o.count}・` : "");
 /** 層の厚さの割合の言い方（同じ厚さなら空） */
 const thickWords = (o: PredictedOp) => (o.thickness?.length ? `（厚さの割合 ${o.thickness.map((v) => Math.round(v * 100) / 100).join(":")}）` : "");
@@ -571,7 +581,7 @@ export function opWords(o: PredictedOp): string {
     case "fold":
       return `のばして切り、重ねる（${o.amount} 回。層が ${2 ** o.amount} 倍）`;
     case "forge_thin":
-      return `叩いて厚みを 1/${o.amount} に（${o.choice === "length" ? "長さの向きにのばす" : "縦横に広げる"}${o.size > 0 ? `。打ちむらで層が厚みの ${pct(o.size)} ほど上下にずれる` : ""}${o.size > 0 && o.across > 0 ? `。大きな打ち・曲げで、幅の中に ${o.across} つほどの大きなふくらみ` : ""}）`;
+      return `叩いて厚みを 1/${o.amount} に（${o.choice === "length" ? "長さの向きにのばす" : "縦横に広げる"}${o.size > 0 ? `。打ちむらで層が厚みの ${pct(o.size)} ほど上下にずれる` : ""}${o.size > 0 && o.across > 0 ? `。大きな打ち・曲げで、幅の中に ${o.across} つほどの大きなふくらみ` : ""}${heatWords(o)}）`;
     case "twist":
       return o.across > 1 ? `ねじる（${o.amount} 回）。${o.across} 本を横に並べてつなぐ` : `ねじる（${o.amount} 回）`;
     case "carve":
@@ -579,7 +589,7 @@ export function opWords(o: PredictedOp): string {
     case "punch":
       return `裏から打ち出す：${SHAPE_WORD[o.choice as CarveShape]}（${allOf(o)}高さは厚みの ${pct(o.amount)}）`;
     case "flatten":
-      return `叩いて平らにする${o.size > 0 ? `（打ちむらで層が厚みの ${pct(o.size)} ほど上下にずれる${o.across > 0 ? `。大きな打ち・曲げで、幅の中に ${o.across} つほどの大きなふくらみ` : ""}）` : ""}`;
+      return `叩いて平らにする${o.size > 0 ? `（打ちむらで層が厚みの ${pct(o.size)} ほど上下にずれる${o.across > 0 ? `。大きな打ち・曲げで、幅の中に ${o.across} つほどの大きなふくらみ` : ""}${heatWords(o)}）` : ""}`;
     case "grind":
       return `表を削る（厚みの ${pct(o.amount)}${o.size > 0 ? `。面がうねり、深さが厚みの ${pct(o.size)} ほど変わる` : ""}${o.size > 0 && o.across > 0 ? `（幅の中に ${o.across} つほどのうねり）` : ""}）`;
     case "rearrange":
@@ -664,7 +674,7 @@ export function patternPrompt(): string {
 - punch：裏から打ち出す（表を削らないと模様にならない。打ち出して削ると、ふくらみの真ん中ほど深い所の層が出て、輪は外から内へ、上の層から下の層の順に並ぶ。地は削ったあとの表の層で、いちばん外の輪もその層なので、地と見分けられる輪は、その 1 つ下の層から。地を X、輪を外から Y・Z にしたいなら、上から X・Y・Z の順に重ねる）
 - flatten：叩いて平らにする
 - grind：表を平らに削る（削った深さが層のさかいに近いと、地が 2 色のまだらになる。地を 1 色にしたいなら、層の真ん中で止まる深さに）
-- 流れる模様の値（省ける。0 なら前のまま）：ingot の choice dendrite＝むらが結晶の枝のすき間に切れ目なく濃くなる（cells は粒のさかいの網目で、のばすと格子に近い）。forge_thin の size＝打ちむら（層が上下にずれる）、across＝大きな打ち・曲げの数（size があるときだけ。大きな輪・目になる）。grind の size＝面のうねり、across＝うねりの数（大きな打ちと同じほど）。carve の lines の段の数が品物全体の数なら count。color の amount＝濃淡（dendrite のときだけ）。手がかりや帳面が「木目のように流れる」「うねる」「縞が細かく途切れない」と言うとき、手で何度も叩く工程のときに使う。どれも仮の値
+- 流れる模様の値（省ける。0 なら前のまま）：ingot の choice dendrite＝むらが結晶の枝のすき間に切れ目なく濃くなる（cells は粒のさかいの網目で、のばすと格子に近い）。forge_thin の size＝打ちむら（層が上下にずれる）、across＝大きな打ち・曲げの数（size があるときだけ。大きな輪・目になる）、count＝熱して叩くのをくり返す回数（size があるときだけ。2 回目からの打ちは、あとの回ほど小さく浅く重なる。flatten も同じ）。手がかりや帳面が叩く回数・くり返しを言うなら、くり返しは、この count で絵に出せる。grind の size＝面のうねり、across＝うねりの数（大きな打ちと同じほど）。carve の lines の段の数が品物全体の数なら count。color の amount＝濃淡（dendrite のときだけ）。手がかりや帳面が「木目のように流れる」「うねる」「縞が細かく途切れない」と言うとき、手で何度も叩く工程のときに使う。どれも仮の値
   - 細かさと流れは別の値で、同時に入れられる：細かさは ingot の amount（網目・枝の間の数。板の幅に対する数なので、大きいほど線が細かく、間がせまい）や、重ねて折り返すなら層の数。流れの大きさは forge_thin の across と grind の across（幅の中に数個の大きなうねり・輪）。手がかりや帳面が「細かい」「途切れずに続く」「薄くまでのばす」と言うなら、細かさの数を、大きなうねりの数よりずっと大きく選び、細かな線が大きなうねりにそって流れるようにする。どの数にしたかと、なぜかを assumed に書く
   - flatten の size・across＝平らにする打ちのむら（forge_thin と同じ意味）。彫った溝（はしごの段など）を手の槌で叩いてふさぐ工程なら、溝のあとの叩く操作（forge_thin か flatten）に打ちむらを入れる：まわりの金属が流れこんで溝の下の層はなだらかにたわみ、打ちむらで段も曲がる。打ちむらの無い叩く操作だけだと、溝の形がそのまま残り、削った面にまっすぐな細いつなぎ目が出る
 - rearrange：切って並べかえる（横にして層のふちを表に出す・細く切って向きを変える・四角に切って回す）

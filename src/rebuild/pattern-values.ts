@@ -91,8 +91,10 @@ export const PATTERN_VALUES = {
    * 本当の鍛造では、槌は板の全体を同じには押さない。1 回ずつの打ちが、その所の層を少し押し下げ（裏からなら押し上げ）、金属は外へ逃げる。
    * 木目金の模様と同じ物理：波打った層を、平らな面（削る・研ぐ）が切ると、等高線のような木目の輪とうねりになる。
    * perArea＝板の幅の 2 乗あたりの打つ回数。radius＝1 回の跡の半径（板の幅に対して）。radiusMix＝その大きさのばらつき。lateral＝金属が外へ逃げる量（上下のずれに対して）。edge＝ずれが消える、表と裏からの近さ
+   * passScale＝熱して叩くのをくり返すとき（heats。2026-11-08 回 6）、1 回ごとに、打ちの跡の半径と上下のずれにかける数。あとの回ほど小さな打ちが、前の回の跡に重なる。
+   * 跡の数は 1/passScale 倍ずつ増やす（小さな打ちを多く）。どれも仮の値で、出典はない
    */
-  hammer: { perArea: 10, radius: 0.14, radiusMix: 0.5, lateral: 0.5, edge: 0.02 },
+  hammer: { perArea: 10, radius: 0.14, radiusMix: 0.5, lateral: 0.5, edge: 0.02, passScale: 0.7 },
   /**
    * 大きな打ちと曲げ（forge_thin の swell。2026-11-08 回 3）。どれも仮の値。
    * 本当の鍛造では、小さな打ちのほかに、強い打ちや曲げ・叩きもどしが、金属を板の幅ほどの大きさで動かす。小さな跡（hammer）だけでは、
@@ -155,6 +157,8 @@ export const PATTERN_LIMITS = {
   grindWave: [0, 0.2],
   /** 大きな打ち・曲げの数（forge_thin の swell）と、削る面のうねりの数（grind の ripples）。どちらも板の幅の中の数（2026-11-08 回 3） */
   swell: [1, 6],
+  /** 熱して叩くのをくり返す回数（forge_thin・flatten の heats。1＝1 回＝前のまま。2026-11-08 回 6） */
+  heats: [1, 8],
   /** 色の濃淡のなめらかさ（color の graded。0＝2 色、1＝濃さのとおりの濃淡） */
   graded: [0, 1],
 } as const satisfies Record<string, readonly [number, number]>;
