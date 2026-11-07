@@ -1,0 +1,336 @@
+{
+  "date": "2026-11-08",
+  "round": 4,
+  "cols": [
+    {
+      "tag": "book-r3",
+      "file": "docs/pattern-demo/lost/real/round-3/wootz-book-top.png",
+      "title": "帳面あり（回 3）",
+      "sub": "前の回の絵"
+    },
+    {
+      "tag": "book-r4",
+      "file": "docs/pattern-demo/lost/real/round-4/wootz-book-top.png",
+      "title": "案 1（資料：るつぼの塊）",
+      "sub": "手がかりのとおり。職人の言葉 5 つの帳面あり"
+    },
+    {
+      "tag": "book-r4-alt",
+      "file": "docs/pattern-demo/lost/real/round-4/wootz-book-alt-top.png",
+      "title": "案 2（職人の見立て）",
+      "sub": "「何回も折って叩く」：何度も折り返して重ねる作り方で組んだ"
+    }
+  ],
+  "show": [
+    "book-r4",
+    "book-r4-alt"
+  ],
+  "honest": "ウーツ鋼は、昔は、るつぼで作った 1 つの鋼の塊から作った、と資料は言います（板を重ねた物ではない）。案 2 が本物に近く見えても、それは「その見た目に、折り返す作り方でも近づける」ということで、昔の作り方がそうだった、ということではありません。",
+  "words": [
+    {
+      "id": "wootz-r4-1-ishikawa",
+      "title": "何回も折って叩く",
+      "text": "模様はもっと細かい。何層も重ねた金属を、叩きまくって折って、叩きまくって折って、をくり返せば、こういう感じに近づいていくのではないか。",
+      "reason": "本物の刀の写真と見込みの絵を見くらべて、職人が言った（回 4）",
+      "quote": "何回も折って叩く｜模様はもっと細かい。何層も重ねた金属を、叩きまくって折って、叩きまくって折って、をくり返せば、こういう感じに近づいていくのではないか。",
+      "source": {
+        "kind": "craftsman",
+        "name": "石川"
+      },
+      "date": "2026-11-08",
+      "round": 4
+    }
+  ],
+  "points": [
+    {
+      "key": "contrast",
+      "name": "明暗",
+      "ask": "明るい線と暗い地の、差の強さと、明るい所・暗い所の割合"
+    },
+    {
+      "key": "flow",
+      "name": "流れ",
+      "ask": "流れる水のように、うねって波打つ線かどうか（まっすぐな線・角ばった形とのちがい）"
+    },
+    {
+      "key": "bands",
+      "name": "横切る段",
+      "ask": "刃を横切る段（はしご）や、輪（バラ）があるか・ないか、ある所の見え方"
+    },
+    {
+      "key": "scale",
+      "name": "細かさ",
+      "ask": "線の太さと、線と線の間の大きさ（模様の細かさ）"
+    },
+    {
+      "key": "texture",
+      "name": "つながり方",
+      "ask": "線がとぎれて点やまだらで終わる網のようか、長くつながる縞か、角ばった格子か"
+    }
+  ],
+  "results": [
+    {
+      "ref": "met-30932",
+      "order": [
+        "book-r4-alt",
+        "book-r3",
+        "book-r4"
+      ],
+      "scores": [
+        {
+          "label": "A",
+          "points": {
+            "contrast": 1,
+            "flow": 3,
+            "bands": 1,
+            "scale": 3,
+            "texture": 2
+          },
+          "overall": 4,
+          "comment": "うねる細い線と輪は近いが、白黒が強すぎ、線が長くつながりすぎる。中ほどの横の帯もない。",
+          "tag": "book-r4-alt"
+        },
+        {
+          "label": "B",
+          "points": {
+            "contrast": 2,
+            "flow": 2,
+            "bands": 1,
+            "scale": 1,
+            "texture": 2
+          },
+          "overall": 3,
+          "comment": "たての波とまだらは少し近いが、模様があらくぼやけている。横のつぎ目の線が不自然。",
+          "tag": "book-r3"
+        },
+        {
+          "label": "C",
+          "points": {
+            "contrast": 2,
+            "flow": 3,
+            "bands": 2,
+            "scale": 2,
+            "texture": 3
+          },
+          "overall": 6,
+          "comment": "たてに流れる線と目のような輪、とぎれるまだらが近い。線はやや太く、中ほどの横の帯がない。",
+          "tag": "book-r4"
+        }
+      ],
+      "stats": {
+        "本物": {
+          "orient": 1,
+          "light": 0.34,
+          "spread": 0.25,
+          "edges": 0.433
+        },
+        "book-r4-alt": {
+          "orient": 0.86,
+          "light": 0.33,
+          "spread": 0.24,
+          "edges": 0.425
+        },
+        "book-r3": {
+          "orient": 0.78,
+          "light": 0.44,
+          "spread": 0.32,
+          "edges": 0.238
+        },
+        "book-r4": {
+          "orient": 0.82,
+          "light": 0.44,
+          "spread": 0.33,
+          "edges": 0.437
+        }
+      },
+      "raw": "{\"scores\":[{\"label\":\"A\",\"points\":{\"contrast\":1,\"flow\":3,\"bands\":1,\"scale\":3,\"texture\":2},\"overall\":4,\"comment\":\"うねる細い線と輪は近いが、白黒が強すぎ、線が長くつながりすぎる。中ほどの横の帯もない。\"},{\"label\":\"B\",\"points\":{\"contrast\":2,\"flow\":2,\"bands\":1,\"scale\":1,\"texture\":2},\"overall\":3,\"comment\":\"たての波とまだらは少し近いが、模様があらくぼやけている。横のつぎ目の線が不自然。\"},{\"label\":\"C\",\"points\":{\"contrast\":2,\"flow\":3,\"bands\":2,\"scale\":2,\"texture\":3},\"overall\":6,\"comment\":\"たてに流れる線と目のような輪、とぎれるまだらが近い。線はやや太く、中ほどの横の帯がない。\"}]}"
+    },
+    {
+      "ref": "met-31130",
+      "order": [
+        "book-r4-alt",
+        "book-r4",
+        "book-r3"
+      ],
+      "scores": [
+        {
+          "label": "A",
+          "points": {
+            "contrast": 1,
+            "flow": 2,
+            "bands": 1,
+            "scale": 2,
+            "texture": 1
+          },
+          "overall": 2,
+          "comment": "線は細かくうねるが、白黒が強すぎる。本物にない輪がたくさんあり、線も長くつながりすぎる。",
+          "tag": "book-r4-alt"
+        },
+        {
+          "label": "B",
+          "points": {
+            "contrast": 2,
+            "flow": 3,
+            "bands": 2,
+            "scale": 2,
+            "texture": 3
+          },
+          "overall": 5,
+          "comment": "たてに流れるうねりと、とぎれた線は近い。けれど本物にない輪がいくつかあり、線が少し太い。",
+          "tag": "book-r4"
+        },
+        {
+          "label": "C",
+          "points": {
+            "contrast": 2,
+            "flow": 2,
+            "bands": 1,
+            "scale": 1,
+            "texture": 2
+          },
+          "overall": 3,
+          "comment": "たての流れは少し近い。けれど本物にない横の段がはっきりあり、模様がぼやけて大きすぎる。",
+          "tag": "book-r3"
+        }
+      ],
+      "stats": {
+        "本物": {
+          "orient": 1,
+          "light": 0.29,
+          "spread": 0.27,
+          "edges": 0.279
+        },
+        "book-r4-alt": {
+          "orient": 0.61,
+          "light": 0.33,
+          "spread": 0.24,
+          "edges": 0.425
+        },
+        "book-r4": {
+          "orient": 0.91,
+          "light": 0.44,
+          "spread": 0.33,
+          "edges": 0.437
+        },
+        "book-r3": {
+          "orient": 0.91,
+          "light": 0.44,
+          "spread": 0.32,
+          "edges": 0.238
+        }
+      },
+      "raw": "{\"scores\":[{\"label\":\"A\",\"points\":{\"contrast\":1,\"flow\":2,\"bands\":1,\"scale\":2,\"texture\":1},\"overall\":2,\"comment\":\"線は細かくうねるが、白黒が強すぎる。本物にない輪がたくさんあり、線も長くつながりすぎる。\"},{\"label\":\"B\",\"points\":{\"contrast\":2,\"flow\":3,\"bands\":2,\"scale\":2,\"texture\":3},\"overall\":5,\"comment\":\"たてに流れるうねりと、とぎれた線は近い。けれど本物にない輪がいくつかあり、線が少し太い。\"},{\"label\":\"C\",\"points\":{\"contrast\":2,\"flow\":2,\"bands\":1,\"scale\":1,\"texture\":2},\"overall\":3,\"comment\":\"たての流れは少し近い。けれど本物にない横の段がはっきりあり、模様がぼやけて大きすぎる。\"}]}"
+    },
+    {
+      "ref": "met-32739",
+      "order": [
+        "book-r4",
+        "book-r4-alt",
+        "book-r3"
+      ],
+      "scores": [
+        {
+          "label": "A",
+          "points": {
+            "contrast": 2,
+            "flow": 3,
+            "bands": 2,
+            "scale": 3,
+            "texture": 2
+          },
+          "overall": 6,
+          "comment": "縦にうねる流れと線の太さは近い。ただ目玉の輪が多すぎ、明暗が強く、線のまだらな切れ方が少ない。",
+          "tag": "book-r4"
+        },
+        {
+          "label": "B",
+          "points": {
+            "contrast": 1,
+            "flow": 2,
+            "bands": 1,
+            "scale": 1,
+            "texture": 1
+          },
+          "overall": 2,
+          "comment": "うねりはあるが、等高線のような細い線が長くつながり、輪が多い。縦の流れがなく、細かすぎる。",
+          "tag": "book-r4-alt"
+        },
+        {
+          "label": "C",
+          "points": {
+            "contrast": 2,
+            "flow": 2,
+            "bands": 1,
+            "scale": 2,
+            "texture": 2
+          },
+          "overall": 4,
+          "comment": "縦にうねる流れとまだらは少し近い。ただ本物にない横の段の筋がくり返し入り、線がぼやけている。",
+          "tag": "book-r3"
+        }
+      ],
+      "stats": {
+        "本物": {
+          "orient": 1,
+          "light": 0.42,
+          "spread": 0.29,
+          "edges": 0.453
+        },
+        "book-r4": {
+          "orient": 0.94,
+          "light": 0.44,
+          "spread": 0.33,
+          "edges": 0.437
+        },
+        "book-r4-alt": {
+          "orient": 0.7,
+          "light": 0.33,
+          "spread": 0.24,
+          "edges": 0.425
+        },
+        "book-r3": {
+          "orient": 0.86,
+          "light": 0.44,
+          "spread": 0.32,
+          "edges": 0.238
+        }
+      },
+      "raw": "{\"scores\":[{\"label\":\"A\",\"points\":{\"contrast\":2,\"flow\":3,\"bands\":2,\"scale\":3,\"texture\":2},\"overall\":6,\"comment\":\"縦にうねる流れと線の太さは近い。ただ目玉の輪が多すぎ、明暗が強く、線のまだらな切れ方が少ない。\"},{\"label\":\"B\",\"points\":{\"contrast\":1,\"flow\":2,\"bands\":1,\"scale\":1,\"texture\":1},\"overall\":2,\"comment\":\"うねりはあるが、等高線のような細い線が長くつながり、輪が多い。縦の流れがなく、細かすぎる。\"},{\"label\":\"C\",\"points\":{\"contrast\":2,\"flow\":2,\"bands\":1,\"scale\":2,\"texture\":2},\"overall\":4,\"comment\":\"縦にうねる流れとまだらは少し近い。ただ本物にない横の段の筋がくり返し入り、線がぼやけている。\"}]}"
+    }
+  ],
+  "mean": {
+    "book-r3": {
+      "overall": 3.3,
+      "points": {
+        "contrast": 2,
+        "flow": 2,
+        "bands": 1,
+        "scale": 1.3,
+        "texture": 2
+      },
+      "orient": 0.85
+    },
+    "book-r4": {
+      "overall": 5.7,
+      "points": {
+        "contrast": 2,
+        "flow": 3,
+        "bands": 2,
+        "scale": 2.3,
+        "texture": 2.7
+      },
+      "orient": 0.89
+    },
+    "book-r4-alt": {
+      "overall": 2.7,
+      "points": {
+        "contrast": 1,
+        "flow": 2.3,
+        "bands": 1,
+        "scale": 2,
+        "texture": 1.3
+      },
+      "orient": 0.72
+    }
+  }
+}

@@ -19,7 +19,7 @@ import { seedTechLedger, TECH_IDS, TECHS } from "../src/rules/techniques";
 import { bookText, readBook, type BookRule } from "../src/rebuild/book";
 import { modelOf, topImage } from "../src/rebuild/pattern-model";
 import { opWords, parsePattern, patternContext, type PatternPrediction, patternPrompt, patternRequest, PREDICT_PATTERN } from "../src/rebuild/pattern-tools";
-import { addClue, applyPlan, clueRefs, knownClueIds, namesOf, newProject, plainWords, setPattern, sourceText, toFile, type ClueKind, type RestoreProject } from "../src/rebuild/restore";
+import { addClue, applyPlan, type RestorePlan, clueRefs, knownClueIds, namesOf, newProject, plainWords, setPattern, sourceText, toFile, type ClueKind, type RestoreProject } from "../src/rebuild/restore";
 import { restoreContent, restorePrompt } from "../src/rebuild/restore-prompt";
 import { parseRestoration, PROPOSE_RESTORATION } from "../src/rebuild/restore-tools";
 import { callTool } from "../src/rebuild/run";
@@ -113,8 +113,17 @@ export async function render(tag: string, pred: PatternPrediction, out = OUT): P
   return m.notes;
 }
 
-/** 1 とおり通す。out を変えると、絵と記録をそこに出す（本物とくらべる回：scripts/real-round.ts） */
-export async function run(v: Variant, opts: { out?: string; book?: BookRule[] } = {}) {
+/**
+ * 案 2 として、職人の見立てのとおりに組んでもらうときの頼み（2026-11-08 回 4）。title は職人の見立ての題、text は頼みの文。
+ * 案 1 は手がかりのとおりに出してもらい、案 2 は、職人の見立てを試す案として、同じ手がかりと帳面で、もう 1 回出してもらう
+ */
+export interface AltPlan {
+  title: string;
+  text: string;
+}
+
+/** 1 とおり通す。out を変えると、絵と記録をそこに出す（本物とくらべる回：scripts/real-round.ts）。alt があれば、案 2 も出して <variant>-alt の絵にする */
+export async function run(v: Variant, opts: { out?: string; book?: BookRule[]; alt?: AltPlan } = {}) {
   const out = opts.out ?? OUT;
   const { handle } = await import("../api/claude");
   const replies: { tool: string; response: unknown }[] = [];
@@ -136,50 +145,62 @@ export async function run(v: Variant, opts: { out?: string; book?: BookRule[] } 
   }
   const log: string[] = [`# ${NAME}（${ID}・${v === "solo" ? "Claude だけ（帳面なし）" : v === "book" ? "職人の帳面あり（2026-11-08 の言葉も）" : "職人の帳面あり（2026-11-08 の言葉は外す）"}）`];
 
-  const r = await callTool({
-    system: restorePrompt({ book: useBook }),
-    user: restoreContent(p, [], book),
-    tool: PROPOSE_RESTORATION,
-    parse: (x) => parseRestoration(x, { ids: knownClueIds(p), bookIds: book.map((b) => b.id) }),
-    password,
-    fetch: fetchShim,
-  });
-  if (!r.ok) throw new Error(`${v} 案：${r.error}`);
-  p = applyPlan(p, r.value, { date: DAY, sent: clueRefs(p), photosSent: [], bookOn: useBook, book: book.map((b) => ({ id: b.id, title: b.title })), sources: `${sourceText(p)}\n${bookText(book)}`, warnings: r.warnings });
-  const plan = p.plans.at(-1)!;
-  log.push(`\n## 案 ${plan.version}\n${plan.summary}`);
-  plan.steps.forEach((s, i) =>
-    log.push(
-      `${i + 1}. ${s.title}${s.book_ids?.length ? `［帳面：${s.book_ids.map((b) => plan.book.find((x) => x.id === b)?.title).join("・")}］` : ""}${s.basis === "prior" ? "［もともとの知識］" : ""}${s.unsourced?.length ? `［手がかりにない数字：${s.unsourced.join("・")}］` : ""}\n   ${s.detail}${s.uncertain ? `\n   分からない：${s.uncertain}` : ""}`,
-    ),
-  );
-  if (plan.notes.length) log.push(`受け取るときに気づいたこと：${plan.notes.join(" / ")}`);
+  const preds: { version: number; tag: string; prediction: PatternPrediction }[] = [];
+  const rounds: { tag: Variant | `${Variant}-alt`; ask?: string }[] = [{ tag: v }];
+  if (opts.alt) rounds.push({ tag: `${v}-alt`, ask: opts.alt.text });
+  let plan!: RestorePlan;
+  let pred!: PatternPrediction;
+  for (const one of rounds) {
+    const content = restoreContent(p, [], book);
+    // 案 2：職人の見立てを試す頼みを、案を頼む文の前に入れる（手がかりは同じ）
+    if (one.ask) content.splice(content.length - 1, 0, { type: "text", text: one.ask });
+    if (one.ask) log.push(`\n## 職人の見立てを試す頼み\n${one.ask}`);
+    const r = await callTool({
+      system: restorePrompt({ book: useBook }),
+      user: content,
+      tool: PROPOSE_RESTORATION,
+      parse: (x) => parseRestoration(x, { ids: knownClueIds(p), bookIds: book.map((b) => b.id) }),
+      password,
+      fetch: fetchShim,
+    });
+    if (!r.ok) throw new Error(`${v} 案：${r.error}`);
+    p = applyPlan(p, r.value, { date: DAY, sent: clueRefs(p), photosSent: [], bookOn: useBook, book: book.map((b) => ({ id: b.id, title: b.title })), sources: `${sourceText(p)}\n${bookText(book)}`, warnings: r.warnings });
+    plan = p.plans.at(-1)!;
+    log.push(`\n## 案 ${plan.version}\n${plan.summary}`);
+    plan.steps.forEach((s, i) =>
+      log.push(
+        `${i + 1}. ${s.title}${s.book_ids?.length ? `［帳面：${s.book_ids.map((b) => plan.book.find((x) => x.id === b)?.title).join("・")}］` : ""}${s.basis === "prior" ? "［もともとの知識］" : ""}${s.unsourced?.length ? `［手がかりにない数字：${s.unsourced.join("・")}］` : ""}\n   ${s.detail}${s.uncertain ? `\n   分からない：${s.uncertain}` : ""}`,
+      ),
+    );
+    if (plan.notes.length) log.push(`受け取るときに気づいたこと：${plan.notes.join(" / ")}`);
 
-  const names = namesOf(p, plan);
-  const q = await callTool({
-    system: patternPrompt(),
-    user: patternRequest(p.name, plan, (s) => plainWords(s, names), patternContext(p, plan)),
-    tool: PREDICT_PATTERN,
-    parse: (x) => parsePattern(x, { steps: plan.steps.length }),
-    password,
-    fetch: fetchShim,
-  });
-  if (!q.ok) throw new Error(`${v} 模様：${q.error}`);
-  p = setPattern(p, plan.version, { date: DAY, prediction: q.value, notes: q.warnings ?? [] }, DAY);
-  const pred = q.value;
-  log.push(`\n### 模様の見込み：${pred.applicable ? "描く" : "描かない"}\n${pred.reason}\n${pred.summary}`);
-  if (q.warnings?.length) log.push(`直したこと：${q.warnings.join(" / ")}`);
-  for (const o of pred.ops) log.push(`- ${o.op}（工程 ${o.step || "なし"}）${opWords(o)}${o.assumed ? `　仮：${o.assumed}` : ""}`);
-  if (pred.cannot_show) log.push(`表せないこと：${pred.cannot_show}`);
-  if (pred.applicable) {
-    const notes = await render(v, pred, out);
-    if (notes.length) log.push(`計算の知らせ：${notes.join(" / ")}`);
+    const names = namesOf(p, plan);
+    const q = await callTool({
+      system: patternPrompt(),
+      user: patternRequest(p.name, plan, (s) => plainWords(s, names), patternContext(p, plan)),
+      tool: PREDICT_PATTERN,
+      parse: (x) => parsePattern(x, { steps: plan.steps.length }),
+      password,
+      fetch: fetchShim,
+    });
+    if (!q.ok) throw new Error(`${v} 模様：${q.error}`);
+    p = setPattern(p, plan.version, { date: DAY, prediction: q.value, notes: q.warnings ?? [] }, DAY);
+    pred = q.value;
+    log.push(`\n### 模様の見込み：${pred.applicable ? "描く" : "描かない"}\n${pred.reason}\n${pred.summary}`);
+    if (q.warnings?.length) log.push(`直したこと：${q.warnings.join(" / ")}`);
+    for (const o of pred.ops) log.push(`- ${o.op}（工程 ${o.step || "なし"}）${opWords(o)}${o.assumed ? `　仮：${o.assumed}` : ""}`);
+    if (pred.cannot_show) log.push(`表せないこと：${pred.cannot_show}`);
+    if (pred.applicable) {
+      const notes = await render(one.tag, pred, out);
+      if (notes.length) log.push(`計算の知らせ：${notes.join(" / ")}`);
+    }
+    preds.push({ version: plan.version, tag: one.tag, prediction: pred });
   }
   mkdirSync(`${out}/cases`, { recursive: true });
   const base = `${out}/cases/${ID}-${v}`;
   writeFileSync(`${base}.json`, JSON.stringify(toFile(p, {}, DAY), null, 2));
   writeFileSync(`${base}.replies.json`, JSON.stringify(replies, null, 2));
-  writeFileSync(`${base}.predictions.json`, JSON.stringify([{ version: 1, tag: v, prediction: pred }], null, 2));
+  writeFileSync(`${base}.predictions.json`, JSON.stringify(preds, null, 2));
   writeFileSync(`${base}.log.md`, log.join("\n") + "\n");
   console.log(log.join("\n"));
   return { plan, pred, book };

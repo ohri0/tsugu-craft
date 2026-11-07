@@ -65,8 +65,11 @@ export type PatternOp =
    * count＝丸・くぼみ・葉・花を、その時の板の全体でちょうどこの数にする（無いか 0 なら、幅の中に across）
    */
   | { op: "carve"; side: "top" | "back"; shape: CarveShape; depth: number; size: number; across: number; count?: number }
-  /** 叩いて平らにする */
-  | { op: "flatten" }
+  /**
+   * 叩いて平らにする。uneven・swell は forge_thin と同じ意味（無いか 0 なら、むらなし＝前のまま。2026-11-08 回 4）。
+   * 手の槌で平らにするときも、打ちは同じでない。前に彫った溝は、そのむらで曲がり、まわりの金属が流れこんでなだらかにふさがる
+   */
+  | { op: "flatten"; uneven?: number; swell?: number }
   /** 表を平らに削る（depth は板の厚みに対して） */
   | {
       op: "grind";
@@ -176,6 +179,8 @@ interface Stage {
   swells?: { x: number; y: number; r: number; ry: number; s: number }[];
   /** 削る面のうねり（grind の wave） */
   grindWaves?: Wave[];
+  /** 彫った溝（lines・waves）を、あとで、むらのある手の槌で叩いた（のばした・平らにした）か。溝はなだらかにふさがる（2026-11-08 回 4） */
+  sag?: boolean;
 }
 
 export interface Sim {
@@ -215,6 +220,39 @@ function reflect01(v: number): number {
   let t = v - 2 * Math.floor(v / 2);
   if (t > 1) t = 2 - t;
   return clamp(t, 0, 0.999999);
+}
+
+/**
+ * 叩く操作（forge_thin・flatten）の打ちむらと、大きな打ち・曲げの所を、その時の板（W×H）の上にちらす。
+ * forge_thin の計算は前のまま（2026-11-08 回 4 に、flatten でも使えるように関数に出しただけ。たねも同じ）
+ */
+function hammerMarks(st: Stage, op: { uneven?: number; swell?: number }, W: number, H: number, notes: string[]): void {
+  // 打ちむら：のばしたあとの板の上に、打った所をちらす（数は板の広さに比べて。仮）
+  if (op.uneven && op.uneven > 0) {
+    const hv = PATTERN_VALUES.hammer;
+    const r = rng(st.seed + 13);
+    const n = Math.max(1, Math.round((hv.perArea * W * H) / (W * W)));
+    st.dents = Array.from({ length: n }, () => ({
+      x: r() * W,
+      y: r() * H,
+      r: hv.radius * W * (1 - hv.radiusMix / 2 + hv.radiusMix * r()),
+      s: r() < 0.5 ? 1 : -1,
+    }));
+    // 大きな打ちと曲げ（別のたねで。小さな打ちの所は変えない）
+    if (op.swell && op.swell > 0) {
+      const sv = PATTERN_VALUES.swell;
+      const k = clampTo(op.swell, PATTERN_LIMITS.swell);
+      const r2 = rng(st.seed + 19);
+      const base = W / (2 * k);
+      // 半径の 2 倍の四角あたり perCell。板のふちの外にも少しはみ出して置く（ふちで輪が切れても、その外から押された形が入るように）
+      const m = Math.max(1, Math.round((sv.perCell * (W + 2 * base) * (H + 2 * base)) / (4 * base * base * sv.stretch)));
+      st.swells = Array.from({ length: m }, () => {
+        const rr = base * (1 - sv.radiusMix / 2 + sv.radiusMix * r2());
+        return { x: -base + r2() * (W + 2 * base), y: -base + r2() * (H + 2 * base), r: rr, ry: rr * sv.stretch, s: r2() < 0.5 ? 1 : -1 };
+      });
+    }
+
+  } else if (op.swell && op.swell > 0) notes.push("大きな打ち・曲げ（swell）は、打ちむらの深さ（uneven）が 0 なので描きませんでした。");
 }
 
 /**
@@ -294,33 +332,13 @@ export function buildSim(ops: readonly PatternOp[], seed = 7, opts: { bond?: Bon
           W *= Math.sqrt(f);
           H *= Math.sqrt(f);
         }
-        // 打ちむら：のばしたあとの板の上に、打った所をちらす（数は板の広さに比べて。仮）
-        if (op.uneven && op.uneven > 0) {
-          const hv = PATTERN_VALUES.hammer;
-          const r = rng(st.seed + 13);
-          const n = Math.max(1, Math.round((hv.perArea * W * H) / (W * W)));
-          st.dents = Array.from({ length: n }, () => ({
-            x: r() * W,
-            y: r() * H,
-            r: hv.radius * W * (1 - hv.radiusMix / 2 + hv.radiusMix * r()),
-            s: r() < 0.5 ? 1 : -1,
-          }));
-          // 大きな打ちと曲げ（別のたねで。小さな打ちの所は変えない）
-          if (op.swell && op.swell > 0) {
-            const sv = PATTERN_VALUES.swell;
-            const k = clampTo(op.swell, PATTERN_LIMITS.swell);
-            const r2 = rng(st.seed + 19);
-            const base = W / (2 * k);
-            // 半径の 2 倍の四角あたり perCell。板のふちの外にも少しはみ出して置く（ふちで輪が切れても、その外から押された形が入るように）
-            const m = Math.max(1, Math.round((sv.perCell * (W + 2 * base) * (H + 2 * base)) / (4 * base * base * sv.stretch)));
-            st.swells = Array.from({ length: m }, () => {
-              const rr = base * (1 - sv.radiusMix / 2 + sv.radiusMix * r2());
-              return { x: -base + r2() * (W + 2 * base), y: -base + r2() * (H + 2 * base), r: rr, ry: rr * sv.stretch, s: r2() < 0.5 ? 1 : -1 };
-            });
-          }
-        } else if (op.swell && op.swell > 0) notes.push("大きな打ち・曲げ（swell）は、打ちむらの深さ（uneven）が 0 なので描きませんでした。");
+        hammerMarks(st, op, W, H, notes);
         break;
       }
+      case "flatten":
+        // 平らにする打ちのむら（2026-11-08 回 4。無ければ前のまま）
+        hammerMarks(st, op, W, H, notes);
+        break;
       case "grind":
         if (op.wave && op.wave > 0) {
           const G = PATTERN_VALUES.grindWave;
@@ -346,6 +364,8 @@ export function buildSim(ops: readonly PatternOp[], seed = 7, opts: { bond?: Bon
     if (st.op.op !== "carve") continue;
     const later = stages.slice(i + 1).map((s) => s.op.op);
     st.flattened = st.op.side === "back" ? later.includes("grind") : later.some((o) => o === "flatten" || o === "grind" || o === "forge_thin" || o === "fold");
+    // 溝を、あとで打ちむらのある槌で叩いたなら、まわりの金属が流れこんで、溝の下の層はなだらかにたわむ（2026-11-08 回 4）
+    if ((st.op.shape === "lines" || st.op.shape === "waves") && st.op.side === "top" && stages.slice(i + 1).some((s) => s.dents)) st.sag = true;
     if (!st.flattened) {
       notes.push(
         st.op.side === "back"
@@ -410,7 +430,7 @@ export function buildSim(ops: readonly PatternOp[], seed = 7, opts: { bond?: Bon
  * 彫った（打ち出した）深さ（その時の板の厚みに対して 0〜1）。qx, qy はその時の板の幅を 1 とした位置。aspect はその時の板の長さ ÷ 幅
  * （count で板全体に置くときに、板の大きさを知るため）
  */
-export function carveDepth(op: Extract<PatternOp, { op: "carve" }>, qx: number, qy: number, seed: number, aspect = 1): number {
+export function carveDepth(op: Extract<PatternOp, { op: "carve" }>, qx: number, qy: number, seed: number, aspect = 1, sag = false): number {
   const across0 = clampTo(op.across, PATTERN_LIMITS.across);
   // 溝（lines・waves）を板全体の数 count で刻むとき：板の長さの中に count 本（手がかりの「段は 40」が、幅の中の 40 本の細かい縞になっていた。2026-11-08 回 3）
   const byCount = (op.shape === "lines" || op.shape === "waves") && op.count && op.count > 0;
@@ -428,7 +448,8 @@ export function carveDepth(op: Extract<PatternOp, { op: "carve" }>, qx: number, 
     let d = 0;
     for (let g = g0 - 1; g <= g0 + 1; g++) {
       const cy = (g + 0.5 + 0.5 * J.pos * jit(g, 0, 11)) * a + J.lineWander * size * Math.sin(2 * Math.PI * (qx * (1 + hash(g, 0, 12, seed)) + hash(g, 0, 13, seed)));
-      const w = size * (1 + J.size * jit(g, 0, 14));
+      // sag：あとで手の槌で叩いてふさいだ溝。まわりの金属が流れこむので、溝の下の層は、溝の間の割合 grooveSag の幅で、なだらかにたわむ（細い溝のままだと、削った面に、まっすぐなつなぎ目が出た。2026-11-08 回 4）
+      const w = Math.max(size, sag ? PATTERN_VALUES.grooveSag * a : 0) * (1 + J.size * jit(g, 0, 14));
       const dd = depth * (1 + J.depth * jit(g, 0, 15));
       const t = Math.abs(y - cy) / w;
       if (t < 1) d = Math.max(d, dd * profile(t));
@@ -662,6 +683,9 @@ export function trace(sim: Sim, x: number, y: number, u: number): Trace {
       }
       case "flatten": {
         const ws = st.waves!;
+        // 平らにする打ちのむら（2026-11-08 回 4）。前に彫った溝も、このむらで曲がる（溝は、この前の段で描くので、ここで動いた所で読む）
+        if (st.dents) [px, py, uu] = undent(st.dents, clampTo(op.uneven!, PATTERN_LIMITS.uneven), px, py, uu);
+        if (st.swells) [px, py, uu] = unswell(st.swells, PATTERN_VALUES.swell.amp * clampTo(op.uneven!, PATTERN_LIMITS.uneven), px, py, uu);
         uu = reflect01(uu + PATTERN_VALUES.layerWave.flatten * waveAt(ws[2], px / W, py / W));
         px += Af * W * waveAt(ws[0], px / W, py / W);
         py += Af * W * waveAt(ws[1], px / W, py / W);
@@ -700,7 +724,7 @@ export function trace(sim: Sim, x: number, y: number, u: number): Trace {
       }
       case "carve": {
         if (!st.flattened && op.side === "back") break;
-        const e = carveDepth(op, px / W, py / W, st.seed, H / W);
+        const e = carveDepth(op, px / W, py / W, st.seed, H / W, st.sag);
         uu = e + uu * (1 - e);
         break;
       }

@@ -5,6 +5,9 @@
 // 使い方：npx tsx scripts/real-round.ts <.env のある所>                 （回 0）
 //         npx tsx scripts/real-round.ts <.env のある所> <言葉のファイル>  （次の回）
 //         言葉のファイルに言葉が 1 つも無い（# の行だけ）なら、言葉は足さず、計算を直した回にする（並べた絵に「計算を直した（言葉は回 1 と同じ）」と書く。2026-11-08 回 2。続けて計算だけ直した回は「さらに」。回 3）
+//         npx tsx scripts/real-round.ts <.env のある所> <言葉のファイル> --alt  （2026-11-08 回 4）
+//           案 1 は今までどおり手がかりのとおり。そのうえで、この回に足した職人の言葉の 1 つ目を「職人の見立て」として、
+//           それを試す案 2 も出してもらい、絵にして、同じく目を隠してくらべる。並べた絵は 本物｜案 1｜案 2
 //         npx tsx scripts/real-round.ts --sheet                          （Claude を呼ばず、いちばん新しい回の並べた絵だけ描き直す）
 // 出すもの：docs/pattern-demo/lost/real/round-<n>/（絵・記録・judge.json・real-compare-round-<n>.png）と、いちばん新しい並べた絵 docs/pattern-demo/lost/real-compare.png
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -73,7 +76,7 @@ const dataUrl = (f: string) => `data:image/${f.endsWith(".png") ? "png" : "jpeg"
 
 type Judged = Awaited<ReturnType<typeof judgeAll>>;
 
-async function sheet(round: number, cols: (Candidate & { title: string; sub: string })[], judged: Judged, words: WootzRule[], out: string, note = "") {
+async function sheet(round: number, cols: (Candidate & { title: string; sub: string })[], judged: Judged, words: WootzRule[], out: string, note = "", honest = "") {
   const W = 72 + 360 + cols.length * 380;
   const main = REAL_REFS[0];
   const refRes = judged.results.find((r) => r.ref === main.id)!;
@@ -99,11 +102,12 @@ async function sheet(round: number, cols: (Candidate & { title: string; sub: str
   <h1>本物とくらべる：ダマスカス鋼（ウーツ鋼）の模様　回 ${round}</h1>
   <div class="lead">左は本物の刀の刃の写真。右は、手がかり 6 つから本物の Claude が出した案を、計算で描いた見込み。<br>点は、別の Claude に、どれが何の絵かを隠し、順もまぜて、先に決めた 5 つの点でつけてもらった（0〜4）。</div>
   ${note ? `<div class="words"><b>${esc(note)}</b></div><br>` : ""}
+  ${honest ? `<div class="words" style="background:#10161e"><b>${esc(honest)}</b></div>` : ""}
   ${words.length ? `<div class="words"><b>この回に足した職人の言葉（石川さん）</b><br>${words.map((w) => `・${esc(w.quote)}`).join("<br>")}</div><br>` : ""}
   <div class="row"><div class="col"><h2>本物（写真）</h2><div class="sub">${esc(main.title)}<br>メトロポリタン美術館・パブリックドメイン</div><img src="${dataUrl(main.file)}">
   <div class="note" style="margin-top:12px">刃の長さの向きは、上から下。絵も同じ向き。</div></div>${cols.map(col).join("")}</div>
   <div class="refs">${REAL_REFS.map((r) => `<div><img src="${dataUrl(r.file)}"><br>${esc(r.title)}</div>`).join("")}<div style="width:420px;font-size:16px">点の平均に使った本物の写真 3 枚。<br>出典：The Metropolitan Museum of Art（Open Access・パブリックドメイン）<br>${REAL_REFS.map((r) => esc(r.url.replace("https://www.", ""))).join("<br>")}</div></div>
-  <div class="foot">※ 絵は、Claude が手順を計算の操作に置きかえ、形だけで描いた見込み。網目の数・のばす割合・溝の深さなどは、絵のための仮の値。熱で粒が育つことは計算しない。<br>※ 点は Claude 1 回の目で、ぶれがある。Claude だけの絵は、毎回同じ絵を入れて、点のぶれの目安にしている。記録：${esc(out.replace(/\/[^/]+$/, "/judge.json"))}</div>`;
+  <div class="foot">※ 絵は、Claude が手順を計算の操作に置きかえ、形だけで描いた見込み。網目の数・のばす割合・溝の深さなどは、絵のための仮の値。熱で粒が育つことは計算しない。<br>※ 点は Claude 1 回の目で、ぶれがある。${cols.some((c) => c.tag === "solo") ? "Claude だけの絵は、毎回同じ絵を入れて、点のぶれの目安にしている。" : "前の回の絵も、くらべる中に入れ直した（並べた絵には出さない。点は judge.json）。"}記録：${esc(out.replace(/\/[^/]+$/, "/judge.json"))}</div>`;
   const b = await chromium.launch();
   const p = await b.newPage({ viewport: { width: W, height: 800 }, deviceScaleFactor: 1 });
   await p.setContent(html);
@@ -116,15 +120,16 @@ async function main() {
     // Claude を呼ばず、いちばん新しい回の judge.json から並べた絵だけ描き直す
     const round = nextRound() - 1;
     const dir = `${REAL}/round-${round}`;
-    const j = JSON.parse(readFileSync(`${dir}/judge.json`, "utf8")) as Judged & { cols: (Candidate & { title: string; sub: string })[]; words: WootzRule[]; note?: string };
+    const j = JSON.parse(readFileSync(`${dir}/judge.json`, "utf8")) as Judged & { cols: (Candidate & { title: string; sub: string })[]; words: WootzRule[]; note?: string; show?: string[]; honest?: string };
     const out = `${dir}/real-compare-round-${round}.png`;
-    await sheet(round, j.cols, j, j.words ?? [], out, j.note ?? "");
+    await sheet(round, j.show ? j.cols.filter((c) => j.show!.includes(c.tag)) : j.cols, j, j.words ?? [], out, j.note ?? "", j.honest ?? "");
     copyFileSync(out, `${LOST}/real-compare.png`);
     console.log(out);
     return;
   }
   const envPath = process.argv[2];
   const wordsFile = process.argv[3];
+  const withAlt = process.argv.includes("--alt");
   if (!envPath) throw new Error("使い方：npx tsx scripts/real-round.ts <.env のある所> [言葉のファイル]");
   loadEnv(envPath);
   const password = process.env.DEMO_PASSWORD!;
@@ -154,7 +159,38 @@ async function main() {
       note = `回 ${round}：計算を${again}直した（言葉は回 ${last} と同じ）。職人の言葉 ${ledger.rules.length} つのまま、本物の Claude で出し直した`;
     }
     writeFileSync(`${dir}/words.txt`, readFileSync(wordsFile, "utf8"));
-    await run("book", { out: dir, book: bookFor("book", ledger as never) });
+    if (withAlt && !words.length) throw new Error("--alt は、この回に足す職人の言葉（見立て）が要ります");
+    const hyp = withAlt ? words[0] : undefined;
+    const alt = hyp
+      ? {
+          title: hyp.title,
+          text:
+            `職人（石川さん）の見立て「${hyp.title}」（帳面の、この題の言葉）を試す案として、案 ${2} を出してください。` +
+            `その言葉のとおりの作り方（何層も重ねた金属を、叩いて折り返すことをくり返す）で、工程を組んでください。` +
+            `手がかりの「材料の塊」は、板を重ねて作った物ではない、と言っています。この食いちがいは、uncertain と unknowns にはっきり書いてください。` +
+            `この案は、昔の本当の作り方だと言うためではありません。職人の見立ての作り方で、本物の見た目に近づくかを試すための案です。`,
+        }
+      : undefined;
+    await run("book", { out: dir, book: bookFor("book", ledger as never), ...(alt ? { alt } : {}) });
+    if (hyp) {
+      // 案 1（資料のとおり）と案 2（職人の見立て）。前の回の絵も、くらべる中に入れる（並べた絵には出さない）
+      const prevTop = `${REAL}/round-${round - 1}/wootz-book-top.png`;
+      cols = [
+        { tag: `book-r${round - 1}`, file: prevTop, title: `帳面あり（回 ${round - 1}）`, sub: "前の回の絵" },
+        { tag: `book-r${round}`, file: `${dir}/wootz-book-top.png`, title: "案 1（資料：るつぼの塊）", sub: `手がかりのとおり。職人の言葉 ${ledger.rules.length} つの帳面あり` },
+        { tag: `book-r${round}-alt`, file: `${dir}/wootz-book-alt-top.png`, title: "案 2（職人の見立て）", sub: `「${hyp.title}」：何度も折り返して重ねる作り方で組んだ` },
+      ];
+      const judged = await judgeAll(REAL_REFS, cols, password);
+      const show = cols.slice(1).map((c) => c.tag);
+      const honest = "ウーツ鋼は、昔は、るつぼで作った 1 つの鋼の塊から作った、と資料は言います（板を重ねた物ではない）。案 2 が本物に近く見えても、それは「その見た目に、折り返す作り方でも近づける」ということで、昔の作り方がそうだった、ということではありません。";
+      writeFileSync(`${dir}/judge.json`, JSON.stringify({ date: DAY, round, cols, show, honest, words, ...judged }, null, 2));
+      const out = `${dir}/real-compare-round-${round}.png`;
+      await sheet(round, cols.slice(1), judged, words, out, "", honest);
+      copyFileSync(out, `${LOST}/real-compare.png`);
+      console.log(JSON.stringify(judged.mean, null, 1));
+      console.log(out);
+      return;
+    }
     const prev = round - 1 === 0 ? `${LOST}/wootz-book-top.png` : `${REAL}/round-${round - 1}/wootz-book-top.png`;
     cols = [
       solo,

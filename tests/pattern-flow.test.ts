@@ -286,3 +286,78 @@ describe("大きな打ちと曲げ（forge_thin の swell）・面のうねり�
     expect(opWords(r.value.ops[1])).toMatch(/大きな打ち・曲げ/);
   });
 });
+
+describe("溝を手の槌でふさぐ（flatten の打ちむら）・細かさと流れを分けて選ぶ指示（2026-11-08 回 4）", () => {
+  const LADDER = (flat: PatternOp): PatternOp[] => [
+    { op: "ingot", metals: M, cells: 20, form: "dendrite" },
+    { op: "forge_thin", ratio: 8, direction: "length", uneven: 0.2, swell: 3 },
+    { op: "carve", side: "top", shape: "lines", depth: 0.3, size: 0.008, across: 1, count: 40 },
+    flat,
+    { op: "grind", depth: 0.3, wave: 0.1, ripples: 3 },
+    { op: "color", kind: "etch" },
+  ];
+  /** 横 1 行ずつの、層の番号の平均（まっすぐな横のつなぎ目があると、となりの行と急にちがう行が出る） */
+  const rowJump = (l: Uint16Array, n: number) => {
+    const m = Array.from({ length: n }, (_, j) => l.slice(j * n, (j + 1) * n).reduce((a, v) => a + v, 0) / n);
+    let max = 0;
+    for (let j = 1; j < n; j++) max = Math.max(max, Math.abs(m[j] - m[j - 1]));
+    return max;
+  };
+
+  it("flatten に打ちむらが無い・0 なら前と同じ絵（溝もそのまま）", () => {
+    const a = surface(buildSim(LADDER({ op: "flatten" })), 64);
+    const b = surface(buildSim(LADDER({ op: "flatten", uneven: 0, swell: 0 })), 64);
+    expect(same(a.s, b.s)).toBe(true);
+  });
+
+  it("溝のあとに打ちむらのある槌で平らにすると、溝はなだらかにたわみ、まっすぐな横のつなぎ目が消える", () => {
+    const n = 128;
+    const sharp = buildSim(LADDER({ op: "flatten" }));
+    const soft = buildSim(LADDER({ op: "flatten", uneven: 0.2, swell: 3 }));
+    expect(sharp.stages.find((s) => s.op.op === "carve")!.sag).toBeFalsy();
+    expect(soft.stages.find((s) => s.op.op === "carve")!.sag).toBe(true);
+    expect(rowJump(surface(soft, n).layer, n)).toBeLessThan(rowJump(surface(sharp, n).layer, n));
+    expect(soft.notes.join("")).toMatch(/打ちむら/);
+  });
+
+  it("carveDepth の sag：溝の下のたわみの幅が、溝の間に対する割合（仮）まで広がる。深さは同じ", () => {
+    const op = { op: "carve" as const, side: "top" as const, shape: "lines" as const, depth: 0.3, size: 0.005, across: 5 };
+    const width = (sag: boolean) => {
+      let w = 0;
+      for (let k = 0; k < 2000; k++) if (carveDepth(op, 0.5, k / 2000, 3, 1, sag) > 0.01) w++;
+      return w;
+    };
+    expect(width(true)).toBeGreaterThan(3 * width(false));
+    let peak = 0;
+    for (let k = 0; k < 2000; k++) peak = Math.max(peak, carveDepth(op, 0.5, k / 2000, 3, 1, true));
+    expect(peak).toBeLessThan(0.3 * 1.2);
+  });
+
+  it("道具の値：flatten の size・across が打ちむら・大きな打ちになる。指示に細かさと流れの言い方が入る", () => {
+    const op = (o: Record<string, unknown>) => ({ step: 1, why: "w", assumed: "", metals: [], amount: 0, size: 0, across: 0, count: 0, thickness: [], choice: "-", ...o });
+    const r = parsePattern(
+      {
+        applicable: true,
+        reason: "r",
+        look: [],
+        ground_metal: "steel_dark",
+        ground_color: "黒",
+        shown_metals: ["steel_dark", "steel_light"],
+        ops: [op({ op: "ingot", metals: M, amount: 30, choice: "dendrite" }), op({ op: "flatten", size: 0.2, across: 3 }), op({ op: "flatten" }), op({ op: "grind", amount: 0.1 })],
+        cannot_show: "",
+        summary: "s",
+      },
+      { steps: 3 },
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const ops = toPatternOps(r.value);
+    expect(ops[1]).toEqual({ op: "flatten", uneven: 0.2, swell: 3 });
+    expect(ops[2]).toEqual({ op: "flatten" });
+    expect(opWords(r.value.ops[1])).toMatch(/打ちむら/);
+    expect(opWords(r.value.ops[2])).toBe("叩いて平らにする");
+    const p = patternPrompt();
+    expect(p).toContain("細かさと流れは別の値");
+    expect(p).toContain("まっすぐな細いつなぎ目");
+  });
+});
