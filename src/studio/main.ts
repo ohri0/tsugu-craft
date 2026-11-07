@@ -57,7 +57,7 @@ import { MAKE_BAND, SECTION_LABEL, bandGrooveNote, bandWidthNote, SECTION_LIST, 
 import { BAND_GOU_RANGE, bandTarget, renderBandPanel, type BandPanelHost } from "./band-panel";
 import { sectionLoop, sectionPath, type PresetKind, type SectionSpec } from "../cad/section";
 import { effectiveGuides } from "../rules/ledger";
-import { BAND_THIN_STEP_MM, COLLAR_STEP_MM, WIRE_STEP_MM, metalIdOf, nextGrip } from "./session";
+import { BAND_THIN_STEP_MM, DEFAULT_STATE, COLLAR_STEP_MM, WIRE_STEP_MM, metalIdOf, nextGrip } from "./session";
 import { GUIDES, GUIDE_NOTE, minProngMm, stoneSizeMm } from "../rules/guides";
 import { callTool } from "../rebuild/run";
 import { dimsSvg, flatDims, gizmoSvg, type Dim, type Rect, type V3 } from "./dims";
@@ -212,7 +212,7 @@ app.innerHTML = `
 
   <div class="cmd-wrap">${filming() ? "" : `<div class="make-opts">
       <div class="gen-stone solitaire-only" role="radiogroup" aria-label="石"><span class="sp-label">石</span>
-        <label><input type="radio" name="stone-pick" value="keep" checked><span><b>今の石を使う</b><small class="sp-now">—</small></span></label>
+        <label><input type="radio" name="stone-pick" value="keep" checked><span><b>今の石を使う</b><small class="sp-now">石を読んでいます…</small></span></label>
         <label><input type="radio" name="stone-pick" value="free"><span><b>石もおまかせ</b><small>形も大きさも Claude が選ぶ</small></span></label>
         <label><input type="radio" name="stone-pick" value="none"><span><b>石なし</b><small>地金だけの指輪</small></span></label>
       </div>
@@ -468,6 +468,8 @@ async function loadStone(img: ImageData, label: string, longMm: number, depthMm:
   if (!(opts.same?.shape && opts.same.size)) tuneProngs();
   if (!opts.same) keptPhoto = null;
   keepDesignSoon();
+  // 石の欄と号の欄は、組む前に埋める（最初の見せ場の間、「—」と空の号が見えていた。2026-11-07 仕上げの見直し）
+  renderMakeOpts();
   if (opts.intro) await intro();
   else session.build("最初の案");
 }
@@ -1636,8 +1638,9 @@ function renderMakeOpts() {
   const now = document.querySelector<HTMLElement>(".sp-now");
   if (now && stone) now.textContent = `${stone.shapeName} ${stone.measured.longMm.toFixed(2)} × ${stone.measured.widthMm.toFixed(2)} mm`;
   const sel = document.querySelector<HTMLSelectElement>(".gen-gou");
-  if (!sel || (kind === "solitaire" && !session)) return;
-  const cur = kind === "band" ? band.gou : session!.state.gou;
+  if (!sel) return;
+  // 石を読む前（開いてすぐ）は、はじめの号を出しておく（空の欄が見えていた）
+  const cur = kind === "band" ? band.gou : (session?.state.gou ?? DEFAULT_STATE.gou);
   const { min, max } = gouRange();
   // 開いた記録の号が、選べる範囲の外のこともある
   const lo = Math.min(min, cur);
@@ -4938,6 +4941,7 @@ if (new URLSearchParams(location.search).has("rec")) {
 // 前に入れた見本の作品は消す（職人が残した作品は消さない）。撮影は見本を使うので、そのまま
 if (!filming()) removeSampleWorks();
 setMode("make");
+renderMakeOpts();
 void restoreDesign()
   .catch(() => false)
   .then(async (back) => {
