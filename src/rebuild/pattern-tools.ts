@@ -3,60 +3,76 @@
 // 重ねた層の模様ではない技（漆を塗る、石を留める、1 つの金属を鋳る など）なら、無理に模様にせず、そう言う。
 // 道具の入力は Claude とやり取りするので、名前は snake_case にそろえる。確かめたあとの形も同じ形にして、記録にそのまま残す
 // （読み直すときも、同じ関数で確かめられるように）。
+// 操作ごとに値の組をちがう形にすると、strict の形が複雑すぎて API に断られた（2026-11-07「Schema is too complex」）。
+// そこで、どの操作も同じ 5 つの値（metals・amount・size・across・choice）を持ち、使わない値は空や 0 にする。
 import type { ClaudeTool } from "../claude/wire";
-import { OP_LABEL, OP_NAMES, type CarveShape, type ColorKind, type OpName, type PatternOp, type RearrangeMode } from "./pattern-sim";
+import type { CarveShape, ColorKind, PatternOp, RearrangeMode } from "./pattern-sim";
 import { METAL_IDS, OP_RANGE, PATTERN_LIMITS, PATTERN_METALS, type MetalId } from "./pattern-values";
 import type { RestorePlan } from "./restore";
 import { isRecord, type Parsed } from "./tools";
+
+/** 道具で使う操作の名前（計算の carve を、表から彫る carve と裏から打ち出す punch に分ける） */
+export const TOOL_OPS = ["stack", "bond", "fold", "forge_thin", "twist", "carve", "punch", "flatten", "grind", "rearrange", "color"] as const;
+export type ToolOp = (typeof TOOL_OPS)[number];
+
+/** 画面に出す操作の名前 */
+export const TOOL_OP_LABEL: Record<ToolOp, string> = {
+  stack: "重ねる",
+  bond: "熱してつなぐ",
+  fold: "のばして切り、重ねる",
+  forge_thin: "叩いて薄くのばす",
+  twist: "ねじる",
+  carve: "表から彫る",
+  punch: "裏から打ち出す",
+  flatten: "叩いて平らにする",
+  grind: "表を削る",
+  rearrange: "切って並べかえる",
+  color: "色を出す",
+};
 
 const SHAPES: CarveShape[] = ["dots", "pits", "lines", "waves"];
 const MODES: RearrangeMode[] = ["edge_up", "strips", "tiles"];
 const KINDS: ColorKind[] = ["none", "etch", "patina"];
 const QUALITIES = ["good", "partial", "poor"] as const;
 const DIRECTIONS = ["length", "both"] as const;
-const SIDES = ["top", "back"] as const;
+/** choice に入れてよい言葉（使わない操作では "-"） */
+const CHOICES = ["-", ...QUALITIES, ...DIRECTIONS, ...SHAPES, ...MODES, ...KINDS] as const;
+type Choice = (typeof CHOICES)[number];
 
-/** 操作ごとに要る値 */
-const NEEDS: Record<OpName, (keyof OpParams)[]> = {
-  stack: ["metals", "count"],
-  bond: ["quality"],
-  fold: ["times"],
-  forge_thin: ["ratio", "direction"],
-  twist: ["turns"],
-  carve: ["side", "shape", "depth", "size", "across"],
-  flatten: [],
-  grind: ["depth"],
-  rearrange: ["mode", "pieces"],
-  color: ["kind"],
+type Lim = readonly [number, number];
+/** 操作ごとに使う値。amount の意味と範囲、choice の言葉 */
+const USE: Record<ToolOp, { metals?: true; amount?: { lim: Lim; int: boolean }; size?: true; across?: true; choice?: readonly Choice[] }> = {
+  stack: { metals: true, amount: { lim: PATTERN_LIMITS.count, int: true } },
+  bond: { choice: QUALITIES },
+  fold: { amount: { lim: PATTERN_LIMITS.times, int: true } },
+  forge_thin: { amount: { lim: PATTERN_LIMITS.ratio, int: false }, choice: DIRECTIONS },
+  twist: { amount: { lim: PATTERN_LIMITS.turns, int: false } },
+  carve: { amount: { lim: PATTERN_LIMITS.depth, int: false }, size: true, across: true, choice: SHAPES },
+  punch: { amount: { lim: PATTERN_LIMITS.depth, int: false }, size: true, across: true, choice: SHAPES },
+  flatten: {},
+  grind: { amount: { lim: PATTERN_LIMITS.grind, int: false } },
+  rearrange: { amount: { lim: PATTERN_LIMITS.pieces, int: true }, choice: MODES },
+  color: { choice: KINDS },
 };
 
-export interface OpParams {
-  metals?: MetalId[];
-  count?: number;
-  quality?: (typeof QUALITIES)[number];
-  times?: number;
-  ratio?: number;
-  direction?: (typeof DIRECTIONS)[number];
-  turns?: number;
-  side?: (typeof SIDES)[number];
-  shape?: CarveShape;
-  depth?: number;
-  size?: number;
-  across?: number;
-  mode?: RearrangeMode;
-  pieces?: number;
-  kind?: ColorKind;
-}
-
 export interface PredictedOp {
-  op: OpName;
+  op: ToolOp;
   /** 案の何番目の工程から来たか（1 から）。案になく、絵を描くために足したものは 0 */
   step: number;
   /** なぜこの操作にしたか */
   why: string;
   /** 案に書かれていないので、絵のために仮に決めた値（なければ空） */
   assumed: string;
-  params: OpParams;
+  /** stack：重ねる材料（ほかは空） */
+  metals: MetalId[];
+  /** 操作の主な数（使わなければ 0） */
+  amount: number;
+  /** carve・punch：穴の半径・溝の半分の幅（ほかは 0） */
+  size: number;
+  /** carve・punch：幅の中に並ぶ数（ほかは 0） */
+  across: number;
+  /** 操作の選び（使わなければ "-"） */
+  choice: Choice;
 }
 
 /** 確かめたあとの答え（道具の入力と同じ形） */
@@ -98,34 +114,29 @@ export const PREDICT_PATTERN: ClaudeTool = {
         items: {
           type: "object",
           properties: {
-            op: { type: "string", enum: OP_NAMES, description: "操作の種類" },
+            op: { type: "string", enum: [...TOOL_OPS], description: "操作の種類" },
             step: { type: "integer", description: "この操作の元になった案の工程の番号（1 から）。案になく、絵を描くために足したものは 0" },
             why: { type: "string", description: "工程のどこを、なぜこの操作にしたか（短く、やさしい日本語）" },
             assumed: { type: "string", description: "案に書かれていないので、絵のために仮に決めた値と、その考え（なければ空の文字）" },
-            params: {
-              type: "object",
-              description: "この操作に要る値だけを書く",
-              properties: {
-                metals: { type: "array", items: { type: "string", enum: METAL_IDS }, description: `stack：重ねる材料を上から順に（${range("metals")} 種。くり返して重ねる）` },
-                count: { type: "integer", description: `stack：重ねる枚数（${range("count")}）` },
-                quality: { type: "string", enum: [...QUALITIES], description: "bond：つながりの良さ" },
-                times: { type: "integer", description: `fold：のばして切って重ねる回数（${range("times")}。1 回で層が 2 倍）` },
-                ratio: { type: "number", description: `forge_thin：厚みを何分の 1 にするか（${range("ratio")}）` },
-                direction: { type: "string", enum: [...DIRECTIONS], description: "forge_thin：length＝長さの向きにのばす、both＝縦横に広げる" },
-                turns: { type: "number", description: `twist：板の長さの中で何回ねじるか（${range("turns")}）` },
-                side: { type: "string", enum: [...SIDES], description: "carve：top＝表から彫る・穴をあける、back＝裏から打ち出す" },
-                shape: { type: "string", enum: SHAPES, description: "carve：dots＝決まった間の丸い穴、pits＝ばらばらの丸いくぼみ、lines＝幅の向きのまっすぐな溝、waves＝波打つ溝" },
-                depth: { type: "number", description: `carve：深さ（板の厚みに対して ${range("depth")}）。grind：削る深さ（${range("grind")}）` },
-                size: { type: "number", description: `carve：穴の半径・溝の半分の幅（板の幅に対して ${range("size")}）` },
-                across: { type: "integer", description: `carve：板の幅の中に並ぶ数（${range("across")}）` },
-                mode: { type: "string", enum: MODES, description: "rearrange：edge_up＝横にして層のふちを表に出す、strips＝細く切って 1 本おきに向きを変える、tiles＝四角に切って 1 つおきに回す" },
-                pieces: { type: "integer", description: `rearrange：切る数（${range("pieces")}）` },
-                kind: { type: "string", enum: KINDS, description: "color：none＝色を出さない、etch＝酸などで地を出す、patina＝煮色のように薬で色を出す" },
-              },
-              additionalProperties: false,
+            metals: { type: "array", items: { type: "string", enum: METAL_IDS }, description: `stack だけ：重ねる材料を上から順に（${range("metals")} 種。くり返して重ねる）。ほかの操作では空` },
+            amount: {
+              type: "number",
+              description:
+                `操作の主な数。stack：枚数（${range("count")}）。fold：回数（${range("times")}。1 回で層が 2 倍）。forge_thin：厚みを何分の 1 にするか（${range("ratio")}）。` +
+                `twist：板の長さの中でねじる回数（${range("turns")}）。carve・punch：深さ（板の厚みに対して ${range("depth")}）。grind：削る深さ（厚みに対して ${range("grind")}）。rearrange：切る数（${range("pieces")}）。ほかは 0`,
+            },
+            size: { type: "number", description: `carve・punch だけ：穴の半径・溝の半分の幅（板の幅に対して ${range("size")}）。ほかは 0` },
+            across: { type: "integer", description: `carve・punch だけ：板の幅の中に並ぶ数（${range("across")}）。ほかは 0` },
+            choice: {
+              type: "string",
+              enum: [...CHOICES],
+              description:
+                "bond：good（よくつながる）・partial（ところどころつながらない）・poor（つながらない所が多い）。forge_thin：length（長さの向きにのばす）・both（縦横に広げる）。" +
+                "carve・punch：dots（決まった間の丸い穴）・pits（ばらばらの丸いくぼみ）・lines（幅の向きのまっすぐな溝）・waves（波打つ溝）。" +
+                "rearrange：edge_up（横にして層のふちを表に出す）・strips（細く切って 1 本おきに向きを変える）・tiles（四角に切って 1 つおきに回す）。color：none・etch（酸などで地を出す）・patina（煮色のように薬で色を出す）。ほかの操作は -",
             },
           },
-          required: ["op", "step", "why", "assumed", "params"],
+          required: ["op", "step", "why", "assumed", "metals", "amount", "size", "across", "choice"],
           additionalProperties: false,
         },
       },
@@ -139,7 +150,7 @@ export const PREDICT_PATTERN: ClaudeTool = {
 
 const str = (v: unknown): string => (typeof v === "string" ? v.trim() : "");
 
-function num(v: unknown, lim: readonly [number, number], int: boolean, where: string, warnings: string[]): number | null {
+function num(v: unknown, lim: Lim, int: boolean, where: string, warnings: string[]): number | null {
   if (typeof v !== "number" || !Number.isFinite(v)) return null;
   let x = int ? Math.round(v) : v;
   if (x < lim[0] || x > lim[1]) {
@@ -150,75 +161,39 @@ function num(v: unknown, lim: readonly [number, number], int: boolean, where: st
   return x;
 }
 
-function pick<T extends string>(v: unknown, list: readonly T[]): T | null {
-  return typeof v === "string" && (list as readonly string[]).includes(v) ? (v as T) : null;
-}
-
-/** 1 つの操作の値を確かめる。足りない・おかしい値があれば理由 */
-function readParams(op: OpName, raw: unknown, where: string, warnings: string[]): OpParams | { error: string } {
-  const p = isRecord(raw) ? raw : {};
-  const out: OpParams = {};
-  for (const key of NEEDS[op]) {
-    const v = p[key];
-    let got: unknown = null;
-    switch (key) {
-      case "metals": {
-        if (!Array.isArray(v)) break;
-        const ids = v.filter((x): x is MetalId => typeof x === "string" && (METAL_IDS as string[]).includes(x));
-        if (ids.length !== v.length) return { error: `${where}：metals に一覧にない材料があります（使えるのは ${METAL_IDS.join("・")}）` };
-        if (ids.length < PATTERN_LIMITS.metals[0]) break;
-        if (ids.length > PATTERN_LIMITS.metals[1]) {
-          warnings.push(`${where}：材料が多いので、はじめの ${PATTERN_LIMITS.metals[1]} つにしました`);
-          ids.length = PATTERN_LIMITS.metals[1];
-        }
-        got = ids;
-        break;
-      }
-      case "count":
-        got = num(v, PATTERN_LIMITS.count, true, where, warnings);
-        break;
-      case "times":
-        got = num(v, PATTERN_LIMITS.times, true, where, warnings);
-        break;
-      case "ratio":
-        got = num(v, PATTERN_LIMITS.ratio, false, where, warnings);
-        break;
-      case "turns":
-        got = num(v, PATTERN_LIMITS.turns, false, where, warnings);
-        break;
-      case "depth":
-        got = num(v, op === "grind" ? PATTERN_LIMITS.grind : PATTERN_LIMITS.depth, false, where, warnings);
-        break;
-      case "size":
-        got = num(v, PATTERN_LIMITS.size, false, where, warnings);
-        break;
-      case "across":
-        got = num(v, PATTERN_LIMITS.across, true, where, warnings);
-        break;
-      case "pieces":
-        got = num(v, PATTERN_LIMITS.pieces, true, where, warnings);
-        break;
-      case "quality":
-        got = pick(v, QUALITIES);
-        break;
-      case "direction":
-        got = pick(v, DIRECTIONS);
-        break;
-      case "side":
-        got = pick(v, SIDES);
-        break;
-      case "shape":
-        got = pick(v, SHAPES);
-        break;
-      case "mode":
-        got = pick(v, MODES);
-        break;
-      case "kind":
-        got = pick(v, KINDS);
-        break;
+/** 1 つの操作を確かめる。使わない値は空や 0 にそろえる */
+function readOp(o: Record<string, unknown>, op: ToolOp, where: string, warnings: string[]): Omit<PredictedOp, "op" | "step" | "why" | "assumed"> | { error: string } {
+  const use = USE[op];
+  const out = { metals: [] as MetalId[], amount: 0, size: 0, across: 0, choice: "-" as Choice };
+  if (use.metals) {
+    const v = o.metals;
+    if (!Array.isArray(v) || v.length < PATTERN_LIMITS.metals[0]) return { error: `${where}（${op}）の metals に、重ねる材料を書いてください` };
+    const ids = v.filter((x): x is MetalId => typeof x === "string" && (METAL_IDS as string[]).includes(x));
+    if (ids.length !== v.length) return { error: `${where}：metals に一覧にない材料があります（使えるのは ${METAL_IDS.join("・")}）` };
+    if (ids.length > PATTERN_LIMITS.metals[1]) {
+      warnings.push(`${where}：材料が多いので、はじめの ${PATTERN_LIMITS.metals[1]} つにしました`);
+      ids.length = PATTERN_LIMITS.metals[1];
     }
-    if (got === null) return { error: `${where}（${op}）の ${key} が無いか、正しくありません` };
-    (out as Record<string, unknown>)[key] = got;
+    out.metals = ids;
+  }
+  if (use.amount) {
+    const a = num(o.amount, use.amount.lim, use.amount.int, where, warnings);
+    if (a === null) return { error: `${where}（${op}）の amount が無いか、正しくありません` };
+    out.amount = a;
+  }
+  if (use.size) {
+    const s = num(o.size, PATTERN_LIMITS.size, false, where, warnings);
+    if (s === null) return { error: `${where}（${op}）の size が無いか、正しくありません` };
+    out.size = s;
+  }
+  if (use.across) {
+    const n = num(o.across, PATTERN_LIMITS.across, true, where, warnings);
+    if (n === null) return { error: `${where}（${op}）の across が無いか、正しくありません` };
+    out.across = n;
+  }
+  if (use.choice) {
+    if (typeof o.choice !== "string" || !use.choice.includes(o.choice as Choice)) return { error: `${where}（${op}）の choice は ${use.choice.join("・")} のどれかです` };
+    out.choice = o.choice as Choice;
   }
   return out;
 }
@@ -245,51 +220,52 @@ export function parsePattern(input: unknown, ctx: { steps: number }): Parsed<Pat
   for (const [i, o] of input.ops.entries()) {
     const where = `${i + 1} 番目の操作`;
     if (!isRecord(o)) return { ok: false, error: `${where}の形が正しくありません` };
-    const op = pick(o.op, OP_NAMES);
-    if (!op) return { ok: false, error: `${where}：op は ${OP_NAMES.join("・")} のどれかです` };
+    const op = typeof o.op === "string" && (TOOL_OPS as readonly string[]).includes(o.op) ? (o.op as ToolOp) : null;
+    if (!op) return { ok: false, error: `${where}：op は ${TOOL_OPS.join("・")} のどれかです` };
     if (i === 0 && op !== "stack") return { ok: false, error: "最初の操作は stack（重ねる）にしてください" };
     if (i > 0 && op === "stack") return { ok: false, error: `${where}：stack（重ねる）は最初に 1 回だけです。重ね直すときは fold か rearrange を使ってください` };
-    const params = readParams(op, o.params, where, warnings);
-    if ("error" in params) return { ok: false, error: params.error };
+    const vals = readOp(o, op, where, warnings);
+    if ("error" in vals) return { ok: false, error: vals.error };
     let step = typeof o.step === "number" && Number.isInteger(o.step) ? o.step : 0;
     if (step < 0 || step > ctx.steps) {
       warnings.push(`${where}：案に ${step} 番目の工程は無いので、案にない操作としました`);
       step = 0;
     }
-    ops.push({ op, step, why: str(o.why), assumed: str(o.assumed), params });
+    ops.push({ op, step, why: str(o.why), assumed: str(o.assumed), ...vals });
   }
   if (!summary) return { ok: false, error: "summary（見込みのあらまし）を書いてください" };
   return { ok: true, value: { applicable: true, reason, ops, cannot_show, summary }, ...(warnings.length ? { warnings } : {}) };
 }
 
-/** 確かめた答えを、計算の操作の並びにする */
-export function toPatternOps(p: PatternPrediction): PatternOp[] {
-  return p.ops.map((o): PatternOp => {
-    const q = o.params;
-    switch (o.op) {
-      case "stack":
-        return { op: "stack", metals: q.metals!, count: q.count! };
-      case "bond":
-        return { op: "bond", quality: q.quality! };
-      case "fold":
-        return { op: "fold", times: q.times! };
-      case "forge_thin":
-        return { op: "forge_thin", ratio: q.ratio!, direction: q.direction! };
-      case "twist":
-        return { op: "twist", turns: q.turns! };
-      case "carve":
-        return { op: "carve", side: q.side!, shape: q.shape!, depth: q.depth!, size: q.size!, across: q.across! };
-      case "flatten":
-        return { op: "flatten" };
-      case "grind":
-        return { op: "grind", depth: q.depth! };
-      case "rearrange":
-        return { op: "rearrange", mode: q.mode!, pieces: q.pieces! };
-      case "color":
-        return { op: "color", kind: q.kind! };
-    }
-  });
+/** 1 つの操作を、計算の操作にする */
+export function toPatternOp(o: PredictedOp): PatternOp {
+  switch (o.op) {
+    case "stack":
+      return { op: "stack", metals: o.metals, count: o.amount };
+    case "bond":
+      return { op: "bond", quality: o.choice as (typeof QUALITIES)[number] };
+    case "fold":
+      return { op: "fold", times: o.amount };
+    case "forge_thin":
+      return { op: "forge_thin", ratio: o.amount, direction: o.choice as (typeof DIRECTIONS)[number] };
+    case "twist":
+      return { op: "twist", turns: o.amount };
+    case "carve":
+    case "punch":
+      return { op: "carve", side: o.op === "carve" ? "top" : "back", shape: o.choice as CarveShape, depth: o.amount, size: o.size, across: o.across };
+    case "flatten":
+      return { op: "flatten" };
+    case "grind":
+      return { op: "grind", depth: o.amount };
+    case "rearrange":
+      return { op: "rearrange", mode: o.choice as RearrangeMode, pieces: o.amount };
+    case "color":
+      return { op: "color", kind: o.choice as ColorKind };
+  }
 }
+
+/** 確かめた答えを、計算の操作の並びにする */
+export const toPatternOps = (p: PatternPrediction): PatternOp[] => p.ops.map(toPatternOp);
 
 /** 保存した見込みを読む（形がおかしければ null） */
 export function readPatternRecord(raw: unknown, steps: number): PatternRecord | null {
@@ -300,42 +276,43 @@ export function readPatternRecord(raw: unknown, steps: number): PatternRecord | 
   return { date: raw.date, prediction: parsed.value, notes };
 }
 
-// ---- 指示 ----
+// ---- 画面の言葉 ----
 
-const SIDE_WORD = { top: "表から", back: "裏から" } as const;
-const SHAPE_WORD: Record<CarveShape, string> = { dots: "丸い穴", pits: "ばらばらのくぼみ", lines: "まっすぐな溝", waves: "波打つ溝" };
+const SHAPE_WORD: Record<CarveShape, string> = { dots: "決まった間の丸い穴", pits: "ばらばらのくぼみ", lines: "まっすぐな溝", waves: "波打つ溝" };
 const MODE_WORD: Record<RearrangeMode, string> = { edge_up: "横にして層のふちを表に", strips: "細く切って 1 本おきに向きを変える", tiles: "四角に切って 1 つおきに回す" };
-const KIND_WORD: Record<ColorKind, string> = { none: "出さない", etch: "酸などで地を出す", patina: "薬で色を出す" };
-const QUALITY_WORD = { good: "よくつながる", partial: "ところどころつながらない", poor: "つながらない所が多い" } as const;
+const KIND_WORD: Record<ColorKind, string> = { none: "出さない", etch: "酸などで地を出す", patina: "薬で色を出す（煮色のように）" };
+const QUALITY_WORD: Record<(typeof QUALITIES)[number], string> = { good: "よくつながる", partial: "ところどころつながらない", poor: "つながらない所が多い" };
+const pct = (v: number) => `${Math.round(v * 100)}%`;
 
-/** 画面に出す、操作の短い言い方（数は仮の値なので、出すときに「仮」を添える） */
+/** 画面に出す、操作の短い言い方。数は絵のための仮の値 */
 export function opWords(o: PredictedOp): string {
-  const q = o.params;
   switch (o.op) {
     case "stack":
-      return `${(q.metals ?? []).map((m) => PATTERN_METALS[m].name.replace(/（.*）/, "")).join("・")}を ${q.count} 枚、交互に重ねる`;
+      return `${o.metals.map((m) => PATTERN_METALS[m].name.replace(/（.*）/, "")).join("・")}を ${o.amount} 枚、順に重ねる`;
     case "bond":
-      return `熱してつなぐ（${QUALITY_WORD[q.quality!]}）`;
+      return `熱してつなぐ（${QUALITY_WORD[o.choice as (typeof QUALITIES)[number]]}）`;
     case "fold":
-      return `のばして切り、重ねる（${q.times} 回。層が ${2 ** q.times!} 倍）`;
+      return `のばして切り、重ねる（${o.amount} 回。層が ${2 ** o.amount} 倍）`;
     case "forge_thin":
-      return `叩いて厚みを 1/${q.ratio} に（${q.direction === "length" ? "長さの向き" : "縦横"}）`;
+      return `叩いて厚みを 1/${o.amount} に（${o.choice === "length" ? "長さの向きにのばす" : "縦横に広げる"}）`;
     case "twist":
-      return `ねじる（${q.turns} 回）`;
+      return `ねじる（${o.amount} 回）`;
     case "carve":
-      return `${SIDE_WORD[q.side!]}${q.side === "back" ? "打ち出す" : "彫る"}：${SHAPE_WORD[q.shape!]}（深さ 厚みの ${Math.round(q.depth! * 100)}%）`;
+      return `表から彫る：${SHAPE_WORD[o.choice as CarveShape]}（深さは厚みの ${pct(o.amount)}）`;
+    case "punch":
+      return `裏から打ち出す：${SHAPE_WORD[o.choice as CarveShape]}（高さは厚みの ${pct(o.amount)}）`;
     case "flatten":
       return "叩いて平らにする";
     case "grind":
-      return `表を削る（厚みの ${Math.round(q.depth! * 100)}%）`;
+      return `表を削る（厚みの ${pct(o.amount)}）`;
     case "rearrange":
-      return `切って並べかえる：${MODE_WORD[q.mode!]}`;
+      return `切って並べかえる：${MODE_WORD[o.choice as RearrangeMode]}`;
     case "color":
-      return `色を出す：${KIND_WORD[q.kind!]}`;
+      return `色を出す：${KIND_WORD[o.choice as ColorKind]}`;
   }
 }
 
-export { OP_LABEL };
+// ---- 指示 ----
 
 export function patternPrompt(): string {
   const metals = METAL_IDS.map((id) => `- ${id}：${PATTERN_METALS[id].name}`).join("\n");
@@ -350,9 +327,10 @@ export function patternPrompt(): string {
 - fold：のばして半分に切り、重ねる（層が 2 倍ずつ）
 - forge_thin：叩いて薄くのばす（あとで彫ったり、前に彫った形がのびる）
 - twist：棒にしてねじる
-- carve：表から彫る・穴をあける（top）、裏から打ち出す（back）
+- carve：表から彫る・穴をあける
+- punch：裏から打ち出す（表を削らないと模様にならない）
 - flatten：叩いて平らにする
-- grind：表を平らに削る（裏から打ち出したものは、削らないと模様にならない）
+- grind：表を平らに削る
 - rearrange：切って並べかえる（横にして層のふちを表に出す・細く切って向きを変える・四角に切って回す）
 - color：最後に色を出す（酸で地を出す・薬で色を出す・しない）
 
@@ -361,6 +339,7 @@ ${metals}
 
 ## 決まり
 
+- どの操作も metals・amount・size・across・choice を持ちます。その操作で使わない値は、空・0・- にしてください。
 - 工程の順に、作る順で置きかえてください。1 つの工程が 2 つの操作になっても、2 つの工程が 1 つの操作になってもかまいません。
 - どの操作にも、元になった工程の番号を step に書いてください。工程に書かれていないが、絵を描くために要る操作（重ねる枚数を決める、など）は step を 0 にして、why にそう書いてください。
 - 工程に書かれていない数（枚数・回数・深さなど）は、絵のために仮に決めてかまいません。そのときは assumed に、何をどう仮に決めたかを書いてください。これは絵のための仮の値で、作り方の数字ではありません。作り方の数字として言わないでください。

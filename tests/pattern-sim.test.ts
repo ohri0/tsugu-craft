@@ -87,21 +87,35 @@ describe("模様の見込みの計算", () => {
   });
 });
 
+type RawOp = { op: string; step: number; why: string; assumed: string; metals: string[]; amount: number; size: number; across: number; choice: string };
+const op = (o: Partial<RawOp> & { op: string }): RawOp => ({ step: 0, why: "", assumed: "", metals: [], amount: 0, size: 0, across: 0, choice: "-", ...o });
 const goodInput = () => ({
   applicable: true,
   reason: "重ねて、彫って、平らにする",
   ops: [
-    { op: "stack", step: 1, why: "重ねる", assumed: "枚数は仮に 12 枚", params: { metals: ["shakudo", "silver"], count: 12 } },
-    { op: "bond", step: 2, why: "熱してつなぐ", assumed: "", params: { quality: "good" } },
-    { op: "carve", step: 3, why: "穴をあける", assumed: "", params: { side: "top", shape: "dots", depth: 0.4, size: 0.04, across: 8 } },
-    { op: "flatten", step: 3, why: "平らに", assumed: "", params: {} },
-    { op: "color", step: 0, why: "絵のため", assumed: "", params: { kind: "patina" } },
+    op({ op: "stack", step: 1, why: "重ねる", assumed: "枚数は仮に 12 枚", metals: ["shakudo", "silver"], amount: 12 }),
+    op({ op: "bond", step: 2, why: "熱してつなぐ", choice: "good" }),
+    op({ op: "carve", step: 3, why: "穴をあける", amount: 0.4, size: 0.04, across: 8, choice: "dots" }),
+    op({ op: "flatten", step: 3, why: "平らに" }),
+    op({ op: "color", why: "絵のため", choice: "patina" }),
   ],
   cannot_show: "",
   summary: "雨のつぶのような丸い模様になりそう",
 });
 
 describe("predict_pattern の答えを確かめる", () => {
+  it("使わない値はそろえ、裏から打ち出すは計算の裏からの彫りになる", () => {
+    const x = goodInput();
+    x.ops[3] = op({ op: "punch", step: 3, amount: 0.3, size: 0.05, across: 4, choice: "pits", metals: ["gold"] });
+    x.ops[1].amount = 9;
+    const r = parsePattern(x, { steps: 3 });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.value.ops[1].amount).toBe(0);
+    expect(r.value.ops[3].metals).toEqual([]);
+    expect(toPatternOps(r.value)[3]).toEqual({ op: "carve", side: "back", shape: "pits", depth: 0.3, size: 0.05, across: 4 });
+  });
+
   it("正しい答えを受け取り、計算の操作にできる", () => {
     const r = parsePattern(goodInput(), { steps: 3 });
     expect(r.ok).toBe(true);
@@ -130,20 +144,22 @@ describe("predict_pattern の答えを確かめる", () => {
     expect(bad((x) => (x.ops[1].op = "melt")).ok).toBe(false);
     expect(bad((x) => x.ops.shift()).ok).toBe(false);
     expect(bad((x) => x.ops.push({ ...x.ops[0] })).ok).toBe(false);
-    expect(bad((x) => (x.ops[2].params = { side: "top" } as never)).ok).toBe(false);
-    expect(bad((x) => (x.ops[0].params = { metals: ["unobtainium"], count: 5 } as never)).ok).toBe(false);
+    expect(bad((x) => (x.ops[2].choice = "patina")).ok).toBe(false);
+    expect(bad((x) => (x.ops[2].amount = "deep" as never)).ok).toBe(false);
+    expect(bad((x) => (x.ops[0].metals = ["unobtainium"])).ok).toBe(false);
+    expect(bad((x) => (x.ops[0].metals = [])).ok).toBe(false);
     expect(bad((x) => (x.summary = "")).ok).toBe(false);
     expect(bad((x) => (x.ops = [])).ok).toBe(false);
   });
 
   it("範囲の外の数と、無い工程の番号は直して知らせる", () => {
     const x = goodInput();
-    x.ops[0].params.count = 500;
+    x.ops[0].amount = 500;
     x.ops[2].step = 9;
     const r = parsePattern(x, { steps: 3 });
     expect(r.ok).toBe(true);
     if (!r.ok) return;
-    expect(r.value.ops[0].params.count).toBe(64);
+    expect(r.value.ops[0].amount).toBe(64);
     expect(r.value.ops[2].step).toBe(0);
     expect(r.warnings?.length).toBe(2);
   });

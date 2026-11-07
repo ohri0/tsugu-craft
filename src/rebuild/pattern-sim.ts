@@ -119,6 +119,7 @@ export interface Sim {
   /** 層の境のつながらない所の割合 */
   unbonded: number;
   holes: { waves: Wave[]; cut: number }[];
+  /** 板そのもののわずかな波打ち（叩く操作がなければ無い） */
   plateWaves: Wave[];
   color: ColorKind;
   /** 見る所（最後の板の中の正方形） */
@@ -140,8 +141,11 @@ function reflect01(v: number): number {
   return clamp(t, 0, 0.999999);
 }
 
-/** 操作の並びから、計算の材料を作る。並びは parsePatternOps などで確かめたもの（最初が stack）であること */
-export function buildSim(ops: readonly PatternOp[], seed = 7): Sim {
+/**
+ * 操作の並びから、計算の材料を作る。並びは parsePattern などで確かめたもの（最初が stack）であること。
+ * bond：途中の段の絵で、あとの段でつなぐ良さを先に使う（重ねただけの段に、つながらない所を描かないため）
+ */
+export function buildSim(ops: readonly PatternOp[], seed = 7, opts: { bond?: BondQuality } = {}): Sim {
   const first = ops[0];
   if (!first || first.op !== "stack") throw new Error("最初の操作は stack（重ねる）にしてください");
   const metals = first.metals.length ? first.metals : (["light", "dark"] as MetalId[]);
@@ -217,7 +221,7 @@ export function buildSim(ops: readonly PatternOp[], seed = 7): Sim {
   if (color === "none") notes.push("最後に色を出す手順が無いので、材料そのものの色で描きました。色の差は小さく見えます。");
   if (metals.length < 2) notes.push("材料が 1 つだけなので、層があっても色の差は出ません。");
 
-  const unbonded = PATTERN_VALUES.unbonded[bond];
+  const unbonded = PATTERN_VALUES.unbonded[opts.bond ?? bond];
   const hr = rng(seed + 3000);
   const holes: Sim["holes"] = [];
   for (let k = 0; k < count; k++) {
@@ -237,7 +241,7 @@ export function buildSim(ops: readonly PatternOp[], seed = 7): Sim {
     stages,
     unbonded,
     holes,
-    plateWaves: makeWaves(rng(seed + 4000), 4, 1, 4),
+    plateWaves: stages.some((s) => s.op.op === "forge_thin" || s.op.op === "flatten" || s.op.op === "fold") ? makeWaves(rng(seed + 4000), 4, 1, 4) : [],
     color,
     view: { x0: (W - size) / 2, y0: (H - size) / 2, size },
     final: { W, H },
@@ -459,6 +463,35 @@ export interface Section {
 }
 
 /** 見る所の真ん中（または row：見る所の上から 0〜1）を、幅の向きに切った断面。上が表 */
+/** つなぐ良さ（つなぐ操作がなければ undefined） */
+export function bondOf(ops: readonly PatternOp[]): BondQuality | undefined {
+  let q: BondQuality | undefined;
+  for (const o of ops) if (o.op === "bond") q = o.quality;
+  return q;
+}
+
+/** 断面を切る行（見る所の上から 0〜1）。表の模様が、いちばん多く横切る所 */
+export function sectionRow(sim: Sim): number {
+  const { x0, y0, size } = sim.view;
+  let best = 0.5;
+  let bestScore = -1;
+  for (let k = 0; k <= 30; k++) {
+    const r = 0.2 + (0.6 * k) / 30;
+    let score = 0;
+    let last = -1;
+    for (let i = 0; i < 90; i++) {
+      const layer = layerOf(sim, trace(sim, x0 + ((i + 0.5) / 90) * size, y0 + r * size, 0).u0);
+      if (i > 0 && layer !== last) score++;
+      last = layer;
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      best = r;
+    }
+  }
+  return best;
+}
+
 export function section(sim: Sim, w: number, h: number, row = 0.5): Section {
   const cells = new Int16Array(w * h).fill(AIR);
   const { x0, y0, size } = sim.view;
