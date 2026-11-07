@@ -755,6 +755,8 @@ html.fit .tp-toc a { font-size: 12px; }
 
 /* スマホ：押す所は 44 px 以上。字の入力は 16 px（Safari が勝手に拡大しないように） */
 @media (pointer: coarse), (max-width: 720px) {
+  /* 上の帯の高さ：押す所を 44 px にしたので、帯も高くする（44 px のままだと「合言葉を入れる」の枠が帯の上の端にくっついていた） */
+  html.fit { --bar-h: 56px; }
   html.fit .brand { min-height: 44px; }
   html.fit :is(.primary, .ghost, .chip, .tile, .btnlike, .back, .send, .help, .tiny, .cid, .ans-line .mic, .answer-box .mic) { min-height: 44px; }
   html.fit :is(.icon.voice) { min-width: 44px; min-height: 44px; }
