@@ -157,7 +157,7 @@ const SHOTS = {
     await look(p, MACRO, 0.42, await stoneZ(p));
     await shot(p, 'ring-red');
   },
-  // 「アールデコな感じ」と本物の Claude に頼んで組んだ形（src/lp/artdeco.json）。はじめの石のまま state を入れて組む。撮るときに Claude は呼ばない。
+  // 「アールデコな感じ」と本物の Claude に頼んで組んだ形（src/lp/artdeco.json。2026-11-07 作者が選んだ 9 回目＝動画と同じ回）。はじめの石のまま state を入れて組む。撮るときに Claude は呼ばない。
   // 大きく写すので、彫りだけ細かい網目（fine）で描く（形の数字は変えない）
   async artdeco() {
     const show = require('../src/lp/artdeco.json');

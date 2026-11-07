@@ -286,8 +286,8 @@ const html = `
     <div class="feat-m rv">${crossfade(
       "wx",
       [
-        { name: "ring-artdeco", alt: "本物の Claude が「アールデコな感じ」から組んだ指輪を斜めから。段々の長方形の窓と粒の列。白い地金に三角の石", cap: "斜めから　三角の石・K18 ホワイト" },
-        { name: "ring-artdeco-front", alt: "同じ指輪を正面から。段の窓と粒の列が左右対称に並ぶ", cap: "正面から　段の窓と粒" },
+        { name: "ring-artdeco", alt: "本物の Claude が「アールデコな感じ」から組んだ指輪を斜めから。石座から段々に下がる肩と、段ごとの四角い窓。白い地金に三角の石", cap: "斜めから　三角の石・プラチナ" },
+        { name: "ring-artdeco-front", alt: "同じ指輪を正面から。段々に下がる肩に、四角い窓が段ごとに並ぶ", cap: "正面から　段の肩と四角い窓" },
       ],
       "(max-width: 760px) 92vw, 520px",
       { cls: "xf-dark xf-tall", every: 4000 },
