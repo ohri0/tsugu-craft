@@ -1,0 +1,77 @@
+/* 模様の見込み（src/app/pattern-view.ts）。木目金の模様の試し（moyou.css）と同じ暗い地・同じ字の形に、段の数が技ごとに変わる並びを足す。 */
+.pv { font-size: 14px; }
+.pv .rs-back { min-height: 40px; margin: 0 0 8px -6px; padding: 0 8px; font-size: 14px; background: transparent; border: 0; color: var(--fg-2); }
+.pv .pv-example { margin-left: 10px; padding: 1px 10px; font-size: 11.5px; letter-spacing: 0; }
+.pv .pv-sum { margin: 0 0 16px; font-size: 15px; line-height: 1.8; color: var(--fg); max-width: 52em; }
+.pv .rs-pill { display: inline-block; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 600; line-height: 1.7; white-space: nowrap; }
+.pv .rs-pill.book { background: rgba(233, 196, 106, 0.16); color: var(--master); }
+
+/* 段：作る順に、横へ並べる（段の数は技ごとにちがう） */
+.pv .pv-stages { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); gap: 16px 12px; }
+.pv .pv-stage { display: grid; align-content: start; gap: 4px; opacity: 0; transform: translateY(6px); transition: opacity 0.6s ease, transform 0.6s ease; }
+.pv .pv-stage.on { opacity: 1; transform: none; }
+.pv .pv-stage .mo-sh { padding: 0 2px 3px; }
+.pv .pv-sec { display: block; width: 100%; aspect-ratio: 2.4 / 1; background: var(--mo-bg); border-radius: 5px; box-shadow: inset 0 0 0 1px var(--mo-line); }
+.pv .pv-op { margin: 2px 0 0; font-size: 12.5px; line-height: 1.5; color: var(--fg); }
+.pv .pv-from { margin: 0; font-size: 11.5px; line-height: 1.5; color: #f0d9b0; }
+.pv .pv-basis { margin: 0; font-size: 11px; line-height: 1.5; color: var(--fg-3); }
+.pv .pv-basis.is-book { color: var(--fg-2); }
+.pv .pv-basis.is-book .rs-pill { margin-right: 6px; }
+.pv .pv-basis.is-prior, .pv .pv-basis.is-added { color: var(--mo-warn); }
+.pv .pv-kari { margin: 0; font-size: 11px; line-height: 1.5; color: var(--fg-3); }
+.pv .pv-kari .kari { margin-right: 5px; }
+
+/* 出来上がり：この案・前の案・断面 */
+.pv .pv-final { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.4fr); gap: 18px; margin: 18px 0 0; padding-top: 18px; border-top: 1px solid var(--mo-line); align-items: start; }
+.pv .pv-big { margin: 0; opacity: 0; transform: translateY(8px); transition: opacity 0.9s ease, transform 0.9s ease; }
+.pv .pv-prev { transition-delay: 0.35s; }
+.pv .pv-secbig { transition-delay: 0.6s; }
+.pv.on-final .pv-big { opacity: 1; transform: none; }
+.pv .pv-big canvas { display: block; width: 100%; max-width: 300px; margin: 0 auto; aspect-ratio: 1; height: auto; background: #0c0b0b; border-radius: 6px; }
+.pv .pv-secbig canvas { max-width: none; aspect-ratio: 3.7 / 1; box-shadow: inset 0 0 0 1px var(--mo-line); }
+.pv .pv-secbig canvas + figcaption + canvas { margin-top: 12px; }
+.pv .pv-big figcaption { max-width: 300px; margin: 8px auto 0; display: grid; gap: 2px; font-size: 12px; line-height: 1.6; color: var(--fg-2); }
+.pv .pv-secbig figcaption { max-width: none; }
+.pv .pv-big figcaption b { font-size: 14px; font-weight: 600; color: #f0d9b0; }
+.pv .pv-prev figcaption b { color: var(--fg); }
+
+.pv .pv-diff, .pv .pv-notes > div { margin-top: 14px; font-size: 12.5px; line-height: 1.7; color: var(--fg-2); }
+.pv .pv-diff b, .pv .pv-notes b { display: block; color: var(--fg); font-weight: 600; font-size: 13px; }
+.pv .pv-diff ul, .pv .pv-notes ul { margin: 2px 0 0; padding-left: 1.2em; }
+.pv .pv-diff .added { color: #f0d9b0; }
+.pv .pv-notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 24px; }
+.pv .pv-notes p { margin: 2px 0 0; }
+.pv .pv-ops { margin-top: 16px; font-size: 12.5px; color: var(--fg-2); }
+.pv .pv-ops summary { cursor: pointer; }
+.pv .pv-ops p { margin: 6px 0 0; line-height: 1.7; }
+.pv .pv-sub { color: var(--fg-3); font-size: 12px; }
+.pv .pv-acts { margin-top: 14px; }
+.pv .pv-st { margin: 6px 0 0; font-size: 13px; color: var(--ng-2); }
+.pv .pv-st:empty { display: none; }
+.pv .pv-none { max-width: 560px; display: grid; gap: 12px; padding: 18px 0; }
+.pv .pv-none .rs-big { min-height: 56px; font-size: 17px; }
+.pv .pv-decline { max-width: 640px; display: grid; gap: 8px; padding: 18px 20px; border: 1px solid var(--line-2); border-radius: 10px; background: var(--panel); font-size: 14px; line-height: 1.8; }
+.pv .pv-decline-h { margin: 0; font-size: 16px; font-weight: 600; color: var(--fg); }
+.pv .pv-decline p { margin: 0; }
+
+@media (prefers-reduced-motion: reduce) {
+  .pv .pv-stage, .pv .pv-big { transition: none; }
+}
+@media (max-width: 760px) {
+  .pv .pv-stages { grid-template-columns: 1fr 1fr; }
+  .pv .pv-final { grid-template-columns: 1fr 1fr; }
+  .pv .pv-secbig { grid-column: 1 / -1; }
+}
+
+/* 途切れた技の案の欄：模様の見込みへの入口 */
+.rs-moyou { margin: 18px 0 4px; }
+.rs-moyou-link { display: grid; grid-template-columns: 72px 1fr auto; align-items: center; gap: 4px 14px; padding: 12px 16px; border: 1px solid rgba(200, 171, 124, 0.45); border-radius: 12px; background: #1a1816; color: var(--fg); text-decoration: none; }
+.rs-moyou-link:hover { background: #221f1b; }
+.rs-moyou-link canvas { width: 72px; height: 72px; border-radius: 6px; background: #0c0b0b; }
+.rs-moyou-link b { display: block; font-size: 16px; font-weight: 600; color: #f0d9b0; }
+.rs-moyou-link small { display: block; font-size: 14px; line-height: 1.6; color: var(--fg-2); }
+.rs-moyou-link .rs-go-mark { font-size: 24px; color: var(--fg-2); }
+.rs-moyou-go { border: 1px solid rgba(200, 171, 124, 0.55) !important; color: #f0d9b0 !important; }
+.rs-moyou-note { margin-top: 6px !important; font-size: 14px; color: var(--fg-2); text-align: center; }
+.rs-moyou-st { margin-top: 6px !important; font-size: 15px; color: var(--ng-2); text-align: center; }
+.rs-moyou-st:empty { display: none; }

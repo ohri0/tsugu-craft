@@ -10,7 +10,7 @@ import { PUBLISHED_RUNS } from "../rebuild/published";
 import { filming } from "./confirm";
 import { flash } from "./interview";
 import { mountRebuild } from "./rebuild";
-import { mountRestore } from "./restore";
+import { MOYOU_SAMPLE_ID, mountRestore } from "./restore";
 import { mountMoyou } from "./moyou-view";
 import { listProjects } from "./restore-store";
 import { mountTech, pageCounts, pageInfo, ringTarget, techTarget } from "./tech-view";
@@ -60,6 +60,11 @@ function rebuildCards(hasRun: boolean): string {
       <ul class="big-techs"><li><a class="big-tech rs-waza-card" href="#waza/restore">
         <span class="bt-mark" aria-hidden="true">再</span>
         <span class="bt-body"><b>途切れた技を入れる</b><small>分かることを入れると、Claude が作り方の案を出します</small>${mine ? `<span class="bt-meta">入れた技 ${mine}</span>` : ""}</span>
+        <span class="bt-go" aria-hidden="true">›</span>
+      </a></li>
+      <li><a class="big-tech rs-waza-card" href="#waza/restore/${MOYOU_SAMPLE_ID}/moyou">
+        <span class="bt-mark" aria-hidden="true">模</span>
+        <span class="bt-body"><b>復元：手順から模様を試す</b><small>Claude が組み立てた手順のとおりに作ると、どんな模様になるかを計算で描きます（作り話の技の例）</small></span>
         <span class="bt-go" aria-hidden="true">›</span>
       </a></li>
       ${trial("答えの分かっている技で試す", "木目金で、Claude がどこまで当てられるかを見ます", " rs-waza-card")}</ul>`;
