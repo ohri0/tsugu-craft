@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { carveDepth, diskToSquare, footprint, layerRamp, pressBack, rampColor, squareToDisk, surface, buildSim, untwist, bandRows, surfaceImageAsync, type PatternOp } from "../src/rebuild/pattern-sim";
 import { buildRelief, heightOf, pathHit, pointAt, reliefSectionImage, reliefTopAsync, topMat, type ReliefOp } from "../src/rebuild/pattern-relief";
-import { parsePattern, patternContext, patternRequest, toReliefOps } from "../src/rebuild/pattern-tools";
+import { parsePattern, patternContext, patternPrompt, patternRequest, toReliefOps } from "../src/rebuild/pattern-tools";
 import { modelOf, topImage } from "../src/rebuild/pattern-model";
 import { PATTERN_VALUES } from "../src/rebuild/pattern-values";
 
@@ -282,5 +282,34 @@ describe("重ねない技：1 枚の板の表", () => {
     expect(m.family).toBe("surface");
     expect((await topImage(m.stage(0), 8, 1)).w).toBe(8);
     expect(() => buildRelief([{ op: "color", kind: "none" }])).toThrow();
+  });
+});
+
+// ---- 2026-11-08：雨垂れ銀の案 1 の絵に、案が言う赤い輪が出なかった（仮の深さが、同じ厚さ 3 枚の 3 枚目に届かなかった） ----
+describe("穴の深さと、表に出る層", () => {
+  /** 赤銅・銀・銅を重ねて穴をあけ、平らにして薄く削ったとき、表に出るいちばん下の層の番号 */
+  const deepest = (count: number, depth: number, thickness?: number[]) => {
+    const sim = buildSim([
+      { op: "stack", metals: ["shakudo", "silver", "copper"], count, ...(thickness ? { thickness } : {}) },
+      { op: "bond" },
+      { op: "carve", side: "top", shape: "dots", depth, size: 0.04, across: 8 },
+      { op: "flatten" },
+      { op: "grind", depth: 0.02 },
+    ] as PatternOp[]);
+    return Math.max(...surface(sim, 120).layer);
+  };
+  it("同じ厚さの 3 枚では、厚みの半分の穴は 3 枚目（銅）に届かず、2/3 より深い穴は届く", () => {
+    expect(deepest(3, 0.5)).toBe(1);
+    expect(deepest(3, 0.7)).toBe(2);
+  });
+  it("上の 2 枚を薄くするか、薄い層を何組も重ねれば、浅い穴でも銅に届く。深いほど通る層（輪）がふえる", () => {
+    expect(deepest(3, 0.35, [0.5, 0.5, 3])).toBe(2);
+    expect(deepest(12, 0.2)).toBeGreaterThanOrEqual(2);
+    expect(deepest(12, 0.54)).toBeGreaterThan(deepest(12, 0.2) + 2);
+  });
+  it("指示に、上から k 枚目の層の始まる深さと、仮の値を案の言う見た目に合わせることを書く", () => {
+    const s = patternPrompt();
+    expect(s).toContain("(k−1)/n");
+    expect(s).toContain("品物の見た目");
   });
 });
