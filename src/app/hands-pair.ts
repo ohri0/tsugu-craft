@@ -9,7 +9,7 @@
 // 何の仕事か・左右の手・下の言葉と出どころ・正直な注は public/mihon/pair.json（動画を替えたら、ここも替える）。
 import { HAND_CONNECTIONS } from "../craft/motion";
 import { importRecord, type SkillRecord } from "../craft/record";
-import { holdFlag, smoothTrack, splitHands, trackAt, type SmoothTrack } from "../craft/overlay-smooth";
+import { HAND_OVERLAY, handDist, holdFlag, plausibleHands, smoothTrack, splitHands, trackAt, type SmoothTrack } from "../craft/overlay-smooth";
 import type { Side } from "../craft/pose";
 import { measureTake, type PairHands, type PairToolLines, type TakeMeasure } from "../craft/pair-measure";
 import { judgeTake, type JudgeRow } from "../craft/hand-judge";
@@ -121,6 +121,8 @@ const BONE = "rgba(120, 220, 255, 1)";
 const HOT_DEG = 5;
 /** 「角度がぶれた」は、一度出たらこの秒（動画の時間）は出しておく（ぱっと出て消えると読めない） */
 const HOT_HOLD_S = 1.2;
+/** 手の並びを決めるとき、この秒より長く見えなかった手の位置は忘れる */
+const HAND_FORGET_S = 0.5;
 /** 再生の速さ（作者の声：もうちょっとスピードゆっくりに）。はじめは ゆっくり */
 export const PAIR_SPEEDS = [
   { rate: 0.5, label: "ゆっくり" },
@@ -139,11 +141,13 @@ interface ClipOverlay {
 function overlayOf(clip: PairClip, showHot: boolean): ClipOverlay {
   const s = clip.record.landmarksSampled;
   const ts = s.frames.map((f) => f.t);
-  const hands = splitHands(s.frames.map((f) => ({ hands: f.hands.filter((h) => h.length >= 42).map((h) => h.slice(0, 42)) }))).map((hs) => smoothTrack(ts, hs));
+  // 読み違いの小さな手を除き、別の所へ跳んだ手はつながない・まぜない（overlay-smooth の 5.）
+  const aspect = s.aspect || 9 / 16;
+  const kept = plausibleHands(s.frames.map((f) => ({ hands: f.hands.filter((h) => h.length >= 42).map((h) => h.slice(0, 42)) })), aspect);
+  const hands = splitHands(kept.map((hs, i) => ({ hands: hs, t: ts[i] })), 2, HAND_FORGET_S).map((hs) => smoothTrack(ts, hs, HAND_OVERLAY, handDist(aspect)));
   if (!clip.tool) return { hands, tool: null, hot: null };
   const { fps, lines } = clip.tool;
   const angles = cleanAngles(lines, fps);
-  const aspect = s.aspect || 9 / 16;
   const tts = lines.map((_, i) => i / fps);
   const frames = lines.map((l, i) => {
     const a = angles[i];
@@ -183,6 +187,20 @@ export function mountPair(slot: HTMLElement, d: PairDemo): () => void {
 
   const over = { good: overlayOf(d.good, false), bad: overlayOf(d.bad, true) };
 
+  // 画面に出ているこまの時刻。再生中の currentTime は、出ているこまより少し先へ進んでいることがあるので、
+  // 出せるブラウザでは、こまが出たときの時刻（requestVideoFrameCallback の mediaTime）で描く。止めたときと探したときは currentTime
+  const shown = new Map<HTMLVideoElement, number>();
+  const frameTime = (v: HTMLVideoElement) => (v.paused || v.seeking ? v.currentTime : shown.get(v) ?? v.currentTime);
+  type FrameVideo = HTMLVideoElement & { requestVideoFrameCallback?: (cb: (now: number, m: { mediaTime: number }) => void) => number };
+  const follow = (v: FrameVideo) => {
+    if (!v.requestVideoFrameCallback) return;
+    const cb = (_: number, m: { mediaTime: number }) => {
+      shown.set(v, m.mediaTime);
+      if (slot.isConnected) v.requestVideoFrameCallback!(cb);
+    };
+    v.requestVideoFrameCallback(cb);
+  };
+
   const paint = (kind: "good" | "bad") => {
     const ov = over[kind];
     const box = slot.querySelector<HTMLElement>(`.pd-${kind}`)!;
@@ -194,7 +212,7 @@ export function mountPair(slot: HTMLElement, d: PairDemo): () => void {
     if (cv.width !== w || cv.height !== h) Object.assign(cv, { width: w, height: h });
     const ctx = cv.getContext("2d")!;
     ctx.clearRect(0, 0, w, h);
-    const t = v.currentTime;
+    const t = frameTime(v);
     // 手：ならした 21 点と骨。細く、少し透かして（動画の手が見えるように）
     for (const tr of ov.hands) {
       const at = trackAt(tr, t);
@@ -281,6 +299,7 @@ export function mountPair(slot: HTMLElement, d: PairDemo): () => void {
   };
   raf = requestAnimationFrame(loop);
   const vids = [...slot.querySelectorAll<HTMLVideoElement>(".pd-frame video")];
+  vids.forEach(follow);
   // 速さ：はじめは ゆっくり。2 本いっしょに変える
   const setRate = (rate: number) => {
     vids.forEach((v) => {

@@ -235,6 +235,8 @@ viewer.setDark(true);
 // 撮影（?rec）では、見せるの映り込みを「細かく」にしておく（アプリの中で選べるのと同じ描き方）
 if (new URLSearchParams(location.search).has("rec")) void viewer.setHighQuality(true);
 viewer.wireArm = !filming();
+// はじめの寄りを、映った形の真ん中へ・テンションは石に寄る（撮影の絵は前のまま）
+viewer.polishFrame = !filming();
 /** 形の配列が GPU へ届かず 3D の絵が乱れているときは、壊れた絵のまま「作れます」と出さない（組み直すたびに札を書き直すので、そのあとでも呼ぶ） */
 function markDrawFault() {
   if (!viewer.drawFault) return;
@@ -1394,7 +1396,8 @@ function openSheetFull() {
   frame.addEventListener("load", () => {
     const page = frame.contentDocument?.body.firstElementChild?.getBoundingClientRect();
     if (page?.width) nat = { w: page.width, h: page.height };
-    fit = scroller.clientWidth / nat.w;
+    // はじめは紙の全体が入る大きさ（前は幅に合わせていて、1440×900 では下の表題欄が切れた。2026-11-08）。読むときは ＋ で大きくする
+    fit = Math.min(scroller.clientWidth / nat.w, scroller.clientHeight / nat.h);
     apply();
   });
   const zoomBy = (m: number) => {
@@ -2000,7 +2003,7 @@ function askNudgeHtml(b: Built): string {
   if (!gaps.length) return "";
   // デザイナーは職人への質問に答えられない。作る画面では小さな 1 行にして、帳面へ案内するだけにする（2026-11-08 初めての人の試し）。
   // 撮影（?rec&ask）では、前の大きな札のまま
-  if (!filming()) return `<a class="ask-mini" href="app.html#ledger/ask?gap=${encodeURIComponent(gaps[0].id)}">職人への質問が ${gaps.length} つあります（帳面で答える ›）</a>`;
+  if (!filming()) return `<a class="ask-mini" href="app.html#ledger/ask?gap=${encodeURIComponent(gaps[0].id)}">職人への質問が ${gaps.length} 件あります（帳面で答える ›）</a>`;
   let later = false;
   try {
     later = !!sessionStorage.getItem(ASK_LATER_KEY);
@@ -3569,7 +3572,7 @@ function exportStl() {
       a.download = name;
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 60000);
-      toast(`STL を書き出しました：${name}${problems ? `（作れない所が ${problems} つあります。確かめるで直せます）` : ""}`);
+      toast(`STL を書き出しました：${name}${problems ? `（作れない所が ${problems} か所あります。確かめるで直せます）` : ""}`);
     };
     // 撮影では窓を出さない（台本が止まらないように）。名前も前のまま
     if (!problems || filming()) return go(0);
@@ -3599,7 +3602,7 @@ function askStlWithProblems(n: number, onExport: () => void, onFix: () => void) 
   const dlg = document.createElement("dialog");
   dlg.className = "sheet stl-ask";
   dlg.innerHTML = `<form method="dialog">
-    <h3>作れない所が ${n} つあります</h3>
+    <h3>作れない所が ${n} か所あります</h3>
     <p>このまま書き出すと、作れない形の STL になります。書き出すときは、名前に「_確かめ前」を付けます。</p>
     <div class="sheet-actions"><button value="fix" class="primary">直す</button><button value="export" class="ghost">このまま書き出す</button></div>
   </form>`;
@@ -3935,7 +3938,7 @@ function bindRules(box: HTMLElement) {
   });
   box.querySelector(".add-samples")?.addEventListener("click", () => {
     const n = addSampleWorks();
-    toast(`見本の作品を ${n} つ入れました`);
+    toast(`見本の作品を ${n} 件入れました`);
     if (lastRule) pastCheck = recheckWorks(lastRule);
     renderCheck();
   });
