@@ -1,0 +1,147 @@
+[
+  {
+    "version": 1,
+    "tag": "",
+    "prediction": {
+      "applicable": true,
+      "reason": "黒い鉄と白い鉄を重ねてねじる技なので、重ねた層の模様として、重ねる・つなぐ・ねじる・平らにする・割って返す・またつなぐ・またねじる・延ばす・研ぐ・酸の順に置きかえました。",
+      "ops": [
+        {
+          "op": "stack",
+          "step": 1,
+          "why": "黒い鉄と白い鉄を交互に重ねるので。",
+          "assumed": "黒い鉄は黒くなる鋼、白い鉄は白く残る鋼とした。枚数は10枚、同じ厚さと仮に決めた。",
+          "metals": [
+            "steel_dark",
+            "steel_light"
+          ],
+          "amount": 10,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "-"
+        },
+        {
+          "op": "bond",
+          "step": 2,
+          "why": "重ね沸かしで一つの塊につなぐので。",
+          "assumed": "よくつながるとした。",
+          "metals": [],
+          "amount": 0,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "good"
+        },
+        {
+          "op": "twist",
+          "step": 3,
+          "why": "一度目の捩じり。",
+          "assumed": "1本の棒を、長さの中で3回ねじると仮に決めた。",
+          "metals": [],
+          "amount": 3,
+          "size": 0,
+          "across": 1,
+          "count": 0,
+          "thickness": [],
+          "choice": "-"
+        },
+        {
+          "op": "flatten",
+          "step": 4,
+          "why": "ねじった棒を打ち平めるので。",
+          "assumed": "",
+          "metals": [],
+          "amount": 0,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "-"
+        },
+        {
+          "op": "rearrange",
+          "step": 5,
+          "why": "細く割って、一つおきに返して並べるので、細く切って1本おきに向きを変える操作にした。",
+          "assumed": "4本に割るとした。返すは向きを入れ替える読み方で描いた。",
+          "metals": [],
+          "amount": 4,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "strips"
+        },
+        {
+          "op": "bond",
+          "step": 7,
+          "why": "並べ直した棒をまた沸かしてつなぐので。",
+          "assumed": "よくつながるとした。",
+          "metals": [],
+          "amount": 0,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "good"
+        },
+        {
+          "op": "twist",
+          "step": 8,
+          "why": "二筋に捩じる。",
+          "assumed": "二筋を、ねじった棒2本を横に並べてつなぐ読み方で描いた。ねじる回数は2回と仮に決めた。",
+          "metals": [],
+          "amount": 2,
+          "size": 0,
+          "across": 2,
+          "count": 0,
+          "thickness": [],
+          "choice": "-"
+        },
+        {
+          "op": "forge_thin",
+          "step": 9,
+          "why": "叩いて長さの向きに延ばすので。",
+          "assumed": "厚みを3分の1にすると仮に決めた。",
+          "metals": [],
+          "amount": 3,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "length"
+        },
+        {
+          "op": "grind",
+          "step": 11,
+          "why": "研いで平らな面にするので。",
+          "assumed": "厚みの0.25ほど削ると仮に決めた。",
+          "metals": [],
+          "amount": 0.25,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "-"
+        },
+        {
+          "op": "color",
+          "step": 12,
+          "why": "酸に浸して黒と白の差を出すので。",
+          "assumed": "",
+          "metals": [],
+          "amount": 0,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "etch"
+        }
+      ],
+      "cannot_show": "小刀の形に整えること、焼き入れや冷まし方、沸かす熱の高さとぼやけ方、砥石による面の仕上がりは描けません。「返す」と「二筋に捩じる」は読み方のうちの一つだけで描いています。",
+      "summary": "ねじりで出た星のような模様が、割って一つおきに返すことで向きの交互にかわる帯になり、二度目のねじりで、つなぎ目に羽が開いたような形が並ぶのではないかと見込まれます。延ばした向きに少し長くなりそうです。"
+    }
+  }
+]

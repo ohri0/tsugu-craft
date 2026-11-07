@@ -1,0 +1,135 @@
+[
+  {
+    "version": 1,
+    "tag": "",
+    "prediction": {
+      "applicable": true,
+      "reason": "赤銅・銀・銅を重ねて捩じり、三本を並べてつなぎ、四角に切って回す技です。重ねた層の模様の計算に置きかえました。",
+      "ops": [
+        {
+          "op": "stack",
+          "step": 1,
+          "why": "赤銅・銀・銅の板を重ねる工程です。",
+          "assumed": "順は帳面の書き出しの順で、上から赤銅・銀・銅としました。三つを三回くり返して9枚、厚さは同じにしました。絵のための仮の値です。",
+          "metals": [
+            "shakudo",
+            "silver",
+            "copper"
+          ],
+          "amount": 9,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "-"
+        },
+        {
+          "op": "bond",
+          "step": 2,
+          "why": "捩じる前に重ねた板を一度つなぐ工程です。",
+          "assumed": "よくつながったとして描きました。",
+          "metals": [],
+          "amount": 0,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "good"
+        },
+        {
+          "op": "twist",
+          "step": 3,
+          "why": "「三筋に捩じりて」から、三本の棒を捩じる工程です。",
+          "assumed": "捩じる回数は2回、三本とも同じ向きとしました。絵のための仮の値です。",
+          "metals": [],
+          "amount": 2,
+          "size": 0,
+          "across": 3,
+          "count": 0,
+          "thickness": [],
+          "choice": "-"
+        },
+        {
+          "op": "bond",
+          "step": 4,
+          "why": "捩じった三本を横に並べて沸かしつける工程です。",
+          "assumed": "よくつながったとして描きました。",
+          "metals": [],
+          "amount": 0,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "good"
+        },
+        {
+          "op": "flatten",
+          "step": 5,
+          "why": "「打ち平め」から、塊を叩いて平らな板にする工程です。",
+          "assumed": "",
+          "metals": [],
+          "amount": 0,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "-"
+        },
+        {
+          "op": "rearrange",
+          "step": 6,
+          "why": "碁盤の目に切り、一つおきに向きを回す工程です。切る工程と回す工程を一つにまとめました。",
+          "assumed": "縦横3つずつに切るとしました。回す量はこの計算では決められず、四角を回した形で描かれます。",
+          "metals": [],
+          "amount": 3,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "tiles"
+        },
+        {
+          "op": "bond",
+          "step": 8,
+          "why": "並べ直した四角をもう一度沸かしてつなぐ工程です。",
+          "assumed": "押さえ方が分からないので、ところどころつながらないかもしれないとしました。",
+          "metals": [],
+          "amount": 0,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "partial"
+        },
+        {
+          "op": "grind",
+          "step": 9,
+          "why": "「卸す」は意味が分からないので、表を削って模様を出すほうの読み方で描きました。",
+          "assumed": "表を厚みの0.15だけ浅く削るとしました。叩いてのばす意味かもしれません。",
+          "metals": [],
+          "amount": 0.15,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "-"
+        },
+        {
+          "op": "color",
+          "step": 10,
+          "why": "煮色で地金ごとの色を出す工程です。",
+          "assumed": "",
+          "metals": [],
+          "amount": 0,
+          "size": 0,
+          "across": 0,
+          "count": 0,
+          "thickness": [],
+          "choice": "patina"
+        }
+      ],
+      "cannot_show": "四角をどれだけ回すか（四分の一回り・半回り・裏返し）の違い、熱の具合、煮色の本当の色あい、羽の形がどう出るかの本当のしくみは表せません。",
+      "summary": "捩じれた三本の縞が並び、碁盤の四角ごとに向きがずれて、黒・白・赤の筋が石畳のように並ぶ見込みです。羽の形になるかどうかは、この絵では確かではありません。"
+    }
+  }
+]
