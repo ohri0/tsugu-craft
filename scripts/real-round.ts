@@ -8,6 +8,7 @@
 //         npx tsx scripts/real-round.ts <.env のある所> <言葉のファイル> --alt  （2026-11-08 回 4）
 //           案 1 は今までどおり手がかりのとおり。そのうえで、この回に足した職人の言葉の 1 つ目を「職人の見立て」として、
 //           それを試す案 2 も出してもらい、絵にして、同じく目を隠してくらべる。並べた絵は 本物｜案 1｜案 2
+//           前の回の案 1（と、あれば案 2）も、くらべる中に入れ直す（並べた絵には出さない。回 5 から前の案 2 も）
 //         npx tsx scripts/real-round.ts --sheet                          （Claude を呼ばず、いちばん新しい回の並べた絵だけ描き直す）
 // 出すもの：docs/pattern-demo/lost/real/round-<n>/（絵・記録・judge.json・real-compare-round-<n>.png）と、いちばん新しい並べた絵 docs/pattern-demo/lost/real-compare.png
 import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -159,8 +160,14 @@ async function main() {
       note = `回 ${round}：計算を${again}直した（言葉は回 ${last} と同じ）。職人の言葉 ${ledger.rules.length} つのまま、本物の Claude で出し直した`;
     }
     writeFileSync(`${dir}/words.txt`, readFileSync(wordsFile, "utf8"));
-    if (withAlt && !words.length) throw new Error("--alt は、この回に足す職人の言葉（見立て）が要ります");
-    const hyp = withAlt ? words[0] : undefined;
+    // 言葉を足さない回の --alt は、いちばん新しく言葉を足した回の 1 つ目を、見立てに使う（2026-11-08 回 6：計算を直して、回 5 の言葉のまま出し直す）
+    let hypWords = words;
+    if (withAlt && !words.length) {
+      for (let r = round - 1; r > 0 && !hypWords.length; r--)
+        if (existsSync(`${REAL}/round-${r}/words.txt`)) hypWords = wordsToRules(readFileSync(`${REAL}/round-${r}/words.txt`, "utf8"), r);
+      if (!hypWords.length) throw new Error("--alt は、職人の言葉（見立て）が要ります");
+    }
+    const hyp = withAlt ? hypWords[0] : undefined;
     const alt = hyp
       ? {
           title: hyp.title,
@@ -180,12 +187,18 @@ async function main() {
         { tag: `book-r${round}`, file: `${dir}/wootz-book-top.png`, title: "案 1（資料：るつぼの塊）", sub: `手がかりのとおり。職人の言葉 ${ledger.rules.length} つの帳面あり` },
         { tag: `book-r${round}-alt`, file: `${dir}/wootz-book-alt-top.png`, title: "案 2（職人の見立て）", sub: `「${hyp.title}」：何度も折り返して重ねる作り方で組んだ` },
       ];
+      // 前の回にも案 2 があれば、それも入れ直す（並べた絵には出さない。2026-11-08 回 5）
+      const prevAlt = `${REAL}/round-${round - 1}/wootz-book-alt-top.png`;
+      if (existsSync(prevAlt)) cols.splice(1, 0, { tag: `book-r${round - 1}-alt`, file: prevAlt, title: `案 2（回 ${round - 1}）`, sub: "前の回の案 2" });
+      // 2 つ前の回の案 1 も入れ直す（前の回が下がったときに、もっと前とくらべられるように。並べた絵には出さない。2026-11-08 回 6）
+      const prev2 = `${REAL}/round-${round - 2}/wootz-book-top.png`;
+      if (round >= 2 && existsSync(prev2)) cols.unshift({ tag: `book-r${round - 2}`, file: prev2, title: `帳面あり（回 ${round - 2}）`, sub: "2 つ前の回の絵" });
       const judged = await judgeAll(REAL_REFS, cols, password);
-      const show = cols.slice(1).map((c) => c.tag);
+      const show = [`book-r${round}`, `book-r${round}-alt`];
       const honest = "ウーツ鋼は、昔は、るつぼで作った 1 つの鋼の塊から作った、と資料は言います（板を重ねた物ではない）。案 2 が本物に近く見えても、それは「その見た目に、折り返す作り方でも近づける」ということで、昔の作り方がそうだった、ということではありません。";
-      writeFileSync(`${dir}/judge.json`, JSON.stringify({ date: DAY, round, cols, show, honest, words, ...judged }, null, 2));
+      writeFileSync(`${dir}/judge.json`, JSON.stringify({ date: DAY, round, cols, show, honest, words, ...(note ? { note } : {}), ...judged }, null, 2));
       const out = `${dir}/real-compare-round-${round}.png`;
-      await sheet(round, cols.slice(1), judged, words, out, "", honest);
+      await sheet(round, cols.filter((c) => show.includes(c.tag)), judged, words, out, note, honest);
       copyFileSync(out, `${LOST}/real-compare.png`);
       console.log(JSON.stringify(judged.mean, null, 1));
       console.log(out);

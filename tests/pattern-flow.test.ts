@@ -361,3 +361,71 @@ describe("溝を手の槌でふさぐ（flatten の打ちむら）・細かさ�
     expect(p).toContain("まっすぐな細いつなぎ目");
   });
 });
+
+describe("熱して叩くのをくり返す（forge_thin・flatten の heats。2026-11-08 回 6）", () => {
+  const op = (o: Record<string, unknown>) => ({ step: 1, why: "w", assumed: "", metals: [], amount: 0, size: 0, across: 0, count: 0, thickness: [], choice: "-", ...o });
+  const withHeats = (h?: number, uneven = 0.2): PatternOp[] => [
+    { op: "forge_thin", ratio: 6, direction: "length", uneven, swell: 3, ...(h !== undefined ? { heats: h } : {}) },
+  ];
+
+  it("heats が無い・1 なら前と同じ絵。打ちむらが 0 なら使わず、そう知らせる", () => {
+    const a = surface(buildSim([DEND, ...withHeats(), ...tail]), 48);
+    expect(same(a.s, surface(buildSim([DEND, ...withHeats(1), ...tail]), 48).s)).toBe(true);
+    const sim = buildSim([DEND, ...withHeats(4, 0), ...tail]);
+    expect(same(surface(buildSim([DEND, ...withHeats(undefined, 0), ...tail]), 48).s, surface(sim, 48).s)).toBe(true);
+    expect(sim.notes.join("")).toMatch(/熱して叩くくり返し（heats）は、打ちむらの深さ（uneven）が 0/);
+  });
+
+  it("くり返すと、1 回目の打ちはそのままで、あとの回ほど小さく浅い打ちが多く重なる。絵も変わり、知らせに出る", () => {
+    const one = buildSim([DEND, ...withHeats(), ...tail]);
+    const four = buildSim([DEND, ...withHeats(4), ...tail]);
+    const d1 = one.stages[0].dents!;
+    const d4 = four.stages[0].dents!;
+    expect(d4.slice(0, d1.length)).toEqual(d1);
+    expect(d4.length).toBeGreaterThan(3 * d1.length);
+    const late = d4.slice(d1.length);
+    const mean = (xs: number[]) => xs.reduce((s, v) => s + v, 0) / xs.length;
+    expect(mean(late.map((d) => d.r))).toBeLessThan(mean(d1.map((d) => d.r)));
+    expect(late.every((d) => d.a! > 0 && d.a! < 1)).toBe(true);
+    expect(diffShare(surface(one, 64).s, surface(four, 64).s)).toBeGreaterThan(0.02);
+    expect(four.notes.join("")).toMatch(/熱して叩くくり返しは/);
+  });
+
+  it("undent：a があれば、そのぶんだけ小さくずれる（無ければ前のまま）", () => {
+    const d = { x: 0.5, y: 0.5, r: 0.2, s: 1 };
+    expect(undent([d], 0.2, 0.5, 0.5, 0.5)[2]).toBeCloseTo(0.3, 9);
+    expect(undent([{ ...d, a: 0.5 }], 0.2, 0.5, 0.5, 0.5)[2]).toBeCloseTo(0.4, 9);
+  });
+
+  it("道具の値：forge_thin・flatten の count がくり返しの回数になる（1 なら無し）。言い方と指示にも出る", () => {
+    const r = parsePattern(
+      {
+        applicable: true,
+        reason: "r",
+        look: [],
+        ground_metal: "steel_dark",
+        ground_color: "黒",
+        shown_metals: ["steel_dark", "steel_light"],
+        ops: [
+          op({ op: "ingot", metals: M, amount: 30, choice: "dendrite" }),
+          op({ op: "forge_thin", amount: 6, size: 0.2, across: 3, count: 5, choice: "length" }),
+          op({ op: "forge_thin", amount: 2, size: 0.2, count: 1, choice: "length" }),
+          op({ op: "flatten", size: 0.15, count: 3 }),
+          op({ op: "grind", amount: 0.1 }),
+        ],
+        cannot_show: "",
+        summary: "s",
+      },
+      { steps: 3 },
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const ops = toPatternOps(r.value);
+    expect(ops[1]).toEqual({ op: "forge_thin", ratio: 6, direction: "length", uneven: 0.2, swell: 3, heats: 5 });
+    expect(ops[2]).toEqual({ op: "forge_thin", ratio: 2, direction: "length", uneven: 0.2 });
+    expect(ops[3]).toEqual({ op: "flatten", uneven: 0.15, heats: 3 });
+    expect(opWords(r.value.ops[1])).toMatch(/熱して叩くのを 5 回くり返す/);
+    expect(r.warnings ?? []).not.toContainEqual(expect.stringMatching(/count（板全体の数）は使わない/));
+    expect(patternPrompt()).toContain("熱して叩くのをくり返す回数");
+  });
+});
