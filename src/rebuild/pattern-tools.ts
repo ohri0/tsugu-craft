@@ -106,8 +106,8 @@ const USE: Record<ToolOp, { metals?: true; amount?: { lim: Lim; int: boolean }; 
  * 手がかりの「10 ほど」が 60 ほどの丸になった（2026-11-07 夜）。count があれば、ちょうどその数を置く（2026-11-08）
  */
 const COUNTABLE: Partial<Record<ToolOp, readonly string[]>> = {
-  carve: ["dots", "pits", "leaves", "petals"],
-  punch: ["dots", "pits", "leaves", "petals"],
+  carve: ["dots", "pits", "leaves", "petals", "lines", "waves"],
+  punch: ["dots", "pits", "leaves", "petals", "lines", "waves"],
   zogan: ["dots", "pits"],
   uchidashi: ["bumps", "petals", "leaves"],
   sukashi: ["circles", "petals"],
@@ -244,7 +244,8 @@ export const PREDICT_PATTERN: ClaudeTool = {
               type: "integer",
               description:
                 `carve・punch・板の飾り（tsuchime と plate をのぞく）：板の幅の中に並ぶ数・線の本数（${range("across")}。nanako・ishime も、幅の中に並ぶ輪・点の数で、0 にしない。幅の中の数なので、点や丸を並べる・散らすと、板全体ではおよそその 2 乗。板全体の数が分かっているときは count を使い、across は 0）。` +
-                `twist：横に並べてつなぐ棒の数（${range("bars")}。星の先は棒のふちに出るので、1 本では板のふちで半分に切れ、2 本以上ならつなぎ目に丸ごと出る）。ほかは 0`,
+                `twist：横に並べてつなぐ棒の数（${range("bars")}。星の先は棒のふちに出るので、1 本では板のふちで半分に切れ、2 本以上ならつなぎ目に丸ごと出る）。` +
+                `forge_thin：大きな打ち・曲げの数（幅の中 ${range("swell")}。size の打ちむらがあるときだけ。強い打ちや曲げが金属を板の幅ほど動かし、削ると大きな輪（目）・うねりになる。2＝幅に 2 つほどの大きな目、4〜6＝小さめの目がたくさん。0＝小さな打ちだけ）。grind：面のうねりの数（幅の中 ${range("swell")}。大きな打ちと同じほどにすると、ふくらみの所が輪になる。0＝ゆるやか）。ほかは 0`,
             },
             count: {
               type: "integer",
@@ -354,6 +355,10 @@ function readOp(o: Record<string, unknown>, op: ToolOp, where: string, warnings:
   if ((op === "forge_thin" || op === "grind") && typeof o.size === "number" && Number.isFinite(o.size) && o.size > 0) {
     out.size = num(o.size, op === "forge_thin" ? PATTERN_LIMITS.uneven : PATTERN_LIMITS.grindWave, false, where, warnings)!;
   }
+  // 2026-11-08 回 3：forge_thin の大きな打ち・曲げの数、grind の面のうねりの数（どちらも幅の中。0・無いなら前のまま）
+  if ((op === "forge_thin" || op === "grind") && typeof o.across === "number" && Number.isFinite(o.across) && o.across > 0) {
+    out.across = num(o.across, PATTERN_LIMITS.swell, true, where, warnings)!;
+  }
   if (op === "color" && typeof o.amount === "number" && Number.isFinite(o.amount) && o.amount > 0) out.amount = num(o.amount, PATTERN_LIMITS.graded, false, where, warnings)!;
   // 層の厚さの割合（stack・plate だけ。同じ厚さなら空にそろえる）
   const tv = o.thickness;
@@ -444,7 +449,13 @@ export function toPatternOp(o: PredictedOp): PatternOp {
     case "fold":
       return { op: "fold", times: o.amount };
     case "forge_thin":
-      return { op: "forge_thin", ratio: o.amount, direction: o.choice as (typeof DIRECTIONS)[number], ...(o.size > 0 ? { uneven: o.size } : {}) };
+      return {
+        op: "forge_thin",
+        ratio: o.amount,
+        direction: o.choice as (typeof DIRECTIONS)[number],
+        ...(o.size > 0 ? { uneven: o.size } : {}),
+        ...(o.across > 0 ? { swell: o.across } : {}),
+      };
     case "twist":
       return { op: "twist", turns: o.amount, ...(o.across > 1 ? { bars: o.across } : {}) };
     case "carve":
@@ -453,7 +464,7 @@ export function toPatternOp(o: PredictedOp): PatternOp {
     case "flatten":
       return { op: "flatten" };
     case "grind":
-      return { op: "grind", depth: o.amount, ...(o.size > 0 ? { wave: o.size } : {}) };
+      return { op: "grind", depth: o.amount, ...(o.size > 0 ? { wave: o.size } : {}), ...(o.across > 0 ? { ripples: o.across } : {}) };
     case "rearrange":
       return { op: "rearrange", mode: o.choice as RearrangeMode, pieces: o.amount };
     case "color":
@@ -558,7 +569,7 @@ export function opWords(o: PredictedOp): string {
     case "fold":
       return `のばして切り、重ねる（${o.amount} 回。層が ${2 ** o.amount} 倍）`;
     case "forge_thin":
-      return `叩いて厚みを 1/${o.amount} に（${o.choice === "length" ? "長さの向きにのばす" : "縦横に広げる"}${o.size > 0 ? `。打ちむらで層が厚みの ${pct(o.size)} ほど上下にずれる` : ""}）`;
+      return `叩いて厚みを 1/${o.amount} に（${o.choice === "length" ? "長さの向きにのばす" : "縦横に広げる"}${o.size > 0 ? `。打ちむらで層が厚みの ${pct(o.size)} ほど上下にずれる` : ""}${o.size > 0 && o.across > 0 ? `。大きな打ち・曲げで、幅の中に ${o.across} つほどの大きなふくらみ` : ""}）`;
     case "twist":
       return o.across > 1 ? `ねじる（${o.amount} 回）。${o.across} 本を横に並べてつなぐ` : `ねじる（${o.amount} 回）`;
     case "carve":
@@ -568,7 +579,7 @@ export function opWords(o: PredictedOp): string {
     case "flatten":
       return "叩いて平らにする";
     case "grind":
-      return `表を削る（厚みの ${pct(o.amount)}${o.size > 0 ? `。面がうねり、深さが厚みの ${pct(o.size)} ほど変わる` : ""}）`;
+      return `表を削る（厚みの ${pct(o.amount)}${o.size > 0 ? `。面がうねり、深さが厚みの ${pct(o.size)} ほど変わる` : ""}${o.size > 0 && o.across > 0 ? `（幅の中に ${o.across} つほどのうねり）` : ""}）`;
     case "rearrange":
       return `切って並べかえる：${MODE_WORD[o.choice as RearrangeMode]}`;
     case "plate":
@@ -651,7 +662,7 @@ export function patternPrompt(): string {
 - punch：裏から打ち出す（表を削らないと模様にならない。打ち出して削ると、ふくらみの真ん中ほど深い所の層が出て、輪は外から内へ、上の層から下の層の順に並ぶ。地は削ったあとの表の層で、いちばん外の輪もその層なので、地と見分けられる輪は、その 1 つ下の層から。地を X、輪を外から Y・Z にしたいなら、上から X・Y・Z の順に重ねる）
 - flatten：叩いて平らにする
 - grind：表を平らに削る（削った深さが層のさかいに近いと、地が 2 色のまだらになる。地を 1 色にしたいなら、層の真ん中で止まる深さに）
-- 流れる模様の値（省ける。0 なら前のまま）：ingot の choice dendrite＝むらが結晶の枝のすき間に切れ目なく濃くなる（cells は粒のさかいの網目で、のばすと格子に近い）。forge_thin の size＝打ちむら（層が上下にずれる）。grind の size＝面のうねり。color の amount＝濃淡（dendrite のときだけ）。手がかりや帳面が「木目のように流れる」「うねる」「縞が細かく途切れない」と言うとき、手で何度も叩く工程のときに使う。どれも仮の値
+- 流れる模様の値（省ける。0 なら前のまま）：ingot の choice dendrite＝むらが結晶の枝のすき間に切れ目なく濃くなる（cells は粒のさかいの網目で、のばすと格子に近い）。forge_thin の size＝打ちむら（層が上下にずれる）、across＝大きな打ち・曲げの数（size があるときだけ。大きな輪・目になる）。grind の size＝面のうねり、across＝うねりの数（大きな打ちと同じほど）。carve の lines の段の数が品物全体の数なら count。color の amount＝濃淡（dendrite のときだけ）。手がかりや帳面が「木目のように流れる」「うねる」「縞が細かく途切れない」と言うとき、手で何度も叩く工程のときに使う。どれも仮の値
 - rearrange：切って並べかえる（横にして層のふちを表に出す・細く切って向きを変える・四角に切って回す）
 - color：最後に色を出す（酸で地を出す・薬で色を出す・しない）。材料ごとの絵の色が、下の材料の一覧の色に変わるだけで、ほかの材料の色にはならない（銀は薬で色を出しても白いまま）
 

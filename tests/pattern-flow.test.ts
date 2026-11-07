@@ -2,7 +2,7 @@
 // どれも 0 や無いときは前の絵と同じ（保存した見込みの絵の指紋は scripts/pattern-fingerprint.ts でも確かめた）。
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { buildSim, dendriteConc, dendriteCoord, surface, surfaceImage, undent, type PatternOp } from "../src/rebuild/pattern-sim";
+import { buildSim, carveDepth, dendriteConc, dendriteCoord, surface, surfaceImage, undent, unswell, type PatternOp } from "../src/rebuild/pattern-sim";
 import { opWords, parsePattern, patternPrompt, toPatternOps } from "../src/rebuild/pattern-tools";
 
 const M = ["steel_light", "steel_dark"] as ("steel_light" | "steel_dark")[];
@@ -186,5 +186,103 @@ describe("道具の値（省ける。0・- なら前のまま）", () => {
     expect(p).toContain("木目のように流れる");
     expect(p).toContain("dendrite");
     expect(p.length + readFileSync("ledger/wootz.json", "utf8").length).toBeLessThan(40_000);
+  });
+});
+
+describe("大きな打ちと曲げ（forge_thin の swell）・面のうねりの数（grind の ripples）・段を品物全体の数で（2026-11-08 回 3）", () => {
+  const layered = (o: { swell?: number; uneven?: number } = {}): PatternOp[] => [
+    { op: "stack", metals: ["copper", "silver"], count: 16 },
+    { op: "bond", quality: "good" },
+    { op: "forge_thin", ratio: 4, direction: "both", uneven: o.uneven ?? 0.3, ...(o.swell ? { swell: o.swell } : {}) },
+    { op: "grind", depth: 0.28 },
+  ];
+  /** 8×8 の区切りごとの、層の番号の平均のばらつき（大きなうねりがあると、区切りごとに出る層が大きくちがう） */
+  const blockSpread = (l: Uint16Array, n: number) => {
+    const b = n / 8;
+    const means: number[] = [];
+    for (let J = 0; J < 8; J++)
+      for (let I = 0; I < 8; I++) {
+        let s = 0;
+        for (let j = 0; j < b; j++) for (let i = 0; i < b; i++) s += l[(J * b + j) * n + I * b + i];
+        means.push(s / (b * b));
+      }
+    const m = means.reduce((a, v) => a + v, 0) / means.length;
+    return means.reduce((a, v) => a + (v - m) ** 2, 0) / means.length;
+  };
+
+  it("swell が無い・0 なら前と同じ絵。打ちむら（uneven）が 0 なら swell は使わず、そう知らせる", () => {
+    const a = surface(buildSim([DEND, ...forge(0.2), ...tail]), 48);
+    const b = surface(buildSim([DEND, { ...forge(0.2)[0], swell: 0 } as PatternOp, ...forge(0.2).slice(1), ...tail]), 48);
+    expect(same(a.s, b.s)).toBe(true);
+    const plain = surface(buildSim([DEND, ...forge(), ...tail]), 48);
+    const sim = buildSim([DEND, { ...forge()[0], swell: 3 } as PatternOp, ...forge().slice(1), ...tail]);
+    expect(same(plain.s, surface(sim, 48).s)).toBe(true);
+    expect(sim.notes.join("")).toMatch(/打ちむらの深さ（uneven）が 0/);
+  });
+
+  it("大きな打ちがあると、小さな打ちだけのときより、大きな広さで出る層がちがう（大きな輪・目）。知らせにも出る", () => {
+    const n = 96;
+    const small = surface(buildSim(layered()), n);
+    const sim = buildSim(layered({ swell: 2 }));
+    const big = surface(sim, n);
+    expect(blockSpread(big.layer, n)).toBeGreaterThan(2 * blockSpread(small.layer, n));
+    expect(sim.notes.join("")).toMatch(/大きな打ちと曲げ/);
+  });
+
+  it("unswell：深さ 0 なら動かない。真ん中では層が上下にずれる。長さの向きに長い（同じ割合の所で同じずれ）", () => {
+    const d = [{ x: 0.5, y: 0.5, r: 0.2, ry: 0.4, s: 1 }];
+    expect(unswell(d, 0, 0.5, 0.5, 0.4)).toEqual([0.5, 0.5, 0.4]);
+    expect(unswell(d, 0.2, 0.5, 0.5, 0.5)[2]).toBeCloseTo(0.3, 5);
+    expect(unswell(d, 0.2, 0.7, 0.5, 0.5)[2]).toBeCloseTo(unswell(d, 0.2, 0.5, 0.9, 0.5)[2], 9);
+  });
+
+  it("grind の ripples：無ければ前と同じ。あれば面のうねりが変わる", () => {
+    const g = (o: object) => surface(buildSim([DEND, ...forge(), { op: "grind", depth: 0.1, wave: 0.1, ...o }]), 48);
+    expect(same(g({}).s, g({ ripples: 0 }).s)).toBe(true);
+    expect(diffShare(g({}).s, g({ ripples: 4 }).s)).toBeGreaterThan(0.05);
+  });
+
+  it("carve の lines を count で刻むと、板の長さの中に count 本（長さ 8 の板に 40 本なら、幅の中に 5 本）", () => {
+    const op = { op: "carve" as const, side: "top" as const, shape: "lines" as const, depth: 0.3, size: 0.01, across: 1, count: 40 };
+    let grooves = 0;
+    let inG = false;
+    for (let k = 0; k < 4000; k++) {
+      const d = carveDepth(op, 0.5, (k + 0.5) / 4000, 3, 8);
+      if (d > 0.05 && !inG) grooves++;
+      inG = d > 0.05;
+    }
+    expect(grooves).toBeGreaterThanOrEqual(4);
+    expect(grooves).toBeLessThanOrEqual(6);
+  });
+
+  it("道具の値：forge_thin と grind の across が swell・ripples になり、carve の lines は count を使える", () => {
+    const op = (o: Record<string, unknown>) => ({ step: 1, why: "w", assumed: "", metals: [], amount: 0, size: 0, across: 0, count: 0, thickness: [], choice: "-", ...o });
+    const r = parsePattern(
+      {
+        applicable: true,
+        reason: "r",
+        look: [],
+        ground_metal: "steel_dark",
+        ground_color: "黒",
+        shown_metals: ["steel_dark", "steel_light"],
+        ops: [
+          op({ op: "ingot", metals: M, amount: 20, choice: "dendrite" }),
+          op({ op: "forge_thin", amount: 6, choice: "length", size: 0.2, across: 3 }),
+          op({ op: "carve", amount: 0.2, size: 0.01, count: 40, choice: "lines" }),
+          op({ op: "flatten" }),
+          op({ op: "grind", amount: 0.1, size: 0.1, across: 9 }),
+        ],
+        cannot_show: "",
+        summary: "s",
+      },
+      { steps: 3 },
+    );
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const ops = toPatternOps(r.value);
+    expect(ops[1]).toMatchObject({ op: "forge_thin", uneven: 0.2, swell: 3 });
+    expect(ops[2]).toMatchObject({ op: "carve", shape: "lines", count: 40 });
+    expect(ops[4]).toMatchObject({ op: "grind", wave: 0.1, ripples: 6 });
+    expect(opWords(r.value.ops[1])).toMatch(/大きな打ち・曲げ/);
   });
 });

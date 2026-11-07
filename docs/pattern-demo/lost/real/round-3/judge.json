@@ -1,0 +1,318 @@
+{
+  "date": "2026-11-08",
+  "round": 3,
+  "cols": [
+    {
+      "tag": "solo",
+      "file": "docs/pattern-demo/lost/wootz-solo-top.png",
+      "title": "Claude だけ",
+      "sub": "帳面なし（手がかり 6 つだけ）"
+    },
+    {
+      "tag": "book-r2",
+      "file": "docs/pattern-demo/lost/real/round-2/wootz-book-top.png",
+      "title": "帳面あり（回 2）",
+      "sub": "前の回の絵"
+    },
+    {
+      "tag": "book-r3",
+      "file": "docs/pattern-demo/lost/real/round-3/wootz-book-top.png",
+      "title": "帳面あり（回 3）",
+      "sub": "言葉は同じ 4 つ。直した計算で、出し直した"
+    }
+  ],
+  "words": [],
+  "note": "回 3：計算をさらに直した（言葉は回 1 と同じ）。職人の言葉 4 つのまま、本物の Claude で出し直した",
+  "points": [
+    {
+      "key": "contrast",
+      "name": "明暗",
+      "ask": "明るい線と暗い地の、差の強さと、明るい所・暗い所の割合"
+    },
+    {
+      "key": "flow",
+      "name": "流れ",
+      "ask": "流れる水のように、うねって波打つ線かどうか（まっすぐな線・角ばった形とのちがい）"
+    },
+    {
+      "key": "bands",
+      "name": "横切る段",
+      "ask": "刃を横切る段（はしご）や、輪（バラ）があるか・ないか、ある所の見え方"
+    },
+    {
+      "key": "scale",
+      "name": "細かさ",
+      "ask": "線の太さと、線と線の間の大きさ（模様の細かさ）"
+    },
+    {
+      "key": "texture",
+      "name": "つながり方",
+      "ask": "線がとぎれて点やまだらで終わる網のようか、長くつながる縞か、角ばった格子か"
+    }
+  ],
+  "results": [
+    {
+      "ref": "met-30932",
+      "order": [
+        "book-r3",
+        "book-r2",
+        "solo"
+      ],
+      "scores": [
+        {
+          "label": "A",
+          "points": {
+            "contrast": 2,
+            "flow": 3,
+            "bands": 2,
+            "scale": 1,
+            "texture": 2
+          },
+          "overall": 5,
+          "comment": "うねる線と輪のような目は本物に近いです。ただ模様が太くて大きく、横にまっすぐなつなぎ目が入るのは不自然です。",
+          "tag": "book-r3"
+        },
+        {
+          "label": "B",
+          "points": {
+            "contrast": 3,
+            "flow": 1,
+            "bands": 0,
+            "scale": 3,
+            "texture": 2
+          },
+          "overall": 4,
+          "comment": "線の細かさと明暗の割合は近いです。ただ小さく震えるだけで大きなうねりがなく、段や輪も見えません。",
+          "tag": "book-r2"
+        },
+        {
+          "label": "C",
+          "points": {
+            "contrast": 1,
+            "flow": 0,
+            "bands": 1,
+            "scale": 1,
+            "texture": 0
+          },
+          "overall": 1,
+          "comment": "暗い地に細い白線がまばらに走る角ばった格子で、流れる波の模様とは大きくちがいます。",
+          "tag": "solo"
+        }
+      ],
+      "stats": {
+        "本物": {
+          "orient": 1,
+          "light": 0.34,
+          "spread": 0.25,
+          "edges": 0.433
+        },
+        "book-r3": {
+          "orient": 0.78,
+          "light": 0.44,
+          "spread": 0.32,
+          "edges": 0.238
+        },
+        "book-r2": {
+          "orient": 0.67,
+          "light": 0.4,
+          "spread": 0.29,
+          "edges": 0.507
+        },
+        "solo": {
+          "orient": 0.71,
+          "light": 0.16,
+          "spread": 0.3,
+          "edges": 0.292
+        }
+      },
+      "raw": "{\"scores\":[{\"label\":\"A\",\"points\":{\"contrast\":2,\"flow\":3,\"bands\":2,\"scale\":1,\"texture\":2},\"overall\":5,\"comment\":\"うねる線と輪のような目は本物に近いです。ただ模様が太くて大きく、横にまっすぐなつなぎ目が入るのは不自然です。\"},{\"label\":\"B\",\"points\":{\"contrast\":3,\"flow\":1,\"bands\":0,\"scale\":3,\"texture\":2},\"overall\":4,\"comment\":\"線の細かさと明暗の割合は近いです。ただ小さく震えるだけで大きなうねりがなく、段や輪も見えません。\"},{\"label\":\"C\",\"points\":{\"contrast\":1,\"flow\":0,\"bands\":1,\"scale\":1,\"texture\":0},\"overall\":1,\"comment\":\"暗い地に細い白線がまばらに走る角ばった格子で、流れる波の模様とは大きくちがいます。\"}]}"
+    },
+    {
+      "ref": "met-31130",
+      "order": [
+        "solo",
+        "book-r3",
+        "book-r2"
+      ],
+      "scores": [
+        {
+          "label": "A",
+          "points": {
+            "contrast": 1,
+            "flow": 0,
+            "bands": 0,
+            "scale": 1,
+            "texture": 0
+          },
+          "overall": 1,
+          "comment": "暗い地に白い細線が走る角ばった格子で、横の段もはっきりある。本物の細かくうねる灰色の縞とはまったくちがう。",
+          "tag": "solo"
+        },
+        {
+          "label": "B",
+          "points": {
+            "contrast": 2,
+            "flow": 3,
+            "bands": 1,
+            "scale": 1,
+            "texture": 2
+          },
+          "overall": 4,
+          "comment": "うねる流れは近い。ただ渦や輪が大きすぎるうえ、本物にない横切る段がくり返し入る。",
+          "tag": "book-r3"
+        },
+        {
+          "label": "C",
+          "points": {
+            "contrast": 3,
+            "flow": 2,
+            "bands": 2,
+            "scale": 3,
+            "texture": 2
+          },
+          "overall": 5,
+          "comment": "縦に細かい縞と明暗の割合は近い。ただ横向きの機械的なさざなみが全体をおおい、本物の自然なうねりと流れが弱い。",
+          "tag": "book-r2"
+        }
+      ],
+      "stats": {
+        "本物": {
+          "orient": 1,
+          "light": 0.29,
+          "spread": 0.27,
+          "edges": 0.279
+        },
+        "solo": {
+          "orient": 0.84,
+          "light": 0.16,
+          "spread": 0.3,
+          "edges": 0.292
+        },
+        "book-r3": {
+          "orient": 0.91,
+          "light": 0.44,
+          "spread": 0.32,
+          "edges": 0.238
+        },
+        "book-r2": {
+          "orient": 0.5,
+          "light": 0.4,
+          "spread": 0.29,
+          "edges": 0.507
+        }
+      },
+      "raw": "{\"scores\":[{\"label\":\"A\",\"points\":{\"contrast\":1,\"flow\":0,\"bands\":0,\"scale\":1,\"texture\":0},\"overall\":1,\"comment\":\"暗い地に白い細線が走る角ばった格子で、横の段もはっきりある。本物の細かくうねる灰色の縞とはまったくちがう。\"},{\"label\":\"B\",\"points\":{\"contrast\":2,\"flow\":3,\"bands\":1,\"scale\":1,\"texture\":2},\"overall\":4,\"comment\":\"うねる流れは近い。ただ渦や輪が大きすぎるうえ、本物にない横切る段がくり返し入る。\"},{\"label\":\"C\",\"points\":{\"contrast\":3,\"flow\":2,\"bands\":2,\"scale\":3,\"texture\":2},\"overall\":5,\"comment\":\"縦に細かい縞と明暗の割合は近い。ただ横向きの機械的なさざなみが全体をおおい、本物の自然なうねりと流れが弱い。\"}]}"
+    },
+    {
+      "ref": "met-32739",
+      "order": [
+        "book-r2",
+        "book-r3",
+        "solo"
+      ],
+      "scores": [
+        {
+          "label": "A",
+          "points": {
+            "contrast": 3,
+            "flow": 1,
+            "bands": 3,
+            "scale": 3,
+            "texture": 2
+          },
+          "overall": 4,
+          "comment": "細かさと明暗の割合は近く、横切る段もない。ただ、線が横向きの小さな波ばかりで、大きくうねる流れがない。",
+          "tag": "book-r2"
+        },
+        {
+          "label": "B",
+          "points": {
+            "contrast": 3,
+            "flow": 3,
+            "bands": 1,
+            "scale": 2,
+            "texture": 2
+          },
+          "overall": 5,
+          "comment": "うねる流れは近い。だが本物にない横の段のつなぎ目と輪があり、模様も本物より大きくなめらか。",
+          "tag": "book-r3"
+        },
+        {
+          "label": "C",
+          "points": {
+            "contrast": 1,
+            "flow": 0,
+            "bands": 1,
+            "scale": 1,
+            "texture": 0
+          },
+          "overall": 1,
+          "comment": "暗い地に白い細線が浮く、角ばった格子の形。本物のうねる縞や明暗の割合とは大きくちがう。",
+          "tag": "solo"
+        }
+      ],
+      "stats": {
+        "本物": {
+          "orient": 1,
+          "light": 0.42,
+          "spread": 0.29,
+          "edges": 0.453
+        },
+        "book-r2": {
+          "orient": 0.55,
+          "light": 0.4,
+          "spread": 0.29,
+          "edges": 0.507
+        },
+        "book-r3": {
+          "orient": 0.86,
+          "light": 0.44,
+          "spread": 0.32,
+          "edges": 0.238
+        },
+        "solo": {
+          "orient": 0.77,
+          "light": 0.16,
+          "spread": 0.3,
+          "edges": 0.292
+        }
+      },
+      "raw": "{\"scores\":[{\"label\":\"A\",\"points\":{\"contrast\":3,\"flow\":1,\"bands\":3,\"scale\":3,\"texture\":2},\"overall\":4,\"comment\":\"細かさと明暗の割合は近く、横切る段もない。ただ、線が横向きの小さな波ばかりで、大きくうねる流れがない。\"},{\"label\":\"B\",\"points\":{\"contrast\":3,\"flow\":3,\"bands\":1,\"scale\":2,\"texture\":2},\"overall\":5,\"comment\":\"うねる流れは近い。だが本物にない横の段のつなぎ目と輪があり、模様も本物より大きくなめらか。\"},{\"label\":\"C\",\"points\":{\"contrast\":1,\"flow\":0,\"bands\":1,\"scale\":1,\"texture\":0},\"overall\":1,\"comment\":\"暗い地に白い細線が浮く、角ばった格子の形。本物のうねる縞や明暗の割合とは大きくちがう。\"}]}"
+    }
+  ],
+  "mean": {
+    "solo": {
+      "overall": 1,
+      "points": {
+        "contrast": 1,
+        "flow": 0,
+        "bands": 0.7,
+        "scale": 1,
+        "texture": 0
+      },
+      "orient": 0.77
+    },
+    "book-r2": {
+      "overall": 4.3,
+      "points": {
+        "contrast": 3,
+        "flow": 1.3,
+        "bands": 1.7,
+        "scale": 3,
+        "texture": 2
+      },
+      "orient": 0.57
+    },
+    "book-r3": {
+      "overall": 4.7,
+      "points": {
+        "contrast": 2.3,
+        "flow": 3,
+        "bands": 1.3,
+        "scale": 1.3,
+        "texture": 2
+      },
+      "orient": 0.85
+    }
+  }
+}
