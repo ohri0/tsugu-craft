@@ -3180,7 +3180,9 @@ WAZA17H_CAPTION = {"H": ("昔に失われた技でも、", "作り方の案か�
                    "I": WAZA17G_CAPTION}
 # 見込みの絵を替えるときは、この 3 つ（docs/pattern-demo/ からの所。左から 途中・途中・出来上がり）だけ直す。
 #   例：作者の言葉を足した回 1 なら "lost/real/round-1/wootz-book-stage1.png" … "lost/real/round-1/wootz-book-top.png"。段の名前が変われば WAZA17H_STEPS も
-WAZA17H_STAGES = ("lost/wootz-book-stage1.png", "lost/wootz-book-stage2.png", "lost/wootz-book-top.png")
+# 2026-11-08 回 2（計算を直した回。本物との近さ 4 / 10）に替えた。回 2 の段は 1 鋳た塊（樹枝のむら）・2 打ちのばす・3 溝を彫る・4 平らにする・5 研ぐ、出来上がりは色を出したあと。
+#   その中から「塊のむら → のばす → 仕上がり」の 3 つ（stage1・stage2・top）。段の名前（WAZA17H_STEPS）はそのまま合う
+WAZA17H_STAGES = ("lost/real/round-2/wootz-book-stage1.png", "lost/real/round-2/wootz-book-stage2.png", "lost/real/round-2/wootz-book-top.png")
 WAZA17H_STEPS = "鋳た塊のむら → 叩いてのばす → 溝を彫って平らにし、色を出す"
 WAZA17H_REAL = "lost/real/met-30932-crop.png"
 WAZA17H_SIM = "Claude の手順と、職人の帳面を合わせて作った見込み"  # 2026-11-08 作者（絵は帳面ありの回 wootz-book-*）
