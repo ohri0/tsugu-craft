@@ -83,6 +83,19 @@ const REBUILD: { t: string; d: string; v: "ok" | "part" | "miss" }[] = [
   { t: "品物の形にする", d: "鐔などの刀の金具の形に切り出す。器なら、板を金づちで打ち絞って形を作る。", v: "ok" },
   { t: "仕上げて、煮色で色を出す", d: "みがいたあと、硫酸銅と緑青をとかした水で煮る。赤銅は黒、四分一は灰色、銅は赤茶色になり、層の色の差がはっきりする。", v: "ok" },
 ];
+/**
+ * 模様の見込み（2026-11-07）：この世にない技に、本物の Claude が出した手順で描いた絵（docs/pattern-demo/）。
+ * 重ねる技は層の動き、表の技は 1 枚の板の表を変える計算。どれも形だけの見込み
+ */
+const PATTERNS: { id: string; name: string; fam: string; how: string; alt: string }[] = [
+  { id: "kasumi", name: "霞刃の小刀", fam: "重ねる", how: "2 種の鋼を重ね直し、溝を刻んで叩く", alt: "はしご状の帯と、流れる細い線" },
+  { id: "uzu", name: "渦金の帯留め", fam: "重ねる", how: "重ねた棒をねじり、平たくして削る", alt: "ねじれた縞と、入れ子の山形" },
+  { id: "ichimatsu", name: "市松縞の小箱", fam: "重ねる", how: "縞の板を四角に切り、互い違いに", alt: "細い縞の四角が、向きを変えて並ぶ" },
+  { id: "wauchi", name: "輪打ち金筋", fam: "表面", how: "金の筋をはめ、魚々子を打つ", alt: "黒い地に小さな輪が並び、金の波の筋" },
+  { id: "sukashibori", name: "花透かしの縁彫り板", fam: "表面", how: "花を透かし、毛彫り・片切彫り", alt: "花の形の透かしと、ふちの彫りの線" },
+  { id: "tsubukin", name: "粒金槌目の留め具", fam: "表面", how: "槌目の地に、金の粒を房に", alt: "浅いくぼみの金の面と、粒の房" },
+];
+
 const RV_LABEL = { ok: "一致", part: "一部", miss: "たどり着けず" } as const;
 
 /**
@@ -442,6 +455,14 @@ const html = `
         <p class="src rv">2026-11-04 に Claude が組み立てた回の答え合わせ。9 のうち 3 は、手がかりではなく Claude がもともと知っていたことから、と分けて数えています。この力試しに、職人の帳面は渡していません。<a href="${REBUILD_URL}">力試しを開く</a></p>
       </div>
       <figure class="moyou rv">${img("moyou-final", "本当の手順で作ったら、Claude の手順で作ったら、本物の鐔、の 3 つの鐔の絵。Claude の手順の方には、はがれた所の黄色い縁がある", "(max-width: 760px) 92vw, 1100px")}<figcaption>その手順で木目金を作ったら、どんな模様になるか。本当の手順、Claude の手順、本物の鐔を並べました。左の 2 つは計算で描いたシミュレーションです。<a href="${MOYOU_URL}">模様の試しを開く</a></figcaption></figure>
+      <div class="any">
+        <p class="kicker rv">架空の技の例</p>
+        <h3 class="rv">木目金だけではありません。</h3>
+        <p class="rv">答えのない技でも、手がかりを入れると、Claude が手順を推し量り、その手順で作ったときの見込みを描きます。重ねる技も、彫る・打つ・透かすなど表を変える技も。この世にない技でも試せます。</p>
+        <ul class="pt-grid rv">${PATTERNS.map((t) => `<li><figure>${img(`pt-${t.id}`, `架空の技「${t.name}」の模様の見込み。${t.alt}`, "(max-width: 560px) 44vw, (max-width: 900px) 28vw, 170px")}<figcaption><b>${t.name}</b><span class="pt-fam">${t.fam}</span><small>${t.how}</small></figcaption></figure></li>`).join("")}</ul>
+        <figure class="pt-stages rv">${img("pt-stages", "架空の技「輪打ち金筋」の見込みの画面。左から、赤銅の板、金を波の線ではめる、魚々子の輪を打つ、の 3 段。段ごとに、横から見た切り口と上から見た面", "(max-width: 760px) 92vw, 760px")}<figcaption>架空の技「輪打ち金筋」。Claude の案の手順を、1 段ずつ描きます（赤銅の板 → 金をはめる → 輪を打つ）。手順に書かれていない数には「仮」の印がつきます。</figcaption></figure>
+        <p class="src rv">どれも作り話の技に、本物の Claude が出した手順で描いた、形だけの見込みです。金属の本当の流れや熱は計算しません。どちらの描き方にも合わない技は、描かずにそう言います。本当にどうなるかは試して確かめ、最後に決めるのは職人です。<a href="${RESTORE}">途切れた技の画面で例を見る</a></p>
+      </div>
       <div class="own">
         <div class="own-t">
           <h3 class="rv">職人の帳面が加われば、<br>失われた技も、<br class="sm">組み立て直せるかもしれません。</h3>
