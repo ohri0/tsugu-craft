@@ -10,8 +10,10 @@
 //         npx tsx scripts/pattern-lost.ts --render   （Claude を呼ばず、残した見込みから絵だけ描き直す）
 // 出すもの：docs/pattern-demo/lost/wootz-<variant>-top.png・-section.png・-stage<n>.png（途中の段）、lost/cases/wootz-<variant>.json・.replies.json・.predictions.json・.log.md
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 import { encodePng } from "./png";
 import repoLedger from "../ledger/jewelry.json";
+import wootzLedger from "../ledger/wootz.json";
 import type { Ledger } from "../src/rules/ledger";
 import { seedTechLedger, TECH_IDS, TECHS } from "../src/rules/techniques";
 import { bookText, readBook, type BookRule } from "../src/rebuild/book";
@@ -70,10 +72,10 @@ export const LOST_CLUES: { kind: ClueKind; title: string; text: string; source: 
   },
 ];
 
-type Variant = "solo" | "book" | "old";
+export type Variant = "solo" | "book" | "old";
 const VARIANTS: Variant[] = ["solo", "book", "old"];
 
-function loadEnv(path: string) {
+export function loadEnv(path: string) {
   for (const line of readFileSync(path, "utf8").split(/\r?\n/)) {
     const m = /^([A-Z_]+)=(.*)$/.exec(line.trim());
     if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
@@ -81,10 +83,14 @@ function loadEnv(path: string) {
   if (!process.env.DEMO_PASSWORD) process.env.DEMO_PASSWORD = "dev-local";
 }
 
-function bookFor(v: Variant): BookRule[] {
+/** 本物の写真を見た職人の言葉（ledger/wootz.json。scripts/real-round.ts が足す）。帳面ありのときだけ渡す */
+export const WOOTZ_CRAFT = "ダマスカス鋼（本物の写真を見た職人の目）";
+
+export function bookFor(v: Variant, wootz: Pick<Ledger<string>, "rules"> = wootzLedger as unknown as Ledger<string>): BookRule[] {
   if (v === "solo") return [];
   const drop = v === "old" ? new Set(NEW_ENTRY_IDS) : new Set<string>();
   return readBook([
+    { craft: WOOTZ_CRAFT, ledger: wootz },
     { craft: "指輪の石留め", ledger: repoLedger as unknown as Ledger },
     ...TECH_IDS.map((id) => {
       const l = seedTechLedger(id);
@@ -93,21 +99,23 @@ function bookFor(v: Variant): BookRule[] {
   ]).rules;
 }
 
-async function render(tag: string, pred: PatternPrediction): Promise<string[]> {
+export async function render(tag: string, pred: PatternPrediction, out = OUT): Promise<string[]> {
   const m = modelOf(pred, 7);
   const top = await topImage(m, 400, 2);
-  writeFileSync(`${OUT}/${ID}-${tag}-top.png`, encodePng(top.w, top.h, top.data));
+  writeFileSync(`${out}/${ID}-${tag}-top.png`, encodePng(top.w, top.h, top.data));
   const sec = m.section(640, 140, m.row, 2);
-  writeFileSync(`${OUT}/${ID}-${tag}-section.png`, encodePng(sec.w, sec.h, sec.data));
+  writeFileSync(`${out}/${ID}-${tag}-section.png`, encodePng(sec.w, sec.h, sec.data));
   // 途中の段（画面の「段が 1 つずつ現れる」と同じ計算）
   for (let i = 0; i < pred.ops.length - 1; i++) {
     const st = await topImage(m.stage(i), 300, 2);
-    writeFileSync(`${OUT}/${ID}-${tag}-stage${i + 1}.png`, encodePng(st.w, st.h, st.data));
+    writeFileSync(`${out}/${ID}-${tag}-stage${i + 1}.png`, encodePng(st.w, st.h, st.data));
   }
   return m.notes;
 }
 
-async function run(v: Variant) {
+/** 1 とおり通す。out を変えると、絵と記録をそこに出す（本物とくらべる回：scripts/real-round.ts） */
+export async function run(v: Variant, opts: { out?: string; book?: BookRule[] } = {}) {
+  const out = opts.out ?? OUT;
   const { handle } = await import("../api/claude");
   const replies: { tool: string; response: unknown }[] = [];
   const fetchShim: typeof fetch = async (_url, init) => {
@@ -118,7 +126,7 @@ async function run(v: Variant) {
     return new Response(JSON.stringify(body), { status: res.status, headers: res.headers });
   };
   const password = process.env.DEMO_PASSWORD!;
-  const book = bookFor(v);
+  const book = opts.book ?? bookFor(v);
   const useBook = v !== "solo";
   let p: RestoreProject = { ...newProject(`lost-${ID}-${v}`, NAME, DAY), useBook };
   for (const clue of LOST_CLUES) {
@@ -164,28 +172,35 @@ async function run(v: Variant) {
   for (const o of pred.ops) log.push(`- ${o.op}（工程 ${o.step || "なし"}）${opWords(o)}${o.assumed ? `　仮：${o.assumed}` : ""}`);
   if (pred.cannot_show) log.push(`表せないこと：${pred.cannot_show}`);
   if (pred.applicable) {
-    const notes = await render(v, pred);
+    const notes = await render(v, pred, out);
     if (notes.length) log.push(`計算の知らせ：${notes.join(" / ")}`);
   }
-  const base = `${OUT}/cases/${ID}-${v}`;
+  mkdirSync(`${out}/cases`, { recursive: true });
+  const base = `${out}/cases/${ID}-${v}`;
   writeFileSync(`${base}.json`, JSON.stringify(toFile(p, {}, DAY), null, 2));
   writeFileSync(`${base}.replies.json`, JSON.stringify(replies, null, 2));
   writeFileSync(`${base}.predictions.json`, JSON.stringify([{ version: 1, tag: v, prediction: pred }], null, 2));
   writeFileSync(`${base}.log.md`, log.join("\n") + "\n");
   console.log(log.join("\n"));
+  return { plan, pred, book };
 }
 
-mkdirSync(`${OUT}/cases`, { recursive: true });
-if (process.argv[2] === "--render") {
-  for (const v of VARIANTS) {
-    const saved = `${OUT}/cases/${ID}-${v}.predictions.json`;
-    if (!existsSync(saved)) continue;
-    for (const x of JSON.parse(readFileSync(saved, "utf8")) as { prediction: PatternPrediction }[]) if (x.prediction.applicable) console.log(v, (await render(v, x.prediction)).join(" / "));
+async function main() {
+  mkdirSync(`${OUT}/cases`, { recursive: true });
+  if (process.argv[2] === "--render") {
+    for (const v of VARIANTS) {
+      const saved = `${OUT}/cases/${ID}-${v}.predictions.json`;
+      if (!existsSync(saved)) continue;
+      for (const x of JSON.parse(readFileSync(saved, "utf8")) as { prediction: PatternPrediction }[]) if (x.prediction.applicable) console.log(v, (await render(v, x.prediction)).join(" / "));
+    }
+    process.exit(0);
   }
-  process.exit(0);
+  loadEnv(process.argv[2]);
+  const pick = process.argv.slice(3) as Variant[];
+  const runs = VARIANTS.filter((v) => !pick.length || pick.includes(v));
+  const results = await Promise.allSettled(runs.map((v) => run(v)));
+  results.forEach((r, i) => r.status === "rejected" && console.error(runs[i], String(r.reason)));
 }
-loadEnv(process.argv[2]);
-const pick = process.argv.slice(3) as Variant[];
-const runs = VARIANTS.filter((v) => !pick.length || pick.includes(v));
-const results = await Promise.allSettled(runs.map(run));
-results.forEach((r, i) => r.status === "rejected" && console.error(runs[i], String(r.reason)));
+
+// 別の台本（scripts/real-round.ts）から読むときは、ここを走らせない
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();

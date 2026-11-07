@@ -1,0 +1,6 @@
+{
+  "craft": "ダマスカス鋼（ウーツ鋼）",
+  "technique": "wootz",
+  "note": "本物の刀の写真（docs/pattern-demo/lost/real/）と、Claude の見込みの絵を見くらべて、職人（石川さん）が言った言葉を残す帳面。scripts/real-round.ts が、作者の言葉のファイルから足す。Claude の下書きは入れない。",
+  "rules": []
+}

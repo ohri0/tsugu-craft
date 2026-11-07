@@ -16,6 +16,7 @@
 | `cases/wootz-*.json` | 記録のファイル（画面の「ファイルを読み込む」で開ける） |
 | `damascus-compare.png` | 帳面なし・ありを並べた絵と工程 |
 | `beat-candidate*.png` | 動画 2:46 の場面の候補（上：ダマスカス鋼、下：架空の技） |
+| `real/`・`real-compare.png`・`README-real.md` | 本物の刀の写真（メトロポリタン美術館・パブリックドメイン）と見込みの絵をくらべた記録（回ごと） |
 | `wootz-book-flow-01〜09.png` | 画面の流れ（幅 1440。Claude の返事は残した本物の返事を同じ順で返して撮った） |
 
 作り直し方：`npx tsx scripts/pattern-lost.ts <.env のある所> [solo book old]`、絵だけなら `--render`。並べた絵は `node scripts/lost-compose.cjs`。
