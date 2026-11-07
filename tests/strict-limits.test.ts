@@ -7,6 +7,7 @@ import { ASK_GAP, GAP_RULE } from "../src/claude/gap";
 import { RED_PEN } from "../src/claude/redpen";
 import { parseToolCall, TOOLS } from "../src/claude/tools";
 import type { ClaudeTool } from "../src/claude/wire";
+import { PREDICT_PATTERN } from "../src/rebuild/pattern-tools";
 import { PROPOSE_RESTORATION } from "../src/rebuild/restore-tools";
 import { GRADE_PROCESS, PROPOSE_PROCESS } from "../src/rebuild/tools";
 import { MAKE_BAND } from "../src/studio/band";
@@ -56,7 +57,7 @@ describe("strict の道具が、API の上限の中に収まる", () => {
   });
 
   it("1 つだけ送る道具", () => {
-    for (const tool of [MAKE_BAND, SORT_TIPS, RED_PEN, ASK_GAP, GAP_RULE, PROPOSE_PROCESS, GRADE_PROCESS, PROPOSE_RESTORATION]) expectWithinLimits([tool]);
+    for (const tool of [MAKE_BAND, SORT_TIPS, RED_PEN, ASK_GAP, GAP_RULE, PROPOSE_PROCESS, GRADE_PROCESS, PROPOSE_RESTORATION, PREDICT_PATTERN]) expectWithinLimits([tool]);
   });
 });
 

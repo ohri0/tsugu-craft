@@ -1,6 +1,7 @@
 // 「自分の技を組み立て直す」の記録：答えのない技について、手がかり・Claude の案・職人の試した結果を持つ。
 // 力試し（木目金。src/rebuild/material.ts）とちがって、答え合わせはない。工程を確かにできるのは、職人の試した結果だけ。
 // 画面に依存しない、純粋な関数だけを置く。保存は src/app/restore-store.ts。
+import { readPatternRecord, type PatternRecord } from "./pattern-tools";
 import type { Basis, Confidence, HypothesisStep } from "./tools";
 
 export type ClueKind = "object" | "record" | "material" | "opinion";
@@ -123,6 +124,8 @@ export interface RestorePlan {
   book: PlanBookRef[];
   /** 受け取るときに気づいたこと（無い番号を外した、言い切りの言葉があった など） */
   notes: string[];
+  /** この案の工程で作ると、どんな模様になるかの見込み（src/rebuild/pattern-sim.ts。作り直したら置きかえる） */
+  pattern?: PatternRecord;
 }
 
 /**
@@ -519,6 +522,12 @@ export function applyPlan(p: RestoreProject, out: RestorationOutput, ctx: PlanCo
   return { ...p, plans: [...p.plans, plan], nextStep, updated: ctx.date };
 }
 
+/** 案に模様の見込みを残す（同じ案のものは置きかえる） */
+export function setPattern(p: RestoreProject, version: number, record: PatternRecord, date: string): RestoreProject {
+  if (!p.plans.some((v) => v.version === version)) return p;
+  return { ...p, plans: p.plans.map((v) => (v.version === version ? { ...v, pattern: record } : v)), updated: date };
+}
+
 /** 前の案とのちがいの数。最初の案なら null */
 export function planDiff(plan: RestorePlan): { same: number; changed: number; added: number; dropped: number } | null {
   if (plan.version <= 1) return null;
@@ -622,7 +631,9 @@ function readPlan(v: unknown, fallbackDate: string): RestorePlan | null {
   const steps = v.steps.map(readStep);
   if (!steps.length || steps.some((s) => !s)) return null;
   const list = (x: unknown) => (Array.isArray(x) ? x.filter(isRec) : []);
+  const pattern = v.pattern === undefined ? null : readPatternRecord(v.pattern, steps.length);
   return {
+    ...(pattern ? { pattern } : {}),
     version: int(v.version),
     date: dateOr(v.date, fallbackDate),
     steps: steps as PlanStep[],
