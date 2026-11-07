@@ -72,6 +72,13 @@ export const PATTERN_VALUES = {
   twistSmooth: 0.1,
   /** 手であけた穴・刻んだ溝のばらつき（決まった間の穴でも、手の仕事なので少しずれる）。位置は間かくに対して、大きさ・深さ・楕円は割合で */
   handJitter: { pos: 0.1, size: 0.14, depth: 0.1, ellipse: 0.12, lineWander: 0.12 },
+  /**
+   * 鋳た塊（ingot）の中のむらの網目。どれも絵のための仮の値で、出典はない（2026-11-08）。
+   * thick＝塊の厚み（幅に対して）。jitter＝結晶の粒の中心のずれ（粒の間に対して）。wall＝網目の太さ（粒の間に対して）。
+   * beads・beadMix＝網目の太さを変える細かなむら（とぎれとぎれの、つぶの並びのような線にする）の細かさと強さ。
+   * 網目が結晶の枝のすき間にできる、という説の形を借りただけ。本当の網目の間かく・量は資料にあっても、絵の大きさには結びつけていない
+   */
+  ingot: { thick: 0.5, jitter: 0.9, wall: 0.05, beads: 5, beadMix: 0.95 },
 } as const;
 
 /** 絵の光と手ざわり（どれも絵のための値。画面とファイルで同じ） */
@@ -109,6 +116,8 @@ export const PATTERN_LIMITS = {
   thickness: [0.1, 10],
   /** ねじった棒を並べてつなぐ本数（twist の across。2026-11-08） */
   bars: [1, 6],
+  /** 鋳た塊の幅の中の、むらの網目の数（ingot。2026-11-08） */
+  cells: [3, 60],
 } as const satisfies Record<string, readonly [number, number]>;
 
 /** 道具が受け取る操作の数の範囲 */

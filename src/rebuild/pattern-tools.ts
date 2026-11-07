@@ -13,7 +13,7 @@ import type { RestorePlan, RestoreProject } from "./restore";
 import { isRecord, type Parsed } from "./tools";
 
 /** 重ねた層の模様の操作（計算の carve を、表から彫る carve と裏から打ち出す punch に分ける） */
-export const LAYER_OPS = ["stack", "bond", "fold", "forge_thin", "twist", "carve", "punch", "flatten", "grind", "rearrange"] as const;
+export const LAYER_OPS = ["stack", "ingot", "bond", "fold", "forge_thin", "twist", "carve", "punch", "flatten", "grind", "rearrange"] as const;
 /** 1 枚の板の表の飾りの操作（src/rebuild/pattern-relief.ts） */
 export const SURFACE_OPS = ["plate", "kebori", "keribori", "katakiri", "nanako", "ishime", "tsuchime", "sukashi", "uchidashi", "zogan", "granulate", "shippo"] as const;
 /** 道具で使う操作の名前。color はどちらでも使う */
@@ -23,6 +23,7 @@ export type ToolOp = (typeof TOOL_OPS)[number];
 /** 画面に出す操作の名前 */
 export const TOOL_OP_LABEL: Record<ToolOp, string> = {
   stack: "重ねる",
+  ingot: "鋳た塊を用意する（中にむら）",
   bond: "熱してつなぐ",
   fold: "のばして切り、重ねる",
   forge_thin: "叩いて薄くのばす",
@@ -73,6 +74,7 @@ type Lim = readonly [number, number];
 /** 操作ごとに使う値。amount の意味と範囲、across の範囲（true なら PATTERN_LIMITS.across）、choice の言葉 */
 const USE: Record<ToolOp, { metals?: true; amount?: { lim: Lim; int: boolean }; size?: true; across?: true | Lim; choice?: readonly Choice[] }> = {
   stack: { metals: true, amount: { lim: PATTERN_LIMITS.count, int: true } },
+  ingot: { metals: true, amount: { lim: PATTERN_LIMITS.cells, int: true } },
   bond: { choice: QUALITIES },
   fold: { amount: { lim: PATTERN_LIMITS.times, int: true } },
   forge_thin: { amount: { lim: PATTERN_LIMITS.ratio, int: false }, choice: DIRECTIONS },
@@ -166,7 +168,7 @@ const range = (k: keyof typeof PATTERN_LIMITS) => `${PATTERN_LIMITS[k][0]}〜${P
 export const PREDICT_PATTERN: ClaudeTool = {
   name: "predict_pattern",
   description:
-    "途切れた技の案（工程）を、見た目の計算の操作に置きかえる。1 回だけ呼ぶ。計算は 2 つ：重ねた層の模様（最初が stack）と、1 枚の板の表の飾り（最初が plate）。" +
+    "途切れた技の案（工程）を、見た目の計算の操作に置きかえる。1 回だけ呼ぶ。計算は 2 つ：重ねた層の模様（最初が stack。重ねずに 1 つの鋳た塊の中のむらから始める技は ingot）と、1 枚の板の表の飾り（最初が plate）。" +
     "どちらにも合わない技（表に飾りの無い石留め、飾りの無い形を鋳る、漆を塗るだけ など）なら、applicable を false にして ops を空にし、reason に理由を書く。無理に絵にしない。",
   strict: true,
   input_schema: {
@@ -176,7 +178,7 @@ export const PREDICT_PATTERN: ClaudeTool = {
       reason: { type: "string", description: "false のとき：なぜ模様の計算に合わないか（短く）。true のとき：案をどう置きかえたかの一言" },
       ops: {
         type: "array",
-        description: `作る順の操作（${OP_RANGE[0]}〜${OP_RANGE[1]} 個。最初はかならず stack か plate を 1 つ。stack の後は重ねる操作と color だけ、plate の後は板の飾りの操作と color だけ）。applicable が false なら空`,
+        description: `作る順の操作（${OP_RANGE[0]}〜${OP_RANGE[1]} 個。最初はかならず stack・ingot・plate のどれか 1 つ。stack・ingot の後は重ねた層の操作と color だけ、plate の後は板の飾りの操作と color だけ）。applicable が false なら空`,
         items: {
           type: "object",
           properties: {
@@ -187,12 +189,12 @@ export const PREDICT_PATTERN: ClaudeTool = {
             metals: {
               type: "array",
               items: { type: "string", enum: METAL_IDS },
-              description: `stack：重ねる材料を上から順に（${range("metals")} 種。くり返して重ねる）。plate：地の金属 1 つ。色のちがう金属を重ねてつないだ板の表を飾るなら、上の層から順に 2〜4 つ。zogan・granulate：はめる金属・粒の金属 1 つ。shippo：ガラスの色（enamel_ で始まるもの）と、区切りの線の金属を 1 つ入れてもよい（あわせて 1〜4）。ほかの操作では空`,
+              description: `stack：重ねる材料を上から順に（${range("metals")} 種。くり返して重ねる）。ingot：網目になる材料、地の材料の順に 2 つ。plate：地の金属 1 つ。色のちがう金属を重ねてつないだ板の表を飾るなら、上の層から順に 2〜4 つ。zogan・granulate：はめる金属・粒の金属 1 つ。shippo：ガラスの色（enamel_ で始まるもの）と、区切りの線の金属を 1 つ入れてもよい（あわせて 1〜4）。ほかの操作では空`,
             },
             amount: {
               type: "number",
               description:
-                `操作の主な数。stack：枚数（${range("count")}）。fold：回数（${range("times")}。1 回で層が 2 倍）。forge_thin：厚みを何分の 1 にするか（${range("ratio")}）。` +
+                `操作の主な数。stack：枚数（${range("count")}）。ingot：塊の幅の中の、むらの網目の数（${range("cells")}）。fold：回数（${range("times")}。1 回で層が 2 倍）。forge_thin：厚みを何分の 1 にするか（${range("ratio")}）。` +
                 `twist：板の長さの中でねじる回数（${range("turns")}）。carve・punch：深さ（板の厚みに対して ${range("depth")}）。grind：削る深さ（厚みに対して ${range("grind")}）。rearrange：切る数（${range("pieces")}。edge_up では、切った数だけ、すべての層の縞がくり返す：縞の数＝重ねた枚数×切る数）。` +
                 `kebori・keribori・katakiri：彫る深さ（厚みに対して ${range("depth")}）。tsuchime：跡の深さ（${range("depth")}）。uchidashi：盛り上げる高さ（厚みに対して ${range("depth")}）。ほかは 0`,
             },
@@ -347,13 +349,13 @@ export function parsePattern(input: unknown, ctx: { steps: number }): Parsed<Pat
     if (!isRecord(o)) return { ok: false, error: `${where}の形が正しくありません` };
     const op = typeof o.op === "string" && (TOOL_OPS as readonly string[]).includes(o.op) ? (o.op as ToolOp) : null;
     if (!op) return { ok: false, error: `${where}：op は ${TOOL_OPS.join("・")} のどれかです` };
-    if (i === 0 && op !== "stack" && op !== "plate") return { ok: false, error: "最初の操作は stack（重ねる）か plate（1 枚の板）にしてください" };
-    if (i > 0 && (op === "stack" || op === "plate")) return { ok: false, error: `${where}：${op} は最初に 1 回だけです。重ね直すときは fold か rearrange を使ってください` };
+    if (i === 0 && op !== "stack" && op !== "plate" && op !== "ingot") return { ok: false, error: "最初の操作は stack（重ねる）か ingot（鋳た塊）か plate（1 枚の板）にしてください" };
+    if (i > 0 && (op === "stack" || op === "plate" || op === "ingot")) return { ok: false, error: `${where}：${op} は最初に 1 回だけです。重ね直すときは fold か rearrange を使ってください` };
     if (i > 0 && op !== "color") {
       const surface = (SURFACE_OPS as readonly string[]).includes(op);
       const firstIsPlate = (input.ops[0] as Record<string, unknown>).op === "plate";
       if (surface !== firstIsPlate)
-        return { ok: false, error: `${where}：${op} は、最初が ${firstIsPlate ? "stack" : "plate"} のときの操作です。重ねる技なら stack から、1 枚の板の飾りなら plate から始め、操作をまぜないでください` };
+        return { ok: false, error: `${where}：${op} は、最初が ${firstIsPlate ? "stack か ingot" : "plate"} のときの操作です。重ねる技なら stack（鋳た塊なら ingot）から、1 枚の板の飾りなら plate から始め、操作をまぜないでください` };
     }
     const vals = readOp(o, op, where, warnings);
     if ("error" in vals) return { ok: false, error: vals.error };
@@ -373,6 +375,8 @@ export function toPatternOp(o: PredictedOp): PatternOp {
   switch (o.op) {
     case "stack":
       return { op: "stack", metals: o.metals, count: o.amount, ...(o.thickness?.length ? { thickness: o.thickness } : {}) };
+    case "ingot":
+      return { op: "ingot", metals: o.metals, cells: o.amount };
     case "bond":
       return { op: "bond", quality: o.choice as (typeof QUALITIES)[number] };
     case "fold":
@@ -480,6 +484,8 @@ export function opWords(o: PredictedOp): string {
   switch (o.op) {
     case "stack":
       return `${o.metals.map((m) => PATTERN_METALS[m].name.replace(/（.*）/, "")).join("・")}を ${o.amount} 枚、順に重ねる${thickWords(o)}`;
+    case "ingot":
+      return `${o.metals.map(metalName).join("・")}の、1 つの鋳た塊（中のむら：${metalName(o.metals[0])}の網目。幅の中に ${o.amount}）`;
     case "bond":
       return `熱してつなぐ（${QUALITY_WORD[o.choice as (typeof QUALITIES)[number]]}）`;
     case "fold":
@@ -567,6 +573,7 @@ export function patternPrompt(): string {
 
 色のちがう材料を重ねた板（または棒）を、次の操作で変えていき、最後の表と断面の色を描きます。
 - stack：材料を重ねる（最初に 1 回だけ。材料ごとに厚さを変えるなら thickness に割合）
+- ingot：stack の代わりに、重ねない 1 つの鋳た塊から始める（最初に 1 回だけ）。塊の中で、混じり物などが結晶の枝のすき間に集まった、3 次元の網目のむらがあるとして描く。metals は網目になる材料・地の材料の順に 2 つ。amount は塊の幅の中の網目の数（仮）。叩いてのばすと網目は平たい帯になり、削った表や彫って平らにした所でその切り口が模様になる。むらの本当の形と量は分かっていないので、絵は説の形の仮の見込み。層を重ねて作る技には使わない
 - bond：熱して層をつなぐ（つなぐ手順が無ければ、層がはがれやすいとして描かれる）
 - fold：のばして半分に切り、重ねる（層が 2 倍ずつ）
 - forge_thin：叩いて薄くのばす（あとで彫ったり、前に彫った形がのびる）
@@ -610,6 +617,7 @@ ${JA_ANSWER}
 - 前の案の見込みが渡されたら、案で変わっていない所の仮の値（材料と重ねる順・枚数・穴や溝の大きさと数・回数など）は、前と同じにしてください。絵のちがいが、案の変わった所だけから出るようにするためです。前とちがう値にしたときは、assumed にそう書いてください。
 - 試した結果が渡されたら、絵がその結果と合うように仮の値を選んでください（例：「浅い穴では、ある色の層が出なかった」なら、浅い穴はその層に届かない深さと枚数で描く）。結果と食いちがう仮の値は選ばないでください。どう合わせたかを assumed に書いてください。
 - 工程にない操作を、もっともらしく足さないでください。模様が出ない手順なら、出ないままにしてください（計算が「模様が出ない」と知らせます）。
+- 1 つの鋳た塊の中のむらが、叩いてのばして模様になる技なら、A を ingot から始めてください（重ねていない物を stack で描かないでください）。
 - 色のちがう層を重ねて模様を出す技なら A、1 枚の板の表を飾る技（彫金・打ち・透かし・象嵌・粒金・七宝など）なら B を使ってください。A と B の操作をまぜないでください。重ねた板の表を彫る・打つ技（彫った所だけ下の層の色が出る、など）は、B の plate に重ねた金属を上から書きます。
 - どちらにも合わない技があります（表に飾りの無い石留め、飾りの無い形を鋳る・打つだけ、表に塗る・めっきするだけ、など）。そのときは applicable を false にし、ops を空にして、reason に、なぜ合わないかを短く書いてください。無理に模様にしないでください。正直さが、絵が出ることより大事です。
 - 一部だけ合う技（石を留め、まわりの地に彫りや打ちの飾りがある、など）は、描ける所だけを置きかえ、残りを cannot_show に書いてください。
