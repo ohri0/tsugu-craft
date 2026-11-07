@@ -21,7 +21,7 @@ function fakeClaude(body) {
   if (tools.includes('gap_rule')) {
     // 届いた質問への答えと、Claude の問いへの答えで、決まりの名前を分ける
     const asked = JSON.stringify(body.messages).includes('失敗した線');
-    return use('gap_rule', { has_value: false, value: 0, title: asked ? '失敗した線は消せますか' : '線の幅と深さ', text: asked ? '浅い線なら磨いて消す' : ANSWER, reason: '（理由はまだ聞いていない）', follow_up: '' });
+    return use('gap_rule', { has_value: false, value: 0, title: asked ? '失敗した線は消せますか' : '彫りの深さ', text: asked ? '浅い線なら磨いて消す' : ANSWER, reason: '（理由はまだ聞いていない）', follow_up: '' });
   }
   if (tools.includes('ask_teacher')) {
     const all = JSON.stringify(body.messages);
@@ -34,7 +34,8 @@ function fakeClaude(body) {
       return use('ask_teacher', { question: UNKNOWN, why_unanswered: '帳面にない' });
     }
     if (lastText.includes('tool_result')) return msg([{ type: 'text', text: `答え：職人に聞いておきます。答えが届いたら、ここで答えられるようになります。\nなぜ：帳面にありません。\n決まり：` }]);
-    const id = /\[([^\]]+)\] 線の幅と深さ/.exec(body.system)?.[1];
+    // 作者の本当の決まりにも同じ題があるので、いちばん後に足した決まり（この確かめで入れた答え）を選ぶ
+    const id = [...body.system.matchAll(/\[([^\]]+)\] 彫りの深さ/g)].pop()?.[1];
     assert(id, `帳面に職人の決まりが渡っていない：${all.slice(0, 80)}`);
     return msg([{ type: 'text', text: `答え：図案で変えます。\nなぜ：職人がそう言いました。\n決まり：[${id}]` }]);
   }
@@ -70,7 +71,8 @@ export async function trackVideo(video, opts) {
   const shot = async (name) => { await p.waitForTimeout(500); await p.screenshot({ path: `${out}/${name}.png` }); };
   const step = (t) => console.log('・', t);
   const dots = () => p.locator('.flow:visible .fl-step').evaluateAll((els) => els.map((e) => (e.classList.contains('done') ? '済' : e.classList.contains('current') ? '今' : '-')).join(''));
-  const grow = () => p.locator('.flow:visible .fl-grow').innerText().then((t) => t.replace(/\s+/g, ' '));
+  // 届いた質問の数（赤い帯。ないときは 0）
+  const asked = async () => ((await p.locator('.flow:visible .fl-back b').count()) ? Number(await p.locator('.flow:visible .fl-back b').innerText()) : 0);
 
   step('はじめの画面は技の一覧');
   await p.goto(`${BASE}/app.html`, { waitUntil: 'load' });
@@ -79,10 +81,16 @@ export async function trackVideo(video, opts) {
   assert.equal((await p.locator('.nav a').first().innerText()).trim(), '技');
   await shot('1-list');
 
-  step('毛彫りを開く：次は「答える」');
+  step('毛彫りを開く：帳面に作者の決まりがあるので、次は「手本を残す」。答える段へ切り替えられる');
   await p.locator('.big-tech[href="#waza/kebori"]').click();
   await p.waitForSelector('.flow:visible');
-  assert.equal(await dots(), '今---');
+  assert.equal(await dots(), '済今--');
+  assert.equal(await p.locator('.fl-step.at a').getAttribute('data-step'), 'model');
+  await p.locator('.fl-slot a[data-step="answer"]').click();
+  await p.waitForSelector('#tp-ask:not([hidden])');
+  assert.equal(await p.locator('.fl-step.at a').getAttribute('data-step'), 'answer');
+  // 答えている間は、大きな「次」を出さない（目立つボタンは「決まりにする」の 1 つ）
+  assert.equal(await p.locator('.fl-go:visible').count(), 0, '答えている間に大きな「次」が出ている');
   await p.waitForFunction(() => document.querySelector('#tp-ask .iv-q')?.textContent.includes('言い直し'));
   const y = await p.locator('#tp-ask').evaluate((e) => e.getBoundingClientRect().top + scrollY);
   assert(y < H * 1.3, `答える所が遠い：${y}`);
@@ -98,6 +106,7 @@ export async function trackVideo(video, opts) {
   const saved = await p.locator('.fl-saved').innerText();
   assert(saved.includes(ANSWER) && saved.includes('職人：') && /\d{4}-\d{2}-\d{2}/.test(saved), saved);
   assert.equal(await dots(), '済今--');
+  assert.equal(await p.locator('.fl-go:visible').count(), 1);
   await shot('4-saved');
 
   step('次：手本を残す（撮るだけ）');
@@ -111,7 +120,7 @@ export async function trackVideo(video, opts) {
   await p.locator('.motion-save').click();
   await p.waitForSelector('.fl-saved');
   assert.equal(await dots(), '済済今-');
-  assert.match(await grow(), /1 職人の決まり 1 手本 0 届いた質問/);
+  assert.equal(await asked(), 0);
   await shot('6-model-saved');
 
   step('次：学ぶ人が聞く（その技が選ばれている）→ 職人の言葉つきの答え');
@@ -119,7 +128,7 @@ export async function trackVideo(video, opts) {
   await p.waitForFunction(() => location.hash === '#learn/kebori');
   assert.equal(await p.locator('.tech-pick select:visible').inputValue(), 'kebori');
   assert((await p.locator('.chip:visible').allInnerTexts()).some((t) => t.includes('鏨')));
-  await p.locator('.composer textarea').fill('毛彫りの線の幅と深さは？');
+  await p.locator('.composer textarea').fill('毛彫りの深さは？');
   await p.locator('.composer .send').click();
   await p.waitForSelector('.a-voice.quoted');
   const voice = await p.locator('.a-voice').first().innerText();
@@ -140,21 +149,24 @@ export async function trackVideo(video, opts) {
   await p.waitForSelector('.result .verdict');
   await p.waitForSelector('.moment canvas.cl');
   await shot('9-compare');
-  assert.equal(await dots(), '済済済済');
+  // 学ぶの画面には職人の段を出さない（聞く・手を比べるの切り替えだけ）
+  assert.equal(await p.locator('#screen-learn .flow').count(), 0);
+  assert.equal(await p.locator('.learn-nav:visible a[aria-current="page"]').getAttribute('data-step'), 'hands');
 
   step('届いた質問が、毛彫りの頁に来ている（技の札と印）');
   assert.equal((await p.locator('.nav a[data-view="waza"] .badge').innerText()).trim(), '1');
   assert.equal(await p.locator('.nav a[data-view="ledger"] .badge').isVisible(), false);
   await p.goto(`${BASE}/app.html#waza/kebori?step=answer`);
   await p.waitForFunction((q) => document.querySelector('#tp-ask .iv-q')?.textContent === q, UNKNOWN);
-  assert.match(await grow(), /1 職人の決まり 1 手本 1 届いた質問/);
+  assert.equal(await dots(), '済済済済');
+  assert.equal(await asked(), 1);
   await shot('10-question');
   await p.locator('.iv-root textarea').fill('浅い線なら磨いて消す');
   await p.locator('.iv-root .make').click();
   await p.waitForSelector('.iv-root .proposal');
   await p.locator('.iv-root [data-a="ok"]').click();
   await p.waitForSelector('.fl-saved');
-  assert.match(await grow(), /2 職人の決まり 1 手本 0 届いた質問/);
+  assert.equal(await asked(), 0);
 
   step('同じ質問に、こんどは答えられる');
   await p.evaluate(() => (location.hash = '#learn/kebori'));
@@ -169,7 +181,10 @@ export async function trackVideo(video, opts) {
   await p.evaluate(() => (location.hash = '#waza'));
   await p.waitForSelector('.big-tech[href="#waza/kebori"] .bt-stats');
   const stats = (await p.locator('.big-tech[href="#waza/kebori"] .bt-stats').innerText()).replace(/\s+/g, ' ');
-  assert.match(stats, /2 職人の決まり 1 手本 0 届いた質問/);
+  // 作者の決まり 1 ＋ この確かめで足した 2
+  // 「届いた質問 0」は 2026-11-07 に外した（赤い札「質問 N 件 ・ 答える」と同じことだったので）
+  assert.match(stats, /職人の決まり 3 手本 1/);
+  assert.doesNotMatch(stats, /届いた質問/);
   await shot('12-grown');
   await p.evaluate(() => (location.hash = '#ledger'));
   await p.waitForSelector('.book-techs a[href^="#waza/kebori"]');
@@ -188,7 +203,8 @@ export async function trackVideo(video, opts) {
   await p.goto(`${BASE}/app.html?nointro#waza/mokume`);
   await p.waitForSelector('.tp-steps:visible');
   assert.equal(await p.locator('#screen-waza .flow').count(), 0);
-  assert.equal((await p.locator('.nav a').first().innerText()).trim(), '設計');
+  // 設計のタブには、別の画面へ移る印（↗）が付く（59f6e44）
+  assert.match((await p.locator('.nav a').first().innerText()).trim(), /^設計/);
 
   await b.close();
   if (bad.length) { console.error('画面のエラー', bad); process.exit(1); }

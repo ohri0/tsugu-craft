@@ -36,7 +36,8 @@ describe("なぜ継ぐ", () => {
     expect(html).toContain("ff-box");
     expect(html).toContain("職人の判断</text>");
     expect(html).toContain("戻りは極限まで少なくなります");
-    expect(html).toContain("人の仕事のまま");
+    // 2026-11-06 作者：「設計も制作も、人の仕事のままです」はいらない
+    expect(html).not.toContain("人の仕事のまま");
   });
   it("20 年の図：各回は端のぼやけた帯。年数を書かない", () => {
     const html = whyHtml();

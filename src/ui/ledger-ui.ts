@@ -4,7 +4,7 @@ import { runClaude } from "../claude/loop";
 import { interviewPrompt } from "../claude/prompt";
 import { TOOLS, type ProposeRuleInput, type ProposeRuleResult, type ToolHost } from "../claude/tools";
 import type { ClaudeMessageParam } from "../claude/wire";
-import { activeRules, addRule, PARAMS, removeLastRule, seedLedger, parseSizeSteps, sizeStepsText, sourceLabel, type Ledger, type ParamId, type Rule } from "../rules/ledger";
+import { activeRules, addRule, OFFERED_PARAM_IDS, PARAMS, removeLastRule, seedLedger, parseSizeSteps, sizeStepsText, sourceLabel, type Ledger, type ParamId, type Rule } from "../rules/ledger";
 
 
 import repoLedger from "../../ledger/jewelry.json";
@@ -34,6 +34,13 @@ const OLD_RULE_TEXTS: Record<string, string[]> = {
   "rule-tension-depth-ishikawa": [
     "三角の石を腕の両はしで挟むとき、片方の端に小さなくぼみを掘って、角の先を 1 mm くらい入れる。もう片方の端には、辺に沿ったまっすぐな溝を切って、辺を 0.5 mm 差し込む。角がくぼみで止まるので、石は横にずれない",
     "三角の石を腕の両はしで挟むとき、片方の端に小さなくぼみを掘って、角の先を 0.8 mm くらい入れる。もう片方の端には、辺に沿ったまっすぐな溝を切って、辺を 0.5 mm 差し込む。角がくぼみで止まるので、石は横にずれない",
+    // 2026-11-07 帳面から外した（retired）ときの文。作者「適当に言ってるだけ。気にしなくていい。忘れてもいい」。深さの既定は、戻りきらない分を見込んだ計算のおすすめ（仮）にした
+    "深さは石によって変わる。たとえば 8.88 mm の三角の石を腕の両はしで挟むときは、片方の端に小さなくぼみを掘って、角の先を 0.8 mm くらい入れる。もう片方の端には、辺に沿ったまっすぐな溝を切って、辺を 0.5 mm 差し込む。角がくぼみで止まるので、石は横にずれない。この石のくぼみの深さは、2026-11-05 に 1 mm くらいから 0.8 mm に決め直した",
+  ],
+  // 作者が指輪を見て直す前（2026-11-07「くぼみも溝も 0.5 ぐらい」→「角のくぼみ 0.4、辺の溝 0.3 ぐらい」→「溝はたぶん 0.4」）
+  "rule-tension-side-ishikawa": [
+    "三角の石の短い辺を片はしの溝に落とし、反対の角をもう片はしのくぼみに入れるときは、くぼみも溝も 0.5 mm くらい。実際に作った指輪（シルバー 925・φ4 の丸線・14 号・8.88 mm の三角）の値。深さは石によって変わる",
+    "三角の石の短い辺を片はしの溝に落とし、反対の角をもう片はしのくぼみに入れるときは、角のくぼみ 0.4 mm・辺の溝 0.3 mm くらい（見た感じ）。実際に作った指輪（シルバー 925・φ4 の丸線・14 号・8.88 mm の三角）の値。深さは石によって変わる",
   ],
 };
 
@@ -123,7 +130,7 @@ export function mountLedger(root: HTMLElement, onChange: LedgerChange): LedgerUI
         <label>短い名前<input data-f="title" type="text" placeholder="例：鋳造の爪の根元"></label>
         <label>決まり<textarea data-f="text" rows="2" placeholder="いつ・何を・どこまで"></textarea></label>
         <label>理由<textarea data-f="reason" rows="2" placeholder="なぜそうするか"></textarea></label>
-        <label>機械で確かめる値（あれば）<select data-f="param"><option value="">なし（言葉だけの決まり）</option>${Object.entries(PARAMS)
+        <label>機械で確かめる値（あれば）<select data-f="param"><option value="">なし（言葉だけの決まり）</option>${OFFERED_PARAM_IDS.map((k) => [k, PARAMS[k]] as const)
           .map(([k, v]) => `<option value="${k}">${v.label}${v.unit ? `（${v.unit}）` : ""}</option>`)
           .join("")}</select></label>
         <label>値<input data-f="value" type="number" step="0.01"></label>

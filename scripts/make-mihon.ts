@@ -1,95 +1,183 @@
-// 見本の動画と手の記録を作る（public/mihon/）。手は絵で描いた作り話で、人の手を撮ったものではない。
-// 手本：鏨を当てて、ゆっくり一定に進む。学ぶ人：同じ動きに、手のふらつきを足す。
-// 使い方：npx tsx scripts/make-mihon.ts（Playwright の Chromium と ffmpeg を使う）
+// 見本の動画と手の記録を作る（public/mihon/）。元は作者（彫金の職人）が撮った、本物の手元の動画（ヤスリがけ）。
+// 1 本の動画からは、手本と学ぶ人を別の秒で切り出す（学ぶ人の手は「見立てた例」）。--pair なら、職人が撮り分けた いい例・よくない例 の 2 本から作る。
+// 手の点は、アプリと同じモデルで、ブラウザの中で動画から読む（暗い手元向けの読み方は scripts/mihon-read.ts）。
+// 読んだ点の時刻と位置は、見せる動画とそのまま合う。
+//
+// 使い方：npx tsx scripts/make-mihon.ts <file_hands.mov>
+//         npx tsx scripts/make-mihon.ts --pair <いい例.mov> <よくない例.mov>  … いい例とよくない例を別々に撮ったとき（2026-11-07）。
+//           それぞれ全体を使う。切るときは MIHON_MASTER_SS / _T・MIHON_LEARNER_SS / _T（秒）。画面の言葉は public/mihon/pair.json
+//         npx tsx scripts/make-mihon.ts --scan <file_hands.mov>   … 全体を読んで、秒ごとの手の見え方を出す（秒を選ぶため）
+//         MIHON_REUSE=1 npx tsx scripts/make-mihon.ts --try <file_hands.mov>  … 前に読んだ全体を使い回し、秒の分け方をいくつか比べる
+// 使うもの：ffmpeg、Playwright の Chromium、手の点のモデル（Google の配布先から読む。ネットが要る）
 import { execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { chromium } from "playwright";
+import { createServer } from "vite";
 import { createRecord } from "../src/craft/record";
-import type { MotionInput } from "../src/craft/motion";
-import { handLandmarks, rng, type HandPose } from "../tests/helpers/hands";
+import { analyzeMotion, type MotionInput } from "../src/craft/motion";
+import { comparePose, poseSummary } from "../src/craft/pose";
+import type { ReadOptions } from "./mihon-read";
 
 const OUT = "public/mihon";
-const W = 960;
-const H = 540;
-const ASPECT = W / H;
-const FPS = 20;
-const DUR = 14;
+/** 軽くする：長い辺を 960 px に（横長なら 960×540、縦長なら 540×960。向きは元の動画のまま。2026-11-07 の撮り分けた動画は縦長） */
+const SCALE = "scale='if(gt(iw,ih),960,-2)':'if(gt(iw,ih),-2,960)'";
+const DATE = "2026-11-06";
 
-/** 手のひらの基準の動き：右へゆっくり進み、鏨を打つ小さな上下 */
-function pose(t: number, shake: number, r: ReturnType<typeof rng>): HandPose {
-  const beat = Math.sin(2 * Math.PI * 1.2 * t);
-  // ふらつきは、ゆっくりした揺れ＋ときどき大きくぶれる所
-  const swell = Math.exp(-((t - 5) ** 2) / 1.2) + Math.exp(-((t - 10.5) ** 2) / 0.8);
-  const sway = shake * (0.018 * Math.sin(1.7 * t + 1) + 0.03 * swell * Math.sin(7.3 * t) + 0.004 * r.gauss());
-  // 指先が板のほうを向く（鏨を上から持つ形）
-  return { x: 0.62 + 0.016 * t + sway, y: 0.13 + 0.004 * beat + sway * 1.1, palm: 0.2, angle: -112 + 2 * beat + shake * 12 * swell * Math.sin(3.1 * t) };
-}
+/** 手の点の読み方 */
+const READ: ReadOptions = {
+  fps: 24,
+  minConfidence: 0.1,
+  // 暗い手元向け。明るめの動画（2026-11-07 の撮り分け）は MIHON_FILTERS="none|brightness(1.4) contrast(1.15)" のように | で替える
+  filters: process.env.MIHON_FILTERS ? process.env.MIHON_FILTERS.split("|") : ["brightness(1.8) contrast(1.2)", "brightness(2.4) contrast(1.1)"],
+  rotations: [0, 90, 180, 270],
+  sameHandDist: 0.12,
+};
 
-function makeInput(shake: number, seed: number): MotionInput {
-  const r = rng(seed);
-  const frames = Array.from({ length: Math.round(DUR * FPS) }, (_, i) => {
-    const t = i / FPS;
-    return { t, hands: [{ landmarks: handLandmarks(pose(t, shake, r), ASPECT), score: 0.95 }] };
-  });
-  return { aspect: ASPECT, durationS: DUR, frames };
-}
-
-/** 1 こまを描く（ブラウザの中で動く）：地金の板、彫った線、手の絵、作り話の印 */
-const DRAW = `(function (pts, t, W, H, line, label) {
-  const c = window.cv || (window.cv = Object.assign(document.createElement('canvas'), { width: W, height: H }));
-  const g = c.getContext('2d');
-  g.fillStyle = '#26221d'; g.fillRect(0, 0, W, H);
-  const metal = g.createLinearGradient(0, H * 0.45, 0, H);
-  metal.addColorStop(0, '#b9b4aa'); metal.addColorStop(1, '#8c867a');
-  g.fillStyle = metal; g.beginPath(); g.roundRect(W * 0.08, H * 0.58, W * 0.84, H * 0.3, 10); g.fill();
-  g.strokeStyle = '#3a342b'; g.lineWidth = 3; g.lineCap = 'round'; g.lineJoin = 'round';
-  g.beginPath(); line.forEach((p, i) => (i ? g.lineTo(p[0] * W, p[1] * H) : g.moveTo(p[0] * W, p[1] * H))); g.stroke();
-  const P = (i) => [pts[i].x * W, pts[i].y * H];
-  // 鏨（手の中から板の上の線の先まで）
-  const tip = line[line.length - 1];
-  g.strokeStyle = '#d7d2c8'; g.lineWidth = 9; g.beginPath(); g.moveTo(tip[0] * W, tip[1] * H); g.lineTo(...P(10)); g.stroke();
-  // 手
-  g.fillStyle = '#c9a98a'; g.strokeStyle = '#c9a98a';
-  g.beginPath(); [0, 1, 5, 9, 13, 17].forEach((i, k) => (k ? g.lineTo(...P(i)) : g.moveTo(...P(i)))); g.closePath(); g.fill();
-  g.lineWidth = 15;
-  for (const f of [[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16], [17, 18, 19, 20]]) { g.beginPath(); f.forEach((i, k) => (k ? g.lineTo(...P(i)) : g.moveTo(...P(i)))); g.stroke(); }
-  g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(0, 0, W, 34);
-  g.fillStyle = '#ffd60a'; g.font = '600 18px sans-serif'; g.textBaseline = 'middle';
-  g.fillText(label, 14, 17);
-  return c.toDataURL('image/jpeg', 0.92).split(',')[1];
-})`;
-
-async function render(name: string, input: MotionInput, label: string) {
-  const dir = mkdtempSync(join(tmpdir(), "mihon-"));
-  const browser = await chromium.launch();
-  const page = await browser.newPage();
-  const line: [number, number][] = [];
-  for (let i = 0; i < input.frames.length; i++) {
-    const f = input.frames[i];
-    const pts = f.hands[0].landmarks;
-    // 鏨の先：手の下の板の上。ふらつくと線も揺れる
-    line.push([pts[10].x - 0.06, 0.72 + (pts[10].y - 0.42) * 0.35]);
-    const b64 = (await page.evaluate(`${DRAW}(${JSON.stringify(pts)}, ${f.t}, ${W}, ${H}, ${JSON.stringify(line.slice(-400))}, ${JSON.stringify(label)})`)) as string;
-    writeFileSync(join(dir, `${String(i).padStart(4, "0")}.jpg`), Buffer.from(b64, "base64"));
-  }
-  await browser.close();
-  const frames = ["-framerate", String(FPS), "-i", join(dir, "%04d.jpg")];
-  execFileSync("ffmpeg", ["-y", "-loglevel", "error", ...frames, "-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "36", "-pix_fmt", "yuv420p", join(OUT, `${name}.webm`)]);
-  execFileSync("ffmpeg", ["-y", "-loglevel", "error", ...frames, "-c:v", "libx264", "-crf", "28", "-pix_fmt", "yuv420p", "-movflags", "+faststart", join(OUT, `${name}.mp4`)]);
-  rmSync(dir, { recursive: true });
-}
-
-mkdirSync(OUT, { recursive: true });
-const items = [
-  { name: "master", shake: 0.25, seed: 11, label: "見本：絵で描いた手の動き（作り話）・手本", title: "手本（作り話）", craftsman: "見本の人" },
-  { name: "learner", shake: 1.4, seed: 23, label: "見本：絵で描いた手の動き（作り話）・学ぶ人", title: "学ぶ人の動画（作り話）", craftsman: "" },
+/** 切り出す秒（元の動画の中の、始まりと長さ）。元の動画は 10.2 秒しかないので、手本と学ぶ人で分ける */
+const CLIPS = [
+  { name: "master", ss: Number(process.env.MIHON_MASTER_SS ?? 5), t: Number(process.env.MIHON_MASTER_T ?? 5.2), title: "手本（ヤスリがけ・職人の本物の手元）", craftsman: "見本の人" },
+  { name: "learner", ss: Number(process.env.MIHON_LEARNER_SS ?? 0), t: Number(process.env.MIHON_LEARNER_T ?? 5), title: "学ぶ人の動画（見立てた例）", craftsman: "" },
 ];
-for (const it of items) {
-  const input = makeInput(it.shake, it.seed);
-  const record = createRecord(input, { id: `mihon-${it.name}`, title: it.title, craftsman: it.craftsman, videoName: `${it.name}.webm`, date: "2026-11-05" });
-  writeFileSync(join(OUT, `${it.name}.json`), JSON.stringify(record));
-  await render(it.name, input, it.label);
-  console.log(it.name, "できた");
+
+const ffmpeg = (args: string[]) => execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-threads", "4", ...args]);
+
+/** 見せる動画の色：暗い所を少し締める（肌より明るい所は変えない） */
+const SHOW_VF = `${SCALE},curves=all='0/0 0.06/0.03 0.5/0.5 1/1',format=yuv420p`;
+
+/** 切り出して、音を消し、960×540 の webm と mp4 にする */
+function cut(src: string, ss: number, t: number, outBase: string) {
+  const inp = ["-ss", String(ss), "-t", String(t), "-i", src, "-an", "-vf", SHOW_VF];
+  ffmpeg([...inp, "-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "31", "-row-mt", "1", `${outBase}.webm`]);
+  ffmpeg([...inp, "-c:v", "libx264", "-crf", "23", "-preset", "slow", "-profile:v", "main", "-movflags", "+faststart", `${outBase}.mp4`]);
+}
+
+/** 元の動画の全体を 1 回だけ読む（手本と学ぶ人は、ここから秒で切り分ける。切った動画も同じこまから作るので合う） */
+async function readWhole(src: string): Promise<MotionInput> {
+  const dir = mkdtempSync(join(resolve(OUT), ".read-"));
+  try {
+    // 読むための写し：大きさは見せる動画と同じ。色は変えない（明るくするのは読むときの canvas の中）
+    ffmpeg(["-i", src, "-an", "-vf", `${SCALE},format=yuv420p`, "-c:v", "libvpx-vp9", "-b:v", "0", "-crf", "20", "-row-mt", "1", join(dir, "whole.webm")]);
+    const server = await createServer({ root: process.cwd(), server: { port: 5199, strictPort: true }, logLevel: "error" });
+    await server.listen();
+    const browser = await chromium.launch();
+    try {
+      const page = await browser.newPage();
+      await page.goto("http://localhost:5199/mihon/", { waitUntil: "domcontentloaded" });
+      const url = `/mihon/${dir.split("/").pop()}/whole.webm`;
+      return (await page.evaluate(async ({ url, o }) => (await import("/scripts/mihon-read.ts")).readHands(url, o), { url, o: READ })) as MotionInput;
+    } finally {
+      await browser.close();
+      await server.close();
+    }
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+}
+
+/** 全体の読みから、ss 秒から t 秒ぶんを切り出す（時刻は 0 から） */
+function slice(all: MotionInput, ss: number, t: number): MotionInput {
+  const frames = all.frames.filter((f) => f.t >= ss - 1e-6 && f.t < ss + t - 1e-6).map((f) => ({ ...f, t: Math.round((f.t - ss) * 1000) / 1000 }));
+  return { aspect: all.aspect, durationS: t, frames };
+}
+
+/**
+ * 1 こまだけ出て消える手は、読み違いとして捨てる：前後 STEADY_FRAMES こまのどこかに、手のひらの中心が近い手がなければ捨てる。
+ * （試したとき、何もない所に 1 こまだけ手が出て、手のふらつきが大きく出た）
+ */
+const STEADY_FRAMES = 2;
+const STEADY_DIST = 0.1;
+function steady(all: MotionInput): MotionInput {
+  const P = [0, 5, 9, 13, 17];
+  const centers = all.frames.map((f) => f.hands.map((h) => ({ x: P.reduce((s, k) => s + h.landmarks[k].x, 0) / P.length, y: P.reduce((s, k) => s + h.landmarks[k].y, 0) / P.length })));
+  const frames = all.frames.map((f, i) => ({
+    ...f,
+    hands: f.hands.filter((_, j) => {
+      const c = centers[i][j];
+      for (let k = Math.max(0, i - STEADY_FRAMES); k <= Math.min(all.frames.length - 1, i + STEADY_FRAMES); k++) {
+        if (k !== i && centers[k].some((d) => Math.hypot((d.x - c.x) * all.aspect, d.y - c.y) < STEADY_DIST)) return true;
+      }
+      return false;
+    }),
+  }));
+  return { ...all, frames };
+}
+
+function compareReport(records: ReturnType<typeof createRecord>[]) {
+  for (const side of ["right", "left"] as const) {
+    const c = comparePose(records[0].landmarksSampled, records[1].landmarksSampled, side);
+    console.log(`  ${side}：見えた割合 手本 ${(c.seen.master * 100).toFixed(0)}%・学ぶ人 ${(c.seen.learner * 100).toFixed(0)}%　${poseSummary(c)}　違う所 ${c.moments.map((m) => m.t.toFixed(1)).join(", ")}`);
+  }
+}
+
+function report(name: string, input: MotionInput) {
+  const m = analyzeMotion(input);
+  console.log(`${name}：こま ${input.frames.length}、手が見えたこま ${input.frames.filter((f) => f.hands.length).length}`);
+  for (const h of m.hands) console.log(`  ${h.label}：見えた ${(h.seenRatio * 100).toFixed(0)}%`);
+  const bySec = new Map<number, string>();
+  for (const f of input.frames) bySec.set(Math.floor(f.t), (bySec.get(Math.floor(f.t)) ?? "") + f.hands.length);
+  for (const [s, n] of bySec) console.log(`  ${s} 秒：${n}`);
+}
+
+const args = process.argv.slice(2);
+mkdirSync(OUT, { recursive: true });
+
+/** 動画の長さ（秒） */
+const durationOf = (f: string) => Number(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", f]).toString().trim());
+
+// いい例とよくない例を、別々の動画から作る（作者が撮り分けた動画を入れるとき）
+if (args[0] === "--pair") {
+  const pair = [
+    { name: "master", src: resolve(args[1]), ss: Number(process.env.MIHON_MASTER_SS ?? 0), t: process.env.MIHON_MASTER_T, title: "手本（いい例・ヤスリがけ・職人の本物の手元）", craftsman: "見本の人" },
+    { name: "learner", src: resolve(args[2]), ss: Number(process.env.MIHON_LEARNER_SS ?? 0), t: process.env.MIHON_LEARNER_T, title: "よくない例", craftsman: "" },
+  ];
+  const records = [];
+  for (const c of pair) {
+    const t = c.t ? Number(c.t) : durationOf(c.src) - c.ss;
+    // 読むのは数分かかるので、読んだ全体を残す（MIHON_REUSE=1 で使い回して、秒や比べ方だけを変えられる）
+    const cacheOf = join(tmpdir(), `mihon-read-${c.name}.json`);
+    const whole = process.env.MIHON_REUSE ? (JSON.parse(readFileSync(cacheOf, "utf8")) as MotionInput) : await readWhole(c.src);
+    writeFileSync(cacheOf, JSON.stringify(whole));
+    const input = slice(steady(whole), c.ss, t);
+    report(`${c.name}（${c.src} の ${c.ss}〜${(c.ss + t).toFixed(1)} 秒）`, input);
+    if (!process.env.MIHON_DRY) cut(c.src, c.ss, t, join(OUT, c.name));
+    const record = createRecord(input, { id: `mihon-${c.name}`, title: c.title, craftsman: c.craftsman, videoName: `${c.name}.webm`, date: process.env.MIHON_DATE ?? DATE });
+    if (!process.env.MIHON_DRY) writeFileSync(join(OUT, `${c.name}.json`), JSON.stringify(record));
+    records.push(record);
+  }
+  // 画面の「どこが違うか」と同じ比べ方。pair.json の side（right／left）は、ここで違いの出た手に合わせる
+  compareReport(records);
+  process.exit(0);
+}
+
+const scan = args[0] === "--scan";
+const trySplits = args[0] === "--try";
+const src = resolve(scan || trySplits ? args[1] : args[0]);
+// 読むのは数分かかるので、読んだ全体を残しておき、秒を選び直すときは MIHON_REUSE=1 で使い回す
+const cache = join(tmpdir(), "mihon-read-whole.json");
+const raw = process.env.MIHON_REUSE ? (JSON.parse(readFileSync(cache, "utf8")) as MotionInput) : await readWhole(src);
+writeFileSync(cache, JSON.stringify(raw));
+const all = steady(raw);
+
+if (scan) {
+  report("全体", all);
+} else if (trySplits) {
+  // 秒の分け方を、いくつか比べる（手本の始まり・長さ、学ぶ人の始まり・長さ）
+  const splits = [[0, 6, 6, 4.2], [4.2, 6, 0, 4.2], [0, 5.5, 5.5, 4.7], [3.5, 6.7, 0, 3.5], [2.4, 7.8, 0, 2.4], [0, 4.6, 4.6, 5.6], [5, 5.2, 0, 5]];
+  for (const [ms, mt, ls, lt] of splits) {
+    console.log(`手本 ${ms}〜${ms + mt} 秒・学ぶ人 ${ls}〜${ls + lt} 秒`);
+    compareReport([createRecord(slice(all, ms, mt), { title: "m", craftsman: "", videoName: "" }), createRecord(slice(all, ls, lt), { title: "l", craftsman: "", videoName: "" })]);
+  }
+} else {
+  const records = CLIPS.map((c) => {
+    const input = slice(all, c.ss, c.t);
+    report(`${c.name}（${c.ss}〜${c.ss + c.t} 秒）`, input);
+    if (!process.env.MIHON_DRY) cut(src, c.ss, c.t, join(OUT, c.name));
+    const record = createRecord(input, { id: `mihon-${c.name}`, title: c.title, craftsman: c.craftsman, videoName: `${c.name}.webm`, date: DATE });
+    if (!process.env.MIHON_DRY) writeFileSync(join(OUT, `${c.name}.json`), JSON.stringify(record));
+    return record;
+  });
+  // 画面の「手を比べる」と同じ比べ方で、結果を出して確かめる
+  compareReport(records);
 }

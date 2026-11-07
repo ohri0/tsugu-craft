@@ -5,6 +5,7 @@ import { parseToolCall } from "../src/claude/tools";
 import { measureOutline } from "../src/geometry/measure";
 import { buildRing, type RingParams } from "../src/geometry/ring";
 import type { StoneParams } from "../src/geometry/stone";
+import { findCorners } from "../src/geometry/corners";
 import { tensionGrips, type TensionGrip } from "../src/geometry/tension";
 import { checkRing, tensionInsert } from "../src/rules/checks";
 import { GUIDES } from "../src/rules/guides";
@@ -61,13 +62,13 @@ describe("石は地金に刺さっていない（網目で測る）", () => {
     }
   }, 120000);
 
-  it("既定の三角（写真から読んだ石）も同じ。くぼみ 0.8 mm・溝 0.5 mm・石の先と指 0.5 mm・縁は腕の 7 割", () => {
+  it("既定の三角（写真から読んだ石）も同じ。深さは戻りきらない分を見込んだおすすめ（K18・11 号でくぼみ 0.65 mm・溝 0.6 mm。仮）・石の先と指 0.5 mm・縁は腕の 7 割", () => {
     const r = ringOf(tri());
     const i = r.setting.tension!;
     const f = fit(r);
     expect(f.depth).toBeLessThan(MESH_TOLERANCE_MM);
     expect(f.clear).toBeGreaterThan(0.02);
-    expect(i.ends.map((e) => [e.kind, e.depthMm])).toEqual([["pit", 0.8], ["groove", 0.5]]);
+    expect(i.ends.map((e) => [e.kind, e.depthMm])).toEqual([["pit", 0.65], ["groove", 0.6]]);
     expect(r.culetGapMm).toBeCloseTo(0.5, 6);
     expect(GUIDES.tension.girdleAtWire).toBe(0.7);
     expect(checkRing(r)).toEqual([]);
@@ -197,7 +198,8 @@ describe("確かめのルールが、刺さった形を必ず見つける", () =
 
 describe("挟む向きを選べる", () => {
   it("石の形ごとの選べる向き", () => {
-    expect(tensionGrips(tri())).toEqual(["short"]);
+    // 三角：長い辺を溝に・短い辺を溝に（作者が実際に作った指輪の向き。2026-11-07）・長い辺の両はしの角
+    expect(tensionGrips(tri())).toEqual(["short", "side", "corner"]);
     expect(tensionGrips(preset("round"))).toEqual(["short"]);
     expect(tensionGrips(preset("pear"))).toEqual(["short"]);
     expect(tensionGrips(preset("oval"))).toEqual(["short", "long"]);
@@ -206,16 +208,19 @@ describe("挟む向きを選べる", () => {
     expect(tensionGrips(preset("marquise"))).toEqual(["short", "corner"]);
   });
 
+  // 石の長さ（腕の周りの向き）。開き ＝ 石の長さ − 両はしの深さ（深さの既定は、戻りきらない分を見込んだおすすめ。仮）
   it.each([
-    ["marquise", "corner", 10 - 1.6, ["pit", "pit"]],
-    ["princess", "corner", 5.5 * Math.SQRT2 - 1.6, ["pit", "pit"]],
-    ["emerald", "long", 8 - 1, ["groove", "groove"]],
-    ["oval", "long", 8 - 1, ["groove", "groove"]],
-  ] as [string, TensionGrip, number, string[]][])("%s の %s：開きが変わり、閉じた形で、石は地金に入らない", (id, grip, gap, kinds) => {
-    const r = ringOf(preset(id), 11, { tension: { grip } });
+    ["marquise", "corner", 10, ["pit", "pit"]],
+    ["princess", "corner", 5.5 * Math.SQRT2, ["pit", "pit"]],
+    ["emerald", "long", 8, ["groove", "groove"]],
+    ["oval", "long", 8, ["groove", "groove"]],
+  ] as [string, TensionGrip, number, string[]][])("%s の %s：開きが変わり、閉じた形で、石は地金に入らない", (id, grip, span, kinds) => {
+    // 形の確かめは前の深さ（くぼみ 0.8・溝 0.5）で。既定のおすすめの深さ（マーキスの角 0.6 など）では、網目で測るすき間が 0.015 mm ほどまで狭まる所がある（食いこみはない）
+    const r = ringOf(preset(id), 11, { tension: { grip, cornerPitMm: 0.8, edgeGrooveMm: 0.5 } });
     const i = r.setting.tension!;
     expect(i.grip).toBe(grip);
-    expect(i.gapMm).toBeCloseTo(gap, 1);
+    expect(i.spanMm).toBeCloseTo(span, 1);
+    expect(i.gapMm).toBeCloseTo(i.spanMm - i.ends[0].depthMm - i.ends[1].depthMm, 6);
     expect(i.ends.map((e) => e.kind)).toEqual(kinds);
     expect(topology(r.ringPositions.shank)).toMatchObject({ open: 0, flipped: 0, shells: 1, degenerate: 0 });
     const f = fit(r);
@@ -224,13 +229,83 @@ describe("挟む向きを選べる", () => {
     expect(r.culetGapMm).toBeGreaterThanOrEqual(0.5 - 1e-9);
   }, 120000);
 
+  it("三角の長い辺の両はしの角を挟む：両方くぼみ、開きは長い辺 − 両はしの深さ。深さの既定は角のくぼみの値。浅くすれば閉じた形で石は地金に入らない。はみ出しは作れないにせず、職人に聞く", () => {
+    const sv14 = { shank: { gou: 14, ...phi4, metal: "sv925" as const } };
+    // 前の角のくぼみの値 0.8 mm ずつ（この向きの職人の値はない）なら、開きは長い辺 − 1.6 mm。とがった角（約 60°）のくぼみは幅が広く、片方は腕の幅に収まらない（作れない、と言う）
+    const deep = ringOf(tri(), 14, { tension: { grip: "corner", cornerPitMm: 0.8 }, ...sv14 }).setting.tension!;
+    expect(deep.mode).toBe("corner-corner");
+    expect(deep.ends.map((e) => [e.kind, e.depthMm])).toEqual([["pit", 0.8], ["pit", 0.8]]);
+    expect(deep.spanMm).toBeGreaterThan(8.7);
+    expect(deep.gapMm).toBeCloseTo(deep.spanMm - 1.6, 6);
+    expect(checkRing(ringOf(tri(), 14, { tension: { grip: "corner", cornerPitMm: 0.8 }, ...sv14 })).map((x) => x.check)).toContain("tension-pit");
+    // 既定は、戻りきらない分を見込んだおすすめ（SV925・14 号で 0.6 mm ずつ。仮）
+    expect(ringOf(tri(), 14, { tension: { grip: "corner" }, ...sv14 }).setting.tension!.ends.map((e) => e.depthMm)).toEqual([0.6, 0.6]);
+    // 0.5 mm ずつにすると、くぼみは収まる。残りの角は腕の幅より大きく出るが、作れないにせず、職人に聞く
+    const r = ringOf(tri(), 14, { tension: { grip: "corner", cornerPitMm: 0.5 }, ...sv14 });
+    const i = r.setting.tension!;
+    expect(i.ends.map((e) => [e.kind, e.depthMm])).toEqual([["pit", 0.5], ["pit", 0.5]]);
+    expect(i.overhangRatio).toBeGreaterThan(GUIDES.tension.maxOverhangRatio);
+    expect(checkRing(r)).toEqual([]);
+    const caution = tensionCautions(r.setting, tensionSpring(r.setting, r.shank), "sv925").find((c) => c.id === "long-triangle")!;
+    expect(caution.text).not.toContain("作者");
+    expect(topology(r.ringPositions.shank)).toMatchObject({ open: 0, flipped: 0, shells: 1, degenerate: 0 });
+    const f = fit(r);
+    expect(f.depth).toBeLessThan(MESH_TOLERANCE_MM);
+    expect(f.clear).toBeGreaterThan(0.02);
+    // 狭い幅を挟む向きは、前のまま
+    expect(ringOf(tri(), 14, { tension: { grip: "short" } }).setting.tension!.mode).toBe("corner-edge");
+  }, 120000);
+
+  it("三角の短い辺を溝に・反対の角をくぼみに（作者が実際に作った指輪）：角のくぼみ 0.4 mm・辺の溝 0.4 mm。角から辺までの長い所を挟み、閉じた形で石は地金に入らない", () => {
+    const stone = tri();
+    const sv14 = { shank: { gou: 14, ...phi4, metal: "sv925" as const } };
+    expect(GUIDES.tension.shortSidePitMm).toBe(0.4);
+    expect(GUIDES.tension.shortSideGrooveMm).toBe(0.4);
+    const r = ringOf(stone, 14, { tension: { grip: "side" }, ...sv14 });
+    const i = r.setting.tension!;
+    expect(i.grip).toBe("side");
+    expect(i.mode).toBe("corner-edge");
+    expect(i.ends.map((e) => [e.kind, e.depthMm])).toEqual([["pit", 0.4], ["groove", 0.4]]);
+    expect(i.ends[1].straight).toBe(true);
+    // 写真の輪郭の角：いちばん短い辺の反対の角が +y（くぼみ）に来る。その角は、いちばん長い辺の片はし
+    const cs = findCorners(stone.outlineMm).map((c) => c.point);
+    const len = (a: number, b: number) => Math.hypot(cs[a].x - cs[b].x, cs[a].y - cs[b].y);
+    const opp = [0, 1, 2].map((k) => len((k + 1) % 3, (k + 2) % 3));
+    const lone = opp.indexOf(Math.min(...opp));
+    const longest = opp.indexOf(Math.max(...opp));
+    expect(lone).not.toBe(longest);
+    const turn = (q: { x: number; y: number }) => q.x * Math.sin(i.rotationZ) + q.y * Math.cos(i.rotationZ);
+    expect(cs.map(turn).indexOf(Math.max(...cs.map(turn)))).toBe(lone);
+    // 短い辺は x に沿う（写真の輪郭の辺は反るので、角を結ぶ線から 5° まで回して、溝はまっすぐ）
+    const [p, q] = [cs[(lone + 1) % 3], cs[(lone + 2) % 3]];
+    expect(Math.abs(turn(p) - turn(q)) / Math.hypot(p.x - q.x, p.y - q.y)).toBeLessThan(Math.sin((5 * Math.PI) / 180));
+    expect(Math.abs(turn(p) - turn(q))).toBeGreaterThan(0.05);
+    // 挟む長さは、狭い幅を挟む向き（いちばん長い辺を溝に）より長い。腕の幅の外へ出る所は小さい
+    const short = ringOf(stone, 14, { tension: { grip: "short" }, ...sv14 }).setting.tension!;
+    expect(i.spanMm).toBeGreaterThan(short.spanMm + 0.5);
+    expect(i.gapMm).toBeCloseTo(i.spanMm - 0.8, 6);
+    expect(i.overhangMm).toBeLessThan(short.overhangMm);
+    expect(checkRing(r)).toEqual([]);
+    expect(topology(r.ringPositions.shank)).toMatchObject({ open: 0, flipped: 0, shells: 1, degenerate: 0 });
+    const f = fit(r);
+    expect(f.depth).toBeLessThan(MESH_TOLERANCE_MM);
+    expect(f.clear).toBeGreaterThan(0.02);
+    // 深さを渡せば、その深さ（長い辺を溝に入れるときの既定は、おすすめの 0.65・0.6。仮）
+    expect(ringOf(stone, 14, { tension: { grip: "side", cornerPitMm: 0.3, edgeGrooveMm: 0.3 }, ...sv14 }).setting.tension!.ends.map((e) => e.depthMm)).toEqual([0.3, 0.3]);
+    expect(short.ends.map((e) => e.depthMm)).toEqual([0.65, 0.6]);
+  }, 120000);
+
   it("選べない向きを渡しても、壊れない（既定の向きになる）", () => {
     expect(ringOf(preset("round"), 11, { tension: { grip: "corner" } }).setting.tension!.grip).toBe("short");
     expect(ringOf(tri(), 11, { tension: { grip: "long" } }).setting.tension!.mode).toBe("corner-edge");
+    // 短い辺を溝に入れる向きは三角だけ
+    expect(ringOf(preset("marquise"), 11, { tension: { grip: "side" } }).setting.tension!.grip).toBe("short");
+    expect(ringOf(preset("pear"), 11, { tension: { grip: "side" } }).setting.tension!.grip).toBe("short");
   });
 
   it("道具で変えられる。設計の場の確かめに、選べる向きが出る。直し方の行き先は角のくぼみが先", () => {
     expect(parseToolCall("set_setting", { tension_grip: "corner", reason: "向き" }).ok).toBe(true);
+    expect(parseToolCall("set_setting", { tension_grip: "side", reason: "向き" }).ok).toBe(true);
     expect(parseToolCall("set_setting", { tension_grip: "ななめ", reason: "向き" }).ok).toBe(false);
     const s = new RingSession(preset("marquise"), () => seedLedger() as Ledger, () => undefined, () => "");
     s.state = { ...DEFAULT_STATE };
@@ -240,6 +315,8 @@ describe("挟む向きを選べる", () => {
     expect(s.built!.ring.setting.tension!.mode).toBe("corner-corner");
     expect(nextGrip(ringOf(preset("marquise")).setting.tension)).toBe("corner");
     expect(nextGrip(ringOf(preset("emerald")).setting.tension)).toBe("long");
+    // 三角は、作者が実際に作った指輪の向き（短い辺を溝に）が先
+    expect(nextGrip(ringOf(tri()).setting.tension)).toBe("side");
   });
 });
 
@@ -309,7 +386,8 @@ describe("石の入れ方（形から決まる動き）", () => {
 });
 
 describe("地金ごとの計算（どれだけ小さめに作り、どれだけ広げて入れるか）", () => {
-  const triRing = () => ringOf(tri());
+  // 地金ごとの計算は、前の深さ（くぼみ 0.8・溝 0.5 mm。和 1.3 mm）で確かめる（深さの既定は、2026-11-07 からおすすめ）
+  const triRing = () => ringOf(tri(), 11, { tension: { cornerPitMm: 0.8, edgeGrooveMm: 0.5 } });
   const row = (t: NonNullable<ReturnType<typeof tensionSpring>>, m: string) => t.rows.find((r) => r.metal === m)!;
 
   it("太い輪の割合：ばねの手引きの式（C ＝ 輪の径 ÷ 線の太さ）", () => {
@@ -334,7 +412,9 @@ describe("地金ごとの計算（どれだけ小さめに作り、どれだけ�
     expect(k.shrinkMaxMm).toBeCloseTo(k.limitMm - 1.3, 9);
     // 作る時の開き ＋ 広げて入れる量 ＝ 石が通る寸法
     expect(k.makeGapMm! + k.spreadMm!).toBeCloseTo(t.spanMm, 6);
-    expect(k.gripMm).toBeCloseTo(k.shrinkMm!, 9);
+    // 石を押さえる量は、縮めた量から、広げたあと戻りきらない分（安全な限界まで広げると、広げた分の springSetRatio。仮）を引いた量
+    expect(k.setMm).toBeCloseTo(GUIDES.tension.springSetRatio * k.spreadMm!, 6);
+    expect(k.gripMm).toBeCloseTo(k.shrinkMm! - k.setMm!, 9);
     expect(k.bentMm).toBe(0);
     const sv = row(t, "sv925");
     expect(sv.limitMm).toBeCloseTo(1.42, 2);
@@ -398,8 +478,15 @@ describe("地金ごとの計算（どれだけ小さめに作り、どれだけ�
     expect(c.tension_calc!.metals.map((m) => m.metal)).toEqual(["K18 イエロー", "K18 ピンク", "K18 ホワイト", "Pt900", "SV925"]);
     const k = c.tension_calc!.metals[0];
     expect(k.verdict).toBe("room");
-    expect(k.smaller_by_mm).toBeCloseTo(0.36, 1);
-    expect(c.tension_calc!.cautions.map((x) => x.title).join()).toContain("ぎりぎり");
+    // 深さの既定は、SV925 でのおすすめ。K18 の小さめに作る量は、太い輪の分の限界 − 深さの和
+    expect(k.smaller_by_mm).toBeCloseTo(k.limit_thick_ring_mm! - c.tension_calc!.need_mm!, 1);
+    expect(k.stays_open_after_spread_mm).toBeGreaterThan(0);
+    // SV925・11 号の既定の三角では、戻りきらない分を見込むと、おすすめの組が見つからない（仮の値で。14 号なら見つかる）
+    expect(c.tension_calc!.hold!.advice!.found).toBe(false);
+    expect(c.tension_calc!.hold!.advice!.text).toContain("おすすめ");
+    // 前の深さ（くぼみ 0.8・溝 0.5）にすると、SV925 は開く量がぎりぎり、の注意
+    s.setTensionDepths(0.8, 0.5);
+    expect(s.check().tension_calc!.cautions.map((x) => x.title).join()).toContain("ぎりぎり");
     expect(c.tension_calc!.note).toContain("最後は職人が決める");
     expect(c.note).toContain("石の入れ方");
     s.setSetting({ style: "prong", reason: "戻す" });
@@ -421,11 +508,15 @@ describe("地金ごとの計算（どれだけ小さめに作り、どれだけ�
     expect(set.text).toContain("角を先にくぼみへ");
   });
 
-  it("足りない地金の作り方には、数を出さず、足りないと書く", () => {
-    const r = buildRing({ stone: tri(), setting: { style: "tension", culetGapMm: 0.5 }, shank: { gou: 11, ...phi4, metal: "pt900" } });
+  // 作者（2026-11-06）：「プラチナでもテンションはできる。足りないって何？」→ できないのではなく「この腕のままでは」と書く
+  it("開ききらない地金の作り方には、数を出さず、この腕のままでは開ききらないので組み直すと書く", () => {
+    // 前の深さ（くぼみ 0.8・溝 0.5）。Pt900 の既定（おすすめ）は浅いので開ききる
+    const r = buildRing({ stone: tri(), setting: { style: "tension", culetGapMm: 0.5 }, shank: { gou: 11, ...phi4, metal: "pt900" }, tension: { cornerPitMm: 0.8, edgeGrooveMm: 0.5 } });
     const steps = howToMake({ ring: r, outlineMm: tri().outlineMm, longMm: 8.88, widthMm: 7.52, depthMm: 4.24, metalLabel: "Pt900", alloy: null, springMetal: "pt900" }, "hand");
     const text = JSON.stringify(steps.find((x) => x.id === "tension_close")!.specs);
-    expect(text).toContain("足りない");
+    expect(text).toContain("この腕のままでは開ききらない");
+    expect(text).toContain("組み直す");
+    expect(text).not.toContain("足りない見込み");
     expect(text).toContain("職人が決める");
   });
 });

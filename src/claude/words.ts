@@ -18,6 +18,12 @@ const NAMES: Record<string, string> = {
   k18wg: "18 金ホワイト",
   k18pg: "18 金ピンク",
   sv925: "シルバー",
+  shakudo: "赤銅",
+  shibuichi: "四分一",
+  copper: "銅",
+  tsuchime: "槌目",
+  milgrain: "ミル打ち",
+  nunome: "布目象嵌",
   kouman: "甲丸",
   hirauchi: "平打ち",
   hangouman: "半甲丸",
@@ -151,11 +157,12 @@ const HEIGHT: Record<string, string> = { low: "低め", standard: "標準", high
 const ORIENT: Record<string, string> = { along: "縦向き", across: "横向き" };
 const JOIN: Record<string, string> = { on: "腕の上にのせる", between: "腕の間に挟む" };
 const PRONG_TIP: Record<string, string> = { round: "丸い爪", oni: "尖り爪" };
-const METAL: Record<string, string> = { pt900: "プラチナ", k18yg: "18 金イエロー", k18wg: "18 金ホワイト", k18pg: "18 金ピンク", sv925: "シルバー" };
-const SECTION: Record<string, string> = { kouman: "甲丸", hirauchi: "平打ち", hangouman: "半甲丸", kaku: "角", maru: "丸線", free: "自由な線" };
+const METAL: Record<string, string> = { pt900: "プラチナ", k18yg: "18 金イエロー", k18wg: "18 金ホワイト", k18pg: "18 金ピンク", sv925: "シルバー", shakudo: "赤銅（煮色）", shibuichi: "四分一（煮色）", copper: "銅（煮色）" };
+// 画面の腕の形の名前と同じ（geometry/shank.ts の SHANK_SECTION_LABEL）
+const SECTION: Record<string, string> = { kouman: "甲丸", hirauchi: "平甲丸", hangouman: "平甲丸", kaku: "角", maru: "丸線", free: "手で描いた形" };
 const VIEW: Record<string, string> = { top: "上から", side: "横から", front: "正面から", angle: "斜めから" };
 const LAYOUT: Record<string, string> = { solo: "一粒", trio: "三石", row: "横一列" };
-const RELIEF: Record<string, string> = { arch: "尖ったアーチ", diamond: "菱の格子", wave: "波の線", beads: "粒", lines: "横の筋", leaf: "葉とつる", mil: "縁の粒", blade: "尖った葉" };
+const RELIEF: Record<string, string> = { arch: "尖ったアーチ", diamond: "菱の格子", wave: "波の線", beads: "粒", lines: "横の筋", leaf: "葉とつる", mil: "縁の粒", blade: "尖った葉", chevron: "山形", zigzag: "ジグザグ", fan: "扇", steps: "段の窓", panel: "長方形の区切り", flutes: "平行の溝" };
 const TOOL_WORD: Record<string, string> = { set_setting: "石座", set_shank: "腕", set_stones: "石の並び", choose_stone: "石", check: "確かめ", look: "見る" };
 
 const num = (v: unknown) => (typeof v === "number" ? String(Math.round(v * 100) / 100) : String(v));
@@ -173,8 +180,8 @@ function stationWords(list: unknown): string {
   if (!list.length) return "どこも同じ形に戻す";
   return list
     .map((raw) => {
-      const st = raw as { at_deg: number; width_mm: number; thickness_mm: number; section?: string; section_curve?: unknown; sway_mm?: number };
-      const extra = [st.section_curve ? "自由な線" : st.section ? (SECTION[st.section] ?? "") : "", st.sway_mm ? `${num(Math.abs(st.sway_mm))} mm 流す` : ""].filter(Boolean);
+      const st = raw as { at_deg: number; width_mm: number; thickness_mm: number; section?: string; section_curve?: unknown; sway_mm?: number; step?: boolean };
+      const extra = [st.step ? "段で" : "", st.section_curve ? "手で描いた形" : st.section ? (SECTION[st.section] ?? "") : "", st.sway_mm ? `${num(Math.abs(st.sway_mm))} mm 流す` : ""].filter(Boolean);
       return `${placeOf(st.at_deg)} 幅 ${num(st.width_mm)} × 厚み ${num(st.thickness_mm)} mm${extra.length ? `（${extra.join("・")}）` : ""}`;
     })
     .join("、");
@@ -207,7 +214,7 @@ function partOf(key: string, v: unknown, stone?: StoneWords): string | null {
       return `断面 ${SECTION[s] ?? s}`;
     case "section_curve":
     case "section_points":
-      return "断面 自由な線";
+      return "断面 手で描いた形";
     case "stations":
       return `場所ごとの形：${stationWords(v)}`;
     case "relief": {
@@ -226,6 +233,26 @@ function partOf(key: string, v: unknown, stone?: StoneWords): string | null {
       return `${s} 号`;
     case "metal":
       return `地金 ${METAL[s] ?? s}`;
+    case "finish": {
+      const f = v as { tsuchime?: string; tsuchime_style?: string; tsuchime_area?: string; milgrain?: string; inlay?: string; inlay_pattern?: string; inlay_scale_mm?: number; inlay_line_mm?: number; inlay_width_mm?: number; inlay_metal?: string };
+      const pat: Record<string, string> = { hishi: "菱つなぎ", shippo: "七宝", asanoha: "麻の葉", seigaiha: "青海波", kikko: "亀甲", ichimatsu: "市松", karakusa: "唐草", suji: "筋", naname: "斜め筋", jiyu: "自分の模様" };
+      const inlayBits = [
+        f.inlay_pattern ? pat[f.inlay_pattern] ?? "模様" : "",
+        f.inlay_scale_mm !== undefined ? `大きさ ${num(f.inlay_scale_mm)} mm` : "",
+        f.inlay_line_mm !== undefined ? `線 ${num(f.inlay_line_mm)} mm` : "",
+        f.inlay_width_mm !== undefined ? `帯 ${num(f.inlay_width_mm)} mm` : "",
+        f.inlay_metal === "gold" ? "純金" : f.inlay_metal === "silver" ? "純銀" : "",
+      ].filter(Boolean);
+      const size: Record<string, string> = { small: "小", medium: "中", large: "大" };
+      const style: Record<string, string> = { maru: "丸槌目", kaku: "角槌目", tate: "縦槌目", arashi: "荒らし槌目" };
+      const parts = [
+        f.tsuchime ? (f.tsuchime === "none" ? "槌目 なし" : `槌目 ${size[f.tsuchime] ?? f.tsuchime}${f.tsuchime_area === "all" ? "（外側と横）" : ""}`) : f.tsuchime_area ? `槌目の場所 ${f.tsuchime_area === "all" ? "外側と横" : "腕の外側"}` : "",
+        f.tsuchime_style && f.tsuchime !== "none" ? style[f.tsuchime_style] ?? f.tsuchime_style : "",
+        f.milgrain ? (f.milgrain === "none" ? "ミル打ち なし" : "ミル打ち 腕の縁") : "",
+        f.inlay === "none" ? "象嵌 なし" : f.inlay || inlayBits.length ? `布目象嵌${inlayBits.length ? `（${inlayBits.join("・")}）` : ""}` : "",
+      ].filter(Boolean);
+      return parts.length ? parts.join("・") : null;
+    }
     case "layout":
       return `並べ方 ${LAYOUT[s] ?? s}`;
     case "count":
@@ -294,4 +321,15 @@ export function cannotFrom(finalText: string, titles?: RuleTitles): string {
   const text = [head, ...rest].filter(Boolean).join(" ").replace(/^[-・•]\s*/, "");
   if (!text || /^(なし|ありません|特になし|特にありません|ない)(?:[。．、（(].*)?$/.test(text)) return "";
   return plainWords(text, titles);
+}
+
+/**
+ * Claude につながらなかったわけを、かっこつきの短い言葉に。返事の言葉が「Claude につながりませんでした。…」で始まるときは、
+ * 前の文と同じ言葉が 2 回出ていたので、サーバーの番号だけを残す（2026-11-06 通しの確かめ）。わけがなければ空
+ */
+export function offlineWhy(message: string | undefined): string {
+  const m = (message ?? "").trim();
+  if (!m) return "";
+  if (m.startsWith("Claude につながりませんでした")) return m.match(/（サーバーの返事 \d+）/)?.[0] ?? "";
+  return `（${m.replace(/。$/, "")}）`;
 }

@@ -4,6 +4,7 @@
 // 機械で確かめられない決まり（言葉だけの決まり）も残し、Claude が読んで判断に使う。
 import type { CheckId } from "./checks.js";
 import { GUIDES, type Guides } from "./guides.js";
+import { FINISHES_OFFERED } from "../geometry/finish.js";
 import ringPublic from "../../ledger/ring-public.json" with { type: "json" };
 
 /** 決まりの出どころ */
@@ -19,15 +20,32 @@ export const PARAMS = {
   "prong.cornerReachMm": { label: "尖った角から爪までの距離（最大）", unit: "mm", checks: ["corner"] },
   "prong.maxGapRatio": { label: "爪と爪の間のいちばん広い所 ÷ 縁の周（最大）", unit: "", checks: ["prong-gap"] },
   "bezel.wallMinMm": { label: "覆輪の壁の厚み（最低）", unit: "mm", checks: ["bezel-wall"] },
-  "hold.requiredTop": { label: "必要な留まり（石が上）", unit: "×", checks: ["hold"] },
-  "hold.requiredSide": { label: "必要な留まり（石が横）", unit: "×", checks: ["hold"] },
-  "hold.requiredPalm": { label: "必要な留まり（手のひら側寄り）", unit: "×", checks: ["hold"] },
+  "hold.requiredTop": { label: "必要な留まり（石が上）", unit: "倍", checks: ["hold"] },
+  "hold.requiredSide": { label: "必要な留まり（石が横）", unit: "倍", checks: ["hold"] },
+  "hold.requiredPalm": { label: "必要な留まり（手のひら側寄り）", unit: "倍", checks: ["hold"] },
   "band.minThicknessMm": { label: "腕の厚み（最低）", unit: "mm", checks: ["band-thin"] },
-  "band.minWidthMm": { label: "腕の幅（最低）", unit: "mm", checks: ["band-narrow"] },
+  "band.minWidthMm": { label: "腕の幅（これ以下は赤）", unit: "mm", checks: ["band-narrow"] },
+  "tension.holdDropMm": { label: "テンションの外れにくさ：落としても外れない高さ（仮の目安 1000 mm）", unit: "mm", checks: [] },
+  "tension.holdFriction": { label: "テンションの外れにくさ：石と地金の摩擦の係数（仮の目安 0.1）", unit: "", checks: [] },
+  "tension.springSetRatio": { label: "テンションの戻りきらない分：安全な限界まで広げたとき、広げた分のうち開いたまま残る割合（仮の目安 0.05）", unit: "", checks: [] },
   "hold.cornerSet": { label: "角が 3 つの石を、角に 1 本ずつの爪 3 本で留めたとき 4 本と同じ留まりとみなす（1 ＝ みなす）", unit: "", checks: ["hold"] },
+  "inlay.wireMinMm": { label: "布目象嵌：打ちこむ線の太さ（最低）", unit: "mm", checks: ["nunome-line"] },
+  "inlay.wireMaxMm": { label: "布目象嵌：打ちこむ線の太さ（最大）", unit: "mm", checks: ["nunome-line"] },
+  "inlay.minGapMm": { label: "布目象嵌：線と線の間の地（最低。仮の目安 0.25 mm）", unit: "mm", checks: ["nunome-gap"] },
+  "inlay.minPieceMm": { label: "布目象嵌：離れた金銀のかけらの大きさ（最低。仮の目安 0.5 mm）", unit: "mm", checks: ["nunome-piece"] },
+  "inlay.edgeMarginMm": { label: "布目象嵌：帯の端から面の角までの残し（最低。仮の目安 0.3 mm）", unit: "mm", checks: ["nunome-fit"] },
+  "inlay.faceCornerDeg": { label: "布目象嵌：帯がまたげない面の折れ目の角度（仮の目安 30°）", unit: "°", checks: ["nunome-fit"] },
+  "inlay.foilMinMm": { label: "布目象嵌：平金の厚み（最低。仮の目安 0.05 mm）", unit: "mm", checks: ["nunome-foil"] },
+  "inlay.foilMaxMm": { label: "布目象嵌：平金の厚み（最大。仮の目安 0.3 mm）", unit: "mm", checks: ["nunome-foil"] },
 } as const satisfies Record<string, { label: string; unit: string; checks: readonly CheckId[] }>;
 
 export type ParamId = keyof typeof PARAMS;
+
+/**
+ * 人と Claude に選ばせる値（決まりを足す欄・Claude の道具・帳面の足りない所の質問）。
+ * 布目象嵌の値（inlay.*）は、伝統の仕上げを出すときだけ（src/geometry/finish.ts の FINISHES_OFFERED）。目安帳に前からある決まりは、そのまま読めて効く
+ */
+export const OFFERED_PARAM_IDS: readonly ParamId[] = (Object.keys(PARAMS) as ParamId[]).filter((k) => FINISHES_OFFERED || !k.startsWith("inlay."));
 
 /**
  * 決まり 1 つ。P は機械で確かめる値の名前（指輪は PARAMS、ほかの技はその技の値の名前）。
@@ -59,6 +77,13 @@ export interface Rule<P extends string = ParamId> {
   bySizeLine?: boolean;
   /** bySizeLine の線を伸ばしても、これより小さくしない（下限）。例：爪はメレでも 0.6 mm より細くしない */
   bySizeFloor?: number;
+  /**
+   * 石の大きさごとの点（爪の太さ）。職人が言った点（by: craftsman）と、そこから割合で出した推測の点（by: inferred）。
+   * あれば bySize より先に使う。確かめは、職人の点を先に、次に推測の点を使う（src/rules/prong-points.ts）
+   */
+  sizePoints?: SizePoint[];
+  /** 推測の点をどう出したか（ふつうの言葉。画面と Claude に見せる） */
+  inferNote?: string;
   /** どの確かめの根拠か */
   checks?: CheckId[];
   /** 作り方のどの工程の決まりか（機械で確かめない決まり。src/rules/making.ts の工程の id） */
@@ -78,6 +103,42 @@ export interface Rule<P extends string = ParamId> {
   gap?: string;
 }
 
+/** 石の大きさ 1 つでの値。by：職人が言った点か、推測の点か */
+export interface SizePoint {
+  /** 石の大きさ（mm）＝（長辺 ＋ 幅）÷ 2 */
+  stoneMm: number;
+  value: number;
+  by: "craftsman" | "inferred";
+  /** 職人の点なら、その言葉 */
+  quote?: string;
+  /** 職人の点なら、言った日 */
+  date?: string;
+}
+
+/** この大きさの差までは、同じ石の大きさの点とみなす（職人の点が推測の点を置き換える）mm */
+export const SAME_SIZE_MM = 0.5;
+
+/**
+ * 点から、その石の大きさの値。職人の点を先に（その大きさに職人の点があれば、その値）、なければ職人の点と推測の点をまっすぐつなぐ。
+ * 職人の点の近く（SAME_SIZE_MM）の推測の点は使わない。最初の点より小さい石は最初の値、最後の点より大きい石は最後の 2 点の傾きのまま
+ */
+export function valueAtPoints(points: readonly SizePoint[], stoneSizeMm: number): number | undefined {
+  const craft = points.filter((p) => p.by === "craftsman");
+  const exact = craft.find((p) => Math.abs(p.stoneMm - stoneSizeMm) < 0.05);
+  if (exact) return exact.value;
+  const pts = [...craft, ...points.filter((p) => p.by !== "craftsman" && !craft.some((c) => Math.abs(c.stoneMm - p.stoneMm) < SAME_SIZE_MM))].sort((a, b) => a.stoneMm - b.stoneMm);
+  if (pts.length === 0) return undefined;
+  if (pts.length === 1 || stoneSizeMm <= pts[0].stoneMm) return pts[0].value;
+  let i = pts.findIndex((_p, k) => k < pts.length - 1 && stoneSizeMm <= pts[k + 1].stoneMm);
+  if (i < 0) i = pts.length - 2;
+  const a = pts[i];
+  const b = pts[i + 1];
+  // 最後の点より大きい石で、線が下がる向きなら、最後の値のまま（大きい石ほど細い爪にはしない）
+  if (stoneSizeMm > b.stoneMm && b.value < a.value) return b.value;
+  const v = a.value + ((b.value - a.value) * (stoneSizeMm - a.stoneMm)) / (b.stoneMm - a.stoneMm);
+  return Math.round(v * 1000) / 1000;
+}
+
 export interface SizeStep {
   /** この大きさ（mm）まで。最後の段は null（それより大きい石すべて） */
   upToMm: number | null;
@@ -85,7 +146,8 @@ export interface SizeStep {
 }
 
 /** 石の大きさに合う値（段がなければ value） */
-export function valueFor(rule: Pick<Rule, "value" | "bySize" | "bySizeLine" | "bySizeFloor">, stoneSizeMm?: number): number | undefined {
+export function valueFor(rule: Pick<Rule, "value" | "bySize" | "bySizeLine" | "bySizeFloor" | "sizePoints">, stoneSizeMm?: number): number | undefined {
+  if (rule.sizePoints?.length && stoneSizeMm !== undefined) return valueAtPoints(rule.sizePoints, stoneSizeMm);
   const steps = rule.bySize;
   if (!steps || steps.length === 0 || stoneSizeMm === undefined) return rule.value ?? steps?.[steps.length - 1]?.value;
   if (rule.bySizeLine) {
@@ -158,12 +220,13 @@ const START = "2026-11-02";
 
 /**
  * 公開の資料から入れた、指輪の決まり（ledger/ring-public.json。調べは docs/RESEARCH-rules2.md）。
- * 値に結びつく決まり（腕の厚み・幅）は、値を guides.ts から読む（JSON の言葉の数字と同じ値）。
+ * 値に結びつく決まり（腕の厚み）は、値を guides.ts から読む（JSON の言葉の数字と同じ値）。腕の幅の資料の値は、言葉だけの決まり（職人の決まりが先）
  */
 export function publicRingRules(): Rule[] {
   const g = GUIDES;
   return (ringPublic as Rule[]).map((r) => {
-    const value = r.param === "band.minThicknessMm" ? g.band.minThicknessMm : r.param === "band.minWidthMm" ? g.band.minWidthMm : undefined;
+    // 腕の幅の資料の値（1.7 mm）は、資料の目安として残すだけ。確かめは職人の決まり（guides.ts の band.minWidthMm）で、資料の値で上書きしない
+    const value = r.param === "band.minThicknessMm" ? g.band.minThicknessMm : undefined;
     return structuredClone({ ...r, ...(value !== undefined ? { value, checks: [...PARAMS[r.param!].checks] } : {}) });
   });
 }
@@ -228,7 +291,7 @@ export function seedLedger(): Ledger {
       {
         id: "hold-top",
         title: "石の留まり（石が上）",
-        text: `標準の 4 本爪を 1.0× として、${g.hold.requiredTop}× 以上`,
+        text: `標準の 4 本爪を 1 倍として、${g.hold.requiredTop} 倍以上`,
         reason: "物に当たったときに石が抜けないため",
         param: "hold.requiredTop",
         value: g.hold.requiredTop,
@@ -373,7 +436,7 @@ export function sourceLabel(s: RuleSource): string {
 /** Claude に渡す、目安帳の文章 */
 export function ledgerText(ledger: Ledger): string {
   return activeRules(ledger)
-    .map((r) => `- [${r.id}] ${r.title}：${r.text}${r.bySize && r.param ? `（石の大きさで：${r.bySizeLine ? `${r.bySize.map((s) => `${s.upToMm} mm で ${s.value} ${PARAMS[r.param!].unit}`).join("、")}。間はまっすぐつなぎ、外は同じ傾きで伸ばす${r.bySizeFloor !== undefined ? `。${r.bySizeFloor} ${PARAMS[r.param!].unit} より小さくしない` : ""}` : sizeStepsText(r.bySize, PARAMS[r.param].unit)}）` : ""}（理由：${r.reason}${r.example ? `／例：${r.example}` : ""}${r.quote ? `／職人の言葉：「${r.quote}」` : ""}／出どころ：${sourceLabel(r.source)}、${r.date}）`)
+    .map((r) => `- [${r.id}] ${r.title}：${r.text}${r.sizePoints?.length ? `（石の大きさごとの点：${r.sizePoints.map((p) => `${p.stoneMm} mm で ${p.value} mm（${p.by === "craftsman" ? "職人" : "推測"}）`).join("、")}。点の間はまっすぐつなぐ${r.inferNote ? `。推測の出し方：${r.inferNote}` : ""}）` : r.bySize && r.param ? `（石の大きさで：${r.bySizeLine ? `${r.bySize.map((s) => `${s.upToMm} mm で ${s.value} ${PARAMS[r.param!].unit}`).join("、")}。間はまっすぐつなぎ、外は同じ傾きで伸ばす${r.bySizeFloor !== undefined ? `。${r.bySizeFloor} ${PARAMS[r.param!].unit} より小さくしない` : ""}` : sizeStepsText(r.bySize, PARAMS[r.param].unit)}）` : ""}（理由：${r.reason}${r.example ? `／例：${r.example}` : ""}${r.quote ? `／職人の言葉：「${r.quote}」` : ""}／出どころ：${sourceLabel(r.source)}、${r.date}）`)
     .join("\n");
 }
 

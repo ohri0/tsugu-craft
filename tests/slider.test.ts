@@ -1,6 +1,6 @@
 // 数のつまみ：打った数を、範囲の中のいちばん近い目盛りにそろえる
 import { describe, expect, it } from "vitest";
-import { formatValue, snapValue } from "../src/studio/slider";
+import { formatValue, liveWait, snapValue } from "../src/studio/slider";
 
 describe("数のつまみ", () => {
   it("目盛りにそろえる", () => {
@@ -23,5 +23,14 @@ describe("数のつまみ", () => {
     expect(formatValue(0.8, 0.05)).toBe("0.80");
     expect(formatValue(12, 1)).toBe("12");
     expect(formatValue(2.2, 0.1)).toBe("2.2");
+  });
+  it("動かしている間の作り直しは、前にかかった時間と同じだけ休む（長くても 400 ms）", () => {
+    // 軽い作り直し（ほぼ 0 ms）：すぐ次へ
+    expect(liveWait(1000, 0, 1000)).toBe(0);
+    // 30 ms かかった：終わってから 30 ms は待つ
+    expect(liveWait(1000, 30, 1010)).toBe(20);
+    expect(liveWait(1000, 30, 1040)).toBe(0);
+    // とても遅い機械でも、待つのは 400 ms まで
+    expect(liveWait(1000, 2000, 1000)).toBe(400);
   });
 });

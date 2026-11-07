@@ -8,7 +8,8 @@ describe("地金のみの指輪", () => {
     expect(checkBand(base)).toEqual([]);
   });
   it("薄い・細いと、作れない所に出て、直すと消える", () => {
-    const thin: Band = { ...base, bottom: { width: 1.5, thickness: 1.0 } };
+    // 幅の赤は職人の決まりで 0.6 mm 以下（前は資料の 1.7 mm より細いと赤。作者が 1.6 mm でも作れると言った 2026-11-06）
+    const thin: Band = { ...base, kind: "hirauchi", bottom: { width: 0.55, thickness: 1.0 } };
     const p = checkBand(thin);
     expect(p.map((x) => x.title)).toEqual(["腕が薄い", "幅が細い"]);
     let fixed = thin;

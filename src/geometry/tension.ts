@@ -1,13 +1,14 @@
 // テンション（挟む）の腕：開いた輪の両はしに、石の形（すき間を足した物）を彫る。画面に依存しない純粋な関数。
 // 座標は指輪の座標（shank.ts と同じ）：mm、x が指の向き、z が上、腕は y–z の面。
 // 職人（石川、2026-11-05）の決まり：片方の端は角のくぼみ、もう片方の端は辺の溝。数字は GUIDES.tension の 1 か所。
-// 石の向きは選べる（TensionGrip）：狭い幅を挟む・長い向きを挟む・向かい合う角をくぼみに。
+// 石の向きは選べる（TensionGrip）：狭い幅を挟む・長い向きを挟む・向かい合う角をくぼみに・（三角）短い辺を溝に。
 //
 // 作り方：腕の端の面を「断面の点 (x, h) ごとに、腕に沿ってどこで終わるか」として決める。
 // 腕の端は y 一定の平らな面（図面の開き）で、そこから石の形だけ奥へ彫る。石は下へ行っても上へ行っても細くなるので、
 // 彫った面は奥へ入りこまない（下から覗けない形にならない）。だから、面は (x, h) の上の 1 つの値になり、閉じた形が必ず作れる。
 // 面の格子は高さの行を溝の折れ目にそろえるので、まっすぐな溝の折れ線は、そのまま形の辺になる。
-import { GUIDES, innerDiameterMm, type MetalId } from "../rules/guides";
+import { GUIDES, innerDiameterMm, type Guides, type MetalId } from "../rules/guides";
+import { tensionAdvice, type TensionAdvice } from "../rules/tension-set";
 import { findCorners } from "./corners";
 import { pushTri, closedPart, type V3 } from "./mesh";
 import { convexHull, toCounterClockwise, type Point } from "./polygon";
@@ -17,9 +18,12 @@ import { girdleCenter, meshVolume, stoneHeights, stoneKnots, stoneScaleAt, type 
 export type TensionMode = "corner-edge" | "edge-edge" | "corner-corner";
 /**
  * 石のどこを腕で挟むか（上から見た石の向き）。
- * short：いちばん狭い幅を挟む（長い向きは指に沿って、腕の幅の外へ出る）。long：長い向きを挟む（短い辺や丸い端を溝に）。corner：向かい合う 2 つの角をくぼみに。
+ * short：いちばん狭い幅を挟む（長い向きは指に沿って、腕の幅の外へ出る）。三角では、いちばん長い辺を溝に・向かいの角をくぼみに。
+ * long：長い向きを挟む（短い辺や丸い端を溝に）。corner：向かい合う 2 つの角をくぼみに。
+ * side：三角だけ。いちばん短い辺を溝に・反対の角（いちばん長い辺の片はし）をくぼみに。角から辺までが short より長い所を挟む。
+ * 作者が実際に作った指輪の向き（職人 石川 2026-11-07「角を 1 個入れて、辺を 1 個溝に落とした」。角のくぼみ 0.4 mm・辺の溝 0.4 mm くらい。見た感じの値）。
  */
-export type TensionGrip = "short" | "long" | "corner";
+export type TensionGrip = "short" | "long" | "corner" | "side";
 
 export interface TensionEnd {
   kind: "pit" | "groove";
@@ -89,9 +93,9 @@ export interface TensionInfo {
 }
 
 export interface TensionOptions {
-  /** 角のくぼみに入れる深さ（mm）。なければ GUIDES.tension.cornerPitMm */
+  /** 角のくぼみに入れる深さ（mm）。なければ、三角の短い辺を溝に入れるとき（side）は職人の値 shortSidePitMm、ほかは戻りきらない分を見込んだおすすめ（仮。tensionDefaultDepths） */
   cornerPitMm?: number;
-  /** 辺の溝に入れる深さ（mm）。なければ GUIDES.tension.edgeGrooveMm */
+  /** 辺の溝に入れる深さ（mm）。なければ、三角の side は職人の値 shortSideGrooveMm、ほかはおすすめ（仮） */
   edgeGrooveMm?: number;
   /** 石のすき間（mm）。なければ GUIDES.tension.clearanceMm */
   clearanceMm?: number;
@@ -99,7 +103,7 @@ export interface TensionOptions {
   culetGapMm?: number;
   /** 腕の両はしを持ち上げるか。なければ GUIDES.tension.liftEnds */
   liftEnds?: boolean;
-  /** 挟む向き。なければ short（角が 1 つ・3 つの石は、いつも角をくぼみに） */
+  /** 挟む向き。なければ short（角が 1 つの石は、いつも角をくぼみに。三角は short・side・corner） */
   grip?: TensionGrip;
   /** 石の縁の高さ（腕の太さのどこか。0.5 は真ん中）。なければ GUIDES.tension.girdleAtWire */
   girdleAtWire?: number;
@@ -212,8 +216,11 @@ function offsetHull(hull: readonly Point[], c: number): Point[] {
 
 const rotate = (p: Point, a: number): Point => ({ x: p.x * Math.cos(a) - p.y * Math.sin(a), y: p.x * Math.sin(a) + p.y * Math.cos(a) });
 
-/** 上から見た石の幅がいちばん狭くなる回し方（x に沿って長く、y に沿って短くなる向き）。同じくらいなら回さない */
-function narrowAngle(hull: readonly Point[]): number {
+/**
+ * 上から見た石の幅がいちばん狭くなる回し方（x に沿って長く、y に沿って短くなる向き）。同じくらいなら回さない。
+ * around・halfDeg を渡すと、その角度のまわり ±halfDeg 度の中だけで探す（三角の短い辺を x に沿わせるとき）
+ */
+function narrowAngle(hull: readonly Point[], around = 0, halfDeg = 90): number {
   const widthAt = (a: number) => {
     let lo = Infinity;
     let hi = -Infinity;
@@ -224,10 +231,10 @@ function narrowAngle(hull: readonly Point[]): number {
     }
     return hi - lo;
   };
-  let best = 0;
-  let bestW = widthAt(0);
-  for (let d = -90; d < 90; d += 0.5) {
-    const a = (d * Math.PI) / 180;
+  let best = around;
+  let bestW = widthAt(around);
+  for (let d = -halfDeg; d < halfDeg; d += 0.5) {
+    const a = around + (d * Math.PI) / 180;
     const w = widthAt(a);
     if (w < bestW - 1e-3) {
       bestW = w;
@@ -260,17 +267,60 @@ function aspectOf(hull: readonly Point[]): number {
 }
 
 /**
- * この石で選べる挟む向き。角が 1 つ・3 つの石は角をくぼみに入れる形だけ（職人の決まり）。丸い石に向きはない。
+ * この石で選べる挟む向き。丸い石に向きはない。角が 1 つ（しずく形）は角をくぼみ・向かいを溝に入れる形だけ。
+ * 角が 3 つ（三角）：角と辺を挟む向きが 2 つ（short：いちばん長い辺を溝に・向かいの角をくぼみに。side：いちばん短い辺を溝に・反対の角をくぼみに）と、
+ * 長い辺の両はしの角を両方くぼみに入れる向き（corner）。作者が実際に作った指輪は side（職人 2026-11-07「角を 1 個入れて、辺を 1 個溝に落とした」）。
+ * 前（2026-11-07 の昼）は、作者の言葉を聞きちがえて、corner を作者の指輪の向きとしていた。
  * 角が 2 つ（マーキス）：腹を溝に／両先をくぼみに。角が 4 つ以上（スクエアなど）：辺を溝に／角をくぼみに（長方形なら長い向きも）。
  */
 export function tensionGrips(stone: StoneParams): TensionGrip[] {
   const n = sharpCorners(stone).length;
-  if (n === 1 || n === 3) return ["short"];
+  if (n === 1) return ["short"];
+  if (n === 3) return ["short", "side", "corner"];
   const hull = toCounterClockwise(convexHull(toCounterClockwise(stone.outlineMm)));
   const long = aspectOf(hull) >= GUIDES.tension.gripAspect;
   if (n === 2) return ["short", "corner"];
   if (n >= 4) return long ? ["short", "long", "corner"] : ["short", "corner"];
   return long ? ["short", "long"] : ["short"];
+}
+
+/** 挟み方ごとの、両はしの種類 */
+export function endKindsOf(mode: TensionMode): ["pit" | "groove", "pit" | "groove"] {
+  return mode === "corner-edge" ? ["pit", "groove"] : mode === "corner-corner" ? ["pit", "pit"] : ["groove", "groove"];
+}
+
+/** おすすめの計算に使う地金の値（ヤング率・耐力（硬い状態）・密度）。K18 は色を分けない形の地金なので K18 イエロー、色金はばねの値がないので K18 イエローを借りる（src/rules/tension-calc.ts の springIdOf と同じ） */
+export function adviceSpringOf(metal: MetalId, g: Guides = GUIDES): { youngGpa: number; proofMpa: number; densityGPerCm3: number } {
+  const id = metal === "pt900" || metal === "sv925" ? metal : "k18y";
+  const m = g.tension.spring.metals[id];
+  return { youngGpa: m.young.gpa, proofMpa: m.hardened.proofMpa, densityGPerCm3: g.metals[metal].densityGPerCm3 };
+}
+
+/** 深さの既定とその出どころ：craftsman ＝ 職人の値（三角の side）、advice ＝ 戻りきらない分を見込んだおすすめ（仮） */
+export interface TensionDefaultDepths {
+  pitMm: number;
+  grooveMm: number;
+  from: "craftsman" | "advice";
+  advice: TensionAdvice | null;
+}
+
+function defaultDepthsFor(pose: { mode: TensionMode; grip: TensionGrip }, radiusMm: number, wireMm: number, metal: MetalId, g: Guides = GUIDES, spring = adviceSpringOf(metal, g)): TensionDefaultDepths {
+  const t = g.tension;
+  if (pose.grip === "side") return { pitMm: t.shortSidePitMm, grooveMm: t.shortSideGrooveMm, from: "craftsman", advice: null };
+  const advice = tensionAdvice({ radiusMm, wireMm, ...spring, kinds: endKindsOf(pose.mode) }, g);
+  return { pitMm: advice.pitMm ?? t.cornerPitMm, grooveMm: advice.grooveMm ?? t.edgeGrooveMm, from: "advice", advice };
+}
+
+/**
+ * この石・この挟む向き・この輪で、くぼみと溝の深さの既定（形を作らずに出す。設計の場が、帳面の値と選んだ地金の色で出し直すとき）。
+ * spring を渡すと、その地金の値で（K18 の色ごと）
+ */
+export function tensionDefaultDepths(p: Pick<ShankParams, "gou" | "thicknessMm" | "metal">, stone: StoneParams, grip: TensionGrip | undefined, g: Guides = GUIDES, spring?: { youngGpa: number; proofMpa: number; densityGPerCm3: number }): TensionDefaultDepths {
+  const pose = stonePose(stone, grip);
+  const t = p.thicknessMm ?? GUIDES.tension.wireMm;
+  const rc = innerDiameterMm(p.gou) / 2 + t / 2;
+  const metal: MetalId = p.metal ?? "k18y";
+  return defaultDepthsFor(pose, rc, t, metal, g, spring ?? adviceSpringOf(metal, g));
 }
 
 /** 石の向きと、どちらの端をくぼみにするか */
@@ -281,8 +331,30 @@ function stonePose(stone: StoneParams, wanted: TensionGrip | undefined): { mode:
   const n = corners.length;
   const grips = tensionGrips(stone);
   const grip = wanted && grips.includes(wanted) ? wanted : "short";
-  if (n === 3) {
-    // 三角：いちばん長い辺を x に沿わせ（高さが y に沿う）、向かいの角を +y へ
+  if (n === 3 && grip === "side") {
+    // 三角（短い辺を溝に）：いちばん短い辺（両はしの角を結ぶ線）を x に沿わせ、反対の角を +y へ。
+    // 写真の輪郭の辺は外へ反るので、角を結ぶ線のまわり ±5° で、幅がいちばん狭くなる向きに合わせる（反った辺が溝の中で平らに当たり、溝がまっすぐになる。
+    // 既定の三角では線から 3° ほど回る。線のままだと、腕の幅の中で辺が傾き、溝が辺に沿って曲がった）
+    const pts = corners.map((c) => c.point);
+    let lone = 0;
+    let shortest = Infinity;
+    for (let i = 0; i < 3; i++) {
+      const p = pts[(i + 1) % 3];
+      const q = pts[(i + 2) % 3];
+      const d = Math.hypot(p.x - q.x, p.y - q.y);
+      if (d < shortest - 1e-6) {
+        shortest = d;
+        lone = i;
+      }
+    }
+    const p = pts[(lone + 1) % 3];
+    const q = pts[(lone + 2) % 3];
+    let a = narrowAngle(hull, -Math.atan2(q.y - p.y, q.x - p.x), 5);
+    if (rotate(pts[lone], a).y < (rotate(p, a).y + rotate(q, a).y) / 2) a += Math.PI;
+    return { mode: "corner-edge", rotationZ: a, cornerCount: n, hull, grip, grips };
+  }
+  if (n === 3 && grip !== "corner") {
+    // 三角（狭い幅を挟む）：いちばん長い辺を x に沿わせ（高さが y に沿う）、向かいの角を +y へ
     let a = narrowAngle(hull);
     const ys = corners.map((c) => rotate(c.point, a).y);
     const pairs = [0, 1, 2].map((i) => {
@@ -301,7 +373,7 @@ function stonePose(stone: StoneParams, wanted: TensionGrip | undefined): { mode:
     return { mode: "corner-edge", rotationZ: a, cornerCount: n, hull, grip, grips };
   }
   if (grip === "corner") {
-    // 向かい合う 2 つの角（いちばん離れた組）を y に沿わせて、両方をくぼみに
+    // 向かい合う 2 つの角（いちばん離れた組）を y に沿わせて、両方をくぼみに。三角では、いちばん長い辺の両はしの角になり、残りの角は横（腕の幅の外）へ出る
     let best: [Point, Point] = [corners[0].point, corners[1].point];
     let far = -1;
     for (let i = 0; i < n; i++)
@@ -358,11 +430,13 @@ export function buildTensionBand(p: ShankParams, stone: StoneParams, o: TensionO
   const r = dIn / 2;
   const rc = r + t / 2;
   const clear = o.clearanceMm ?? g.clearanceMm;
-  const pitDepth = o.cornerPitMm ?? g.cornerPitMm;
-  const grooveDepth = o.edgeGrooveMm ?? g.edgeGrooveMm;
-
   // 石の向き：上から見て回し、くぼみの幅の真ん中（なければ石の真ん中）を腕の幅の真ん中へ
   const pose = stonePose(stone, o.grip);
+  // 深さ：三角の短い辺を溝に・反対の角をくぼみに入れるときは、作者が実際に作った指輪の値（職人 2026-11-07。shortSidePitMm・shortSideGrooveMm）。
+  // ほかは、戻りきらない分を見込んだ計算のおすすめ（仮。src/rules/tension-set.ts。前の 0.8・0.5 は作者が「適当に言ってるだけ」と外した）
+  const def = o.cornerPitMm === undefined || o.edgeGrooveMm === undefined ? defaultDepthsFor(pose, rc, t, metal) : null;
+  const pitDepth = o.cornerPitMm ?? def!.pitMm;
+  const grooveDepth = o.edgeGrooveMm ?? def!.grooveMm;
   const pitTop = pose.mode !== "edge-edge";
   const pitBot = pose.mode === "corner-corner";
   const hullR = pose.hull.map((q) => rotate(q, pose.rotationZ));

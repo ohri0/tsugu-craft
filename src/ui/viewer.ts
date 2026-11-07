@@ -8,6 +8,7 @@ import { FullScreenQuad } from "three/examples/jsm/postprocessing/Pass.js";
 import { toCreasedNormals } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { placePoint, type RingDesign } from "../geometry/ring";
 import type { ShankResult } from "../geometry/shank";
+import type { SettingResult } from "../geometry/setting";
 import type { StoneMesh } from "../geometry/stone";
 import type { MetalId } from "../rules/guides";
 import type { Problem } from "../rules/checks";
@@ -15,7 +16,11 @@ import { CadGrid, GRID_LOOK } from "./cad-grid";
 import { COLORED_IOR, COLORLESS_IOR, gemMaterial, type GemQuality, type GemShared } from "./gem";
 import { Glow } from "./glow";
 import type { MetalTrace } from "./metal-trace";
-import { GEM_STUDIO, LOOK, METAL_COLOR, METAL_STUDIO, studioLightScene, type MetalShade } from "./studio-light";
+import { GEM_STUDIO, LOOK, METAL_COLOR, METAL_STUDIO, METAL_SURFACE, studioLightScene, type MetalShade } from "./studio-light";
+import { applyFinishLook, type FinishLook } from "./hammer";
+import { sectionArc, tsuchimeSpec, tsuchimeStyleOf, type RingFinish } from "../geometry/finish";
+import { nunomeMetal, nunomeOf } from "../geometry/nunome";
+import { nunomeTexture } from "./nunome-tex";
 import { guardBufferUploads } from "./gl-upload";
 import { gridSpacing, labelStep, VIEW_DIR, ViewCameras, type FlatViewInfo, type ViewName } from "./view-camera";
 
@@ -27,11 +32,37 @@ const SHADED = {
   warn: new THREE.MeshStandardMaterial({ color: 0xe0504a, roughness: 0.6, metalness: 0, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }),
   stone: new THREE.MeshStandardMaterial({ color: 0xa9cff2, roughness: 0.35, metalness: 0, transparent: true, opacity: 0.6, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }),
 };
-/** レンダリングの材質 → シェードの材質（地金は灰色、目安を外れた所は赤、石は淡い青） */
+/** 止めない注意の色（腕の幅の黄色・オレンジ。職人 石川の決まり 2026-11-06）。赤のように点滅させない */
+export type CautionTint = "yellow" | "orange";
+const CAUTION: Record<CautionTint, number> = { yellow: 0xd8b13a, orange: 0xe0803a };
+const CAUTION_LOOK: Record<CautionTint, THREE.MeshPhysicalMaterial> = {
+  yellow: new THREE.MeshPhysicalMaterial({ color: CAUTION.yellow, metalness: 0.35, roughness: 0.3, clearcoat: 0.6, side: THREE.DoubleSide }),
+  orange: new THREE.MeshPhysicalMaterial({ color: CAUTION.orange, metalness: 0.35, roughness: 0.3, clearcoat: 0.6, side: THREE.DoubleSide }),
+};
+const SHADED_CAUTION: Record<CautionTint, THREE.MeshStandardMaterial> = {
+  yellow: new THREE.MeshStandardMaterial({ color: 0xd9bb55, roughness: 0.6, metalness: 0, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }),
+  orange: new THREE.MeshStandardMaterial({ color: 0xe08a4a, roughness: 0.6, metalness: 0, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }),
+};
+/** レンダリングの材質 → シェードの材質（地金は灰色、目安を外れた所は赤、注意は黄色・オレンジ、石は淡い青） */
 function shadedOf(m: THREE.Material): THREE.Material {
   if (isStone(m)) return SHADED.stone;
+  // 槌目・象嵌の仕上げは、シェードの灰色でも跡と帯が見えるように（はめこんだ地金は少し暗い灰色）
+  const fl = m.userData.finishLook as FinishLook | undefined;
+  if (fl && !(m instanceof THREE.MeshPhysicalMaterial && [WARN, CAUTION.yellow, CAUTION.orange].includes(m.color.getHex()))) {
+    if (!m.userData.shaded) m.userData.shaded = applyFinishLook(SHADED.metal.clone(), { ...fl, inlay: fl.inlay && { ...fl.inlay, color: [0.2, 0.2, 0.22] } });
+    return m.userData.shaded as THREE.Material;
+  }
   if (m instanceof THREE.MeshPhysicalMaterial && m.color.getHex() === WARN) return SHADED.warn;
+  if (m instanceof THREE.MeshPhysicalMaterial && m.color.getHex() === CAUTION.yellow) return SHADED_CAUTION.yellow;
+  if (m instanceof THREE.MeshPhysicalMaterial && m.color.getHex() === CAUTION.orange) return SHADED_CAUTION.orange;
   return SHADED.metal;
+}
+
+/** 注意の色の材質（映り込みは赤い印と同じ明るい環境） */
+function cautionMat(t: CautionTint): THREE.MeshPhysicalMaterial {
+  const m = CAUTION_LOOK[t].clone();
+  m.envMap = CAUTION_LOOK[t].envMap;
+  return m;
 }
 
 /** 作れない所の赤い材質の元（映り込みは、シェードと同じ明るい環境で） */
@@ -45,6 +76,41 @@ export interface StoneLook {
 }
 
 const metalColor = (id: MetalShade) => new THREE.Color().setRGB(...METAL_COLOR[id], THREE.LinearSRGBColorSpace);
+/** 地金の材質：ふだんは鏡面。煮色の色金は、膜の上のやわらかい映り込みと、沈んだ地の色 */
+function metalMaterial(id: MetalShade): THREE.MeshPhysicalMaterial {
+  const sf = METAL_SURFACE[id];
+  return new THREE.MeshPhysicalMaterial({
+    color: metalColor(id),
+    metalness: 1,
+    roughness: sf?.roughness ?? LOOK.roughness,
+    clearcoat: sf?.clearcoat ?? 0,
+    clearcoatRoughness: sf?.clearcoatRoughness ?? 0,
+    envMapIntensity: sf?.envMapIntensity ?? 1.0,
+    side: THREE.DoubleSide,
+  });
+}
+/** はめこむ地金の色（布目象嵌）：金の地金には純銀、ほかには純金（金・銀は煮色で色が変わらない） */
+const INLAY_GOLD: [number, number, number] = [0.98, 0.69, 0.27];
+const INLAY_SILVER: [number, number, number] = [0.95, 0.94, 0.92];
+/** 作れない模様は、はめこんだ所を赤で見せる（作れない所の赤と同じ色合い） */
+const INLAY_BAD: [number, number, number] = [0.75, 0.04, 0.025];
+/** 腕の面の仕上げ（槌目・布目象嵌）の見え方。なければ null */
+export function finishLookOf(f: RingFinish | undefined, shade: MetalShade, outerRadiusMm: number, centerZ = 0, inlayBad = false): FinishLook | null {
+  if (!f || (!f.tsuchime && !f.inlay)) return null;
+  const goldBase = shade.startsWith("k18");
+  const t = f.tsuchime ? tsuchimeSpec(f.tsuchime) : null;
+  const nd = nunomeOf(f);
+  return {
+    style: f.tsuchime ? tsuchimeStyleOf(f.tsuchime) : undefined,
+    markMm: t?.markMm ?? 0,
+    lengthMm: t?.lengthMm ?? 0,
+    depthMm: t?.depthMm ?? 0,
+    area: f.tsuchime?.area === "all" ? 1 : 0,
+    outerRadiusMm,
+    inlay: nd ? { halfMm: nd.widthMm / 2, color: inlayBad ? INLAY_BAD : nunomeMetal(nd, goldBase) === "silver" ? INLAY_SILVER : INLAY_GOLD, tex: nunomeTexture(nd, 2 * Math.PI * outerRadiusMm) } : undefined,
+    centerZ,
+  };
+}
 const WARN = 0xe0342b;
 /** 背景のうっすらとした明るさの変化（真ん中 → 外） */
 const BACKDROP = { center: "#f8f6f2", edge: "#e2ddd4" };
@@ -64,6 +130,32 @@ function quality(gl: WebGL2RenderingContext | WebGLRenderingContext): { envSize:
   // CPU に付いた GPU（Intel の内蔵）は、石の中を 1 本だけ追う（4 本だと 1 こま 0.2 秒かかり、回すとかくつく）
   if (/intel|iris|uhd/i.test(name)) return { envSize: 512, glow: true, gem: { bounces: LOOK.gemBounces, samples: 1, disperse: true, envMaxLod: maxLod(512) } };
   return { envSize: 1024, glow: true, gem: { bounces: LOOK.gemBounces, samples: 4, disperse: true, envMaxLod: maxLod(512) } };
+}
+
+type StonePart = { setting: SettingResult; ranges: { setting: { start: number; count: number } } };
+
+/** 石座の形：問題のある爪・覆輪・下の輪の三角形だけを、赤い材質の組（1 番）に分ける */
+function settingGeometryOf(ring: RingDesign, stones: readonly StonePart[], badProngs: ReadonlySet<string>, badBezel: ReadonlySet<number>, badCollar: ReadonlySet<number>): THREE.BufferGeometry {
+  const settingGeo = ring.ringPositions.settingNormals ? smoothGeometry(ring.ringPositions.setting, ring.ringPositions.settingNormals) : metalGeometry(ring.ringPositions.setting);
+  const total = ring.ringPositions.setting.length / 9;
+  const ranges = stones
+    .flatMap((st, si) =>
+      badBezel.has(si)
+        ? [{ ...st.ranges.setting, bad: true }]
+        : [
+            ...st.setting.prongs.map((pr, i) => ({ start: st.ranges.setting.start + pr.triangles.start, count: pr.triangles.count, bad: badProngs.has(`${si}:${i}`) })),
+            ...(st.setting.collar ? [{ start: st.ranges.setting.start + st.setting.collar.triangles.start, count: st.setting.collar.triangles.count, bad: badCollar.has(si) }] : []),
+          ].filter((r) => r.bad),
+    )
+    .sort((a, b) => a.start - b.start);
+  let cursor = 0;
+  for (const r of ranges) {
+    if (r.start > cursor) settingGeo.addGroup(cursor * 3, (r.start - cursor) * 3, 0);
+    settingGeo.addGroup(r.start * 3, r.count * 3, 1);
+    cursor = r.start + r.count;
+  }
+  if (cursor < total) settingGeo.addGroup(cursor * 3, (total - cursor) * 3, 0);
+  return settingGeo;
 }
 
 export class Viewer {
@@ -128,7 +220,7 @@ export class Viewer {
       const work = pmrem.fromScene(studioScene(), 0.015).texture;
       // 石が読む環境（ぼかしの段がある絵。遠くの反射ほどぼかして読む）
       this.gemShared.uEnv.value = pmrem.fromScene(studioLightScene(GEM_STUDIO), 0, 0.1, 100, { size: Math.min(512, this.quality.envSize) }).texture;
-      for (const m of [SHADED.metal, SHADED.warn, SHADED.stone, WARN_LOOK]) {
+      for (const m of [SHADED.metal, SHADED.warn, SHADED.stone, WARN_LOOK, CAUTION_LOOK.yellow, CAUTION_LOOK.orange, SHADED_CAUTION.yellow, SHADED_CAUTION.orange]) {
         m.envMap = work;
         m.needsUpdate = true;
       }
@@ -631,12 +723,46 @@ export class Viewer {
    * 地金だけの形（地金のみの指輪など）。三角形の並び、mm。いちばん下を床（z ＝ 0）に置く。
    * warn：形ぜんぶを赤く光らせる（作れない所があるとき）。spots：赤い線を回す所（幅の位置 x、指の軸からの距離 rho、軸の高さ z。とがった先など）
    */
-  setMetalMesh(positions: Float32Array, metal: MetalId, kind = "metal", o: { warn?: boolean; spots?: { x: number; rho: number; z: number }[]; shade?: MetalShade } = {}) {
+  setMetalMesh(
+    positions: Float32Array,
+    metal: MetalId,
+    kind = "metal",
+    o: {
+      warn?: boolean;
+      spots?: { x: number; rho: number; z: number }[];
+      shade?: MetalShade;
+      tint?: CautionTint;
+      /** 伝統の仕上げ（槌目・布目象嵌は材質で。ミルの粒は positions の後ろ beadTris の三角形で、仕上げをかけない）。centerZ：輪の中心の高さ */
+      finish?: { finish: RingFinish; centerZ: number; innerRadiusMm: number; outerRadiusMm: number; beadTris: number; inlayBad?: boolean };
+    } = {},
+  ) {
     this.clear();
     const warn = new THREE.MeshPhysicalMaterial({ color: WARN, metalness: 0.35, roughness: 0.3, clearcoat: 0.6, side: THREE.DoubleSide });
-    const mat = o.warn ? warn : new THREE.MeshPhysicalMaterial({ color: metalColor(o.shade ?? metal), metalness: 1, roughness: LOOK.roughness, envMapIntensity: 1.0, side: THREE.DoubleSide });
+    // tint：止めない注意（腕の幅の黄色・オレンジ）。形ぜんぶを、その色で塗る（赤のときは赤が先）
+    const plain = o.warn ? warn : o.tint ? cautionMat(o.tint) : metalMaterial(o.shade ?? metal);
+    const fin = o.finish;
+    const fl = fin && !o.warn && !o.tint ? finishLookOf(fin.finish, o.shade ?? metal, fin.outerRadiusMm, fin.centerZ, fin.inlayBad) : null;
+    const mat = fl ? (applyFinishLook(plain.clone(), fl) as THREE.MeshPhysicalMaterial) : plain;
     if (o.warn || o.spots?.length) this.warnMat = warn;
-    const armMesh = new THREE.Mesh(metalGeometry(positions), mat);
+    const geo = metalGeometry(positions);
+    const totalTris = positions.length / 9;
+    const beadTris = fin?.beadTris ?? 0;
+    if (fl && fin) {
+      // 槌目・象嵌の模様の座標：断面に沿って測った長さ（輪の三角形だけ。輪の中心を原点にして）。粒は 0
+      const pos = geo.getAttribute("position").array as Float32Array;
+      const ringPart = pos.slice(0, (totalTris - beadTris) * 9);
+      for (let i = 2; i < ringPart.length; i += 3) ringPart[i] -= fin.centerZ;
+      const arc = new Float32Array(pos.length / 3);
+      arc.set(sectionArc(ringPart, fin.innerRadiusMm));
+      geo.setAttribute("aFinS", new THREE.BufferAttribute(arc, 1));
+    }
+    let mats: THREE.Material | THREE.Material[] = mat;
+    if (beadTris && fl && beadTris < totalTris) {
+      geo.addGroup(0, (totalTris - beadTris) * 3, 0);
+      geo.addGroup((totalTris - beadTris) * 3, beadTris * 3, 1);
+      mats = [mat, plain];
+    }
+    const armMesh = new THREE.Mesh(geo, mats);
     armMesh.userData.arm = true;
     this.content.add(armMesh);
     for (const s of o.spots ?? []) {
@@ -646,7 +772,7 @@ export class Viewer {
       mark.position.set(s.x, 0, s.z);
       this.content.add(mark);
     }
-    this.metalMat = mat;
+    this.metalMat = plain;
     this.traceParts = [armMesh.geometry];
     this.traceTint.copy(mat.color);
     this.syncTrace();
@@ -666,20 +792,18 @@ export class Viewer {
   }
 
   /** 石・石座・腕のそろった指輪。指の軸は x、腕の一番下を床（z ＝ 0）に置く */
-  setRing(ring: RingDesign, look: StoneLook, problems: Problem[]) {
+  /** shankTint：腕の幅の止めない注意（黄色・オレンジ）。腕をその色で塗る（腕が赤いときは赤が先） */
+  setRing(ring: RingDesign, look: StoneLook, problems: Problem[], shankTint?: CautionTint) {
     this.clear();
     const lift = ring.shank.outerRadiusMm;
     const h = ring.stone.heights;
     const shade = metalColor(look.shade ?? ring.metal);
     this.gemShared.uMetal.value.copy(shade);
     this.addStone(ring.ringPositions.stone, ring.stones?.length ? ring.stones.map((st) => st.ranges.stone) : undefined, look, lift, h.tableZ - h.culetZ);
-    const metal = new THREE.MeshPhysicalMaterial({
-      color: shade,
-      metalness: 1,
-      roughness: LOOK.roughness,
-      envMapIntensity: 1.0,
-      side: THREE.DoubleSide,
-    });
+    const metal = metalMaterial(look.shade ?? ring.metal);
+    // 槌目・象嵌は腕だけ（石座と爪には打たない）
+    const fl = finishLookOf(ring.params.finish, look.shade ?? ring.metal, ring.shank.outerRadiusMm, 0, problems.some((p) => p.check.startsWith("nunome-")));
+    const armMetal = fl ? applyFinishLook(metal.clone(), fl) : metal;
     const warn = WARN_LOOK.clone();
     warn.envMap = WARN_LOOK.envMap;
     // 問題のある爪の三角形だけ、赤い材質の組に分ける（石を並べた指輪では、石ごとの三角形の範囲の中で）
@@ -693,27 +817,27 @@ export class Viewer {
     const badCollar = new Set(problems.flatMap((p) => (p.target.kind === "collar" ? [stoneOf(p)] : [])));
     this.warnMat =
       badProngs.size > 0 || badBezel.size > 0 || badCollar.size > 0 || badShank || problems.some((p) => p.target.kind === "corner" || p.target.kind === "gap" || p.target.kind === "shank-spot" || p.target.kind === "space" || p.target.kind === "band-end") ? warn : null;
-    const settingGeo = ring.ringPositions.settingNormals ? smoothGeometry(ring.ringPositions.setting, ring.ringPositions.settingNormals) : metalGeometry(ring.ringPositions.setting);
-    const total = ring.ringPositions.setting.length / 9;
-    const ranges = stones
-      .flatMap((st, si) =>
-        badBezel.has(si)
-          ? [{ ...st.ranges.setting, bad: true }]
-          : [
-              ...st.setting.prongs.map((pr, i) => ({ start: st.ranges.setting.start + pr.triangles.start, count: pr.triangles.count, bad: badProngs.has(`${si}:${i}`) })),
-              ...(st.setting.collar ? [{ start: st.ranges.setting.start + st.setting.collar.triangles.start, count: st.setting.collar.triangles.count, bad: badCollar.has(si) }] : []),
-            ].filter((r) => r.bad),
-      )
-      .sort((a, b) => a.start - b.start);
-    let cursor = 0;
-    for (const r of ranges) {
-      if (r.start > cursor) settingGeo.addGroup(cursor * 3, (r.start - cursor) * 3, 0);
-      settingGeo.addGroup(r.start * 3, r.count * 3, 1);
-      cursor = r.start + r.count;
-    }
-    if (cursor < total) settingGeo.addGroup(cursor * 3, (total - cursor) * 3, 0);
+    const settingGeo = settingGeometryOf(ring, stones, badProngs, badBezel, badCollar);
     const setting = new THREE.Mesh(settingGeo, [metal, warn]);
-    const shank = new THREE.Mesh(ring.shank.normals ? smoothGeometry(ring.ringPositions.shank, ring.shank.normals) : metalGeometry(ring.ringPositions.shank), badShank ? warn : metal);
+    const shankGeo = ring.shank.normals ? smoothGeometry(ring.ringPositions.shank, ring.shank.normals) : metalGeometry(ring.ringPositions.shank);
+    const shankMat = badShank ? warn : shankTint ? cautionMat(shankTint) : armMetal;
+    // ミルの粒（腕の三角形の後ろ）には、槌目と象嵌をかけない（粒は鏨で打った、なめらかな山）
+    const beadTris = ring.milgrain?.count ? ring.milgrain.triangles : 0;
+    const totalTris = ring.ringPositions.shank.length / 9;
+    // 槌目・象嵌の模様の座標：断面に沿って測った長さ（腕の三角形だけ。粒と細い縁は 0）
+    if (fl) {
+      const pos = shankGeo.getAttribute("position").array as Float32Array;
+      const arc = new Float32Array(pos.length / 3);
+      arc.set(sectionArc(pos.subarray(0, (totalTris - beadTris) * 9), ring.shank.innerRadiusMm));
+      shankGeo.setAttribute("aFinS", new THREE.BufferAttribute(arc, 1));
+    }
+    let shankMats: THREE.Material | THREE.Material[] = shankMat;
+    if (beadTris && shankMat === armMetal && armMetal !== metal && beadTris < totalTris) {
+      shankGeo.addGroup(0, (totalTris - beadTris) * 3, 0);
+      shankGeo.addGroup((totalTris - beadTris) * 3, beadTris * 3, 1);
+      shankMats = [armMetal, metal];
+    }
+    const shank = new THREE.Mesh(shankGeo, shankMats);
     shank.userData.arm = true;
     setting.position.z = lift;
     shank.position.z = lift;
@@ -761,6 +885,13 @@ export class Viewer {
     this.contentVersion++;
     const old = L.shank.geometry;
     L.shank.geometry = shank.normals ? smoothGeometry(shank.positions, shank.normals) : metalGeometry(shank.positions);
+    // 槌目・象嵌の模様の座標（断面に沿った長さ）も作り直す
+    if (old.getAttribute("aFinS")) {
+      const pos = L.shank.geometry.getAttribute("position").array as Float32Array;
+      L.shank.geometry.setAttribute("aFinS", new THREE.BufferAttribute(sectionArc(pos, shank.innerRadiusMm), 1));
+    }
+    // 粒を分けた材質の組のときは、動かしている間の腕（粒なし）を 1 つ目の材質で
+    if (Array.isArray(L.shank.material) || Array.isArray(L.shank.userData.render)) L.shank.geometry.addGroup(0, shank.positions.length / 3, 0);
     old.dispose();
     const ud = L.shank.userData;
     if (ud.edges) {
@@ -776,6 +907,37 @@ export class Viewer {
     L.marks = spotMarks(shank, problems, L.lift, L.warn);
     L.marks.forEach((m) => this.content.add(m));
     this.applyMode();
+  }
+
+  /**
+   * 石座だけを差し替える（爪の欄のつまみを動かしている間。腕は前の形のまま。彫りのある腕を、動かしている間の彫らない腕に替えないため）。
+   * 石と腕・影はそのまま。石座の赤い爪の組は、新しい問題で付け直す
+   */
+  updateSetting(ring: RingDesign, problems: Problem[]): boolean {
+    const L = this.live;
+    const m = this.settingMesh;
+    if (!L || !m) return false;
+    this.contentVersion++;
+    const stones = ring.stones?.length ? ring.stones : [{ setting: ring.setting, ranges: { setting: { start: 0, count: ring.ringPositions.setting.length / 9 } } }];
+    const stoneOf = (p: Problem) => Math.min(stones.length - 1, p.stone ?? 0);
+    const badProngs = new Set(problems.flatMap((p) => (p.target.kind === "prong" ? [`${stoneOf(p)}:${p.target.index}`] : [])));
+    const badBezel = new Set(problems.flatMap((p) => (p.target.kind === "bezel" ? [stoneOf(p)] : [])));
+    const badCollar = new Set(problems.flatMap((p) => (p.target.kind === "collar" ? [stoneOf(p)] : [])));
+    const old = m.geometry;
+    m.geometry = settingGeometryOf(ring, stones, badProngs, badBezel, badCollar);
+    old.dispose();
+    if (badProngs.size || badBezel.size || badCollar.size) this.warnMat = L.warn;
+    const ud = m.userData;
+    if (ud.edges) {
+      const e = ud.edges as THREE.LineSegments;
+      e.parent?.remove(e);
+      e.geometry.dispose();
+      ud.edges = undefined;
+    }
+    this.traceParts = [m.geometry, L.shank.geometry];
+    this.syncTrace();
+    this.applyMode();
+    return true;
   }
 
   private addStone(positions: Float32Array, ranges: readonly { start: number; count: number }[] | undefined, look: StoneLook, z: number, depthMm: number) {

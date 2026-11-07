@@ -110,7 +110,7 @@ export function whyHtml(opts: { standalone?: boolean } = {}): string {
         <figure><figcaption>これまで</figcaption>${flowBeforeSvg()}</figure>
         <figure><figcaption>継ぐがあると</figcaption>${flowAfterSvg()}</figure>
       </div>
-      <p>継ぐの中で、デザインと設計を、職人の判断で確かめながら進めます。だから制作まで進み、戻りは極限まで少なくなります。設計も制作も、人の仕事のままです。</p>
+      <p>継ぐの中で、デザインと設計を、職人の判断で確かめながら進めます。だから制作まで進み、戻りは極限まで少なくなります。</p>
     </div>
   </section>
 
@@ -153,7 +153,7 @@ export function whyHtml(opts: { standalone?: boolean } = {}): string {
       <h3>だから、<wbr>残して、渡す。</h3>
       <ol class="wy-steps">
         <li><b>残す</b><span>Claude が職人の言葉を読み取り、数字つきの決まりの案にします。職人が案を見て「これでいい」を押すと、工房の帳面に残ります。</span></li>
-        <li><b>デザインする人へ</b><span>作れない所は、描いている間に赤く光ります。作り方まで、その場で出ます。</span></li>
+        <li><b>デザインする人へ</b><span>作れない所には、描いている間に赤い印がつきます。作り方まで、その場で出ます。</span></li>
         <li><b>学ぶ人へ</b><span>先生や先輩を待たずに、理由つきの答えが出ます。手の感覚は、人から受け取ります。</span></li>
         <li><b>次の時代へ</b><span>もし途切れても、残った手がかりから、作り方を組み立て直す試みができます。工房に入れておけば、万が一の時に役立ちます。</span></li>
       </ol>
