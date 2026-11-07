@@ -7,7 +7,9 @@ import { STONE_FREE_NOTE, STONE_KEEP_NOTE, gouNote } from "../src/claude/prompt"
 import { INPUT_BOUNDS, STONE_SHAPES, TOOLS, isAllowedToolName, isToolName, parseToolCall } from "../src/claude/tools";
 import { cannotFrom, plainWords, toolLogLine } from "../src/claude/words";
 import { seedLedger } from "../src/rules/ledger";
-import { DesignHistory, generationTools, isTextField, keepGou, makeHost, undoKey } from "../src/studio/make-run";
+import { DesignHistory, generationRoute, generationTools, isTextField, keepGou, makeHost, undoKey, wantsNoStone } from "../src/studio/make-run";
+import { bandPrompt } from "../src/studio/band";
+import { addRule, effectiveGuides } from "../src/rules/ledger";
 import { PRESETS, presetOutline, sizedPreset } from "../src/studio/presets";
 import { ringSectionInput, ringSectionKind, ringSectionWord } from "../src/studio/ring-shape";
 import { RingSession, STONE_LONG_RANGE, carryDesign } from "../src/studio/session";
@@ -306,5 +308,32 @@ describe("見本の作品を外す", () => {
 describe("まだできないことの言葉", () => {
   it("石も号も変えなかったときは、札に出せる", () => {
     expect(cannotFrom("やったこと：組んだ\nまだできないこと：13 号にすること")).toContain("13 号");
+  });
+});
+
+describe("石なし（地金だけの指輪。作者の頼み 2026-11-07）", () => {
+  it("はっきり石のない指輪を頼む言い方を拾う", () => {
+    for (const w of ["石なしでシンプルに", "石無しで", "石は入れないで細く", "石はいらない", "地金だけの指輪", "地金のみで", "石を付けずに", "A plain band, no stone", "without stones please"]) expect(wantsNoStone(w), w).toBe(true);
+  });
+  it("石のある頼み・迷う頼みは拾わない", () => {
+    for (const w of ["", "かわいく", "結婚指輪にしたい", "石を大きく見せたい", "シンプルに", "石なしじゃなくて、小さい石を", "石を 20 mm に", "stone in the middle"]) expect(wantsNoStone(w), w).toBe(false);
+  });
+  it("石なしを選んだとき、石もおまかせで石なしを頼まれたときだけ、地金だけの指輪へ", () => {
+    expect(generationRoute("none", "かわいく")).toBe("band");
+    expect(generationRoute("free", "石なしでシンプルに")).toBe("band");
+    expect(generationRoute("free", "かわいく")).toBe("solitaire");
+    // 今の石を使うと選んだ人の石は、黙って外さない（画面は「石なしで作る →」を出す）
+    expect(generationRoute("keep", "石なしでシンプルに")).toBe("solitaire");
+  });
+  it("地金のみの指輪の指示に、帳面の腕の厚みの決まりが入る", () => {
+    expect(bandPrompt()).toContain("目安）");
+    const l = addRule(seedLedger(), { title: "腕の厚み", text: "1.8 mm 以上", reason: "曲がる", param: "band.minThicknessMm", value: 1.8, source: { kind: "craftsman", name: "石川" }, date: "2026-11-07" });
+    const p = bandPrompt(effectiveGuides(l));
+    expect(p).toContain("厚み 1.8 mm 以上");
+    expect(p).toContain("この工房の決まり");
+  });
+  it("石の約束の文に、石なしの道を書く", () => {
+    expect(STONE_KEEP_NOTE).toContain("石なし");
+    expect(STONE_FREE_NOTE).toContain("石なし");
   });
 });

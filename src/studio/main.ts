@@ -41,7 +41,7 @@ import { sheetHtml } from "./sheet";
 import { bindFlowMotion, whyHtml } from "./why";
 import { SORT_TIPS, parseTips, tipsFor, tipsPrompt, type Tip } from "./tips";
 import { PRESETS, presetOutline, sizedPreset, type StonePreset } from "./presets";
-import { DesignHistory, generationTools, isTextField, keepGou, makeHost, undoKey } from "./make-run";
+import { DesignHistory, generationRoute, generationTools, isTextField, keepGou, makeHost, undoKey, wantsNoStone, type StonePick } from "./make-run";
 import { drawingPage, type DrawingView, DRAWING_CSS } from "./drawing";
 import { loadWorks, newWorkId, removeSampleWorks, removeWork, saveWork, updateWork, worksBookHtml, type WorkRecord } from "./works";
 import { cardFlow, glossOf, markTerms, stepCard } from "./cards";
@@ -207,6 +207,7 @@ app.innerHTML = `
       <div class="gen-stone solitaire-only" role="radiogroup" aria-label="石"><span class="sp-label">石</span>
         <label><input type="radio" name="stone-pick" value="keep" checked><span><b>今の石を使う</b><small class="sp-now">—</small></span></label>
         <label><input type="radio" name="stone-pick" value="free"><span><b>石もおまかせ</b><small>形も大きさも Claude が選ぶ</small></span></label>
+        <label><input type="radio" name="stone-pick" value="none"><span><b>石なし</b><small>地金だけの指輪</small></span></label>
       </div>
       <label class="gou-pick"><span>号</span><select class="gen-gou" aria-label="指輪の号"></select></label>
     </div>`}<form class="prompt command"><span class="cmd-label">希望</span><input type="text" class="wish" placeholder="例：華奢に。毎日つける。石を大きく見せたい" aria-label="希望"><kbd>⏎</kbd><button type="submit">生成</button></form></div>
@@ -1346,6 +1347,9 @@ async function make() {
   if (kind === "band") return makeBand();
   if (!session || !stone || making) return;
   const wish = $<HTMLInputElement>(".wish").value.trim();
+  // 石なし（地金だけの指輪）：同じ希望と号で、地金のみの指輪の生成へ（作者の頼み 2026-11-07）
+  const pick = stonePick();
+  if (generationRoute(pick, wish) === "band") return makeNoStone(pick);
   const pass = store.password() || (await askPassword(true));
   if (!pass) {
     setStatus("生成には Claude が要ります。合言葉がないので、希望の言葉は使えません。形は今の案（決まりごとから作った案）のままです。", { links: [{ label: "手で変える →", run: toManual }] });
@@ -1401,7 +1405,9 @@ async function make() {
   // 表せなかった希望を、目立つ所に出す（できたふりをさせない）
   showCannot(cannotFrom(r.finalText, titlesNow()));
   const chosenWords = chosen && stone ? `石は Claude が選びました（${stone.shapeName} ${stone.measured.longMm.toFixed(2)} × ${stone.measured.widthMm.toFixed(2)} mm、深さは例）。${imported ? "取り込んだ石は「取り込んだ石」のボタンで戻せます。" : ""}` : "";
-  setStatus(`${chosenWords}${r.remaining !== undefined ? `今日あと ${r.remaining} 回` : ""}`, { links: [{ label: "確かめる →", run: () => setMode("refine") }] });
+  // 「今の石を使う」のまま石なしを頼まれたときは、石なしで作り直す道を出す
+  const noStone = pick === "keep" && wantsNoStone(wish) ? [{ label: "石なしで作る →", run: () => void makeNoStone("none") }] : [];
+  setStatus(`${chosenWords}${r.remaining !== undefined ? `今日あと ${r.remaining} 回` : ""}`, { links: [...noStone, { label: "確かめる →", run: () => setMode("refine") }] });
 }
 /** 石もおまかせ：Claude が選んだよくある形を、人が札を押したときと同じ関数で入れる。腕・地金・号は引き継ぐ */
 async function chooseStoneTool(input: ChooseStoneInput): Promise<ChooseStoneResult> {
@@ -1438,6 +1444,32 @@ const ringShapeHost: RingShapeHost = {
 function renderRingShapeNow() {
   const box = document.querySelector<HTMLElement>(".ring-shape");
   if (box && session?.built && kind === "solitaire") renderRingShape(box, ringShapeHost);
+}
+/** 石の選択の欄（撮影では欄がないので、今の石のまま） */
+function stonePick(): StonePick {
+  const v = document.querySelector<HTMLInputElement>('.gen-stone input[name="stone-pick"]:checked')?.value;
+  return v === "free" || v === "none" ? v : "keep";
+}
+/**
+ * 石なしで生成する：号を引き継いで地金のみの指輪に切り替え、同じ希望の言葉で Claude に組んでもらう。
+ * 石の欄は「今の石を使う」に戻す（一粒石の指輪へ戻ったとき、また石なしに飛ばないように）
+ */
+async function makeNoStone(pick: StonePick) {
+  const gou = session?.state.gou ?? band.gou;
+  band = { ...band, gou: Math.min(BAND_GOU_RANGE.max, Math.max(BAND_GOU_RANGE.min, gou)) };
+  const keep = document.querySelector<HTMLInputElement>('.gen-stone input[value="keep"]');
+  if (keep) keep.checked = true;
+  const wish = $<HTMLInputElement>(".wish").value;
+  // 「生成の前に戻す」で、石のある指輪に戻れるように、切り替える前を覚える
+  const mark = historyBegin();
+  setKind("band");
+  $<HTMLInputElement>(".wish").value = wish;
+  await makeBand(
+    pick === "none"
+      ? "石なしを選んだので、地金だけの指輪にしました（一粒石の指輪へは「種類」で戻れます）。"
+      : "希望に石なしとあるので、地金だけの指輪にしました（一粒石の指輪へは「種類」で戻れます）。",
+    mark,
+  );
 }
 /** 石の選択の欄が「石もおまかせ」か（撮影では欄がないので、今の石のまま） */
 function stoneIsFree(): boolean {
@@ -3692,19 +3724,20 @@ function renderBandBuild() {
   box.querySelector(".p-stl")!.addEventListener("click", () => exportStl());
 }
 
-async function makeBand() {
-  if (making) return;
+async function makeBand(lead = "", begun?: number) {
+  if (making) return begun !== undefined ? historyEnd(begun, true) : undefined;
   const wish = $<HTMLInputElement>(".wish").value.trim();
   const pass = store.password() || (await askPassword(true));
   if (!pass) {
+    if (begun !== undefined) historyEnd(begun, true);
     setStatus("生成には Claude が要ります。合言葉がなくても、「形」の見本や数字を変えて手で作れます。", { links: [{ label: "手で変える →", run: toManual }] });
     return;
   }
   making = true;
-  const mark = historyBegin();
+  const mark = begun ?? historyBegin();
   setStatus("Claude が形を考えています…", { busy: true });
   const gou = band.gou;
-  const r = await callTool<BandDraft>({ system: bandPrompt(), user: `号：${gou} 号\n${wish || "ふつうの普段使いの指輪"}`, tool: MAKE_BAND, parse: parseBand, password: pass, speed: "fast" });
+  const r = await callTool<BandDraft>({ system: bandPrompt(bandGuides()), user: `号：${gou} 号\n${wish || "ふつうの普段使いの指輪"}`, tool: MAKE_BAND, parse: parseBand, password: pass, speed: "fast" });
   making = false;
   if (!r.ok) {
     historyEnd(mark, true);
@@ -3719,7 +3752,9 @@ async function makeBand() {
   historyEnd(mark, true);
   $(".worklog").innerHTML = `<li class="wl-tool set_shank">${esc(`${sectionWord(band)}・${sizeWord(band)}・${d.gou} 号・${METAL_LABEL[d.metal]}`)}</li><li class="note">${esc(d.reason)}</li>`;
   showCannot(d.cannotDo);
-  setStatus(r.remaining !== undefined ? `今日あと ${r.remaining} 回` : "", { links: [{ label: "確かめる →", run: () => setMode("refine") }] });
+  // 職人の帳面の目安で確かめた結果も、ここで言う（Claude の案が帳面の厚みに届かないことがある）
+  const probs = bandProblems().length;
+  setStatus(`${lead}${probs ? `帳面の目安で、作れない所が ${probs} あります。` : ""}${r.remaining !== undefined ? `今日あと ${r.remaining} 回` : ""}`, { links: [{ label: "確かめる →", run: () => setMode("refine") }] });
   // 「形」の欄が長いので、Claude の答えの所まで動かす
   if (!$(".make-panel").hidden) requestAnimationFrame(() => $(".make-note").parentElement?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
 }
