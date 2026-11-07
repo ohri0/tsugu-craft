@@ -179,5 +179,9 @@ describe("MCP の入力の形（2026-11-07 の試し）", () => {
     expect(shape.safeParse({ stone: { preset: "round", long_mm: 40, depth_mm: 3 } }).success).toBe(false);
     expect(shape.safeParse({ stone: { preset: "round", long_mm: 8, depth_mm: 30 } }).success).toBe(false);
     expect(shape.safeParse({ stone: { preset: "round", long_mm: 8, depth_mm: 4.8 } }).success).toBe(true);
+    // マイナスの深さは、日本語の理由で断る（前は英語の決まり文句だった）
+    const bad = shape.safeParse({ stone: { preset: "round", long_mm: 8, depth_mm: -4 } });
+    expect(bad.success).toBe(false);
+    expect(bad.error!.issues[0].message).toBe("深さは 0 より大きい数にしてください");
   });
 });
