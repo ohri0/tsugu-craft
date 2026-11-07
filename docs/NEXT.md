@@ -21,7 +21,7 @@
 
 # 引き継ぎ（2026-11-07 朝。いちばん上がいちばん新しい）
 
-提出は **2026-11-08（日）20:00 JST**。作業ブランチ `claude/new-session-abjjnu`（tip 17ba8e8 以降。テスト 95 ファイル・1514 件が通る）。main（公開）は 11/6 昼のまま。Vercel は 1 日 100 回。決まり・話し方は `CLAUDE.md`、作者の好みはメモ（`~/.claude-work/projects/-Users-ishikawaohri-Desktop-tsugu-craft-repo/memory/`）。
+提出は **2026-11-08（日）20:00 JST**。作業ブランチ `claude/new-session-abjjnu`（11/7 昼の時点で、テスト 99 ファイル・1568 件が通る）。main（公開）は 11/6 昼のまま。Vercel は 1 日 100 回。決まり・話し方は `CLAUDE.md`、作者の好みはメモ（`~/.claude-work/projects/-Users-ishikawaohri-Desktop-tsugu-craft-repo/memory/`）。
 
 **今の状態**
 - 動画：**最終案 17c**（iCloud「継ぐ動画」、179.8 秒、仮声、曲は作者が選んだ「日の出」）。直しの一覧と組み方は `video/PLAN-final10.md` のいちばん上、読む文は `docs/NARRATION-ad.md` のいちばん上（31 行）。
@@ -33,7 +33,7 @@
 1. 作者が最終案 17c を見た直し。
 2. 作者の声の録音を入れる（`video/work/voice/n<番号>.wav`。口の音・雑音を減らし、曲の揺れを整える）。
 3. 11/8 朝：本物の Safari で確かめ（`scripts/open-check.cjs --browsers=safari`）→ main へ 1 回（`git push origin claude/new-session-abjjnu:main` の早送り）→ 作者のスマホで公開の版を見る → 直しがあれば夕方にもう 1 回。
-4. README・`docs/SUMMARY.md` を 11/7 の機能に合わせる（伝統の仕上げは書かない）。提出の文に合言葉（作者が手で）。
+4. ~~README・`docs/SUMMARY.md` を 11/7 の機能に合わせる~~（済。伝統の仕上げは書いていない）。提出の文に合言葉（作者が手で）。
 
 ---
 
