@@ -225,3 +225,18 @@ html.fit .view.rebuild :is(.lead, .small, .sdetail, .sunsure, .smeta, .gnote, .c
   html.fit .rs :is(.rs-fact-foot .linklike, .rc-del, .rs-soft .linklike) { min-height: 44px; }
   html.fit .rs-kept a { padding-block: 16px; }
 }
+
+/* 一覧の頭：3 つの流れ（読むだけ。押せない）と、例の札（2026-11-08 作者：何をすればいいか・例で何が見えるかが分からない） */
+.rs-how { list-style: none; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin: 16px 0 0; padding: 0; font-size: 15px; color: var(--fg-2); }
+.rs-how li { display: inline-flex; align-items: center; gap: 8px; }
+.rs-how li + li::before { content: "→"; color: var(--fg-3); margin-right: 2px; }
+.rs-how span { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--panel-2); border: 1px solid var(--line-2); font-size: 13px; font-weight: 700; color: var(--fg); }
+.rs-examples { margin-top: 32px; }
+.rs-examples h3 { margin: 0 0 10px; font-size: 17px; font-weight: 600; line-height: 1.5; }
+.rs-examples h3 small { display: inline-block; margin-left: 6px; font-size: 14px; font-weight: 500; color: var(--caution); }
+.rs-examples ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.rs-ex { width: 100%; display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 12px; padding: 14px 18px; border: 1px solid var(--line-2); border-radius: 12px; background: var(--panel); color: var(--fg); text-align: left; line-height: 1.5; }
+.rs-ex:hover { background: #28282b; }
+.rs-ex b { font-size: 17px; font-weight: 600; }
+.rs-ex small { grid-column: 1; font-size: 14px; color: var(--fg-2); }
+.rs-ex .rs-go-mark { grid-column: 2; grid-row: 1 / span 2; font-size: 24px; color: var(--fg-2); }

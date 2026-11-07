@@ -20,7 +20,8 @@ import { restoreContent, restorePrompt } from "../src/rebuild/restore-prompt";
 import { parseRestoration, PROPOSE_RESTORATION } from "../src/rebuild/restore-tools";
 import { callTool } from "../src/rebuild/run";
 
-const DAY = "2026-11-07";
+/** 記録の日付（通した日。日本の日付） */
+const DAY = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
 const OUT = "docs/pattern-demo";
 
 function loadEnv(path: string) {

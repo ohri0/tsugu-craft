@@ -13,7 +13,7 @@ import "./pro.css";
 import { findCorners } from "../geometry/corners";
 import { measureOutline, type StoneOutline } from "../geometry/measure";
 import { outlineIndexAtT, type JoinStyle, type ProngTip, type SettingResult } from "../geometry/setting";
-import { nameShape } from "../geometry/shape";
+import { glossShapeName, nameShape } from "../geometry/shape";
 import { runClaude, type LogEntry } from "../claude/loop";
 import { cannotFrom, hasJapanese, heardFrom, heardWords, offlineWhy, plainWords, ruleTitles, toolLogLine, withoutCannot, type RuleTitles, type StoneWords } from "../claude/words";
 import { STONE_FREE_NOTE, STONE_KEEP_NOTE, correctPrompt, designPrompt, gouNote } from "../claude/prompt";
@@ -75,6 +75,7 @@ import type { TensionGrip } from "../geometry/tension";
 import { presentHtml, STONE_SIZES, type PresentGroup } from "./present";
 import { MAX_SECONDS, playVoice, putVoice, startRecording, voiceIds } from "./voice-notes";
 import { clearDesign, introSeen, loadDesign, loadImportedPhotoUrl, loadPhotoUrl, markIntroSeen, saveDesign, saveImportedPhoto, savePhoto, tabBox, type KeptStone } from "./keep-design";
+import { mainNavHtml } from "../ui/main-nav";
 
 type Mode = "make" | "refine" | "hand" | "works";
 const MODES: { id: Mode; word: string; key: string; sub: string }[] = [
@@ -140,14 +141,18 @@ let session: RingSession | null = null;
 
 // 字・押す所・色の直し（pro.css の html.fit）。撮影では付けない（動画の絵を前のままにする）
 document.documentElement.classList.toggle("fit", !filming());
+// 継ぐの場所の切り替え（帳面・設計・学ぶ・技・途切れた技。帳面などの画面と同じ部品 src/ui/main-nav.ts）。撮影では前の上の帯のまま
+document.documentElement.classList.toggle("gnav-on", !filming());
+const BRAND = `<a class="brand" href="./" aria-label="継ぐ（始めの画面へ）" title="始めの画面へ"><span class="logo">継</span>継ぐ</a>`;
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
+${filming() ? "" : `<header class="gbar">${BRAND}${mainNavHtml("design", "other")}<div class="gbar-r"><span class="gbar-note">指輪を形にして、職人の決まりで「作れるか」を確かめる所です</span></div></header>`}
 <div class="pro" data-mode="make">
   <header class="tb">
-    <div class="tb-l"><a class="brand" href="./"><span class="logo">継</span>継ぐ</a><span class="doc"><span class="word-name">新しい作品</span></span>${filming() ? "" : `<div class="undo-redo" role="group" aria-label="戻す・進む"><button type="button" class="btn quiet act-undo" disabled aria-label="戻す" title="戻す（${UNDO_KEYS.undo}）">${ICON.undo}<span class="ur-word">戻す</span></button><button type="button" class="btn quiet act-redo" disabled aria-label="進む" title="進む（${UNDO_KEYS.redo}）">${ICON.redo}<span class="ur-word">進む</span></button></div>`}</div>
+    <div class="tb-l">${filming() ? `<a class="brand" href="./"><span class="logo">継</span>継ぐ</a>` : ""}<span class="doc"><span class="word-name">新しい作品</span></span>${filming() ? "" : `<div class="undo-redo" role="group" aria-label="戻す・進む"><button type="button" class="btn quiet act-undo" disabled aria-label="戻す" title="戻す（${UNDO_KEYS.undo}）">${ICON.undo}<span class="ur-word">戻す</span></button><button type="button" class="btn quiet act-redo" disabled aria-label="進む" title="進む（${UNDO_KEYS.redo}）">${ICON.redo}<span class="ur-word">進む</span></button></div>`}</div>
     <nav class="tabs" aria-label="場面">${MODES.map((m) => `<button type="button" data-mode="${m.id}" title="${m.sub}（${m.key}）">${m.word}<span class="k">${m.key}</span></button>`).join("")}</nav>
-    <div class="tb-r"><nav class="places hide-sm" aria-label="ほかの場所"><a href="app.html#ledger" title="職人の決まりと、Claude からの質問">帳面</a><a href="app.html#learn" title="次の人が、職人の決まりに聞いて学ぶ">学ぶ</a><a href="app.html#waza" title="彫金・金工の技と、途切れた技を組み立て直す">技</a></nav><button type="button" class="btn quiet act-present">見せる</button><button type="button" class="btn quiet act-why">なぜ継ぐ</button><button type="button" class="btn act-sheet hide-sm">図面・指示書</button><button type="button" class="btn primary act-stl">STL</button>${filming() ? "" : `<button type="button" class="btn quiet act-more" aria-label="ほかの場所" aria-expanded="false">≡</button><nav class="more-menu" hidden aria-label="ほかの場所"><a href="app.html#ledger">帳面</a><a href="app.html#learn">学ぶ</a><a href="app.html#waza">技</a><button type="button" class="more-sheet">図面・指示書を印刷</button></nav>`}</div>
+    <div class="tb-r">${filming() ? `<nav class="places hide-sm" aria-label="ほかの場所"><a href="app.html#ledger" title="職人の決まりと、Claude からの質問">帳面</a><a href="app.html#learn" title="次の人が、職人の決まりに聞いて学ぶ">学ぶ</a><a href="app.html#waza" title="彫金・金工の技と、途切れた技を組み立て直す">技</a></nav>` : ""}<button type="button" class="btn quiet act-present">見せる</button><button type="button" class="btn quiet act-why">なぜ継ぐ</button><button type="button" class="btn act-sheet hide-sm">図面・指示書</button><button type="button" class="btn primary act-stl">STL</button>${filming() ? "" : `<button type="button" class="btn quiet act-more" aria-label="そのほか" aria-expanded="false">≡</button><div class="more-menu" hidden><button type="button" class="more-sheet">図面・指示書を印刷</button></div>`}</div>
   </header>
   <nav class="tools" aria-label="見る">
     ${(["angle", "top", "side", "front"] as const).map((v) => `<button type="button" class="tool view-btn" data-view="${v}" data-tip="${{ angle: "斜め", top: "上", side: "横", front: "正面" }[v]}" aria-label="${{ angle: "斜め", top: "上", side: "横", front: "正面" }[v]}">${ICON[v]}</button>`).join("")}
@@ -452,7 +457,7 @@ async function loadStone(img: ImageData, label: string, longMm: number, depthMm:
   renderStoneButtons();
   $<HTMLInputElement>(".in-long").value = String(longMm);
   $<HTMLInputElement>(".in-depth").value = String(depthMm);
-  $(".stone-sub").textContent = `${stone.shapeName}・${measured.longMm.toFixed(2)} × ${measured.widthMm.toFixed(2)} mm`;
+  $(".stone-sub").textContent = `${glossShapeName(stone.shapeName)}・${measured.longMm.toFixed(2)} × ${measured.widthMm.toFixed(2)} mm`;
   drawThumb();
   // 手で決めた設計は、新しい石へ引き継ぐ（前は毎回 はじめの設計に戻っていた。2026-11-05 点検）
   const prev = session?.snapshot();
@@ -598,7 +603,7 @@ async function restoreDesign(): Promise<boolean> {
   } else imported = null;
   $<HTMLInputElement>(".in-long").value = String(Number(k.measured.longMm.toFixed(2)));
   $<HTMLInputElement>(".in-depth").value = String(Number(k.depthMm.toFixed(2)));
-  $(".stone-sub").textContent = `${k.shapeName}・${k.measured.longMm.toFixed(2)} × ${k.measured.widthMm.toFixed(2)} mm`;
+  $(".stone-sub").textContent = `${glossShapeName(k.shapeName)}・${k.measured.longMm.toFixed(2)} × ${k.measured.widthMm.toFixed(2)} mm`;
   drawThumb();
   renderStoneButtons();
   session = newSession(k.measured, k.depthMm);
@@ -1165,7 +1170,7 @@ function onBuilt(b: Built, _why: string, refined = false) {
   const s = session!.state;
   const st = r.setting;
   const rows: [string, string][] = [
-    ["石", `${stone.shapeName} ・ ${stone.measured.longMm.toFixed(2)} × ${stone.measured.widthMm.toFixed(2)} × ${stone.depthMm.toFixed(2)} mm`],
+    ["石", `${glossShapeName(stone.shapeName)} ・ ${stone.measured.longMm.toFixed(2)} × ${stone.measured.widthMm.toFixed(2)} × ${stone.depthMm.toFixed(2)} mm`],
     ...(r.stones.length > 1 ? ([["石の並び", `${layoutName()} ・ ${r.stones.length} 石（${r.stones.map((x) => x.params.longMm.toFixed(1)).join(" ・ ")} mm）`]] as [string, string][]) : []),
     ["留め方", st.tension ? tensionWord(st) : st.style === "bezel" ? `覆輪 ・ 壁 ${st.bezel?.wallMm.toFixed(2)} mm` : `爪 ${st.prongs.length}${st.prongs.some((p) => p.isV) ? `（V 字 ${st.prongs.filter((p) => p.isV).length}）` : ""} ・ ${prongDiaWord(st)}${st.prongTip === "oni" ? ` ・ ${PRONG_TIP_LABEL.oni}` : ""}`],
     ["号 ・ 腕", `${s.gou} 号 ・ ${ringSectionWord(s, r.shank.widthMm, r.shank.thicknessMm)} ${shankSizeWords(r.shank)}`],
@@ -1422,7 +1427,7 @@ document.addEventListener("keydown", (e) => {
 // 上のボタンは、場面を変えずに書き出す（押すと「手順」へ移っていた）
 $(".act-sheet").addEventListener("click", () => printSheet());
 $(".act-stl").addEventListener("click", () => exportStl());
-// スマホの上の帯のメニュー（帳面・学ぶ・技へ。図面・指示書も）
+// スマホの上の帯のメニュー（図面・指示書。ほかの場所へは、いちばん上の場所の切り替えから）
 {
   const more = document.querySelector<HTMLButtonElement>(".act-more");
   const menu = document.querySelector<HTMLElement>(".more-menu");
@@ -1738,7 +1743,7 @@ function applyDesign(s: DesignSnap) {
   keptImportedPhoto = null;
   $<HTMLInputElement>(".in-long").value = String(Number(stone.longMm.toFixed(2)));
   $<HTMLInputElement>(".in-depth").value = String(Number(stone.depthMm.toFixed(2)));
-  $(".stone-sub").textContent = `${stone.shapeName}・${stone.measured.longMm.toFixed(2)} × ${stone.measured.widthMm.toFixed(2)} mm`;
+  $(".stone-sub").textContent = `${glossShapeName(stone.shapeName)}・${stone.measured.longMm.toFixed(2)} × ${stone.measured.widthMm.toFixed(2)} mm`;
   drawThumb();
   renderStoneButtons();
   if (!session || session.stone !== s.params) {
@@ -1946,7 +1951,7 @@ function workshopBasicsHtml(): string {
   const tip: ProngTip = store.ledger().basics?.prongTip ?? "round";
   const now = session?.built?.ring.setting;
   const std = now?.style === "prong" ? now.standardProngMm : undefined;
-  return `<div class="ws-basics"><p class="ws-b-h"><b>この工房のベーシック</b><small>いつもの雰囲気の既定。あとで直せます</small></p>
+  return `<div class="ws-basics"><p class="ws-b-h"><b>この工房のベーシック（いつもの基本の形）</b><small>この工房で、いつも最初に使う爪の形と太さ。あとで直せます</small></p>
     <div class="seg ws-tip" role="group" aria-label="爪の形（工房の既定）">${(["round", "oni"] as const).map((v) => `<button type="button" data-tip="${v}" aria-pressed="${v === tip}">${PRONG_TIP_LABEL[v]}</button>`).join("")}</div>
     ${w ? `<label class="ws-b-mm"><span>爪の太さ（大きな石の標準）</span><span class="in"><input class="ws-mm" type="number" inputmode="decimal" min="0.5" max="2" step="0.05" value="${(prongBasicMm(store.ledger()) ?? std ?? GUIDES.prong.sampleWorkshop.prongMm).toFixed(2)}"><i>mm</i></span></label>` : std !== undefined ? `<p class="hint">爪の太さは帳面の決まりから（この石で標準 ø ${std.toFixed(2)} mm）。</p>` : ""}
     ${w?.sample ? `<p class="hint ws-sample">${esc(w.name)}${/[A-Za-z0-9]$/.test(w.name) ? " " : ""}は見本の工房です。爪の太さと形は雰囲気の例で、本当の工房の値ではありません。目安・最後は職人が決めます。</p>` : ""}</div>`;
@@ -2281,7 +2286,7 @@ function resizeStone(longMm: number, final: boolean) {
   stone.depthMm = session.stone.depthMm;
   $<HTMLInputElement>(".in-long").value = stone.longMm.toFixed(2);
   $<HTMLInputElement>(".in-depth").value = stone.depthMm.toFixed(2);
-  $(".stone-sub").textContent = `${stone.shapeName}・${stone.measured.longMm.toFixed(2)} × ${stone.measured.widthMm.toFixed(2)} mm`;
+  $(".stone-sub").textContent = `${glossShapeName(stone.shapeName)}・${stone.measured.longMm.toFixed(2)} × ${stone.measured.widthMm.toFixed(2)} mm`;
   session.state.prongMm = undefined;
   // 1 本ずつ決めた爪の太さは、前の石の大きさのもの
   session.state.prongEdits = session.state.prongEdits?.map((e) => {
@@ -4833,7 +4838,7 @@ function openWork(w: WorkRecord) {
     renderStoneButtons();
     $<HTMLInputElement>(".in-long").value = String(Number(st.longMm.toFixed(2)));
     $<HTMLInputElement>(".in-depth").value = String(Number(st.depthMm.toFixed(2)));
-    $(".stone-sub").textContent = `${stone.shapeName}・${st.longMm.toFixed(2)} × ${st.widthMm.toFixed(2)} mm`;
+    $(".stone-sub").textContent = `${glossShapeName(stone.shapeName)}・${st.longMm.toFixed(2)} × ${st.widthMm.toFixed(2)} mm`;
     drawThumb();
     session = newSession(measured, st.depthMm);
     session.state = structuredClone(w.design.state);
@@ -4857,7 +4862,7 @@ function renderWorks() {
         (w) => `<li><img alt="" src="${w.image}"><details class="w-more"><summary>${esc(w.title)}</summary><small>${esc(w.date)}${w.maker ? ` ・ ${esc(w.maker)}` : ""} ・ ${esc(w.methodLabel)}</small>${w.note ? `<p>「${esc(w.note)}」</p>` : ""}${(w.revisions ?? []).map((r) => `<p class="rev">${esc(r.by)}の決まりで直した：${esc(r.change)}</p>`).join("")}<span class="${w.problems.length ? "ng" : "ok"}">${w.problems.length ? "作れない所あり" : "作れる形"}</span></details>${w.design || w.bandDesign ? `<button type="button" class="ghost-d w-open" data-id="${esc(w.id)}">開く</button>` : "<span></span>"}<button type="button" class="w-del" data-id="${esc(w.id)}" aria-label="この記録を消す">×</button></li>`,
       )
       .join("")}</ul><button type="button" class="ghost-d w-print">記録の帳面を印刷</button>` : ""}
-    <nav class="places-sm" aria-label="ほかの場所"><small>ほかの場所</small><a href="app.html#ledger">帳面<span>職人の決まりと、Claude からの質問</span></a><a href="app.html#learn">学ぶ<span>次の人が、職人の決まりに聞く</span></a><a href="app.html#waza">技<span>彫金・金工の技と、途切れた技を組み立て直す</span></a></nav>`;
+    ${filming() ? `<nav class="places-sm" aria-label="ほかの場所"><small>ほかの場所</small><a href="app.html#ledger">帳面<span>職人の決まりと、Claude からの質問</span></a><a href="app.html#learn">学ぶ<span>次の人が、職人の決まりに聞く</span></a><a href="app.html#waza">技<span>彫金・金工の技と、途切れた技を組み立て直す</span></a></nav>` : ""}`;
   box.querySelector(".w-print")?.addEventListener("click", () => openPrint(worksBookHtml(fillDrawings(loadWorks()), today())));
   // 残す欄は「手順」の下にある。そこまで連れて行って、欄を開く
   box.querySelector(".w-keep")!.addEventListener("click", () => {

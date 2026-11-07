@@ -19,6 +19,13 @@ export type ColorKind = "none" | "etch" | "patina";
 export type PatternOp =
   /** 色のちがう材料を重ねる（metals をくり返して count 枚）。thickness＝材料ごとの厚さの割合（metals と同じ順。無ければ同じ厚さ） */
   | { op: "stack"; metals: MetalId[]; count: number; thickness?: number[] }
+  /**
+   * 重ねずに、1 つの鋳た塊から始める（stack の代わりに最初に 1 回。2026-11-08）。
+   * 塊の中に、混じり物などが結晶の枝（樹枝）のすき間に集まった 3 次元の網目のむらがあるとして描く（metals＝[網目になる材料, 地の材料]）。
+   * cells＝塊の幅の中の網目の数（仮）。叩いてのばすと、網目は平たい帯になり、表がそれを切った所が模様になる。
+   * 説の形の仮の見込み：網目の本当の形・量・並び方は分かっていない（research/restore/lost-wootz.md）
+   */
+  | { op: "ingot"; metals: MetalId[]; cells: number }
   /** 熱して層をつなぐ（つながりの良さ） */
   | { op: "bond"; quality: BondQuality }
   /** のばして半分に切り、重ねる（times 回。層の数は 2 倍ずつ） */
@@ -45,11 +52,12 @@ export type PatternOp =
   | { op: "color"; kind: ColorKind };
 
 export type OpName = PatternOp["op"];
-export const OP_NAMES: OpName[] = ["stack", "bond", "fold", "forge_thin", "twist", "carve", "flatten", "grind", "rearrange", "color"];
+export const OP_NAMES: OpName[] = ["stack", "ingot", "bond", "fold", "forge_thin", "twist", "carve", "flatten", "grind", "rearrange", "color"];
 
 /** 画面に出す操作の名前 */
 export const OP_LABEL: Record<OpName, string> = {
   stack: "重ねる",
+  ingot: "鋳た塊を用意する（中にむら）",
   bond: "熱してつなぐ",
   fold: "のばして切り、重ねる",
   forge_thin: "叩いて薄くのばす",
@@ -114,7 +122,7 @@ function profile(t: number): number {
 
 /** 1 つの操作と、その時の板の大きさ（操作の前） */
 interface Stage {
-  op: Exclude<PatternOp, { op: "stack" }>;
+  op: Exclude<PatternOp, { op: "stack" } | { op: "ingot" }>;
   /** 元の並びの何番目か（0 から） */
   index: number;
   W: number;
@@ -135,6 +143,8 @@ export interface Sim {
   edges?: number[];
   /** 最後の層の数（重ねる回数で増える） */
   layersFinal: number;
+  /** 鋳た塊から始めたとき（ingot）：塊の中のむらの網目。層の代わりに、これで色を決める（0 番＝網目、1 番＝地） */
+  ingot?: { cells: number; seed: number };
   stages: Stage[];
   /** 層の境のつながらない所の割合 */
   unbonded: number;
@@ -167,12 +177,20 @@ function reflect01(v: number): number {
  */
 export function buildSim(ops: readonly PatternOp[], seed = 7, opts: { bond?: BondQuality } = {}): Sim {
   const first = ops[0];
-  if (!first || first.op !== "stack") throw new Error("最初の操作は stack（重ねる）にしてください");
+  if (!first || (first.op !== "stack" && first.op !== "ingot")) throw new Error("最初の操作は stack（重ねる）か ingot（鋳た塊）にしてください");
   const metals = first.metals.length ? first.metals : (["light", "dark"] as MetalId[]);
-  const count = Math.round(clampTo(first.count, PATTERN_LIMITS.count));
   const notes: string[] = [];
-  const thick = first.thickness?.slice(0, metals.length).map((v) => clampTo(v, PATTERN_LIMITS.thickness));
+  const ingot = first.op === "ingot" ? { cells: Math.round(clampTo(first.cells, PATTERN_LIMITS.cells)), seed: seed + 5000 } : undefined;
+  // 鋳た塊は、網目と地の 2 つ（層ではない）
+  const count = ingot ? 2 : Math.round(clampTo((first as Extract<PatternOp, { op: "stack" }>).count, PATTERN_LIMITS.count));
+  const thick = first.op === "stack" ? first.thickness?.slice(0, metals.length).map((v) => clampTo(v, PATTERN_LIMITS.thickness)) : undefined;
   const edges = thick && thick.length === metals.length ? layerEdges(thick, count) : undefined;
+  if (ingot) {
+    notes.push(
+      `鋳た塊の中のむらは、「混じり物が結晶の枝のすき間に集まり、叩いてのばすと平たい帯になる」という説の形を、3 次元の網目として仮に描きました（幅の中に網目 ${ingot.cells}・仮）。網目の本当の形・量・並び方は分かっていません。`,
+    );
+    if (metals.length < 2) notes.push("材料が 1 つだけなので、網目と地の色の差は出ません。");
+  }
   if (edges) notes.push(`層の厚さは、${metals.map((m, k) => `${PATTERN_METALS[m].name.replace(/（.*）/, "")} ${Math.round(thick![k] * 100) / 100}`).join("・")} の割合（仮）として描きました。`);
   let W = 1;
   let H = 1;
@@ -181,8 +199,8 @@ export function buildSim(ops: readonly PatternOp[], seed = 7, opts: { bond?: Bon
   let color: ColorKind = "none";
   const stages: Stage[] = [];
   for (const [index, op] of ops.entries()) {
-    if (op.op === "stack") {
-      if (index > 0) notes.push("重ねる操作が 2 回ありました。1 回目だけを使いました。");
+    if (op.op === "stack" || op.op === "ingot") {
+      if (index > 0) notes.push("重ねる（塊を用意する）操作が 2 回ありました。1 回目だけを使いました。");
       continue;
     }
     const st: Stage = { op, index, W, H, seed: seed + 7919 * (index + 1) };
@@ -247,12 +265,17 @@ export function buildSim(ops: readonly PatternOp[], seed = 7, opts: { bond?: Bon
   const has = (o: OpName) => stages.some((s) => s.op.op === o);
   // 表から彫れば、平らにしなくても、彫った底に下の層が出る（前は平らにしないと「模様を出す手順が無い」と、食いちがう知らせを出していた。2026-11-07 夜）
   const patterning = stages.some((s) => (s.op.op === "carve" && (s.op.side === "top" || s.flattened)) || s.op.op === "twist" || s.op.op === "rearrange" || s.op.op === "grind");
-  if (!patterning) notes.push("模様を出す手順（彫る・ねじる・削る・並べかえる）が無いので、表は、いちばん上の層の色だけになります。");
-  if (!has("bond")) notes.push("層をつなぐ手順が見当たらないので、層の境に、つながらない所が多いとして描きました。");
+  if (ingot) {
+    // 1 つの塊なので、層のつなぎ目もはがれも無い。表は、はじめから塊の中のむらの切り口
+    if (!has("forge_thin") && !has("fold")) notes.push("叩いてのばす手順が無いので、むらは網目のまま（帯やすじにならない）として描きました。");
+  } else {
+    if (!patterning) notes.push("模様を出す手順（彫る・ねじる・削る・並べかえる）が無いので、表は、いちばん上の層の色だけになります。");
+    if (!has("bond")) notes.push("層をつなぐ手順が見当たらないので、層の境に、つながらない所が多いとして描きました。");
+    if (metals.length < 2) notes.push("材料が 1 つだけなので、層があっても色の差は出ません。");
+  }
   if (color === "none") notes.push("最後に色を出す手順が無いので、材料そのものの色で描きました。色の差は小さく見えます。");
-  if (metals.length < 2) notes.push("材料が 1 つだけなので、層があっても色の差は出ません。");
 
-  const unbonded = PATTERN_VALUES.unbonded[opts.bond ?? bond];
+  const unbonded = ingot ? 0 : PATTERN_VALUES.unbonded[opts.bond ?? bond];
   const hr = rng(seed + 3000);
   const holes: Sim["holes"] = [];
   for (let k = 0; k < count; k++) {
@@ -270,10 +293,11 @@ export function buildSim(ops: readonly PatternOp[], seed = 7, opts: { bond?: Bon
     count,
     ...(edges ? { edges } : {}),
     layersFinal: layers,
+    ...(ingot ? { ingot } : {}),
     stages,
     unbonded,
     holes,
-    plateWaves: stages.some((s) => s.op.op === "forge_thin" || s.op.op === "flatten" || s.op.op === "fold") ? makeWaves(rng(seed + 4000), 4, 1, 4) : [],
+    plateWaves: !ingot && stages.some((s) => s.op.op === "forge_thin" || s.op.op === "flatten" || s.op.op === "fold") ? makeWaves(rng(seed + 4000), 4, 1, 4) : [],
     color,
     view: { x0: (W - size) / 2, y0: (H - size) / 2, size },
     final: { W, H },
@@ -569,6 +593,71 @@ export function trace(sim: Sim, x: number, y: number, u: number): Trace {
 /** はじめに重ねた板の深さ u0 が、何番の層の中のどこか（層の番号 + 層の中の割合）。同じ厚さなら u0 × 枚数 */
 export const layerCoord = (sim: Sim, u0: number): number => layerCoordOf(sim.edges, sim.count, u0);
 
+/** 3 次元の格子の点の散らばり（0〜1） */
+function hash3(i: number, j: number, k: number, salt: number, seed: number): number {
+  return hash(i * 73856093 + salt, j * 19349663, k * 83492791, seed);
+}
+
+/** なめらかな 3 次元のむら（0〜1。格子の値をなめらかにつなぐ） */
+function valueNoise3(x: number, y: number, z: number, seed: number): number {
+  const i = Math.floor(x);
+  const j = Math.floor(y);
+  const k = Math.floor(z);
+  const f = (t: number) => t * t * (3 - 2 * t);
+  const fx = f(x - i);
+  const fy = f(y - j);
+  const fz = f(z - k);
+  let v = 0;
+  for (let c = 0; c < 8; c++) {
+    const a = c & 1;
+    const b = (c >> 1) & 1;
+    const d = (c >> 2) & 1;
+    v += hash3(i + a, j + b, k + d, 17, seed) * (a ? fx : 1 - fx) * (b ? fy : 1 - fy) * (d ? fz : 1 - fz);
+  }
+  return v;
+}
+
+/**
+ * 鋳た塊の中の点 (x0, y0, u0)（はじめの塊の幅を 1、u0 は厚みの中の 0〜1）が、網目（0〜1）か地（1〜2）か。
+ * 塊を、結晶の粒（1 つずつ中心が少しずれた格子）に分け、となりの粒とのさかい（いちばん近い中心と 2 番目に近い中心の距離の差が小さい所）を、
+ * 混じり物が集まった網目とする。網目の太さは、細かなむらで変える（つぶの並びのように、とぎれとぎれの線になる）。どれも仮（PATTERN_VALUES.ingot）
+ */
+export function ingotCoord(ing: { cells: number; seed: number }, x0: number, y0: number, u0: number): number {
+  const V = PATTERN_VALUES.ingot;
+  const X = x0 * ing.cells;
+  const Y = y0 * ing.cells;
+  const Z = u0 * ing.cells * V.thick;
+  const ci = Math.floor(X);
+  const cj = Math.floor(Y);
+  const ck = Math.floor(Z);
+  let f1 = Infinity;
+  let f2 = Infinity;
+  for (let k = ck - 1; k <= ck + 1; k++) {
+    for (let j = cj - 1; j <= cj + 1; j++) {
+      for (let i = ci - 1; i <= ci + 1; i++) {
+        const px = i + 0.5 + V.jitter * (hash3(i, j, k, 1, ing.seed) - 0.5);
+        const py = j + 0.5 + V.jitter * (hash3(i, j, k, 2, ing.seed) - 0.5);
+        const pz = k + 0.5 + V.jitter * (hash3(i, j, k, 3, ing.seed) - 0.5);
+        const d = Math.hypot(X - px, Y - py, Z - pz);
+        if (d < f1) {
+          f2 = f1;
+          f1 = d;
+        } else if (d < f2) f2 = d;
+      }
+    }
+  }
+  const gap = f2 - f1;
+  const b = V.beads;
+  const w = V.wall * (1 - V.beadMix + 2 * V.beadMix * valueNoise3(X * b, Y * b, Z * b, ing.seed + 99));
+  if (gap < w) return Math.min(0.999, gap / Math.max(1e-6, w));
+  return 1 + Math.min(0.999, (gap - w) / Math.max(1e-6, 1 - w));
+}
+
+/** 表・断面の点が、はじめのどこから来たか（trace）から、層の番号の切れ目のない値を出す（鋳た塊なら、網目か地か） */
+export function coordAt(sim: Sim, t: Trace): number {
+  return sim.ingot ? ingotCoord(sim.ingot, t.x0, t.y0, t.u0) : layerCoord(sim, t.u0);
+}
+
 /** はじめに重ねた板の、上から k 番の層（0 から） */
 export function layerOf(sim: Sim, u0: number): number {
   return Math.min(sim.count - 1, Math.max(0, Math.floor(layerCoord(sim, u0))));
@@ -617,9 +706,9 @@ export function surfaceRows(sim: Sim, out: Surface, j0: number, j1: number): voi
   for (let j = j0; j < Math.min(n, j1); j++) {
     for (let i = 0; i < n; i++) {
       const t = trace(sim, x0 + ((i + 0.5) / n) * size, y0 + ((j + 0.5) / n) * size, 0);
-      const s = layerCoord(sim, t.u0);
+      const s = coordAt(sim, t);
       out.s[j * n + i] = s;
-      layer[j * n + i] = layerOf(sim, t.u0);
+      layer[j * n + i] = Math.min(sim.count - 1, Math.max(0, Math.floor(s)));
       const k = Math.ceil(s);
       defect[j * n + i] = k - s < PATTERN_VALUES.openDepth && unbondedAt(sim, k, t.x0, t.y0) ? 1 : 0;
     }
@@ -657,7 +746,7 @@ export function sectionRow(sim: Sim): number {
     let score = 0;
     let last = -1;
     for (let i = 0; i < 90; i++) {
-      const layer = layerOf(sim, trace(sim, x0 + ((i + 0.5) / 90) * size, y0 + r * size, 0).u0);
+      const layer = Math.floor(coordAt(sim, trace(sim, x0 + ((i + 0.5) / 90) * size, y0 + r * size, 0)));
       if (i > 0 && layer !== last) score++;
       last = layer;
     }
@@ -684,10 +773,10 @@ export function section(sim: Sim, w: number, h: number, row = 0.5): Section {
       const u = (j + 0.5) / h;
       if (u < top) continue;
       const t = trace(sim, x, y, u);
-      const s = layerCoord(sim, t.u0);
+      const s = coordAt(sim, t);
       const k = Math.round(s);
       const gap = Math.abs(s - k) < 0.12 && unbondedAt(sim, k, t.x0, t.y0);
-      cells[j * w + i] = gap ? GAP : layerOf(sim, t.u0);
+      cells[j * w + i] = gap ? GAP : Math.min(sim.count - 1, Math.max(0, Math.floor(s)));
       if (!gap) sv[j * w + i] = s;
     }
   }

@@ -284,13 +284,15 @@ export function mountPatternView(root: HTMLElement, project: RestoreProject, ver
     last = ops.length + 1;
     const cols = ops.length <= 5 ? ops.length : Math.min(5, Math.ceil(ops.length / 2));
     const surface = ops[0]?.op === "plate";
+    // 重ねずに 1 つの鋳た塊から始める技（ingot。2026-11-08）
+    const cast = ops[0]?.op === "ingot";
     root.innerHTML = `
     <section class="view moyou pv">
       <button type="button" class="rs-back pv-back">← 案にもどる</button>
       <header class="mo-head">
         <p class="mo-eyebrow">${surface ? "見た目の見込み" : "模様の見込み"} ・ 形だけの計算（仮）${p.sample ? `<span class="rs-example pv-example">これは作り話の例です</span>` : ""}</p>
         <h2>「${esc(p.name)}」を、${n} 回目の案の手順で作ると</h2>
-        <p class="mo-lead">手順は、入れたこと${v.bookOn ? "と職人の帳面" : ""}から Claude が推し量った案です。Claude がその手順を計算の操作に置きかえ、${surface ? "1 枚の板の表がどう変わるか" : "重ねた層がどう動くか"}を形だけで描きました。<b>金属の本当の流れや熱は計算しません。数はどれも絵のための仮の値です。最後に決めるのは職人です。</b></p>
+        <p class="mo-lead">手順は、入れたこと${v.bookOn ? "と職人の帳面" : ""}から Claude が推し量った案です。Claude がその手順を計算の操作に置きかえ、${surface ? "1 枚の板の表がどう変わるか" : cast ? "鋳た塊の中のむらがどう動くか" : "重ねた層がどう動くか"}を形だけで描きました。<b>金属の本当の流れや熱は計算しません。数はどれも絵のための仮の値です。最後に決めるのは職人です。</b></p>
         ${tabs.length > 1 ? `<div class="mo-runs" role="radiogroup" aria-label="どの案の見込みか">${tabs.map((x) => `<button type="button" role="radio" aria-checked="${x === v}" data-v="${x.version}">${p.plans.indexOf(x) + 1} 回目の案</button>`).join("")}</div>` : ""}
       </header>
       ${
@@ -340,7 +342,7 @@ export function mountPatternView(root: HTMLElement, project: RestoreProject, ver
         <figure class="pv-big pv-secbig">
           <div class="pv-secrow"><span class="pv-tag now">この案</span><canvas class="pv-sec-final" aria-label="断面"></canvas></div>
           ${prev ? `<div class="pv-secrow"><span class="pv-tag">前の案</span><canvas class="pv-sec-prev" aria-label="前の案の断面"></canvas></div>` : ""}
-          <figcaption><b>断面</b><span>上の面の印の所を、横から切った面。上が表。厚みは大きくして描いた${surface ? "" : "。黄はつながらない所"}</span></figcaption>
+          <figcaption><b>断面</b><span>上の面の印の所を、横から切った面。上が表。厚みは大きくして描いた${surface || cast ? "" : "。黄はつながらない所"}</span></figcaption>
         </figure>
       </div>
       ${prev ? `<div class="pv-diff"><b>前の案とのちがい</b>${diffList(prev.pattern!.prediction, pred)}</div>` : ""}
@@ -405,7 +407,7 @@ export function mountPatternView(root: HTMLElement, project: RestoreProject, ver
     notes.innerHTML = [
       model.notes.length ? `<div><b>計算からの知らせ</b><ul>${model.notes.map((t) => `<li>${esc(t)}</li>`).join("")}</ul></div>` : "",
       pred.cannot_show ? `<div><b>この絵では表せないこと</b><p>${says(pred.cannot_show, v)}</p></div>` : "",
-      `<div><b>${model.family === "layers" ? "層の数" : "板と手順"}</b><p>${esc(model.facts)}${kari ? `。「仮」の値が ${kari} か所あります` : ""}</p></div>`,
+      `<div><b>${model.family === "layers" ? (model.facts.startsWith("1 つの鋳た塊") ? "塊" : "層の数") : "板と手順"}</b><p>${esc(model.facts)}${kari ? `。「仮」の値が ${kari} か所あります` : ""}</p></div>`,
     ].join("");
   }
 

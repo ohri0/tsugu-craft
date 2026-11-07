@@ -49,7 +49,7 @@ export function modelOf(pred: PatternPrediction, seed = 7): PatternModel {
     return {
       family: "layers",
       notes: sim.notes,
-      facts: `はじめ ${sim.count} 枚 → 最後 ${sim.layersFinal} 層（仮）`,
+      facts: sim.ingot ? `1 つの鋳た塊（中のむらの網目は幅の中に ${sim.ingot.cells}・仮）` : `はじめ ${sim.count} 枚 → 最後 ${sim.layersFinal} 層（仮）`,
       row: rw,
       stage: (i) => make(i + 1, rw),
       section: (w, h, row2, ss) => sectionImage(sim, w, h, row2, ss),

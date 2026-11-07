@@ -1,4 +1,5 @@
-// 継ぐ：下のタブは 4 つ。設計（studio.html）・帳面・学ぶ・技。
+// 継ぐ：場所の切り替えは 5 つ。帳面・設計（studio.html）・学ぶ・技・途切れた技（src/ui/main-nav.ts。設計の画面と同じ部品）。
+// 撮影（?rec・?nointro）では、前の 4 つのタブのまま（動画の絵を変えない）。
 // 画面の切り替えは URL の # で（#ledger / #learn / #waza）。「/」の後ろは画面の中の場所（#learn/hands・#waza/ring・#waza/mokume・#waza/rebuild）。
 // 前の名前（#see・#ask・#keep・#rebuild・#waza/nanako）で来ても、新しい場所へ送る。スマホは下のタブ、PC は上のタブ。
 import "./app.css";
@@ -15,10 +16,14 @@ import { parseLearn, redirectHash } from "./routes";
 import { isTechId } from "../rules/techniques";
 import { onStoreChange, store } from "./store";
 import { passwordButton } from "./password";
+import { mainNavHtml, markPlace, placeOf } from "../ui/main-nav";
 import { openQuestions } from "../rules/flow";
 import { groupQuestions } from "../rules/teacher-queue";
 
 const FLOW = flowUI();
+/** 新しい場所の切り替え（帳面・設計・学ぶ・技・途切れた技）。撮影では前のタブのまま */
+const NEW_NAV = !filming();
+document.documentElement.classList.toggle("gnav-on", NEW_NAV);
 
 type ViewId = "ledger" | "learn" | "waza";
 const VIEWS: { id: ViewId; label: string; icon: string }[] = [
@@ -49,18 +54,21 @@ const INTRO = FLOW
       <li><b>技</b><span>指輪の石留めと、覆輪留め・木目金など六つの技。どれも「作り方・職人の決まり・Claude から質問」の同じ形です。</span></li>
     </ol>`;
 
+// 学ぶの頁の頭の 1 行：何をする所か。次の場所へのリンクも（2026-11-08 作者：動線を分かりやすく）
+const LEARN_LINE = `<p class="place-line">学ぶ人が、職人の決まりに理由を聞き、自分の手の動きを手本と比べる所です。<a href="#waza">技ごとの作り方と手本は「技」へ ›</a></p>`;
+
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
 <div class="app">
   ${isMihon() ? MIHON_BAR : ""}
   <header class="bar">
     <a class="brand" href="./" aria-label="継ぐ（始めの画面へ）" title="始めの画面へ"><span class="seal">継</span><span class="name">継ぐ</span></a>
-    <nav class="nav" aria-label="画面">${NAV}</nav>
+    ${NEW_NAV ? mainNavHtml(null, "app") : `<nav class="nav" aria-label="画面">${NAV}</nav>`}
     <div class="bar-r">${isMihon() ? `<span class="mihon-tag">見本・作り話</span>` : ""}<button type="button" class="ghost help" aria-label="使い方">使い方</button></div>
   </header>
   <main>
     <div class="screen" id="screen-ledger" hidden></div>
-    <div class="screen" id="screen-learn" hidden><div class="learn-ask"></div><div class="learn-hands" hidden></div></div>
+    <div class="screen" id="screen-learn" hidden>${NEW_NAV ? LEARN_LINE : ""}<div class="learn-ask"></div><div class="learn-hands" hidden></div></div>
     <div class="screen" id="screen-waza" hidden></div>
   </main>
 </div>
@@ -105,7 +113,8 @@ function show() {
   }
   if (view === "waza") waza.route(sub);
   if (view === "ledger") keep.route(sub);
-  document.querySelectorAll<HTMLAnchorElement>(".nav a").forEach((a) => a.setAttribute("aria-current", a.dataset.view === view ? "page" : "false"));
+  if (NEW_NAV) markPlace(document, placeOf(view, sub));
+  else document.querySelectorAll<HTMLAnchorElement>(".nav a").forEach((a) => a.setAttribute("aria-current", a.dataset.view === view ? "page" : "false"));
   window.scrollTo(0, 0);
 }
 window.addEventListener("hashchange", show);
@@ -117,7 +126,7 @@ function badges() {
   const ringOpen = FLOW ? openQuestions(store.queue(), "ring").length : open;
   const techOpen = open - ringOpen;
   const put = (view: string, n: number) => {
-    const b = document.querySelector<HTMLElement>(`.nav a[data-view="${view}"] .badge`)!;
+    const b = document.querySelector<HTMLElement>(NEW_NAV ? `.gnav a[data-place="${view}"] .badge` : `.nav a[data-view="${view}"] .badge`)!;
     b.hidden = n === 0;
     b.textContent = String(n);
   };

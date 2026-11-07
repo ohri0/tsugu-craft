@@ -1,0 +1,397 @@
+{
+  "id": "mijika",
+  "cond": "B",
+  "run": 1,
+  "date": "2026-11-08",
+  "ms": 47984,
+  "calls": [
+    {
+      "what": "propose_restoration",
+      "ms": 34123,
+      "status": 200,
+      "usage": {
+        "input_tokens": 4,
+        "cache_creation_input_tokens": 0,
+        "cache_read_input_tokens": 7136,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 0,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "iterations": [
+          {
+            "input_tokens": 4,
+            "output_tokens": 3255,
+            "cache_read_input_tokens": 7136,
+            "cache_creation_input_tokens": 0,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 0,
+              "ephemeral_1h_input_tokens": 0
+            },
+            "type": "message",
+            "model": null
+          }
+        ],
+        "output_tokens": 3255,
+        "output_tokens_details": {
+          "thinking_tokens": 739
+        },
+        "service_tier": "standard",
+        "inference_geo": "global",
+        "speed": "standard"
+      }
+    },
+    {
+      "what": "predict_pattern",
+      "ms": 13077,
+      "status": 200,
+      "usage": {
+        "input_tokens": 4,
+        "cache_creation_input_tokens": 7977,
+        "cache_read_input_tokens": 0,
+        "cache_creation": {
+          "ephemeral_5m_input_tokens": 7977,
+          "ephemeral_1h_input_tokens": 0
+        },
+        "iterations": [
+          {
+            "input_tokens": 4,
+            "output_tokens": 1200,
+            "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 7977,
+            "cache_creation": {
+              "ephemeral_5m_input_tokens": 7977,
+              "ephemeral_1h_input_tokens": 0
+            },
+            "type": "message",
+            "model": null
+          }
+        ],
+        "output_tokens": 1200,
+        "output_tokens_details": {
+          "thinking_tokens": 440
+        },
+        "service_tier": "standard",
+        "inference_geo": "global",
+        "speed": "standard"
+      }
+    }
+  ],
+  "rejected": [],
+  "plan": {
+    "version": 1,
+    "date": "2026-11-08",
+    "steps": [
+      {
+        "title": "黒い地になる板を用意する",
+        "detail": "残った品物は黒い地なので、黒い地になる金属の板から始めたと考えられる。何の金属かは手がかりからは分からない。鉄や、色を付けて黒くする銅の合金などが考えられるが、これはもともとの知識からの推し量り。",
+        "clue_ids": [
+          "C1"
+        ],
+        "basis": "clues",
+        "confidence": 1,
+        "key": "s1",
+        "change": "new",
+        "uncertain": "地の金属が何か。板の厚さも分からない。試して決める"
+      },
+      {
+        "title": "鐔の形に切り出す",
+        "detail": "板を鐔の外の形に切り、中の穴をあける。手がかりに形のことはないので、もともとの知識からの工程。",
+        "clue_ids": [],
+        "basis": "prior",
+        "confidence": 1,
+        "key": "s2",
+        "change": "new",
+        "uncertain": "形と大きさ、穴の数と形は分からない",
+        "caution": "切る・ヤスリをかけるときは手を切らないように"
+      },
+      {
+        "title": "線の溝を彫る",
+        "detail": "銀の線が細いので、地に細い溝を彫り、そこに銀を入れたのかもしれない。この工房の毛彫りでは、彫りの深さはコンマ何ミリの単位で、だいたい 0.1 から 0.3 mm くらいと判断している。また指輪では、細い溝はあとから手で彫ると判断している。この技でも、手で細い溝を彫ったのかもしれない。ただし別の技の数字なので、この技の深さとは言えない。",
+        "clue_ids": [
+          "C1"
+        ],
+        "basis": "clues",
+        "confidence": 1,
+        "key": "s3",
+        "change": "new",
+        "uncertain": "本当に溝があるのか、表面に乗せただけなのか分からない。溝の深さや形（底が広いかなど）も分からない",
+        "book_ids": [
+          "B16",
+          "B11"
+        ],
+        "caution": "鏨（たがね）が滑ると手を傷つける"
+      },
+      {
+        "title": "銀の線を入れて打ち込む",
+        "detail": "溝に細い銀の線を置き、上から打ち込んで留めたのかもしれない（象嵌（ぞうがん）のような作り方）。手がかりの銀の線からの推し量りで、作り方そのものは、もともとの知識から考えた。",
+        "clue_ids": [
+          "C1"
+        ],
+        "basis": "clues",
+        "confidence": 1,
+        "key": "s4",
+        "change": "new",
+        "uncertain": "銀の線の太さ、打ち込み方、銀が純銀か合金かは分からない"
+      },
+      {
+        "title": "焼きなましたら、ゆっくり冷ます",
+        "detail": "銀の線や地金を柔らかくするために焼きなますなら、この工房では槌目や木目金で、焼きなましたあとはゆっくり冷まし、水で急に冷やさないと判断している。この技でも、曲がりを防ぐためにゆっくり冷ますのがよいかもしれない。",
+        "clue_ids": [],
+        "basis": "clues",
+        "confidence": 1,
+        "key": "s5",
+        "change": "new",
+        "uncertain": "この技で焼きなましをしたのか、どの工程の前か、何度かは分からない。試して決める",
+        "book_ids": [
+          "B15",
+          "B17"
+        ],
+        "caution": "火を使う。やけどと火事に注意"
+      },
+      {
+        "title": "表面をならす",
+        "detail": "銀の線と地の高さをそろえ、表面を整える。手がかりにはないので、もともとの知識からの工程。",
+        "clue_ids": [],
+        "basis": "prior",
+        "confidence": 1,
+        "key": "s6",
+        "change": "new",
+        "uncertain": "銀が地と同じ高さか、少し出ているかは分からない"
+      },
+      {
+        "title": "地を黒くする",
+        "detail": "地が黒いのは、金属をそのまま黒くしたのか、色を付ける液で黒くしたのか、塗ったのか分からない。銀の線は黒くなっていないので、銀には色が付かない方法か、あとで銀だけ磨いたのかもしれない。もともとの知識からの推し量り。",
+        "clue_ids": [
+          "C1"
+        ],
+        "basis": "clues",
+        "confidence": 1,
+        "key": "s7",
+        "change": "new",
+        "uncertain": "黒くする方法と、銀を入れる前か後か、順番が分からない",
+        "caution": "色付けの液には体に悪いものもある。使うときは中身を確かめ、換気して手袋をする"
+      }
+    ],
+    "dropped": [],
+    "unknowns": [
+      {
+        "what": "黒い地の金属が何か",
+        "why": "金属で、彫り方も黒くする方法も変わる",
+        "step": 1
+      },
+      {
+        "what": "銀の線が溝に入っているのか、表面に乗っているだけなのか",
+        "why": "彫る工程が要るかどうかが決まる",
+        "step": 3
+      },
+      {
+        "what": "黒くする方法と、その順番",
+        "why": "銀を入れる前か後かで、工程の並びが変わる",
+        "step": 7
+      },
+      {
+        "what": "銀の線の太さと、溝の深さ",
+        "why": "線がはずれないかどうかに関わる",
+        "step": 4
+      },
+      {
+        "what": "手がかりが品物の短い見た目だけしかない",
+        "why": "ほとんどの工程が推し量りで、手がかりに頼れる所が少ない",
+        "step": 0
+      }
+    ],
+    "nextChecks": [
+      {
+        "what": "残った品物に磁石を近づける",
+        "why": "くっつけば鉄の地かもしれない。地の金属の分かれ目がはっきりする",
+        "kind": "trial",
+        "step": 1,
+        "caution": "品物に傷を付けないよう、磁石は布ごしに当てる"
+      },
+      {
+        "what": "ルーペで銀の線のふちと、地とのさかいを見る",
+        "why": "溝に入っているか、表面に乗っているか、線の下に細かい傷（目）があるかで、彫る工程が要るか分かる",
+        "kind": "research",
+        "step": 3
+      },
+      {
+        "what": "欠けや裏、穴のまわりなど、黒い地の下の金属の色が見える所を探す",
+        "why": "黒が塗りか、金属の色付けかの手がかりになる",
+        "kind": "research",
+        "step": 7,
+        "caution": "削ったり薬をかけたりしない"
+      },
+      {
+        "what": "小さな切れ端の板に細い溝を彫り、細い銀の線を打ち込んでみる",
+        "why": "この入れ方で細い銀の線が留まるか分かる",
+        "kind": "trial",
+        "step": 4,
+        "caution": "鏨と金槌で手を打たないように"
+      },
+      {
+        "what": "品物の持ち主や出どころを知る人に、作られた所や似た品を聞く",
+        "why": "地の金属や黒くする方法の手がかりが増える",
+        "kind": "ask",
+        "step": 0
+      }
+    ],
+    "summary": "黒い金属の地に細い溝を彫り、銀の線を打ち込んで、地を黒くした鐔かもしれない、という案です。手がかりは品物の見た目だけなので、ほとんどの工程は推し量りです。まず品物をよく見て、地の金属と銀の線の入り方を確かめるのがよいと考えられます。",
+    "changes": "",
+    "clues": [
+      {
+        "id": "C1",
+        "title": "【架空】黒地に銀の線。細い。"
+      }
+    ],
+    "photosSent": [],
+    "bookOn": true,
+    "book": [
+      {
+        "id": "B1",
+        "title": "爪の最低の太さ（石の大きさで）"
+      },
+      {
+        "id": "B2",
+        "title": "三角の石を 3 本爪で留めるとき"
+      },
+      {
+        "id": "B3",
+        "title": "石座は、腕の間に挟んでロウ付けする"
+      },
+      {
+        "id": "B4",
+        "title": "覆輪の壁は 0.5 mm 以上で十分"
+      },
+      {
+        "id": "B5",
+        "title": "ロウ付けのあとは、ゆっくり冷ます"
+      },
+      {
+        "id": "B6",
+        "title": "爪の位置は、腕を避ける"
+      },
+      {
+        "id": "B7",
+        "title": "爪の下は、石座に埋まって沿う"
+      },
+      {
+        "id": "B8",
+        "title": "小さな石は、別の留め方をすすめる"
+      },
+      {
+        "id": "B9",
+        "title": "三角の短い辺を溝に入れるときは、角のくぼみ 0.4 mm・辺の溝 0.4 mm"
+      },
+      {
+        "id": "B10",
+        "title": "テンションの地金は硬い状態で"
+      },
+      {
+        "id": "B11",
+        "title": "細い溝は、あとから手で彫る"
+      },
+      {
+        "id": "B12",
+        "title": "腕の幅（細さの目安）"
+      },
+      {
+        "id": "B13",
+        "title": "壁は 0.5 mm 以上で十分"
+      },
+      {
+        "id": "B14",
+        "title": "ロウ付けのあとは、ゆっくり冷ます"
+      },
+      {
+        "id": "B15",
+        "title": "焼きなましたら、ゆっくり冷ます"
+      },
+      {
+        "id": "B16",
+        "title": "彫りの深さ"
+      },
+      {
+        "id": "B17",
+        "title": "焼きなましたら、ゆっくり冷ます"
+      }
+    ],
+    "notes": []
+  },
+  "clueNames": {
+    "C1": "【架空】黒地に銀の線。細い。",
+    "B1": "爪の最低の太さ（石の大きさで）",
+    "B2": "三角の石を 3 本爪で留めるとき",
+    "B3": "石座は、腕の間に挟んでロウ付けする",
+    "B4": "覆輪の壁は 0.5 mm 以上で十分",
+    "B5": "ロウ付けのあとは、ゆっくり冷ます",
+    "B6": "爪の位置は、腕を避ける",
+    "B7": "爪の下は、石座に埋まって沿う",
+    "B8": "小さな石は、別の留め方をすすめる",
+    "B9": "三角の短い辺を溝に入れるときは、角のくぼみ 0.4 mm・辺の溝 0.4 mm",
+    "B10": "テンションの地金は硬い状態で",
+    "B11": "細い溝は、あとから手で彫る",
+    "B12": "腕の幅（細さの目安）",
+    "B13": "壁は 0.5 mm 以上で十分",
+    "B14": "ロウ付けのあとは、ゆっくり冷ます",
+    "B15": "焼きなましたら、ゆっくり冷ます",
+    "B16": "彫りの深さ",
+    "B17": "焼きなましたら、ゆっくり冷ます"
+  },
+  "prediction": {
+    "applicable": true,
+    "reason": "黒い地の板1枚に細い溝を彫って銀の線をはめ、最後に地に色を出す、象嵌の飾りとして置きかえました。",
+    "ops": [
+      {
+        "op": "plate",
+        "step": 1,
+        "why": "黒い地になる板1枚から始めるので、地の板にした",
+        "assumed": "地の金属が何か分からないので、名前の無い暗い色の材料にした",
+        "metals": [
+          "dark"
+        ],
+        "amount": 0,
+        "size": 0,
+        "across": 0,
+        "count": 0,
+        "thickness": [],
+        "choice": "-"
+      },
+      {
+        "op": "zogan",
+        "step": 4,
+        "why": "溝を彫って銀の線を打ち込む工程と、その前の溝を彫る工程をまとめて、銀の線の象嵌にした",
+        "assumed": "線の形が分からないので、仮に波の線を幅の中に6本にした。線は細いので、半分の幅を板の幅の0.008にした",
+        "metals": [
+          "silver"
+        ],
+        "amount": 0,
+        "size": 0.008,
+        "across": 6,
+        "count": 0,
+        "thickness": [],
+        "choice": "wave"
+      },
+      {
+        "op": "color",
+        "step": 7,
+        "why": "地を黒くする工程なので、薬で色を出すことにした",
+        "assumed": "黒くする方法が分からないので、仮に薬で色を出す方にした",
+        "metals": [],
+        "amount": 0,
+        "size": 0,
+        "across": 0,
+        "count": 0,
+        "thickness": [],
+        "choice": "patina"
+      }
+    ],
+    "cannot_show": "鐔の形に切ることと中の穴、焼きなましとゆっくり冷ますこと、表面をならすこと（象嵌で平らにしたとして描いた）は描けません。本当の線の文様は分からないので、仮に波の線にしています。銀が少し出ているかどうかや、塗って黒くしたのかどうかも表せません。",
+    "summary": "黒い地に、細い銀の線が何本か光って見える絵になりそうです。線の形と数は仮の値なので、本当の品物とはちがうかもしれません。"
+  },
+  "predictionNotes": [],
+  "picture": {
+    "top": "docs/compare/raw/mijika-B1-top.png",
+    "section": "docs/compare/raw/mijika-B1-section.png",
+    "notes": []
+  }
+}

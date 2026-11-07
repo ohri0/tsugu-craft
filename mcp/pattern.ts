@@ -150,9 +150,9 @@ export function listPatternOps() {
   return {
     op_count: { min: OP_RANGE[0], max: OP_RANGE[1] },
     families: {
-      layers: { label: "重ねた層の模様", first: "stack", ops: [...LAYER_OPS.filter((o) => o !== "stack"), "color"] },
+      layers: { label: "重ねた層の模様", first: "stack か ingot（重ねない 1 つの鋳た塊の中のむら）", ops: [...LAYER_OPS.filter((o) => o !== "stack" && o !== "ingot"), "color"] },
       surface: { label: "1 枚の板の表の飾り", first: "plate", ops: [...SURFACE_OPS.filter((o) => o !== "plate"), "color"] },
-      rule: "最初はかならず stack か plate を 1 つ。stack の後は重ねる操作と color だけ、plate の後は板の飾りの操作と color だけ（まぜない）",
+      rule: "最初はかならず stack・ingot・plate のどれか 1 つ。stack・ingot の後は重ねた層の操作と color だけ、plate の後は板の飾りの操作と color だけ（まぜない）",
     },
     ops: TOOL_OPS.map((op) => ({ op, label: TOOL_OP_LABEL[op], family: familyOf(op) })),
     metals: METAL_IDS.map((id) => ({ id, name: PATTERN_METALS[id].name })),
