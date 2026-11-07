@@ -12,7 +12,7 @@ import { SPRING_SHORT_TEXT, tensionSpring, type SpringMetalId } from "../rules/t
 import { howtoFor, type HowtoStep } from "../rules/howto-steps";
 import { TSUCHIME_STYLE_LABEL, TSUCHIME_STYLE_NOTE, tsuchimeSpec, tsuchimeStyleOf, type RingFinish } from "../geometry/finish";
 import { NUNOME_AROUND, NUNOME_FORM, NUNOME_LABEL, NUNOME_METAL_LABEL, NUNOME_NOTE, defaultNunome, nunomeLayout, nunomeMetal, nunomeOf } from "../geometry/nunome";
-import { holdAdvice, HOLD_WORDS, holdSteps, holdSummary, isAdvised, setSummary, tensionHoldSet } from "../rules/tension-hold";
+import { holdAdvice, HOLD_STRAIGHT_NOTE, HOLD_VERDICT_LABEL, HOLD_WORDS, holdSteps, holdSummary, isAdvised, safeDepthsFor, safeDepthsText, setSummary, tensionHoldSet } from "../rules/tension-hold";
 import type { AlloyId, Detail } from "./process";
 import { castSteps, dropVDetails, finishStep, forgeSteps, settingStep } from "./steps";
 
@@ -503,10 +503,13 @@ function tensionSteps(o: HowToInput, method: Method): Step[] {
   // 外れにくさ（浅く留めたいとき。src/rules/tension-hold.ts）：選んだ深さで、石より狭く作る量（要る分）と、答え
   const hold = tensionHoldSet(spring, r.metalWeightG, row.metal, row.metal, o.guides ?? GUIDES);
   const depthWords = info.ends.map((e) => `${e.kind === "pit" ? "くぼみ" : "溝"} ${mm(e.depthMm, 2)}`).join("・");
+  // 安全に留める深さの案（作者の声 2026-11-08「安全圏の感じで」）。画面の答えのすぐ下と同じ
+  const safe = hold.now.verdict === "hold" ? null : safeDepthsFor(spring, r.metalWeightG, row.metal, info.ends, o.guides ?? GUIDES);
   const holdSpecs: Spec[] = [
     // 広げたあと戻りきらない分（仮。作者の声 2026-11-07）を見込んだ作り方
     ...(row.shrinkMm !== null ? [{ label: HOLD_WORDS.makeWithSet, value: `この深さで石を留めるなら：${setSummary(hold.now)}${holdSteps(hold.now) ? `。手順：${holdSteps(hold.now)}` : ""}。大まかな計算・仮。最後は職人が決める` }] : []),
     { label: "深さ", value: `${depthWords}（和 ${mm(hold.now.depthSumMm, 2)}）` },
+    ...(safe ? [{ label: "安全に留める深さ", value: `${safeDepthsText(safe)}：${HOLD_VERDICT_LABEL[safe.hold.verdict]}${holdSteps(safe.hold) ? `。手順：${holdSteps(safe.hold)}` : ""}。大まかな計算・仮。最後は職人が決める` }] : []),
     { label: "外れにくさ（目安・仮）", value: `${holdSummary(hold.now, row.name)}${hold.atAppSqueeze ? `。上の狭く作れる量なら、求める分の 約 ${hold.atAppSqueeze.margin.toFixed(2)} 倍` : ""}。最後は職人が決める` },
   ];
   const close: Step = {
@@ -523,7 +526,7 @@ function tensionSteps(o: HowToInput, method: Method): Step[] {
     specs: [
       ...endSpecs,
       ...(row.spreadMm !== null
-        ? [{ label: HOLD_WORDS.spread, value: `約 ${row.spreadMm.toFixed(2)} mm（作る時の開きから石が通る ${mm(spring.spanMm, 2)} まで。${HOLD_WORDS.spreadLimit} 約 ${row.limitMm.toFixed(2)} mm。大まかな計算${kari}。最後は職人が決める）` }]
+        ? [{ label: HOLD_WORDS.spread, value: `約 ${row.spreadMm.toFixed(2)} mm（作る時の開きから石が通る ${mm(spring.spanMm, 2)} まで。石がぎりぎり入るだけ広げ、広げすぎない（広げすぎると戻らない）。${HOLD_WORDS.spreadLimit} 約 ${row.limitMm.toFixed(2)} mm。大まかな計算${kari}。${HOLD_STRAIGHT_NOTE}。最後は職人が決める）` }]
         : []),
       ...(row.slideShrinkMm !== null ? [{ label: "横から滑らせるとき", value: `開くのは締まりの分だけ。小さめに作れる量は 約 ${row.slideShrinkMm.toFixed(2)} mm まで（大まかな計算${kari}。作者の考えで、まだ試していない）` }] : []),
       { label: "石と指のすき間", value: mm(r.culetGapMm, 2) },

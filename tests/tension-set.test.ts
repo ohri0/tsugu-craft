@@ -7,8 +7,9 @@ import type { StoneParams } from "../src/geometry/stone";
 import { adviceSpringOf, tensionDefaultDepths } from "../src/geometry/tension";
 import { GUIDES, type Guides } from "../src/rules/guides";
 import { addRule, effectiveGuides, seedLedger, type Ledger } from "../src/rules/ledger";
+import repoLedger from "../ledger/jewelry.json";
 import { tensionSpring } from "../src/rules/tension-calc";
-import { adviceLevers, adviceText, HOLD_VERDICT_LABEL, HOLD_WORDS, holdAdvice, holdForClaude, holdSteps, holdTightNote, isAdvised, setSummary, tensionHoldSet } from "../src/rules/tension-hold";
+import { adviceLevers, adviceText, HOLD_INSERT_TIP, HOLD_STRAIGHT_NOTE, HOLD_VERDICT_LABEL, HOLD_WORDS, holdAdvice, holdForClaude, holdSteps, holdTightNote, isAdvised, safeDepthsFor, safeDepthsText, setSummary, tensionHoldSet } from "../src/rules/tension-hold";
 import {
   adviceDepths,
   bandMassUpperG,
@@ -149,7 +150,7 @@ describe("戻りきらない分を見込んだ作り方", () => {
 });
 
 describe("作者の本物の指輪（SV925・φ4・14 号・三角・短い辺を溝に）", () => {
-  it("くぼみ 0.4・溝 0.4（作者の新しい値）：前は「留まる見込み」。戻りきらない分を見込むと「限界まで広げて入れれば、留まる見込み」", () => {
+  it("くぼみ 0.4・溝 0.4（作者の新しい値）：前は「留まる見込み」。戻りきらない分を見込むと「ぎりぎり入れれば、留まる見込み」", () => {
     const h = holdOf(authorRing("side", 0.4, 0.4)).now;
     expect(h.depthSumMm).toBeCloseTo(0.8, 9);
     expect(h.needSqueezeMm).toBeCloseTo(0.525, 2);
@@ -277,20 +278,25 @@ describe("深さの既定（作者 2026-11-07：前の 0.8・0.5 は「適当に
   });
 });
 
-describe("限界まで広げて入れれば、留まる見込み（作者の声 2026-11-08「結局職人が確かめてるんかい」）", () => {
-  it("作者の指輪（くぼみ 0.4・溝 0.4）：答えに、作る時の開き・広げる量・限界いっぱいの作り方の数字が出る。戻りきらない分（仮）は小さな字に", () => {
+describe("ぎりぎり入れれば、留まる見込み（作者の声 2026-11-08「結局職人が確かめてるんかい」）", () => {
+  it("作者の指輪（くぼみ 0.4・溝 0.4）：答えに、作る時の開き・広げる量・石がぎりぎり入るだけ広げる作り方の数字が出る。戻りきらない分（仮）は小さな字に", () => {
     const r = authorRing("side", 0.4, 0.4);
     const h = holdOf(r).now;
     const limitMm = tensionSpring(r.setting, r.shank)!.rows.find((x) => x.metal === "sv925")!.limitMm;
     expect(h.verdict).toBe("tight");
-    expect(HOLD_VERDICT_LABEL.tight).toBe("限界まで広げて入れれば、留まる見込み");
+    expect(HOLD_VERDICT_LABEL.tight).toBe("ぎりぎり入れれば、留まる見込み");
     expect(HOLD_VERDICT_LABEL.tight).not.toContain("職人が確かめる");
-    // 石より 約 0.76 mm 狭く作る（作る時の開き 約 6.90 mm）→ 約 1.56 mm（限界いっぱい）広げて入れる → 戻る力ではさむ
+    // 作者の声（2026-11-08）：「限界いっぱい」と言わない。石がぎりぎり入るだけ広げる。広げすぎると戻らない
+    expect(HOLD_VERDICT_LABEL.tight).not.toContain("限界");
+    // 石より 約 0.76 mm 狭く作る（作る時の開き 約 6.90 mm）→ 約 1.56 mm 広げて入れる（石がぎりぎり入るだけ）→ 戻る力ではさむ
     expect(h.squeezeMm).toBeCloseTo(0.758, 2);
     expect(h.makeGapMm).toBeCloseTo(6.9, 2);
     expect(h.spreadMm).toBeCloseTo(limitMm, 6);
     const steps = holdSteps(h)!;
-    expect(steps).toBe(`石より 0.76 mm 狭く作る（作る時の開き 6.90 mm） → 1.56 mm 広げて石を入れる（広げるのは限界いっぱい） → 戻る力で石をはさむ`);
+    expect(steps).toBe(`石より 0.76 mm 狭く作る（作る時の開き 6.90 mm） → 1.56 mm 広げて石を入れる（石がぎりぎり入るだけ。広げすぎると戻らない） → 戻る力で石をはさむ`);
+    expect(steps).not.toContain("限界");
+    // 広げる量 1.56 ＝ 石より狭く作る 0.76 ＋ 石が通る深さ 0.80（作者が確かめた）
+    expect(h.spreadMm).toBeCloseTo(h.squeezeMm + h.depthSumMm, 9);
     expect(steps).not.toContain("仮");
     // 小さな字：戻りきらない分は仮。見込んだときの倍もここに
     const note = holdTightNote(h)!;
@@ -312,6 +318,56 @@ describe("限界まで広げて入れれば、留まる見込み（作者の声 
     const short = holdOf(authorRing("side", 0.2, 0.2)).now;
     expect(short.verdict).toBe("short");
     expect(holdSteps(short)).toBeNull();
+  });
+});
+
+describe("安全に留める深さの案と、石の入れ方の職人の言葉（作者の声 2026-11-08「安全圏の感じで、数値をうまいこと調整して」）", () => {
+  const safeOf = (r: ReturnType<typeof authorRing>) => safeDepthsFor(tensionSpring(r.setting, r.shank, "hardened", GUIDES)!, r.metalWeightG, "sv925", r.setting.tension!.ends, GUIDES);
+
+  it("作者の指輪（くぼみ 0.4・溝 0.4）：溝を 0.50 mm に（くぼみ 0.40 のまま）すれば「留まる見込み」。数はいまの計算そのまま", () => {
+    const r = authorRing("side", 0.4, 0.4);
+    const s = safeOf(r)!;
+    expect(s.pitMm).toBe(0.4);
+    expect(s.grooveMm).toBe(0.5);
+    expect(s.hold.verdict).toBe("hold");
+    expect(safeDepthsText(s)).toBe("安全に留めるなら：溝を 0.50 mm に（くぼみ 0.40 mm のまま）");
+    // いちばん少なく深くした組：溝 0.45 ではまだ「ぎりぎり」
+    expect(holdOf(authorRing("side", 0.4, 0.45)).now.verdict).toBe("tight");
+    // その深さで本当に組み直しても「留まる見込み」。手順の数も同じ
+    const again = holdOf(authorRing("side", 0.4, 0.5)).now;
+    expect(again.verdict).toBe("hold");
+    expect(holdSteps(s.hold)).toBe(`石より ${again.squeezeMm.toFixed(2)} mm 狭く作る（作る時の開き ${again.makeGapMm.toFixed(2)} mm） → ${again.spreadMm.toFixed(2)} mm 広げて石を入れる → 戻る力で石をはさむ`);
+    // 留まる見込みなら案は出さない
+    expect(safeOf(authorRing("side", 0.65, 0.6))).toBeNull();
+    // Claude が読む形にも
+    const c = holdForClaude(holdOf(r), adviceOf(r), s);
+    expect(c.safe_depths!.groove_mm).toBe(0.5);
+    expect(c.safe_depths!.verdict).toBe("留まる見込み");
+    expect(c.insert_tip).toBe(`${HOLD_INSERT_TIP.text}（${HOLD_INSERT_TIP.by}）`);
+    expect(c.spread_assumes_straight_insertion).toBe(HOLD_STRAIGHT_NOTE);
+  });
+
+  it("両はしが同じ種類なら、両はしを同じだけ深く", () => {
+    const s = safeOf(authorRing("corner", 0.3))!;
+    expect(s.keep).toBeNull();
+    expect(s.pitMm).toBeGreaterThan(0.3);
+    expect(s.grooveMm).toBeNull();
+    expect(s.hold.verdict).toBe("hold");
+    expect(safeDepthsText(s)).toBe(`安全に留めるなら：両はしのくぼみを ${s.pitMm!.toFixed(2)} mm に`);
+  });
+
+  it("石の入れ方の職人の言葉は、帳面の決まり（石川・2026-11-08・石を入れる工程）と同じ言葉。計算はまっすぐ入れる前提と正直に書く", () => {
+    const rule = (repoLedger as unknown as Ledger).rules.find((x) => x.id === HOLD_INSERT_TIP.ruleId)!;
+    expect(rule.quote).toBe(HOLD_INSERT_TIP.text);
+    expect(rule.source).toEqual({ kind: "craftsman", name: "石川" });
+    expect(rule.date).toBe("2026-11-08");
+    expect(rule.steps).toEqual(["tension_set"]);
+    expect(HOLD_INSERT_TIP.by).toBe("職人 石川の言葉 2026-11-08");
+    expect(HOLD_STRAIGHT_NOTE).toContain("まっすぐ");
+    expect(HOLD_STRAIGHT_NOTE).toContain("斜め");
+    // ぎりぎりの小さな字も「限界まで使えば」ではなく、ぎりぎり入るだけ
+    const note = holdTightNote(holdOf(authorRing("side", 0.4, 0.4)).now)!;
+    expect(note).toContain("石がぎりぎり入るだけ広げ");
   });
 });
 
@@ -344,7 +400,7 @@ describe("画面・作り方・Claude の言葉", () => {
   it("Claude が読む形に、戻りきらない分・見込んだ作り方・おすすめが入る", () => {
     const r = authorRing("side", 0.4, 0.4);
     const c = holdForClaude(holdOf(r), adviceOf(r));
-    expect(c.verdict).toBe("限界まで広げて入れれば、留まる見込み");
+    expect(c.verdict).toBe("ぎりぎり入れれば、留まる見込み");
     expect(c.set_ratio).toBe(0.05);
     expect(c.plan.stays_open_mm).toBeCloseTo(0.23, 2);
     expect(c.without_set_allowance!.stays_open_mm).toBeCloseTo(0.06, 2);

@@ -1177,6 +1177,8 @@ html.fit .command { flex: 1 1 320px; min-width: 0; }
 .tn-verdict small { font-size: 12px; color: var(--fg-2); }
 /* 作る手順の一行（石より狭く作る → 広げて入れる → 戻る力ではさむ。2026-11-08） */
 .tn-verdict .tn-recipe { font-size: 13px; color: var(--fg); line-height: 1.5; }
+/* 職人の言葉（石の入れ方。2026-11-08） */
+.tn-verdict .tn-tip { font-size: 12px; color: var(--fg-2); line-height: 1.5; }
 .tn-verdict.hold { background: rgba(48, 209, 88, 0.08); border-color: rgba(48, 209, 88, 0.3); }
 .tn-verdict.hold b { color: #30d158; }
 .tn-verdict.tight { background: rgba(255, 214, 10, 0.08); border-color: rgba(255, 214, 10, 0.3); }
@@ -1350,6 +1352,13 @@ html.fit .nm-note, html.fit .nm-pat { font-size: 12px; }
 .tn-hold .tn-advice p small { font-size: 12px; color: var(--fg-2); }
 .tn-hold .tn-advice.none { border-color: rgba(255, 69, 58, 0.3); }
 .tn-hold .hold-advice-apply { font-size: 13px; padding: 4px 10px; }
+/* 安全に留める深さの案（答えのすぐ下。作者の声 2026-11-08「安全圏の感じで」） */
+.tn-hold .tn-safe { display: grid; gap: 6px; justify-items: start; padding: 8px 10px; border-radius: 6px; border: 1px solid rgba(48, 209, 88, 0.3); background: rgba(48, 209, 88, 0.06); }
+.tn-hold .tn-safe p { display: grid; gap: 2px; margin: 0; }
+.tn-hold .tn-safe p b { font-weight: 600; font-size: 14px; color: var(--fg); }
+.tn-hold .tn-safe .tn-safe-v { font-size: 13px; color: #30d158; }
+.tn-hold .tn-safe .tn-recipe { font-size: 13px; color: var(--fg); line-height: 1.5; }
+.tn-hold .hold-safe-apply { font-size: 13px; padding: 4px 10px; }
 
 /* ---- 継ぐの場所の切り替え（帳面・設計・学ぶ・技・途切れた技。src/ui/main-nav.ts と main-nav.css。2026-11-08） ----
    いちばん上に 1 本の帯。設計の道具の帯（作る・確かめる…）は、その下にそのまま。

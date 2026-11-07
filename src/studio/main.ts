@@ -70,7 +70,7 @@ import { SHANK_SECTIONS, SHANK_SECTION_LABEL, shankSizeWords, type ShankSection 
 import { placePoint, rebuildShank } from "../geometry/ring";
 import { TENSION_OPENING_NOTE, TENSION_WORDS_NOTE, checkShank, grooveNote, shankWidthNote, tensionInsert, tensionNotes, type GrooveNote, type Problem, type WidthNote } from "../rules/checks";
 import { SPRING_PREMISE, springIdOf, springSummary, tensionCautions, tensionSpring, type SpringRow, type SpringTable, type TensionCaution } from "../rules/tension-calc";
-import { adviceLevers, adviceText, HOLD_PREMISE, HOLD_VERDICT_LABEL, HOLD_WORDS, holdAdvice, holdSpringOf, holdSteps, holdTightNote, isAdvised, tensionHold, tensionHoldSet } from "../rules/tension-hold";
+import { adviceLevers, adviceText, HOLD_DEPTH_RANGE, HOLD_INSERT_TIP, HOLD_PREMISE, HOLD_STRAIGHT_NOTE, HOLD_VERDICT_LABEL, HOLD_WORDS, holdAdvice, holdSpringOf, holdSteps, holdTightNote, isAdvised, safeDepthsFor, safeDepthsText, tensionHold, tensionHoldSet } from "../rules/tension-hold";
 import type { TensionGrip } from "../geometry/tension";
 import { presentHtml, STONE_SIZES, type PresentGroup } from "./present";
 import { MAX_SECONDS, playVoice, putVoice, startRecording, voiceIds } from "./voice-notes";
@@ -2473,8 +2473,6 @@ function holdSliders(b: Built): SliderSpec[] {
   const spec = (cls: string, label: string, v: number): SliderSpec => ({ cls, label, min: HOLD_DEPTH_RANGE.min, max: HOLD_DEPTH_RANGE.max, step: 0.05, value: Math.min(HOLD_DEPTH_RANGE.max, Math.max(HOLD_DEPTH_RANGE.min, v)), unit: "mm" });
   return [...(pit ? [spec("r-hold-pit", `角のくぼみの深さ${both}`, pit.depthMm)] : []), ...(groove ? [spec("r-hold-groove", `辺の溝の深さ${both}`, groove.depthMm)] : [])];
 }
-/** 深さのつまみの範囲（mm。形を作るための決まり。作者の頼み 2026-11-07「0.2〜0.8 mm くらい」） */
-const HOLD_DEPTH_RANGE = { min: 0.2, max: 0.8 };
 /**
  * 浅く留めたいとき（作者の頼み 2026-11-07）：今の深さで、石より狭く作る量（要る分）と、広げても戻る範囲で狭くできる量。
  * いちばん浅い深さ、足りないときのほかの手。値の多くは仮。最後は職人が決める（src/rules/tension-hold.ts）
@@ -2501,7 +2499,7 @@ function holdSectionHtml(b: Built, table: SpringTable): string {
   const shallow =
     min === null
       ? `<p>この地金・この太さ・この号では、どの深さでも、広げても戻る範囲の狭く作り方では「留まる見込み」になりません${kari}。</p>`
-      : `<p>この指輪（${esc(row.name)}・ø ${table.wireMm.toFixed(1)} mm・${r.shank.gou} 号）で、留まる見込みになるいちばん浅い深さ：両はしの和 約 ${min.toFixed(2)} mm（例：${split(min)} mm。そのとき石より 約 ${tensionHold({ spanMm: table.spanMm, radiusMm: table.radiusMm, wireMm: table.wireMm, massG: r.metalWeightG, spring: holdSpringOf(row, table.factor), depthSumMm: min }, g).squeezeMm.toFixed(2)} mm 狭く作る。戻りきらない分を見込んで）${minTight !== null ? `。限界まで広げるなら 約 ${minTight.toFixed(2)} mm` : ""}${kari}。</p>`;
+      : `<p>この指輪（${esc(row.name)}・ø ${table.wireMm.toFixed(1)} mm・${r.shank.gou} 号）で、留まる見込みになるいちばん浅い深さ：両はしの和 約 ${min.toFixed(2)} mm（例：${split(min)} mm。そのとき石より 約 ${tensionHold({ spanMm: table.spanMm, radiusMm: table.radiusMm, wireMm: table.wireMm, massG: r.metalWeightG, spring: holdSpringOf(row, table.factor), depthSumMm: min }, g).squeezeMm.toFixed(2)} mm 狭く作る。戻りきらない分を見込んで）${minTight !== null ? `。ぎりぎり入れる（広げる量が限界の近く）なら 約 ${minTight.toFixed(2)} mm` : ""}${kari}。</p>`;
   const parts = set.atAppSqueeze?.work ?? h.work;
   const pct = (v: number) => `${Math.round((100 * v) / Math.max(1e-9, parts.total))} %`;
   const app = set.atAppSqueeze
@@ -2523,6 +2521,21 @@ function holdSectionHtml(b: Built, table: SpringTable): string {
       : "";
   const steps = holdSteps(h);
   const tightNote = holdTightNote(h);
+  // 安全に留める深さの案（作者の声 2026-11-08「安全圏の感じで、数値をうまいこと調整して」）：答えのすぐ下に。計算はいまの tensionHold のまま
+  const safe = h.verdict === "hold" ? null : safeDepthsFor(table, r.metalWeightG, mine, info.ends, g);
+  const safeSteps = safe ? holdSteps(safe.hold) : null;
+  const safeHtml = safe
+    ? `<div class="tn-safe"><p><b>${esc(safeDepthsText(safe))}</b><span class="tn-safe-v">→ ${esc(HOLD_VERDICT_LABEL[safe.hold.verdict])}</span>${safeSteps ? `<span class="tn-recipe">${esc(safeSteps)}</span>` : ""}</p><button type="button" class="hold-safe-apply">この深さにする</button></div>`
+    : "";
+  // 石の入れ方の職人の言葉（作者の声 2026-11-08）。角のある石（角を先にくぼみへ）だけ。帳面にあれば帳面の言葉
+  const insertKind = tensionInsert(info).kind;
+  const tipRule = activeRules(store.ledger()).find((x) => x.id === HOLD_INSERT_TIP.ruleId);
+  const tip =
+    h.verdict !== "short" && (insertKind === "corner-first" || insertKind === "corners")
+      ? tipRule && tipRule.source.kind === "craftsman"
+        ? `${tipRule.quote ?? tipRule.text}（職人 ${tipRule.source.name}の言葉 ${tipRule.date}）`
+        : `${HOLD_INSERT_TIP.text}（${HOLD_INSERT_TIP.by}）`
+      : null;
   const ideas: string[] = [];
   if (h.verdict !== "hold") {
     if (advice.ok) ideas.push("もっと硬くする（加工硬化を強める・熱で硬くする合金にする）と、狭くできる量が増えます。硬さの値は仮なので、職人が確かめます");
@@ -2530,13 +2543,14 @@ function holdSectionHtml(b: Built, table: SpringTable): string {
     const ok = set.options.filter((o) => o.verdict === "hold");
     if (ok.length) ideas.push(`同じ深さで留まる見込み：${ok.map((o) => `${o.label}（石より狭く作る ${num(o.needSqueezeMm)}・狭くできる ${num(o.safeSqueezeMm)}）`).join("、")}${kari}`);
     const tight = set.options.filter((o) => o.verdict === "tight");
-    if (tight.length) ideas.push(`限界まで広げれば留まる見込み：${tight.map((o) => o.label).join("、")}${kari}`);
+    if (tight.length) ideas.push(`ぎりぎり入れれば留まる見込み：${tight.map((o) => o.label).join("、")}${kari}`);
   }
   return `<section class="tn-hold" data-v="${h.verdict}">
     <div class="tn-head"><span class="tn-title"><b>浅く留めたいとき</b><button type="button" class="hold-help-btn" aria-expanded="${holdHelpOpen}" aria-controls="hold-help" aria-label="言葉の意味を読む（数字のすぐ下に出ます）">？</button></span></div>
     <small class="tn-note">テンションは、石より狭く作り、広げて石を入れ、戻る力で石をはさみます。深さを変えると、石より狭く作る量（要る分）と、広げても戻る範囲で狭くできる量を比べます。形・図面・作り方も、この深さに変わります。</small>
     <div class="sliders">${holdSliders(b).map(sliderHtml).join("")}</div>
-    <p class="tn-verdict ${h.verdict}"><b>${esc(HOLD_VERDICT_LABEL[h.verdict])}</b>${steps ? `<span class="tn-recipe">${esc(steps)}</span>` : ""}<small>${esc(ends)} mm（和 ${h.depthSumMm.toFixed(2)} mm）・${esc(row.name)}・目安・最後は職人が決める</small></p>
+    <p class="tn-verdict ${h.verdict}"><b>${esc(HOLD_VERDICT_LABEL[h.verdict])}</b>${steps ? `<span class="tn-recipe">${esc(steps)}</span>` : ""}${tip ? `<span class="tn-tip">${esc(tip)}</span>` : ""}<small>${esc(ends)} mm（和 ${h.depthSumMm.toFixed(2)} mm）・${esc(row.name)}・目安・最後は職人が決める</small></p>
+    ${safeHtml}
     <dl class="tn-facts">
       <div><dt>${HOLD_WORDS.need}</dt><dd>${Number.isFinite(h.needSqueezeMm) ? `約 ${h.needSqueezeMm.toFixed(2)} mm` : "—"}</dd></div>
       <div><dt>${HOLD_WORDS.safe}</dt><dd>約 ${h.safeEffectiveMm.toFixed(2)} mm<small>（戻りきらない分を引いて）</small></dd></div>
@@ -2554,6 +2568,7 @@ function holdSectionHtml(b: Built, table: SpringTable): string {
     ${shallow}
     ${ideas.length ? `<ul class="tn-ideas">${ideas.map((t) => `<li>${esc(t)}</li>`).join("")}</ul>` : ""}
     ${tightNote ? `<small class="tn-note">${esc(tightNote)}。</small>` : ""}
+    ${tip ? `<small class="tn-note">${esc(HOLD_STRAIGHT_NOTE)}。</small>` : ""}
     <small class="tn-note">${esc(HOLD_PREMISE)}。落とす高さ ${(h.dropMm / 1000).toFixed(1)} m・摩擦 ${h.mu}・壁の傾き ${h.wallDeg}°・戻りきらない割合 ${Math.round(h.curve.ratio * 100)} % は仮の値で、帳面で職人が変えられます。</small>
   </section>`;
 }
@@ -2567,6 +2582,13 @@ function bindHold(box: HTMLElement, b: Built): void {
       session!.setTensionDepths(sp.cls === "r-hold-pit" ? v : c.pit, sp.cls === "r-hold-groove" ? v : c.groove);
     });
   box.querySelector(".hold-reset")?.addEventListener("click", () => session!.setTensionDepths(undefined, undefined));
+  // 安全に留める深さにする（答えのすぐ下の案。2026-11-08）
+  box.querySelector(".hold-safe-apply")?.addEventListener("click", () => {
+    const table = tensionSpring(b.ring.setting, b.ring.shank, "hardened", session!.guides());
+    if (!table) return;
+    const s = safeDepthsFor(table, b.ring.metalWeightG, springIdOf(session!.state.metal), info.ends, session!.guides());
+    if (s) session!.setTensionDepths(s.pitMm ?? undefined, s.grooveMm ?? undefined, "安全に留める深さ");
+  });
   // おすすめにする（深さの組。その種類の端がなければ既定のまま）
   box.querySelector(".hold-advice-apply")?.addEventListener("click", () => {
     const table = tensionSpring(b.ring.setting, b.ring.shank, "hardened", session!.guides());
@@ -2591,7 +2613,7 @@ function holdHelpHtml(dropMm: number, setRatio: number): string {
     [HOLD_WORDS.gap, "石が入ったときの、腕の両はしの間。石の長さから、くぼみと溝の深さを引いた長さです。"],
     [HOLD_WORDS.need, `石を入れたあとも、開きが石より（図面の開きより）これだけ狭いまま残っていてほしい量。指輪を ${(dropMm / 1000).toFixed(1)} m の高さから落として石から当たっても外れない、という仮の目安から出しています。浅いほど多く要ります。広げたあと戻りきらない分があるので、作るときは、もう少し狭く作ります。`],
     [HOLD_WORDS.safe, "石より狭く作って、広げて石を入れても、腕が元にもどれる範囲の量。太い線は内側が先に曲がるので、それを見た控えめな値です。広げたあと戻りきらない分を引いて出します。"],
-    [HOLD_WORDS.limit, "細い線として計算した、広げても戻れるいちばん大きい量。安全な量と限界の間なら「限界まで広げて入れれば、留まる見込み」、限界をこえると腕が戻らなくなります。"],
+    [HOLD_WORDS.limit, `細い線として計算した、広げても戻れるいちばん大きい量。安全な量と限界の間なら「${HOLD_VERDICT_LABEL.tight}」（石がぎりぎり入るだけ広げる）、限界をこえると腕が戻らなくなります。`],
     [HOLD_WORDS.set, `広げて離すと、地金は元に戻りきらず、少し開いたまま残ります（職人の例：1 で作って 1.5 まで広げると、1 に戻らず 1.2 ぐらい）。この計算は、安全な限界まで広げると、広げた分の 約 ${Math.round(setRatio * 100)} % が残る、としています（仮。帳面で変えられます）。`],
     [HOLD_WORDS.makeWithSet, "図面の開きから、石より狭く作る量と、戻りきらない分を引いた開き。この開きで作ると、石を入れたあとに、要る分だけ狭いまま残り、石をはさみます。"],
     [HOLD_WORDS.spread, "作るときの開きから、石が通るまで広げる量（くぼみと溝の深さ ＋ 石より狭く作った量）。"],
