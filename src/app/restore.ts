@@ -113,8 +113,23 @@ export function mountRestore(root: HTMLElement, sub: string, opts: { onBack: () 
   releasePhotos();
   const moyou = /^([A-Za-z0-9_-]+)\/moyou(?:\/(\d+))?$/.exec(sub);
   if (moyou) void mountMoyouPage(root, moyou[1], moyou[2] ? Number(moyou[2]) : null);
+  else if (sub && !loadProject(sub) && isBuiltInSample(sub)) void mountSampleProject(root, sub);
   else if (sub) mountProject(root, sub);
   else mountList(root, opts);
+}
+
+/** 組み込みの例（作り話の例）の id か。直接開いたとき、このブラウザになければ読み込んで開く（2026-11-08 初めての人の試し） */
+export function isBuiltInSample(id: string): boolean {
+  return Object.prototype.hasOwnProperty.call(SAMPLES, id);
+}
+
+/** 組み込みの例を読み込んで開く（模様の見込みの頁と同じ動き） */
+async function mountSampleProject(root: HTMLElement, id: string) {
+  root.innerHTML = `<section class="view rs"><p class="rs-empty">例を読み込んでいます…</p></section>`;
+  const project = await openSample(id);
+  if (!project) return mountProject(root, id);
+  if (project.id !== id) location.hash = `#waza/restore/${project.id}`;
+  else mountProject(root, id);
 }
 
 /** 作り話の例を、このブラウザの記録にする（もうあれば、それを使う） */
@@ -211,7 +226,7 @@ function mountList(root: HTMLElement, opts: { onBack: () => void }) {
   const film = filming();
   root.innerHTML = `
   <section class="view rs">
-    <button type="button" class="rs-back">${film ? "← 技の一覧" : "← 技の一覧へ戻る"}</button>
+    <button type="button" class="rs-back">${film ? "← 技の一覧" : "← 技へ"}</button>
     <h2 class="rs-title">途切れた技</h2>
     ${
       film

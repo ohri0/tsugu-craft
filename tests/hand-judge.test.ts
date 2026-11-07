@@ -23,7 +23,7 @@ describe("道具の扱いの判定（手本＝いい例と比べる。線は仮�
     const rows = judgeTake(GOOD, GOOD, NAMES);
     expect(rows.map((r) => r.key)).toEqual(["hold", "angle", "stroke"]);
     expect(rows.map((r) => r.mark)).toEqual(["○", "○", "○"]);
-    expect(rows[2].you).toBe("5 回・長さがそろう（3.0〜3.1）");
+    expect(rows[2].you).toBe("5 回・長さがそろう（手のひらの 3.0〜3.1 倍）");
   });
 
   it("2026-11-07 の よくない例：金属の固定 △・ヤスリの角度 △・ストローク ×（長さがばらばら）", () => {
@@ -34,7 +34,10 @@ describe("道具の扱いの判定（手本＝いい例と比べる。線は仮�
     expect(angle.mark).toBe("△");
     expect(angle.ratio!).toBeCloseTo(1.97, 1);
     expect(stroke.mark).toBe("×");
-    expect(stroke.you).toBe("3 回・長さがばらばら（0.3〜4.4）");
+    expect(stroke.you).toBe("3 回・長さがばらばら（手のひらの 0.3〜4.4 倍）");
+    // 2026-11-08：数に単位（手のひらの長さを 1 とした倍）を添える
+    expect(hold.base).toBe("揺れ 手のひらの 0.27 倍");
+    expect(hold.say).toContain("手本の");
     expect(stroke.say).toMatch(/^ストロークが安定していない/);
   });
 

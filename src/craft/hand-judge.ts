@@ -47,7 +47,8 @@ export function strokeStats(xs: readonly number[]) {
 const strokeText = (xs: readonly number[], th: Th) => {
   const s = strokeStats(xs);
   if (!s) return "数えられず";
-  return `${s.n} 回・長さが${s.spread <= th.strokeEvenSpread ? "そろう" : "ばらばら"}（${s.min.toFixed(1)}〜${s.max.toFixed(1)}）`;
+  // 長さは手のひらの長さを 1 とした倍（2026-11-08：単位のない数だった）
+  return `${s.n} 回・長さが${s.spread <= th.strokeEvenSpread ? "そろう" : "ばらばら"}（手のひらの ${s.min.toFixed(1)}〜${s.max.toFixed(1)} 倍）`;
 };
 
 /** 手本（base）と比べて、3 つの項目を判定する */
@@ -61,8 +62,9 @@ export function judgeTake(base: TakeMeasure, you: TakeMeasure, names: { hold: st
     rows.push({
       key: "hold",
       label: "金属の固定",
-      base: base.hold === null ? "-" : base.hold.toFixed(2),
-      you: you.hold === null ? "-" : you.hold.toFixed(2),
+      // 揺れは手のひらの長さを 1 とした倍（2026-11-08：単位のない数だった）
+      base: base.hold === null ? "-" : `揺れ 手のひらの ${base.hold.toFixed(2)} 倍`,
+      you: you.hold === null ? "-" : `揺れ 手のひらの ${you.hold.toFixed(2)} 倍`,
       ratio,
       mark: ratio === null ? null : markOf(ratio, th),
       say:
@@ -70,7 +72,7 @@ export function judgeTake(base: TakeMeasure, you: TakeMeasure, names: { hold: st
           ? `${names.hold}が映っていない所が多く、判定できません`
           : ratio <= th.okRatio
             ? `${names.hold}が止まっている`
-            : `${names.hold}がふらつく（${ratio.toFixed(1)} 倍）`,
+            : `${names.hold}がふらつく（手本の ${ratio.toFixed(1)} 倍）`,
     });
   }
 
@@ -90,7 +92,7 @@ export function judgeTake(base: TakeMeasure, you: TakeMeasure, names: { hold: st
           ? `${names.tool}の線が見つかったこまが少なく、判定できません`
           : ratio <= th.okRatio
             ? `${names.tool}の角度が変わらない`
-            : `${names.tool}の角度がぶれる（${ratio.toFixed(1)} 倍）`,
+            : `${names.tool}の角度がぶれる（手本の ${ratio.toFixed(1)} 倍）`,
     });
   }
 

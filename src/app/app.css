@@ -131,6 +131,7 @@ main { max-width: 760px; margin: 0 auto; padding: 20px 16px calc(40px + env(safe
 .ev-src { margin: 2px 0 0; font-size: 11px; color: var(--fg-3); }
 .a-meta { margin: 10px 0 0; display: flex; flex-wrap: wrap; gap: 6px 8px; font-size: 11px; color: var(--fg-2); }
 .a-meta:empty { display: none; }
+.a-next { margin: 12px 0 0; }
 .tag { padding: 1px 7px; border-radius: 3px; background: var(--panel-2); border: 1px solid var(--line); font-size: 11px; color: var(--fg-2); }
 .tag.gold { background: var(--accent-weak); border-color: transparent; color: var(--accent-2); }
 .thinking { margin: 0; display: flex; gap: 5px; padding: 6px 0; }
@@ -620,6 +621,8 @@ a.back { display: inline-flex; align-items: center; border: 1px solid transparen
 .keep-basics small { flex-basis: 100%; font-size: 12px; color: var(--fg-3); }
 .keep-name .rename-form { display: flex; gap: 6px; align-items: center; }
 .keep-name .rename-form input { padding: 6px 9px; border: 1px solid var(--line-2); border-radius: var(--r); background: var(--field); font-size: 14px; }
+.keep-name .ws-add-form { flex-wrap: wrap; }
+.keep-name .ws-add-form small { flex-basis: 100%; color: var(--fg-3); font-size: 12px; }
 /* 帳面：資料から入れた決まり（札を小さく） */
 .rule-cards.pub { margin-top: 8px; }
 .rule-cards.pub .rule-card { border-left-color: var(--line-2); padding: 12px 14px; }

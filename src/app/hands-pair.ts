@@ -92,7 +92,7 @@ export function judgeHtml(rows: JudgeRow[], tool: string, youLabel: string, base
   const mk = (m: JudgeRow["mark"]) => (m ? `<b class="jd-mark jd-${{ "○": "ok", "△": "warn", "×": "ng" }[m]}">${m}</b>` : `<b class="jd-mark jd-na">－</b>`);
   const th = GUIDES.handJudge;
   return `<section class="judge" aria-label="判定">
-      <p class="jd-h"><b>判定</b><span>${baseLabel ? `道具のまっすぐな縁を追いかけ、${esc(baseLabel)}と角度のぶれを比べます。線が見つからない道具は、判定しません。` : `道具を追いかけ、手本（いい例）と比べて、扱えているかを見ます。いまは${esc(tool)}。ほかの道具も、手本を残せば同じしくみで比べられます。`}</span></p>
+      <p class="jd-h"><b>${youLabel === "あなた" ? "あなたの判定" : "判定"}</b><span>${baseLabel ? `道具のまっすぐな縁を追いかけ、${esc(baseLabel)}と角度のぶれを比べます。線が見つからない道具は、判定しません。` : `道具を追いかけ、手本（いい例）と比べて、扱えているかを見ます。いまは${esc(tool)}。ほかの道具も、手本を残せば同じしくみで比べられます。`}</span></p>
       <table class="jd-table">
         <thead><tr><th></th><th>${esc(baseLabel ?? "手本（いい例）")}</th><th>${esc(youLabel)}</th><th></th></tr></thead>
         <tbody>${rows

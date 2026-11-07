@@ -290,7 +290,7 @@ export function holdSummary(h: HoldResult, name: string): string {
 
 /** 戻りきらない分の一言（作り方・図面）：広げる量、残る量、見込んだ作る時の開き */
 export function setSummary(h: HoldResult): string {
-  return `${HOLD_WORDS.spread} 約 ${h.spreadMm.toFixed(2)} mm で、${HOLD_WORDS.set} 約 ${h.setMm.toFixed(2)} mm（仮）。${HOLD_WORDS.makeWithSet} 約 ${h.makeGapMm.toFixed(2)} mm（図面の開きより ${h.squeezeMm.toFixed(2)} mm 狭く）`;
+  return `${HOLD_WORDS.spread} 約 ${h.spreadMm.toFixed(2)} mm で、${HOLD_WORDS.set} 約 ${h.setMm.toFixed(2)} mm（仮）。${HOLD_WORDS.makeWithSet} 約 ${h.makeGapMm.toFixed(2)} mm（${isNoSqueeze(h.squeezeMm) ? "図面の開きのまま" : `図面の開きより ${h.squeezeMm.toFixed(2)} mm 狭く`}）`;
 }
 
 /** 広げられる限界（細い輪の式。mm）＝ 狭くできる限界 ＋ 深さの和 */
@@ -306,7 +306,19 @@ export const HOLD_SPREAD_NOTE = "（石がぎりぎり入るだけ。広げす�
 export function holdSteps(h: HoldResult): string | null {
   if (h.verdict === "short") return null;
   const note = h.verdict === "tight" ? HOLD_SPREAD_NOTE : "";
-  return `石より ${h.squeezeMm.toFixed(2)} mm 狭く作る（作る時の開き ${h.makeGapMm.toFixed(2)} mm） → ${h.spreadMm.toFixed(2)} mm 広げて石を入れる${note} → 戻る力で石をはさむ`;
+  // 狭く作る量が 0 のときに「石より 0.00 mm 狭く作る」と出していた（2026-11-08 初めての人の試し）。言葉で言う
+  const make = isNoSqueeze(h.squeezeMm) ? `図面の開きのまま作る（石より狭くしない。くぼみ・溝の深さで留める。開き ${h.makeGapMm.toFixed(2)} mm）` : `石より ${h.squeezeMm.toFixed(2)} mm 狭く作る（作る時の開き ${h.makeGapMm.toFixed(2)} mm）`;
+  return `${make} → ${h.spreadMm.toFixed(2)} mm 広げて石を入れる${note} → 戻る力で石をはさむ`;
+}
+
+/** 狭く作る量が、画面の細かさ（0.01 mm）で 0 か */
+export function isNoSqueeze(mm: number): boolean {
+  return Math.round(mm * 100) === 0;
+}
+
+/** 「石より 0.41 mm 狭く」。0 なら「石より狭くしない」（「0.00 mm 狭く」とは出さない） */
+export function narrowerText(mm: number): string {
+  return isNoSqueeze(mm) ? "石より狭くしない" : `石より ${mm.toFixed(2)} mm 狭く`;
 }
 
 /**

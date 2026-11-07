@@ -13,7 +13,7 @@ import { summarizeMetrics } from "../craft/motion";
 import { bookHtml } from "../rules/book";
 import { freshGap, ringGaps } from "../rules/gaps";
 import { activeRules, addRule, editRule, removedList, removeRule, replaceNote, restoreRule, seedLedger, sourceLabel, type Ledger, type Rule } from "../rules/ledger";
-import { setBasics, MAIN, removeWorkshop, renameWorkshop, setActive } from "../rules/workshops";
+import { addWorkshop, setBasics, MAIN, removeWorkshop, renameWorkshop, setActive } from "../rules/workshops";
 import repoLedger from "../../ledger/jewelry.json";
 import { groupQuestions, markAnswered, removeQuestions, type QuestionGroup } from "../rules/teacher-queue";
 import { mountMotion, savedRecords } from "../ui/motion-ui";
@@ -60,7 +60,7 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
   root.innerHTML = `
   <section class="view keep">
     <header class="view-head">
-      <div class="keep-name"><h2 class="keep-title"></h2><button type="button" class="linklike rename">名前を変える</button><label class="ws-switch" hidden><span>帳面を切り替える</span><select aria-label="使う帳面"></select></label></div>
+      <div class="keep-name"><h2 class="keep-title"></h2><button type="button" class="linklike rename">名前を変える</button>${filming() ? "" : `<button type="button" class="linklike ws-add">＋ 工房の帳面を作る</button>`}<label class="ws-switch" hidden><span>帳面を切り替える</span><select aria-label="使う帳面"></select></label></div>
       <p class="lead">${clear ? "職人の決まりを残す所です。設計の確かめと、学ぶ人への答えに使います。" : "工房の決まり。設計の確かめと、学ぶ人への答えに使います。"}${filming() ? "" : `<a class="place-next" href="studio.html">この決まりで、設計を確かめる ›</a>`}</p>
       <div class="keep-basics"><span>この工房のベーシック（いつもの基本の形）：爪の形</span><div class="seg-b" role="group" aria-label="爪の形（工房の既定）"><button type="button" data-tip="round">丸い爪</button><button type="button" data-tip="oni">尖り爪</button></div><small class="keep-basics-n"></small></div>
     </header>
@@ -530,6 +530,21 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
   $(".ws-switch select").addEventListener("change", (e) => {
     store.setWorkshops(setActive(store.workshops(), (e.target as HTMLSelectElement).value));
     refresh();
+  });
+  // ほかの工房の帳面を作る（2026-11-08 初めての人の試し：作る所が設計の画面にしかなかった）。決まりは公開の目安から始まる
+  root.querySelector(".ws-add")?.addEventListener("click", () => {
+    const head = $(".keep-name");
+    if (head.querySelector(".ws-add-form")) return;
+    head.insertAdjacentHTML("beforeend", `<form class="rename-form ws-add-form"><input placeholder="工房の名前（例：工房 C）" aria-label="新しい工房の名前" maxlength="24"><button type="submit" class="primary">作る</button><small>決まりは、公開の資料の目安から始まります。</small></form>`);
+    const form = head.querySelector<HTMLFormElement>(".ws-add-form")!;
+    const input = form.querySelector("input")!;
+    input.focus();
+    form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      store.setWorkshops(addWorkshop(store.workshops(), input.value, seedLedger()));
+      form.remove();
+      refresh();
+    });
   });
   $(".rename").addEventListener("click", () => {
     if (store.workshops().active !== MAIN) return openWorkshopEditor();

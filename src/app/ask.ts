@@ -15,6 +15,7 @@ import { findRules, prongSizeAnswer } from "../rules/search";
 import { checkProngAnswer, prongLearnAnswer, prongLearnColumns, prongLearnFacts, type ProngLearnFacts } from "../rules/prong-learn";
 import { addQuestion } from "../rules/teacher-queue";
 import { isMihonSource, learnNav, techName, techPicker, techRules } from "./flow-view";
+import { filming } from "./confirm";
 import { flowUI, isMihon, MIHON_NAME, MIHON_UNKNOWN } from "./mihon";
 import { esc, store, today } from "./store";
 import { bindVoice } from "./voice";
@@ -185,7 +186,8 @@ export function mountAsk(root: HTMLElement): { refresh(): void; route(tech?: str
       ${a.why || rules.length ? `<button type="button" class="why-btn" aria-expanded="false">なぜ？</button>
       <div class="a-why" hidden>${a.why ? `<p>${esc(a.why)}</p>` : ""}${rules.map(ruleBlock).join("")}</div>` : ""}
       <p class="a-meta">${asked ? `<span class="tag gold">${esc(name)}に回しました ・ 帳面に届きます</span>` : ""}${via === "local" && !isMihon() ? `<span class="tag">Claude なし ・ 帳面から探しました</span>` : ""}${redone ? `<span class="tag">Claude の数字が計算と合わないので、画面の計算で答えました</span>` : ""}${rules.length ? `<span>決まり ${rules.length} つから</span>` : ""}</p>
-      ${asked && flow ? `<a class="linklike to-master" href="#waza/${tech}?step=answer">職人の画面で、届いた質問を見る ›</a>` : ""}`;
+      ${asked && flow ? `<a class="linklike to-master" href="#waza/${tech}?step=answer">職人の画面で、届いた質問を見る ›</a>` : ""}
+      ${flow && !filming() ? `<p class="a-next"><a class="primary btnlike" href="${tech ? `#learn/hands/${tech}` : "#learn/hands"}">次：手を比べる <span aria-hidden="true">›</span></a></p>` : ""}`;
   }
 
   /** 職人が動画で見せた答えがあれば、なぜ？の中に出す */

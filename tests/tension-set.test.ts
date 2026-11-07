@@ -408,3 +408,20 @@ describe("画面・作り方・Claude の言葉", () => {
     expect(c.note).toContain("tension.springSetRatio");
   });
 });
+
+describe("石より狭く作る量が 0 のとき（2026-11-08）", () => {
+  it("「石より 0.00 mm 狭く」とは出さず、言葉で言う", async () => {
+    const { narrowerText, isNoSqueeze } = await import("../src/rules/tension-hold");
+    expect(narrowerText(0)).toBe("石より狭くしない");
+    expect(narrowerText(0.004)).toBe("石より狭くしない");
+    expect(narrowerText(0.41)).toBe("石より 0.41 mm 狭く");
+    expect(isNoSqueeze(0.006)).toBe(false);
+  });
+  it("手順の一行も、0 なら「図面の開きのまま作る」", () => {
+    const h = { verdict: "hold", squeezeMm: 0, makeGapMm: 6.27, spreadMm: 1.25 } as unknown as Parameters<typeof holdSteps>[0];
+    const t = holdSteps(h)!;
+    expect(t).not.toContain("0.00 mm 狭く");
+    expect(t).toContain("図面の開きのまま作る");
+    expect(t).toContain("1.25 mm 広げて石を入れる");
+  });
+});

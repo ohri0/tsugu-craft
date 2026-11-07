@@ -34,6 +34,7 @@ import { esc, store, today } from "../app/store";
 import { bindVoice } from "../app/voice";
 import { bookLabel, bookTitle, masterName, sourceName } from "../app/master";
 import { toStl } from "../cad/solid";
+import { stlFileName } from "./stl-name";
 import { buildStone } from "../geometry/stone";
 import { LAYOUT_LABEL, METAL_LABEL, RingSession, offeredMetal, type RingState, SLOT_SHAPE_LABEL, STONE_LONG_RANGE, bandFixInput, carryDesign, smallerTsuchime, fitStoneDepth, fitStoneLong, reliefFixInput, stationFrom, tuneProngMm, underLedger, type Built, type SlotShape } from "./session";
 import { bindShankLine, sectionBinding, shankLineHtml } from "./shank-line";
@@ -68,9 +69,10 @@ import { setupProngEdit, type ProngEditUi } from "./prong-edit";
 import { bindSectionEditor, sectionEditorHtml, startShape } from "./section-edit";
 import { SHANK_SECTIONS, SHANK_SECTION_LABEL, shankSizeWords, type ShankSection } from "../geometry/shank";
 import { placePoint, rebuildShank } from "../geometry/ring";
-import { TENSION_OPENING_NOTE, TENSION_WORDS_NOTE, checkShank, grooveNote, shankWidthNote, tensionInsert, tensionNotes, type GrooveNote, type Problem, type WidthNote } from "../rules/checks";
+import { ruleApplies, holdPlain } from "../rules/rule-quote";
+import { TENSION_OPENING_NOTE, TENSION_WORDS_NOTE, checkShank, cornerSetCount, grooveNote, shankWidthNote, tensionInsert, tensionNotes, type GrooveNote, type Problem, type WidthNote } from "../rules/checks";
 import { SPRING_PREMISE, springIdOf, springSummary, tensionCautions, tensionSpring, type SpringRow, type SpringTable, type TensionCaution } from "../rules/tension-calc";
-import { adviceLevers, adviceText, HOLD_DEPTH_RANGE, HOLD_INSERT_TIP, HOLD_PREMISE, HOLD_STRAIGHT_NOTE, HOLD_VERDICT_LABEL, HOLD_WORDS, holdAdvice, holdSpringOf, holdSteps, holdTightNote, isAdvised, safeDepthsFor, safeDepthsText, tensionHold, tensionHoldSet } from "../rules/tension-hold";
+import { adviceLevers, adviceText, HOLD_DEPTH_RANGE, HOLD_INSERT_TIP, HOLD_PREMISE, HOLD_STRAIGHT_NOTE, HOLD_VERDICT_LABEL, HOLD_WORDS, holdAdvice, holdSpringOf, holdSteps, holdTightNote, narrowerText, isAdvised, safeDepthsFor, safeDepthsText, tensionHold, tensionHoldSet } from "../rules/tension-hold";
 import type { TensionGrip } from "../geometry/tension";
 import { presentHtml, STONE_SIZES, type PresentGroup } from "./present";
 import { MAX_SECONDS, playVoice, putVoice, startRecording, voiceIds } from "./voice-notes";
@@ -251,7 +253,7 @@ let showDims = true;
 /** 寸法のうち、隠しているもの（寸法のボタンを長く押す・右の小さな ▾ で選ぶ） */
 // スマホは画面が小さく、札が指輪にかぶる。人がまだ選んでいなければ、内径と石の札を隠して始める（▾ で出せる）
 const hiddenDims = new Set<string>(JSON.parse(localStorage.getItem("tsugu.hiddenDims") ?? (!filming() && matchMedia("(max-width: 760px)").matches ? `["inner","stone"]` : "[]")));
-const DIM_NAMES: [string, string][] = [["inner", "内径"], ["stone", "石の大きさ"], ["culet", "石の先〜指（石のいちばん下から指まで）"], ["height", "指から上（指から石座のいちばん上まで）"], ["gap", "腕の開き（テンション）"]];
+const DIM_NAMES: [string, string][] = [["inner", "内径"], ["stone", "石の大きさ"], ["culet", "石の先〜指（石のいちばん下から指まで）"], ["height", filming() ? "指から上（指から石座のいちばん上まで）" : "指から石座の上（指から石座のいちばん上まで）"], ["gap", "腕の開き（テンション）"]];
 /** 地金のみの指輪の寸法の名前 */
 const BAND_DIM_NAMES: [string, string][] = [["inner", "内径"], ["b-width", "幅"], ["b-thick", "厚み"], ["b-under", "手のひら側の幅と厚み"]];
 /** 見せ場の間は寸法を出さない（最後に 1 本ずつ出す） */
@@ -356,12 +358,16 @@ function ringDims(b: Built): Dim[] {
   const halfY = Math.max(...pts.map((q) => Math.abs(q.y)));
   const bad = new Set(b.problems.map((p) => p.check));
   const tn = r.setting.tension;
+  // ふだんの画面は数に mm を添え、「指から上」は図面の「指から石の上まで」と別の寸法だと分かる名前にする（2026-11-08）。撮影では前のまま
+  const film = filming();
+  const u = film ? "" : " mm";
+  const heightWord = film ? "指から上" : tn ? "指から腕の上" : "指から石座の上";
   return [
-    ...(tn ? [{ a: [0, -tn.gapMm / 2, lift + tn.girdleZ] as V3, b: [0, tn.gapMm / 2, lift + tn.girdleZ] as V3, ext: [-(r.shank.widthMm / 2 + 2), 0, 0] as V3, label: `開き ${tn.gapMm.toFixed(2)}`, key: "gap" }] : []),
-    { a: [0, -ri, lift], b: [0, ri, lift], label: `内径 ø${(ri * 2).toFixed(1)}`, key: "inner" },
-    { a: [pair[0].x, pair[0].y, tableZ], b: [pair[1].x, pair[1].y, tableZ], label: `石 ${stone.measured.longMm.toFixed(2)}`, key: "stone" },
-    { a: [0, 0, fingerTop], b: [0, 0, culetZ], label: `石の先〜指 ${r.culetGapMm.toFixed(2)}`, bad: bad.has("finger-gap"), key: "culet" },
-    { a: [0, -halfY - 1.4, fingerTop], b: [0, -halfY - 1.4, top], label: `指から上 ${(top - fingerTop).toFixed(2)}`, bad: bad.has("tip-height"), key: "height" },
+    ...(tn ? [{ a: [0, -tn.gapMm / 2, lift + tn.girdleZ] as V3, b: [0, tn.gapMm / 2, lift + tn.girdleZ] as V3, ext: [-(r.shank.widthMm / 2 + 2), 0, 0] as V3, label: `開き ${tn.gapMm.toFixed(2)}${u}`, key: "gap" }] : []),
+    { a: [0, -ri, lift], b: [0, ri, lift], label: `内径 ø${(ri * 2).toFixed(1)}${u}`, key: "inner" },
+    { a: [pair[0].x, pair[0].y, tableZ], b: [pair[1].x, pair[1].y, tableZ], label: `石 ${stone.measured.longMm.toFixed(2)}${u}`, key: "stone" },
+    { a: [0, 0, fingerTop], b: [0, 0, culetZ], label: `石の先〜指 ${r.culetGapMm.toFixed(2)}${u}`, bad: bad.has("finger-gap"), key: "culet" },
+    { a: [0, -halfY - 1.4, fingerTop], b: [0, -halfY - 1.4, top], label: `${heightWord} ${(top - fingerTop).toFixed(2)}${u}`, bad: bad.has("tip-height"), key: "height" },
   ].filter((d) => !hiddenDims.has(d.key)) as Dim[];
 }
 /** 手で描いた形の寸法は 0.01 mm まで、ほかは 0.1 mm まで */
@@ -715,12 +721,20 @@ async function intro() {
   const card = document.createElement("div");
   card.className = "intro-sheet";
   parts.push(card);
-  card.innerHTML = `<img alt="" src="${sheetImg.url}"><div><b>図面と作り方</b><small>正面図ほか ・ ${steps.length} 工程 ・ ${grouped(b).length ? `直す所 ${grouped(b).length}` : "作れる形"}</small></div>`;
+  // スマホ：札は指輪を隠さない小さな札にして、押すと図面を開く。時計も早めに消す（2026-11-08 初めての人の試し：札が指輪の大半を隠し、時計が表示の切り替えに重なっていた）。撮影では前のまま
+  const phoneChip = !filming() && matchMedia("(max-width: 760px)").matches;
+  if (phoneChip) {
+    card.classList.add("chip");
+    card.setAttribute("role", "button");
+    card.tabIndex = 0;
+    card.innerHTML = `<b>図面と作り方 ・ ${steps.length} 工程 ›</b>`;
+    card.addEventListener("click", () => document.querySelector<HTMLButtonElement>('.disp [data-disp="draw"]')?.click());
+  } else card.innerHTML = `<img alt="" src="${sheetImg.url}"><div><b>図面と作り方</b><small>正面図ほか ・ ${steps.length} 工程 ・ ${grouped(b).length ? `直す所 ${grouped(b).length}` : "作れる形"}</small></div>`;
   $(".vp").appendChild(card);
   tick("写真 1 枚 → 図面と作り方");
   clearInterval(clock);
   timer.classList.add("done");
-  await wait(3200);
+  await wait(phoneChip ? 1800 : 3200);
   if (!alive()) return;
   card.classList.add("out");
   timer.classList.add("out");
@@ -1984,6 +1998,9 @@ function askNudgeHtml(b: Built): string {
   if (q.has("rec") && !q.has("ask")) return "";
   const gaps = ringGaps(store.ledger());
   if (!gaps.length) return "";
+  // デザイナーは職人への質問に答えられない。作る画面では小さな 1 行にして、帳面へ案内するだけにする（2026-11-08 初めての人の試し）。
+  // 撮影（?rec&ask）では、前の大きな札のまま
+  if (!filming()) return `<a class="ask-mini" href="app.html#ledger/ask?gap=${encodeURIComponent(gaps[0].id)}">職人への質問が ${gaps.length} つあります（帳面で答える ›）</a>`;
   let later = false;
   try {
     later = !!sessionStorage.getItem(ASK_LATER_KEY);
@@ -2425,6 +2442,27 @@ function tensionCardHtml(b: Built): string {
   const basis = table.rows.map((x) => `<li><b>${esc(x.name)}</b>ヤング率（地金の曲がりにくさ）${x.young.gpa} GPa${x.young.provisional ? "（仮）" : ""}：${esc(x.young.basis)}。耐力（これを超えると曲がったまま戻らない強さ）${x.proof.mpa} MPa${x.proof.provisional ? "（仮）" : ""}：${esc(x.proof.basis)}</li>`).join("");
   const more = (key: string, title: string, body: string) => `<details class="tn-more" data-tn="${key}" ${tnOpen.has(key) ? "open" : ""}><summary>${title}</summary>${body}</details>`;
   const notes = tensionNotes(r.setting, r.shank.thicknessMm, g);
+  const calcBody = `<p>${esc(TENSION_OPENING_NOTE)}。</p><p>${esc(TENSION_WORDS_NOTE)}。今は R ${table.radiusMm.toFixed(2)} mm（指の半径 ＋ 太さ ÷ 2）・d ${table.wireMm.toFixed(1)} mm。</p><p>開ける限界（戻れる範囲で開ける量）：${table.rows.map((x) => `${esc(x.name)} ${x.limitMm.toFixed(2)}${x.provisional ? "（仮）" : ""}`).join("・")} mm。これは、この式の値です。太い輪は線の内側で曲げが強まるので、「狭く作る」は、限界を ${table.factor.toFixed(2)} で割ってから、開いて入れるのに要る量（${esc(table.needText)}）を引きました（ばねの手引きの式）。割ると足りないときは「ぎりぎり」です。</p><ul>${basis}</ul><p>帳面の決まり「テンションの角はくぼみ、辺は溝」「テンションの地金は硬い状態で」とつながっています。${filming() ? "" : `<a class="link" href="app.html#ledger">帳面で読む →</a>`}</p>`;
+  // ふだんの画面：作り方は 1 つ（答えの手順の一行と、安全に留める深さの案）だけ見せ、ほかの数字は「くわしく」の中へ（2026-11-08 初めての人の試し：
+  // 上の「約 0.41 mm 小さめに作り、約 1.66 mm 広げて入れる」と、おすすめの「石より 0.00 mm 狭く・1.25 mm 広げる」の 2 つの作り方が並んでいた）。撮影では前の札のまま
+  if (!filming()) {
+    const metalHead = `<table><thead><tr><th>地金</th><td>最大でここまで<br>狭くできる</td><td>そのときの<br>作る時の開き</td><td>広げる</td><td>戻り<br>きらない</td></tr></thead><tbody>${table.rows.map(row).join("")}</tbody></table>`;
+    return `<section class="tn-card compact">
+    <h5>テンション（腕のばねで石を挟む）</h5>
+    ${cautions.length ? `<ul class="tn-cautions">${cautions.map((c) => `<li><b>${esc(c.title)}</b>${esc(c.text)}</li>`).join("")}</ul>` : ""}
+    ${holdSectionHtml(b, table, true)}
+    ${more("detail", "くわしい数字・地金ごとの比べ", `<dl class="tn-facts">${facts.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join("")}</dl>
+      <p class="tn-line"><b>入れ方</b>${esc(insert.how)}。${esc(insert.hold)}。</p>
+      <div class="tn-table"><div class="tn-head"><b>地金ごとの比べ（mm）</b></div>
+      <p>地金ごとに、腕が戻れる範囲で、最大まで石より狭く作ったときの値です。作り方は、上の一行のとおりです。</p>
+      ${metalHead}
+      <p>石の長さ ${table.spanMm.toFixed(2)} mm まで広げると石が通り、手を離すと狭く作った分だけ戻ろうとして、石を押さえます。広げたあと「戻りきらない」分は開いたまま残ります（仮）。</p>
+      ${slide}
+      <p>${esc(SPRING_PREMISE)}</p></div>`)}
+    ${more("calc", "式と前提と出典を読む", calcBody)}
+    ${more("notes", `気をつけること（${notes.length}）`, `<ul class="tension-notes">${notes.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>`)}
+  </section>`;
+  }
   return `<section class="tn-card">
     <h5>テンション（腕のばねで石を挟む）</h5>
     <small class="tn-note">この石の場合の案です。深さや開きは、石によって変わります。</small>
@@ -2440,7 +2478,7 @@ function tensionCardHtml(b: Built): string {
       ${slide}
       <p>${esc(SPRING_PREMISE)}</p>
     </div>
-    ${more("calc", "式と前提と出典を読む", `<p>${esc(TENSION_OPENING_NOTE)}。</p><p>${esc(TENSION_WORDS_NOTE)}。今は R ${table.radiusMm.toFixed(2)} mm（指の半径 ＋ 太さ ÷ 2）・d ${table.wireMm.toFixed(1)} mm。</p><p>開ける限界（戻れる範囲で開ける量）：${table.rows.map((x) => `${esc(x.name)} ${x.limitMm.toFixed(2)}${x.provisional ? "（仮）" : ""}`).join("・")} mm。これは、この式の値です。太い輪は線の内側で曲げが強まるので、「狭く作る」は、限界を ${table.factor.toFixed(2)} で割ってから、開いて入れるのに要る量（${esc(table.needText)}）を引きました（ばねの手引きの式）。割ると足りないときは「ぎりぎり」です。</p><ul>${basis}</ul><p>帳面の決まり「テンションの角はくぼみ、辺は溝」「テンションの地金は硬い状態で」とつながっています。${filming() ? "" : `<a class="link" href="app.html#ledger">帳面で読む →</a>`}</p>`)}
+    ${more("calc", "式と前提と出典を読む", calcBody)}
     ${holdSectionHtml(b, table)}
     ${more("notes", `気をつけること（${notes.length}）`, `<ul class="tension-notes">${notes.map((n) => `<li>${esc(n)}</li>`).join("")}</ul>`)}
   </section>`;
@@ -2460,7 +2498,7 @@ function tensionHoldRows(b: Built, sess: RingSession): { label: string; value: s
   return [
     {
       label: "石より狭く作る（目安・仮。最後は職人が決める）",
-      value: `${row.shrinkMm !== null ? `${HOLD_WORDS.makeWithSet} 約 ${h.makeGapMm.toFixed(2)}（石より ${h.squeezeMm.toFixed(2)} 狭く。広げる ${h.spreadMm.toFixed(2)}。戻りきらない分 約 ${h.setMm.toFixed(2)} を見込む）` : "開く量が足りない見込み"} ・ ${HOLD_WORDS.need} 約 ${need} ・ ${HOLD_VERDICT_LABEL[h.verdict]}`,
+      value: `${row.shrinkMm !== null ? `${HOLD_WORDS.makeWithSet} 約 ${h.makeGapMm.toFixed(2)}（${narrowerText(h.squeezeMm)}。広げる ${h.spreadMm.toFixed(2)}。戻りきらない分 約 ${h.setMm.toFixed(2)} を見込む）` : "開く量が足りない見込み"} ・ ${HOLD_WORDS.need} 約 ${need} ・ ${HOLD_VERDICT_LABEL[h.verdict]}`,
     },
   ];
 }
@@ -2477,7 +2515,7 @@ function holdSliders(b: Built): SliderSpec[] {
  * 浅く留めたいとき（作者の頼み 2026-11-07）：今の深さで、石より狭く作る量（要る分）と、広げても戻る範囲で狭くできる量。
  * いちばん浅い深さ、足りないときのほかの手。値の多くは仮。最後は職人が決める（src/rules/tension-hold.ts）
  */
-function holdSectionHtml(b: Built, table: SpringTable): string {
+function holdSectionHtml(b: Built, table: SpringTable, compact = false): string {
   const r = b.ring;
   const info = r.setting.tension!;
   const g = session!.guides();
@@ -2545,6 +2583,28 @@ function holdSectionHtml(b: Built, table: SpringTable): string {
     const tight = set.options.filter((o) => o.verdict === "tight");
     if (tight.length) ideas.push(`ぎりぎり入れれば留まる見込み：${tight.map((o) => o.label).join("、")}${kari}`);
   }
+  const verdictHtml = `<p class="tn-verdict ${h.verdict}"><b>${esc(HOLD_VERDICT_LABEL[h.verdict])}</b>${steps ? `<span class="tn-recipe">${esc(steps)}</span>` : ""}${tip ? `<span class="tn-tip">${esc(tip)}</span>` : ""}<small>${esc(ends)} mm（和 ${h.depthSumMm.toFixed(2)} mm）・${esc(row.name)}・目安・最後は職人が決める</small></p>`;
+  if (compact) {
+    const factsHtml = `<dl class="tn-facts">
+      <div><dt>${HOLD_WORDS.need}</dt><dd>${Number.isFinite(h.needSqueezeMm) ? `約 ${h.needSqueezeMm.toFixed(2)} mm` : "—"}</dd></div>
+      <div><dt>${HOLD_WORDS.safe}</dt><dd>約 ${h.safeEffectiveMm.toFixed(2)} mm<small>（戻りきらない分を引いて）</small></dd></div>
+      <div><dt>${HOLD_WORDS.limit}</dt><dd>約 ${h.limitSqueezeMm.toFixed(2)} mm</dd></div>
+      <div><dt>${HOLD_WORDS.gap}</dt><dd>${h.gapMm.toFixed(2)} mm</dd></div>
+      <div><dt>${HOLD_WORDS.set}</dt><dd>約 ${h.setMm.toFixed(2)} mm<small>（仮）</small></dd></div>
+      <div><dt>${HOLD_WORDS.makeWithSet}</dt><dd>約 ${h.makeGapMm.toFixed(2)} mm<small>（${narrowerText(h.squeezeMm)}）</small></dd></div>
+      <div><dt>${HOLD_WORDS.spread}</dt><dd>約 ${h.spreadMm.toFixed(2)} mm</dd></div>
+      <div><dt>${HOLD_WORDS.spreadLimit}</dt><dd>約 ${row.limitMm.toFixed(2)} mm</dd></div>
+    </dl>`;
+    const moreHold = `<details class="tn-more" data-tn="hold" ${tnOpen.has("hold") ? "open" : ""}><summary>この深さの数字・ほかの案</summary>${factsHtml}${naive}${adviceHtml}${app}${shallow}${ideas.length ? `<ul class="tn-ideas">${ideas.map((t) => `<li>${esc(t)}</li>`).join("")}</ul>` : ""}${tightNote ? `<small class="tn-note">${esc(tightNote)}。</small>` : ""}${tip ? `<small class="tn-note">${esc(HOLD_STRAIGHT_NOTE)}。</small>` : ""}<small class="tn-note">${esc(HOLD_PREMISE)}。落とす高さ ${(h.dropMm / 1000).toFixed(1)} m・摩擦 ${h.mu}・壁の傾き ${h.wallDeg}°・戻りきらない割合 ${Math.round(h.curve.ratio * 100)} % は仮の値で、帳面で職人が変えられます。</small></details>`;
+    return `<section class="tn-hold" data-v="${h.verdict}">
+    ${verdictHtml}
+    ${safeHtml}
+    <div class="tn-head"><span class="tn-title"><b>くぼみ・溝の深さ</b><button type="button" class="hold-help-btn" aria-expanded="${holdHelpOpen}" aria-controls="hold-help" aria-label="言葉の意味を読む">？</button></span></div>
+    ${holdHelpHtml(h.dropMm, h.curve.ratio)}
+    <div class="sliders">${holdSliders(b).map(sliderHtml).join("")}</div>
+    ${moreHold}
+  </section>`;
+  }
   return `<section class="tn-hold" data-v="${h.verdict}">
     <div class="tn-head"><span class="tn-title"><b>浅く留めたいとき</b><button type="button" class="hold-help-btn" aria-expanded="${holdHelpOpen}" aria-controls="hold-help" aria-label="言葉の意味を読む（数字のすぐ下に出ます）">？</button></span></div>
     <small class="tn-note">テンションは、石より狭く作り、広げて石を入れ、戻る力で石をはさみます。深さを変えると、石より狭く作る量（要る分）と、広げても戻る範囲で狭くできる量を比べます。形・図面・作り方も、この深さに変わります。</small>
@@ -2557,7 +2617,7 @@ function holdSectionHtml(b: Built, table: SpringTable): string {
       <div><dt>${HOLD_WORDS.limit}</dt><dd>約 ${h.limitSqueezeMm.toFixed(2)} mm</dd></div>
       <div><dt>${HOLD_WORDS.gap}</dt><dd>${h.gapMm.toFixed(2)} mm</dd></div>
       <div><dt>${HOLD_WORDS.set}</dt><dd>約 ${h.setMm.toFixed(2)} mm<small>（仮）</small></dd></div>
-      <div><dt>${HOLD_WORDS.makeWithSet}</dt><dd>約 ${h.makeGapMm.toFixed(2)} mm<small>（石より ${h.squeezeMm.toFixed(2)} 狭く）</small></dd></div>
+      <div><dt>${HOLD_WORDS.makeWithSet}</dt><dd>約 ${h.makeGapMm.toFixed(2)} mm<small>（${narrowerText(h.squeezeMm)}）</small></dd></div>
       <div><dt>${HOLD_WORDS.spread}</dt><dd>約 ${h.spreadMm.toFixed(2)} mm</dd></div>
       <div><dt>${HOLD_WORDS.spreadLimit}</dt><dd>約 ${row.limitMm.toFixed(2)} mm</dd></div>
     </dl>
@@ -2650,16 +2710,8 @@ function renderCheck() {
   const sectionName: Record<ShankSection, string> = filming() ? FILM_SECTION_LABEL : SHANK_SECTION_LABEL;
   // 決まりの案と「案にしています…」は、欄を描き直しても消さない（形の作り直しが案を消すと、もう押せなくなる）
   const heldProposal = [...(box.querySelector(".ar-proposal")?.childNodes ?? [])];
-  box.innerHTML = `
-    ${ruleFlashHtml(probs.length)}
-    <section class="big-verdict ${probs.length ? "ng" : tensionCautionsOf(b).length || handGrooveOf(b) || narrowArmOf(b) ? (narrowArmOf(b)?.level === "orange" ? "warn2" : "warn") : "ok"}"><b>${probs.length ? "このままでは作れません" : tensionCautionsOf(b).length ? "形は作れます。職人に確かめる所があります" : narrowArmOf(b) ? `作れます。腕が${narrowArmOf(b)!.level === "orange" ? "かなり細いので" : "細めなので"}、注意があります` : handGrooveOf(b) ? "形は作れます。細い溝は、あとから手で彫ります" : "このまま作れます"}</b><small>${probs.length ? `直す所 ${probs.length}` : tensionCautionsOf(b).length ? tensionCautionsOf(b).map((c) => esc(c.title)).join("・") : b.ring.setting.tension ? "溝・くぼみ・すき間は目安の内側。ばねの強さは職人が決める" : `爪・留まり・すき間・角、すべて目安の内側`}</small></section>
-    ${filming() ? "" : `<div class="stone-pick"><span>石の形</span><div class="presets" role="group" aria-label="石の形">${stoneButtonsHtml()}</div></div>`}
-    ${askNudgeHtml(b)}
-    ${workshopBarHtml()}
-    ${compareHtml()}
-    ${MULTI_STONE_UI ? stonesSectionHtml(b) : ""}
-    ${
-      probs.length
+  // 作れない所の一覧（撮影ではもとの場所。ふだんは石の形のすぐ下＝いちばん上の方に出す。2026-11-08 初めての人の試し）
+  const probsList: string = probs.length
         ? `<ul class="probs">${probs
             .map(
               ({ p, n }, i) => `<li class="${fresh.has(p.check) ? "fresh" : ""}"><div class="p-head"><b>${esc(SHORT[p.check] ?? p.where)}</b>${n > 1 ? `<small>${n} か所</small>` : ""}${fresh.has(p.check) ? `<i class="new-tag">新しい決まり</i>` : ""}</div>
@@ -2667,14 +2719,23 @@ function renderCheck() {
               <div class="p-act"><button type="button" class="fix-go" data-p="${i}">${esc(p.options[0]?.label ?? "直す")}</button>${(() => {
                 const r = craftRuleFor(p.check);
                 return r && voices.has(r.id) ? `<button type="button" class="voice-play" data-rid="${esc(r.id)}">▶ 職人の声で聞く</button>` : "";
-              })()}<details><summary>なぜ</summary><p>${esc(p.reason)}</p>${(() => {
-                const r = craftRuleFor(p.check);
+              })()}<details><summary>なぜ</summary><p>${esc(p.check === "hold" && p.currentValue !== undefined && p.requiredValue !== undefined ? holdPlain(p.currentValue, p.requiredValue) : p.reason)}</p>${(() => {
+                const r = craftRuleFor(p.check, p.stone ?? 0);
                 return r?.quote ? `<p class="p-quote">「${esc(r.quote)}」<span>${esc(masterName(store.ledger()))}</span></p>` : "";
               })()}</details></div></li>`,
             )
             .join("")}</ul>`
-        : ""
-    }
+        : "";
+  box.innerHTML = `
+    ${ruleFlashHtml(probs.length)}
+    <section class="big-verdict ${probs.length ? "ng" : tensionCautionsOf(b).length || handGrooveOf(b) || narrowArmOf(b) ? (narrowArmOf(b)?.level === "orange" ? "warn2" : "warn") : "ok"}"><b>${probs.length ? "このままでは作れません" : tensionCautionsOf(b).length ? "形は作れます。職人に確かめる所があります" : narrowArmOf(b) ? `作れます。腕が${narrowArmOf(b)!.level === "orange" ? "かなり細いので" : "細めなので"}、注意があります` : handGrooveOf(b) ? "形は作れます。細い溝は、あとから手で彫ります" : "このまま作れます"}</b><small>${probs.length ? `直す所 ${probs.length}` : tensionCautionsOf(b).length ? tensionCautionsOf(b).map((c) => esc(c.title)).join("・") : b.ring.setting.tension ? "溝・くぼみ・すき間は目安の内側。ばねの強さは職人が決める" : `爪・留まり・すき間・角、すべて目安の内側`}</small></section>
+    ${filming() ? "" : `<div class="stone-pick"><span>石の形</span><div class="presets" role="group" aria-label="石の形">${stoneButtonsHtml()}</div></div>`}
+    ${filming() ? askNudgeHtml(b) : probsList}
+    ${workshopBarHtml()}
+    ${compareHtml()}
+    ${MULTI_STONE_UI ? stonesSectionHtml(b) : ""}
+    ${filming() ? probsList : ""}
+    ${!filming() && !probs.length ? askNudgeHtml(b) : ""}
     ${widthNoteHtml(narrowArmOf(b))}
     ${grooveNoteHtml(handGrooveOf(b))}
     ${(() => {
@@ -3498,18 +3559,30 @@ function printSheet() {
     );
   });
 }
-/** STL を書き出す。どの場面からでも。作れない所があれば、書き出したうえで知らせる */
+/** STL を書き出す。どの場面からでも。作れない所があれば、先に「このまま書き出す／直す」を聞く（2026-11-08：前は黙って書き出していた） */
 function exportStl() {
-  const save = (positions: Float32Array, name: string, problems: number) => {
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob([toStl(positions)], { type: "model/stl" }));
-    a.download = name;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
-    toast(`STL を書き出しました：${name}${problems ? `（作れない所が ${problems} あります。確かめるで直せます）` : ""}`);
+  const save = (positions: Float32Array, base: string, problems: number) => {
+    const go = (named: number) => {
+      const name = stlFileName(base, named);
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([toStl(positions)], { type: "model/stl" }));
+      a.download = name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+      toast(`STL を書き出しました：${name}${problems ? `（作れない所が ${problems} つあります。確かめるで直せます）` : ""}`);
+    };
+    // 撮影では窓を出さない（台本が止まらないように）。名前も前のまま
+    if (!problems || filming()) return go(0);
+    askStlWithProblems(problems, () => go(problems), () => {
+      setMode("refine");
+      if (kind === "band") return;
+      const pop = $(".fix-pop");
+      pop.hidden = false;
+      renderFixPop();
+    });
   };
   if (kind === "band") {
-    if (bandPositions) save(bandPositions, `継ぐ_${bandName()}_${band.gou}号.stl`, bandProblems().length);
+    if (bandPositions) save(bandPositions, `継ぐ_${bandName()}_${band.gou}号`, bandProblems().length);
     return;
   }
   if (!session?.built || !stone) return toast("指輪が組み上がるまで、少し待ってください");
@@ -3519,7 +3592,25 @@ function exportStl() {
   const all = new Float32Array(r.setting.length + r.shank.length);
   all.set(r.setting, 0);
   all.set(r.shank, r.setting.length);
-  save(all, `継ぐ_${stone.shapeName}_${session.state.gou}号.stl`, grouped(session.built).length);
+  save(all, `継ぐ_${stone.shapeName}_${session.state.gou}号`, grouped(session.built).length);
+}
+/** 作れない所があるときの STL：「このまま書き出す」か「直す」か */
+function askStlWithProblems(n: number, onExport: () => void, onFix: () => void) {
+  const dlg = document.createElement("dialog");
+  dlg.className = "sheet stl-ask";
+  dlg.innerHTML = `<form method="dialog">
+    <h3>作れない所が ${n} つあります</h3>
+    <p>このまま書き出すと、作れない形の STL になります。書き出すときは、名前に「_確かめ前」を付けます。</p>
+    <div class="sheet-actions"><button value="fix" class="primary">直す</button><button value="export" class="ghost">このまま書き出す</button></div>
+  </form>`;
+  document.body.appendChild(dlg);
+  dlg.addEventListener("close", () => {
+    const v = dlg.returnValue;
+    dlg.remove();
+    if (v === "export") onExport();
+    else if (v === "fix") onFix();
+  });
+  dlg.showModal();
 }
 
 async function addRuleFromWords(said: string) {
@@ -3674,9 +3765,13 @@ void voiceIds().then((v) => {
   if (!$(".studio-refine").hidden) renderCheck();
 });
 /** その確かめに効く、職人の決まり（いちばん新しいもの） */
-function craftRuleFor(check: string): Rule | undefined {
+function craftRuleFor(check: string, stoneIdx = 0): Rule | undefined {
+  // 今の石の形・爪の本数に当てはまる決まりだけ（三角の 3 本爪の決まりを、ラウンドの 4 本爪に添えない。2026-11-08）
+  const b = kind === "band" ? undefined : session?.built;
+  const set = b ? (stoneIdx ? b.ring.stones?.[stoneIdx]?.setting : b.ring.setting) : undefined;
+  const ctx = { cornerSet: !!set && set.style !== "tension" && cornerSetCount(set, session!.guides()) !== undefined };
   return activeRules(store.ledger())
-    .filter((r) => r.source.kind === "craftsman" && (r.checks?.includes(check as never) || (r.param && (PARAMS[r.param].checks as readonly string[]).includes(check))))
+    .filter((r) => r.source.kind === "craftsman" && (r.checks?.includes(check as never) || (r.param && (PARAMS[r.param].checks as readonly string[]).includes(check))) && ruleApplies(r, ctx))
     .at(-1);
 }
 // 3D の赤い所を押すと、その問題に効く職人の決まりの声が流れる（声がなければ、職人の言葉と理由を出す）
@@ -4030,11 +4125,14 @@ function renderFixPop() {
   pop.innerHTML = `<div class="fp-h"><b>作れない所 ${probs.length}</b><button type="button" class="fp-x" aria-label="閉じる">×</button></div>
     <ul>${probs
       .map(({ p, n }, i) => {
-        const r = craftRuleFor(p.check);
-        return `<li><div><b>${esc(SHORT[p.check] ?? p.where)}</b>${n > 1 ? `<small> ${n} か所</small>` : ""}<span>${esc(p.current)} → ${esc(p.required)}</span>${r?.quote ? `<em>「${esc(r.quote)}」</em>` : `<em>${esc(p.reason)}</em>`}</div>${p.options[0] ? `<button type="button" class="fp-fix" data-i="${i}">${esc(p.options[0].label)}</button>` : ""}</li>`;
+        const r = craftRuleFor(p.check, p.stone ?? 0);
+        // 留まりの「0.29 倍 → 1.00 倍」は、何の比べかをふつうの言葉で添える
+        const plain = p.check === "hold" && p.currentValue !== undefined && p.requiredValue !== undefined ? `<em>${esc(holdPlain(p.currentValue, p.requiredValue))}</em>` : "";
+        return `<li><div><b>${esc(SHORT[p.check] ?? p.where)}</b>${n > 1 ? `<small> ${n} か所</small>` : ""}<span>${esc(p.current)} → ${esc(p.required)}</span>${plain}${r?.quote ? `<em>「${esc(r.quote)}」（${esc(masterName(store.ledger()))}）</em>` : plain ? "" : `<em>${esc(p.reason)}</em>`}</div>${p.options[0] ? `<button type="button" class="fp-fix" data-i="${i}">${esc(p.options[0].label)}</button>` : ""}</li>`;
       })
       .join("")}</ul>
-    <div class="fp-all"><button type="button" class="primary fp-every">まとめて直す</button><button type="button" class="ghost-d fp-claude">Claude で直す</button></div>`;
+    <div class="fp-all"><button type="button" class="primary fp-every">まとめて直す</button><button type="button" class="ghost-d fp-claude">Claude で直す</button></div>
+    <small class="fp-note">数字は目安・最後は職人が決める</small>`;
   pop.querySelector(".fp-x")!.addEventListener("click", () => (pop.hidden = true));
   pop.querySelectorAll<HTMLButtonElement>(".fp-fix").forEach((b) =>
     b.addEventListener("click", () => {
@@ -4778,11 +4876,16 @@ function openSaveWork(slot: HTMLElement, data: WorkData) {
       slot.innerHTML = `<p class="build-warn">このブラウザにはもう入りません。「記録」で古い物を消してください。</p>`;
       return;
     }
+    // 記録の欄から残したときは、下の一覧にもすぐ並べ、知らせは一覧の上に出す
+    if (slot.classList.contains("w-keep-slot")) {
+      renderWorks();
+      slot = $(".works-panel .w-keep-slot");
+    }
     slot.innerHTML = `<div class="saved"><b>記録しました（${loadWorks().length} 作品目）</b>
       ${tips.length ? `<ul class="sorted">${tips.map((t) => `<li><i class="k-${t.kind}">${esc(t.kind)}</i><span><small>${esc(t.step)}</small>${esc(t.text)}</span></li>`).join("")}</ul>` : ""}
       ${leftOver ? `<p class="hint">工程に当てはまらなかった話：${esc(leftOver)}</p>` : ""}
       ${sortNote ? `<p class="hint">${esc(sortNote)}</p>` : ""}
-      <button type="button" class="link to-works">記録を見る →</button></div>`;
+      ${slot.classList.contains("w-keep-slot") ? "" : `<button type="button" class="link to-works">記録を見る →</button>`}</div>`;
     slot.querySelector(".to-works")?.addEventListener("click", () => setMode("works"));
   });
 }
@@ -4881,7 +4984,7 @@ function renderWorks() {
   const works = loadWorks();
   box.innerHTML = `
     <p class="works-line">${works.length ? "残した指輪です。開くと続きを作れます。" : "設計を残すと、ここに並びます。あとで開いて続きを作れます"}</p>
-    <button type="button" class="primary w-keep">今の設計を残す →</button>
+    ${filming() ? `<button type="button" class="primary w-keep">今の設計を残す →</button>` : `<div class="save-work w-keep-slot"><button type="button" class="primary w-keep">今の設計を残す</button></div>`}
     ${works.length ? `<ul class="works-list">${works
       .map(
         (w) => `<li><img alt="" src="${w.image}"><details class="w-more"><summary>${esc(w.title)}</summary><small>${esc(w.date)}${w.maker ? ` ・ ${esc(w.maker)}` : ""} ・ ${esc(w.methodLabel)}</small>${w.note ? `<p>「${esc(w.note)}」</p>` : ""}${(w.revisions ?? []).map((r) => `<p class="rev">${esc(r.by)}の決まりで直した：${esc(r.change)}</p>`).join("")}<span class="${w.problems.length ? "ng" : "ok"}">${w.problems.length ? "作れない所あり" : "作れる形"}</span></details>${w.design || w.bandDesign ? `<button type="button" class="ghost-d w-open" data-id="${esc(w.id)}">開く</button>` : "<span></span>"}<button type="button" class="w-del" data-id="${esc(w.id)}" aria-label="この記録を消す">×</button></li>`,
@@ -4889,8 +4992,16 @@ function renderWorks() {
       .join("")}</ul><button type="button" class="ghost-d w-print">記録の帳面を印刷</button>` : ""}
     ${filming() ? `<nav class="places-sm" aria-label="ほかの場所"><small>ほかの場所</small><a href="app.html#ledger">帳面<span>職人の決まりと、Claude からの質問</span></a><a href="app.html#learn">学ぶ<span>次の人が、職人の決まりに聞く</span></a><a href="app.html#waza">技<span>彫金・金工の技と、途切れた技を組み立て直す</span></a></nav>` : ""}`;
   box.querySelector(".w-print")?.addEventListener("click", () => openPrint(worksBookHtml(fillDrawings(loadWorks()), today())));
-  // 残す欄は「手順」の下にある。そこまで連れて行って、欄を開く
+  // 残す欄は「手順」の下にある。そこまで連れて行って、欄を開く（撮影のとき）。
+  // ふだんは、この「記録」の欄の中で名前と話を書いて「記録する」まで済ませる（2026-11-08 初めての人の試し：手順のいちばん下へ飛んで迷った）
   box.querySelector(".w-keep")!.addEventListener("click", () => {
+    if (!filming()) {
+      if (kind !== "band" && !session?.built) return toast("指輪が組み上がるまで、少し待ってください");
+      const slot = box.querySelector<HTMLElement>(".w-keep-slot")!;
+      openSaveWork(slot, kind === "band" ? bandData() : solitaireData());
+      slot.querySelector<HTMLInputElement>(".w-maker")?.focus();
+      return;
+    }
     setMode("hand");
     const save = document.querySelector<HTMLButtonElement>(".build-panel .p-save");
     if (!save) return;
