@@ -25,13 +25,31 @@ export type PatternOp =
    * cells＝塊の幅の中の網目の数（仮）。叩いてのばすと、網目は平たい帯になり、表がそれを切った所が模様になる。
    * 説の形の仮の見込み：網目の本当の形・量・並び方は分かっていない（research/restore/lost-wootz.md）
    */
-  | { op: "ingot"; metals: MetalId[]; cells: number }
+  | {
+      op: "ingot";
+      metals: MetalId[];
+      cells: number;
+      /**
+       * むらの形（2026-11-08 回 2）。cells（無いときも）＝粒のさかいの網目（前のまま）。
+       * dendrite＝結晶の枝（樹枝）のすき間に、混じり物が切れ目なく濃くなったむら（大きさのちがう枝が重なり、さかいは丸い。濃さは 0〜1 の切れ目のない値）
+       */
+      form?: "cells" | "dendrite";
+    }
   /** 熱して層をつなぐ（つながりの良さ） */
   | { op: "bond"; quality: BondQuality }
   /** のばして半分に切り、重ねる（times 回。層の数は 2 倍ずつ） */
   | { op: "fold"; times: number }
   /** 叩いて薄くのばす（厚みが 1/ratio。length＝長さの向きだけ、both＝縦横に） */
-  | { op: "forge_thin"; ratio: number; direction: "length" | "both" }
+  | {
+      op: "forge_thin";
+      ratio: number;
+      direction: "length" | "both";
+      /**
+       * 打ちむら（板の厚みに対して。0 か無ければ、むらなし＝前のまま。2026-11-08 回 2）。槌は板を同じには押さないので、1 回ずつの打ちが層を少し上下にずらし、
+       * 金属は外へ逃げる。あとで削る・研ぐと、木目金と同じように、うねる木目の輪が出る
+       */
+      uneven?: number;
+    }
   /**
    * 棒にしてねじる（板の長さの中で turns 回まわす）。bars＝ねじった棒を何本、横に並べてつなぐか（無ければ 1 本）。
    * 星の先は棒のふちに出るので、1 本では板のふちで半分に切れる。2 本以上なら、つなぎ目に星が丸ごと出る（2026-11-08）
@@ -45,11 +63,24 @@ export type PatternOp =
   /** 叩いて平らにする */
   | { op: "flatten" }
   /** 表を平らに削る（depth は板の厚みに対して） */
-  | { op: "grind"; depth: number }
+  | {
+      op: "grind";
+      depth: number;
+      /** 削る面のうねり（板の厚みに対して。0 か無ければ平ら＝前のまま。2026-11-08 回 2）。面が、層（帯）を少しずつちがう深さで切る */
+      wave?: number;
+    }
   /** 切って並べかえる。edge_up＝横にして層のふちを表に、strips＝細く切って 1 本おきに向きを変える、tiles＝四角に切って 1 つおきに回す */
   | { op: "rearrange"; mode: RearrangeMode; pieces: number }
   /** 最後に色を出す（none＝しない、etch＝酸で地を出す、patina＝煮色のように色を出す） */
-  | { op: "color"; kind: ColorKind };
+  | {
+      op: "color";
+      kind: ColorKind;
+      /**
+       * 濃淡（0〜1。0 か無ければ 2 色＝前のまま。2026-11-08 回 2）。鋳た塊の樹枝のむら（ingot の dendrite）のときだけ使う：
+       * 酸で出す明るさは、その所の混じり物（ウーツ鋼なら炭化物）の濃さで、2 色にくっきり分かれず、間の色が続く
+       */
+      graded?: number;
+    }
 
 export type OpName = PatternOp["op"];
 export const OP_NAMES: OpName[] = ["stack", "ingot", "bond", "fold", "forge_thin", "twist", "carve", "flatten", "grind", "rearrange", "color"];
@@ -132,6 +163,10 @@ interface Stage {
   waves?: Wave[][];
   /** 彫ったあと、平らにされたか（裏から打ち出したものは、削られたか） */
   flattened?: boolean;
+  /** 打ちむら（forge_thin の uneven）：1 回ずつの打ちの所（この操作のあとの板の大きさで）、半径、向き（1＝表から、-1＝裏から） */
+  dents?: { x: number; y: number; r: number; s: number }[];
+  /** 削る面のうねり（grind の wave） */
+  grindWaves?: Wave[];
 }
 
 export interface Sim {
@@ -144,7 +179,9 @@ export interface Sim {
   /** 最後の層の数（重ねる回数で増える） */
   layersFinal: number;
   /** 鋳た塊から始めたとき（ingot）：塊の中のむらの網目。層の代わりに、これで色を決める（0 番＝網目、1 番＝地） */
-  ingot?: { cells: number; seed: number };
+  ingot?: { cells: number; seed: number; form?: "dendrite"; cut?: number };
+  /** 色の濃淡（0＝2 色。color の graded。樹枝のむらのときだけ 0 より大きい） */
+  graded: number;
   stages: Stage[];
   /** 層の境のつながらない所の割合 */
   unbonded: number;
@@ -180,14 +217,25 @@ export function buildSim(ops: readonly PatternOp[], seed = 7, opts: { bond?: Bon
   if (!first || (first.op !== "stack" && first.op !== "ingot")) throw new Error("最初の操作は stack（重ねる）か ingot（鋳た塊）にしてください");
   const metals = first.metals.length ? first.metals : (["light", "dark"] as MetalId[]);
   const notes: string[] = [];
-  const ingot = first.op === "ingot" ? { cells: Math.round(clampTo(first.cells, PATTERN_LIMITS.cells)), seed: seed + 5000 } : undefined;
+  const ingot =
+    first.op === "ingot"
+      ? { cells: Math.round(clampTo(first.cells, PATTERN_LIMITS.cells)), seed: seed + 5000, ...(first.form === "dendrite" ? { form: "dendrite" as const } : {}) }
+      : undefined;
+  if (ingot?.form === "dendrite") {
+    // 明るい帯の割合が share になる濃さのさかいを、塊の中の点の濃さの並びから決める（濃さの散らばりは、網目の数や枝の重なりで変わるため）
+    const r = rng(seed + 6000);
+    const vals = Array.from({ length: 2048 }, () => dendriteConc(ingot, r(), r(), r())).sort((a, b) => a - b);
+    (ingot as { cut?: number }).cut = vals[Math.floor((1 - PATTERN_VALUES.dendrite.share) * vals.length)];
+  }
   // 鋳た塊は、網目と地の 2 つ（層ではない）
   const count = ingot ? 2 : Math.round(clampTo((first as Extract<PatternOp, { op: "stack" }>).count, PATTERN_LIMITS.count));
   const thick = first.op === "stack" ? first.thickness?.slice(0, metals.length).map((v) => clampTo(v, PATTERN_LIMITS.thickness)) : undefined;
   const edges = thick && thick.length === metals.length ? layerEdges(thick, count) : undefined;
   if (ingot) {
     notes.push(
-      `鋳た塊の中のむらは、「混じり物が結晶の枝のすき間に集まり、叩いてのばすと平たい帯になる」という説の形を、3 次元の網目として仮に描きました（幅の中に網目 ${ingot.cells}・仮）。網目の本当の形・量・並び方は分かっていません。`,
+      ingot.form === "dendrite"
+        ? `鋳た塊の中のむらは、「混じり物が結晶の枝のすき間に集まり、叩いてのばすと平たい帯になる」という説の形を、大きさのちがう枝が重なった、切れ目のない濃さのむらとして仮に描きました（幅の中に枝の間 ${ingot.cells}・仮）。むらの本当の形・量・並び方は分かっていません。`
+        : `鋳た塊の中のむらは、「混じり物が結晶の枝のすき間に集まり、叩いてのばすと平たい帯になる」という説の形を、3 次元の網目として仮に描きました（幅の中に網目 ${ingot.cells}・仮）。網目の本当の形・量・並び方は分かっていません。`,
     );
     if (metals.length < 2) notes.push("材料が 1 つだけなので、網目と地の色の差は出ません。");
   }
@@ -197,6 +245,7 @@ export function buildSim(ops: readonly PatternOp[], seed = 7, opts: { bond?: Bon
   let layers = count;
   let bond: BondQuality | "none" = "none";
   let color: ColorKind = "none";
+  let graded = 0;
   const stages: Stage[] = [];
   for (const [index, op] of ops.entries()) {
     if (op.op === "stack" || op.op === "ingot") {
@@ -236,14 +285,33 @@ export function buildSim(ops: readonly PatternOp[], seed = 7, opts: { bond?: Bon
           W *= Math.sqrt(f);
           H *= Math.sqrt(f);
         }
+        // 打ちむら：のばしたあとの板の上に、打った所をちらす（数は板の広さに比べて。仮）
+        if (op.uneven && op.uneven > 0) {
+          const hv = PATTERN_VALUES.hammer;
+          const r = rng(st.seed + 13);
+          const n = Math.max(1, Math.round((hv.perArea * W * H) / (W * W)));
+          st.dents = Array.from({ length: n }, () => ({
+            x: r() * W,
+            y: r() * H,
+            r: hv.radius * W * (1 - hv.radiusMix / 2 + hv.radiusMix * r()),
+            s: r() < 0.5 ? 1 : -1,
+          }));
+        }
         break;
       }
+      case "grind":
+        if (op.wave && op.wave > 0) {
+          const G = PATTERN_VALUES.grindWave;
+          st.grindWaves = makeWaves(rng(st.seed + 17), G.n, G.f[0], G.f[1]);
+        }
+        break;
       case "twist":
         // 四角い棒にのばしてから、ねじる
         H *= PATTERN_VALUES.twistBar;
         break;
       case "color":
         color = op.kind;
+        graded = op.graded && op.graded > 0 ? clampTo(op.graded, PATTERN_LIMITS.graded) : 0;
         break;
       default:
         break;
@@ -274,6 +342,11 @@ export function buildSim(ops: readonly PatternOp[], seed = 7, opts: { bond?: Bon
     if (metals.length < 2) notes.push("材料が 1 つだけなので、層があっても色の差は出ません。");
   }
   if (color === "none") notes.push("最後に色を出す手順が無いので、材料そのものの色で描きました。色の差は小さく見えます。");
+  if (graded > 0 && ingot?.form !== "dendrite") {
+    notes.push("色の濃淡は、鋳た塊の樹枝のむら（濃さが切れ目なく変わる物）のときだけ描けます。重ねた層や網目は、2 色のまま描きました。");
+    graded = 0;
+  }
+  if (stages.some((s) => s.dents)) notes.push("叩くときの打ちむら（1 回ずつの打ちで層が少し上下にずれる）は、跡の大きさ・数・深さを仮に決めて描きました。");
 
   const unbonded = ingot ? 0 : PATTERN_VALUES.unbonded[opts.bond ?? bond];
   const hr = rng(seed + 3000);
@@ -294,6 +367,7 @@ export function buildSim(ops: readonly PatternOp[], seed = 7, opts: { bond?: Bon
     ...(edges ? { edges } : {}),
     layersFinal: layers,
     ...(ingot ? { ingot } : {}),
+    graded,
     stages,
     unbonded,
     holes,
@@ -473,6 +547,31 @@ export interface Trace {
   y0: number;
 }
 
+/**
+ * 打ちむらをもどす：打った所の下では、層が押し下げられ（裏からなら押し上げられ）、金属は外へ逃げた。
+ * (x, y, u) にある物が、打つ前にどこにあったかを返す。amp は上下のずれの大きさ（板の厚みに対して）。ずれは表と裏のごく近くでは消える
+ */
+export function undent(dents: readonly { x: number; y: number; r: number; s: number }[], amp: number, x: number, y: number, u: number): [number, number, number] {
+  const hv = PATTERN_VALUES.hammer;
+  let dz = 0;
+  let dx = 0;
+  let dy = 0;
+  for (const d of dents) {
+    const ex = x - d.x;
+    const ey = y - d.y;
+    const q = (ex * ex + ey * ey) / (d.r * d.r);
+    if (q > 9) continue;
+    const e = Math.exp(-q);
+    dz += d.s * e;
+    // 外へ逃げる量（跡のふちでいちばん大きい）
+    dx += (ex / d.r) * e * d.r;
+    dy += (ey / d.r) * e * d.r;
+  }
+  const edge = Math.min(1, u / hv.edge, (1 - u) / hv.edge);
+  const L = hv.lateral * amp;
+  return [x - L * dx, y - L * dy, reflect01(u - amp * dz * edge)];
+}
+
 /** 最後の板の (x, y)（最後の板の大きさで）の深さ u にある物が、はじめに重ねた板のどこにあったか */
 export function trace(sim: Sim, x: number, y: number, u: number): Trace {
   let px = x;
@@ -488,6 +587,8 @@ export function trace(sim: Sim, x: number, y: number, u: number): Trace {
       case "forge_thin": {
         const f = clampTo(op.ratio, PATTERN_LIMITS.ratio);
         const ws = st.waves!;
+        // 打ちむら（のばしたあとの板の上で起きたので、のばす前にもどす前に、先にもどす）
+        if (st.dents) [px, py, uu] = undent(st.dents, clampTo(op.uneven!, PATTERN_LIMITS.uneven), px, py, uu);
         if (op.direction === "length") py /= f;
         else {
           px /= Math.sqrt(f);
@@ -549,7 +650,9 @@ export function trace(sim: Sim, x: number, y: number, u: number): Trace {
         break;
       }
       case "grind": {
-        const g = clampTo(op.depth, PATTERN_LIMITS.grind);
+        let g = clampTo(op.depth, PATTERN_LIMITS.grind);
+        // うねる面：場所ごとに削る深さが少しちがう（板の幅に対する位置で）
+        if (st.grindWaves) g = clamp(g + clampTo(op.wave!, PATTERN_LIMITS.grindWave) * waveAt(st.grindWaves, px / W, py / W), 0, 0.95);
         uu = g + uu * (1 - g);
         break;
       }
@@ -653,9 +756,45 @@ export function ingotCoord(ing: { cells: number; seed: number }, x0: number, y0:
   return 1 + Math.min(0.999, (gap - w) / Math.max(1e-6, 1 - w));
 }
 
+/**
+ * 鋳た塊の樹枝のむら（form: dendrite）の、混じり物の濃さ（0〜1。切れ目がない）。
+ * 大きさのちがう枝の間（PATTERN_VALUES.dendrite.scales）の、なめらかなむらの「尾根」（むらが真ん中の値を横切る所＝枝と枝の間）を重ねる。
+ * 尾根は丸くつながり、枝分かれし、大きな網の中に小さな網が入る。粒のさかいの平らな面（前の網目）のような、角ばった格子にはならない
+ */
+export function dendriteConc(ing: { cells: number; seed: number }, x0: number, y0: number, u0: number): number {
+  const V = PATTERN_VALUES.dendrite;
+  const th = PATTERN_VALUES.ingot.thick;
+  let v = 0;
+  let w = 0;
+  for (let k = 0; k < V.scales.length; k++) {
+    const a = ing.cells * V.scales[k];
+    const n = valueNoise3(x0 * a + 17.3 * k, y0 * a - 5.1 * k, u0 * a * th + 3.7 * k, ing.seed + 31 * k);
+    v += V.weights[k] * (1 - Math.abs(2 * n - 1));
+    w += V.weights[k];
+  }
+  return clamp(v / w, 0, 1) ** V.sharp;
+}
+
+/**
+ * 樹枝のむらの濃さを、層の番号の値（0〜1＝明るい帯、1〜2＝地）に直す。濃さ share のめやすの所がさかい。
+ * 色の濃淡（graded）は、この値から濃さを読みもどして使う（toneOf）
+ */
+export function dendriteCoord(ing: { cells: number; seed: number; cut?: number }, x0: number, y0: number, u0: number): number {
+  const c = dendriteConc(ing, x0, y0, u0);
+  const cut = clamp(ing.cut ?? 0.5, 0.01, 0.99);
+  return c >= cut ? Math.min(0.999, (1 - c) / (1 - cut)) : 1 + Math.min(0.999, (cut - c) / cut);
+}
+
+/** 層の番号の値 s（樹枝のむら）から、明るい帯の色の割合（0〜1）。s＝0 で 1、さかい（s＝1）で半分、s＝2 で 0 */
+export const toneOf = (s: number): number => {
+  const g = clamp(1 - s / 2, 0, 1);
+  return g * g * (3 - 2 * g);
+};
+
 /** 表・断面の点が、はじめのどこから来たか（trace）から、層の番号の切れ目のない値を出す（鋳た塊なら、網目か地か） */
 export function coordAt(sim: Sim, t: Trace): number {
-  return sim.ingot ? ingotCoord(sim.ingot, t.x0, t.y0, t.u0) : layerCoord(sim, t.u0);
+  if (!sim.ingot) return layerCoord(sim, t.u0);
+  return sim.ingot.form === "dendrite" ? dendriteCoord(sim.ingot, t.x0, t.y0, t.u0) : ingotCoord(sim.ingot, t.x0, t.y0, t.u0);
 }
 
 /** はじめに重ねた板の、上から k 番の層（0 から） */
@@ -907,6 +1046,12 @@ export function layerTones(sim: Sim): [number, number, number][] {
   });
 }
 
+/** 色の濃淡（graded）：2 色の色 c を、濃さのとおりの間の色（明るい帯の色と地の色を、濃さで混ぜた色）へ、割合 k だけ寄せる */
+function shade(ramp: LayerRamp, s: number, k: number, c: number[]): void {
+  const g = toneOf(s);
+  for (let q = 0; q < 3; q++) c[q] = c[q] * (1 - k) + (ramp.cols[q] * g + ramp.cols[3 + q] * (1 - g)) * k;
+}
+
 /** 上から見た面の絵（n × n）。ss 倍の細かさで計算して平均する */
 export function surfaceImage(sim: Sim, n: number, ss = 1): Rgba {
   const surf = surface(sim, n * ss);
@@ -970,7 +1115,10 @@ function paintSurface(sim: Sim, surf: Surface, n: number, ss: number, j0 = 0, j1
             c[0] = e[0];
             c[1] = e[1];
             c[2] = e[2];
-          } else rampColor(ramp, surf.s[J * N + I], footprint(surf.s, N, N, I, J), c);
+          } else {
+            rampColor(ramp, surf.s[J * N + I], footprint(surf.s, N, N, I, J), c);
+            if (sim.graded > 0) shade(ramp, surf.s[J * N + I], sim.graded, c);
+          }
           r += c[0];
           g += c[1];
           b += c[2];
@@ -1044,6 +1192,7 @@ export function sectionImage(sim: Sim, w: number, h: number, row = 0.5, ss = 2):
             c[2] = gap[2];
           } else {
             rampColor(ramp, sec.s[J * W + I], footprint(sec.s, W, H, I, J), c);
+            if (sim.graded > 0) shade(ramp, sec.s[J * W + I], sim.graded, c);
             // 上の面（空気に接する所）に細い光
             const rim = J === 0 || sec.cells[(J - 1) * W + I] === AIR ? 1.22 : 1;
             c[0] *= rim;
