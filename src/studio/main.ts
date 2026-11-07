@@ -15,7 +15,7 @@ import { measureOutline, type StoneOutline } from "../geometry/measure";
 import { outlineIndexAtT, type JoinStyle, type ProngTip, type SettingResult } from "../geometry/setting";
 import { nameShape } from "../geometry/shape";
 import { runClaude, type LogEntry } from "../claude/loop";
-import { cannotFrom, hasJapanese, offlineWhy, plainWords, ruleTitles, toolLogLine, withoutCannot, type RuleTitles, type StoneWords } from "../claude/words";
+import { cannotFrom, hasJapanese, heardFrom, heardWords, offlineWhy, plainWords, ruleTitles, toolLogLine, withoutCannot, type RuleTitles, type StoneWords } from "../claude/words";
 import { STONE_FREE_NOTE, STONE_KEEP_NOTE, correctPrompt, designPrompt, gouNote } from "../claude/prompt";
 import { craftPointsFromProposal, designNowText, isPointProposal, previewPoints, type DesignNow, type PointsPreview } from "../claude/rule-points";
 import { craftProngPoints, craftProngRule, mergeCraftPoints, mmText, prongMinAt, prongPointsRule, prongTable } from "../rules/prong-points";
@@ -1516,8 +1516,12 @@ async function make() {
       "この石で指輪を組み、check で確かめ、作れない所があれば直してください。\n" +
       `この道具で変えられるのは、${free ? "石（よくある形と大きさ）と、" : ""}石座（留め方・爪の本数と太さと形と位置・高さ・向き・腕への付け方）と腕（断面の線・場所ごとの幅と厚みと断面・腕の流れ・面に彫る模様・地金）です。` + "雰囲気の言葉は、腕の断面と線にも訳してください。\n" +
       "希望や絵のうち、これで表せないこと（穴を開ける透かし、決まった 8 つのほかの模様、立体の飾り、石の数を増やす など）は、できたふりをせず、「まだできないこと：」の行に正直に短く書いてください。この行には、希望や絵で求められたのに形にできなかったことだけを書きます（帳面の決まりで気づいたことは「残っていること」へ）。すべて表せたときは「まだできないこと：なし」と書いてください。\n" +
-      "最後の返事は、次の 4 行だけにしてください。前置き・見出し・箇条書きは書きません。1 行は 100 字ほどまで。\n" +
-      "やったこと：…\n確かめたこと：…\n残っていること：…\nまだできないこと：…",
+      (wish
+        ? "最後の返事は、次の 5 行だけにしてください。前置き・見出し・箇条書きは書きません。1 行は 100 字ほどまで。\n" +
+          "「受け取り方：」の行は、希望の言葉をどんな形に受け取ったかを 40 字ほどで（例：受け取り方：かわいく → 細めの腕・小さめの爪・丸みのある形）。ひとことの希望でも聞き返さずに組み、ここで受け取り方を見せます。\n" +
+          "受け取り方：…\nやったこと：…\n確かめたこと：…\n残っていること：…\nまだできないこと：…"
+        : "最後の返事は、次の 4 行だけにしてください。前置き・見出し・箇条書きは書きません。1 行は 100 字ほどまで。\n" +
+          "やったこと：…\n確かめたこと：…\n残っていること：…\nまだできないこと：…"),
   });
   const r = await runClaude({
     host: makeHost(() => session!, {
@@ -1549,7 +1553,9 @@ async function make() {
   const chosenWords = chosen && stone ? `石は Claude が選びました（${stone.shapeName} ${stone.measured.longMm.toFixed(2)} × ${stone.measured.widthMm.toFixed(2)} mm、深さは例）。${imported ? "取り込んだ石は「取り込んだ石」のボタンで戻せます。" : ""}` : "";
   // 「今の石を使う」のまま石なしを頼まれたときは、石なしで作り直す道を出す
   const noStone = pick === "keep" && wantsNoStone(wish) ? [{ label: "石なしで作る →", run: () => void makeNoStone("none") }] : [];
-  setStatus(`${chosenWords}${r.remaining !== undefined ? `今日あと ${r.remaining} 回` : ""}`, { links: [...noStone, { label: "確かめる →", run: () => setMode("refine") }] });
+  // ひとことの希望（「かわいく」）を、どう受け取ったかを 1 行で見せる。違えば人が言葉を足せる（聞き返しで止めない）
+  const heard = wish ? heardWords(heardFrom(r.finalText, titlesNow())) : "";
+  setStatus(`${heard}${chosenWords}${r.remaining !== undefined ? `今日あと ${r.remaining} 回` : ""}`, { links: [...noStone, { label: "確かめる →", run: () => setMode("refine") }] });
 }
 /** 石もおまかせ：Claude が選んだよくある形を、人が札を押したときと同じ関数で入れる。腕・地金・号は引き継ぐ */
 async function chooseStoneTool(input: ChooseStoneInput): Promise<ChooseStoneResult> {
@@ -4368,7 +4374,7 @@ async function makeBand(lead = "", begun?: number) {
   showCannot(d.cannotDo);
   // 職人の帳面の目安で確かめた結果も、ここで言う（Claude の案が帳面の厚みに届かないことがある）
   const probs = bandProblems().length;
-  setStatus(`${lead}${probs ? `帳面の目安で、作れない所が ${probs} あります。` : ""}${r.remaining !== undefined ? `今日あと ${r.remaining} 回` : ""}`, { links: [{ label: "確かめる →", run: () => setMode("refine") }] });
+  setStatus(`${lead}${wish ? heardWords(d.heard) : ""}${probs ? `帳面の目安で、作れない所が ${probs} あります。` : ""}${r.remaining !== undefined ? `今日あと ${r.remaining} 回` : ""}`, { links: [{ label: "確かめる →", run: () => setMode("refine") }] });
   // 「形」の欄が長いので、Claude の答えの所まで動かす
   if (!$(".make-panel").hidden) requestAnimationFrame(() => $(".make-note").parentElement?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
 }
