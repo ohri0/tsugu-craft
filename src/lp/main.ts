@@ -526,6 +526,112 @@ bindFlowMotion(root);
 const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
 const canWatch = "IntersectionObserver" in window;
 
+// スマホの字の折り返し（2026-11-08 作者：「スマホ版も、ちゃんと」）：見出しや短い言葉が「作りま／した」のように言葉の途中で折れないよう、
+// 文節の切れ目（ひらがなの後に漢字・カタカナ・英字が来る所、句読点の後）に <wbr> を入れる。折り返しを文節だけにするのは
+// 幅 760 px 以下だけ（CSS の .jp に word-break: keep-all）。PC では <wbr> も入れない（入れると、PC の見出しの釣り合いの折り返しが変わった）。
+// 「Claude Code」は 2 語で 1 つの名前なので、間で折らない。縦書き（.v）には触らない。古い iPhone でも動くよう、正規表現の後読みは使わない
+const JP_SEL = "h2, h3, .lead, .chap-lead, .say p, .say-s, .say-b p, .steps strong, .steps p, .hero-by, .reason-q p, .end-made, figcaption, .ten-what b, .ten-t caption, .ten-t thead th, .stat-t, .how-map b, .how-map small, .am-list small";
+const HIRA = /[ぁ-ゖ]/;
+const HEAD = /[一-龯々〆ァ-ヺA-Za-z0-9「（『]/;
+const CLOSE = /[、。」』）]/;
+function jpPhrases(scope: ParentNode) {
+  scope.querySelectorAll<HTMLElement>(JP_SEL).forEach((el) => {
+    if (el.closest(".v") || el.classList.contains("jp")) return;
+    el.classList.add("jp");
+    const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    const nodes: Text[] = [];
+    while (walk.nextNode()) nodes.push(walk.currentNode as Text);
+    for (const t of nodes) {
+      // 「Claude Code と」「1 時間」のような、名前・数とその後ろは、間で折らない
+      const s = t.data.replace(/Claude Code( (?=[ぁ-ゖ]))?/g, (_m, sp) => `Claude\u00a0Code${sp ? "\u00a0" : ""}`).replace(/(\d) (?=[ぁ-ゖ一-龯ァ-ヺ])/g, "$1\u00a0");
+      const parts: string[] = [];
+      let from = 0;
+      for (let i = 1; i < s.length; i++) {
+        const a = s[i - 1];
+        const b = s[i];
+        if ((HIRA.test(a) && HEAD.test(b)) || (CLOSE.test(a) && !CLOSE.test(b))) {
+          parts.push(s.slice(from, i));
+          from = i;
+        }
+      }
+      parts.push(s.slice(from));
+      if (parts.length < 2) {
+        if (s !== t.data) t.data = s;
+        continue;
+      }
+      const frag = document.createDocumentFragment();
+      parts.forEach((p, i) => {
+        if (i) frag.append(document.createElement("wbr"));
+        frag.append(p);
+      });
+      t.replaceWith(frag);
+    }
+  });
+}
+const phone = matchMedia("(max-width: 760px)");
+function phoneText() {
+  jpPhrases(root);
+  // 表の頭「戻りきらない」は文節の切れ目がないので、「戻り」の後で折れるようにする
+  root.querySelectorAll(".ten-t thead th").forEach((th) => th.textContent === "戻りきらない" && (th.innerHTML = "戻り<wbr>きらない"));
+}
+if (phone.matches) phoneText();
+else phone.addEventListener?.("change", () => phone.matches && phoneText());
+
+// スマホでは、画面の写し（設計の画面・図面・札など）を押すと、大きくして見られる（2026-11-08。字が小さくて読めないため）。
+// 横にも縦にも動かして読む。閉じるは右上の × か、Esc
+const ZOOM_SEL = ".xf-screen .xf-stage, .sheet-fig, .ten-card, .moyou, .pt-stages, .own-f";
+{
+  let box: HTMLElement | null = null;
+  let back: HTMLElement | null = null;
+  const close = () => {
+    box?.remove();
+    box = null;
+    document.documentElement.classList.remove("lb-open");
+    back?.focus();
+  };
+  const open = (from: HTMLElement) => {
+    const pic = from.querySelector<HTMLImageElement>(".xf-i.on img") ?? from.querySelector<HTMLImageElement>("img");
+    if (!pic) return;
+    back = from;
+    const big = (pic.getAttribute("srcset") ?? "").split(",").map((x) => x.trim().split(/\s+/)[0]).filter(Boolean).pop() ?? pic.src;
+    box = document.createElement("div");
+    box.className = "lb";
+    box.setAttribute("role", "dialog");
+    box.setAttribute("aria-modal", "true");
+    box.setAttribute("aria-label", "絵を大きく見る");
+    box.innerHTML = `<button type="button" class="lb-x" aria-label="閉じる">×</button><div class="lb-in"><img alt=""></div><p class="lb-n">指で動かして読めます</p>`;
+    const im = box.querySelector("img")!;
+    im.alt = pic.alt;
+    im.src = big;
+    // 写しの横幅が、字の読める大きさになるよう（大きい方の絵の幅。ただし 1400 px まで。画面より狭くはしない）
+    // 縦は画面に収め（上下に動かさずに済む）、横に動かして読む
+    const w = (Number(pic.getAttribute("width")) || 700) * 2;
+    const ratio = (Number(pic.getAttribute("width")) || 4) / (Number(pic.getAttribute("height")) || 3);
+    const fitH = (innerHeight - 64 - 56) * ratio;
+    im.style.width = `${Math.round(Math.max(innerWidth, Math.min(w, 1400, fitH)))}px`;
+    box.querySelector(".lb-x")!.addEventListener("click", close);
+    document.body.append(box);
+    document.documentElement.classList.add("lb-open");
+    const inner = box.querySelector<HTMLElement>(".lb-in")!;
+    im.addEventListener("load", () => {
+      // 設計の画面の写しは、作れない所の一覧（右の欄）が見えるよう右の端から。ほかは真ん中から
+      inner.scrollLeft = (inner.scrollWidth - inner.clientWidth) * (from.closest(".xf-screen") ? 1 : 0.5);
+      inner.scrollTop = Math.max(0, (inner.scrollHeight - inner.clientHeight) / 2);
+    });
+    box.querySelector<HTMLButtonElement>(".lb-x")!.focus();
+  };
+  root.querySelectorAll<HTMLElement>(ZOOM_SEL).forEach((el) => {
+    el.classList.add("can-zoom");
+    el.addEventListener("click", (e) => {
+      if (!phone.matches || (e.target as HTMLElement).closest("a, button, video")) return;
+      open(el);
+    });
+  });
+  addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && box) close();
+  });
+}
+
 // 字は動かさず、濃くなるだけ（動きを減らす設定なら、はじめから全部見せる）
 const els = [...root.querySelectorAll<HTMLElement>(".rv")];
 if (reduce || !canWatch) {
