@@ -36,7 +36,8 @@
 .rs-card small { grid-column: 1; font-size: 15px; color: var(--fg-2); }
 .rs-card .rs-go-mark { grid-column: 2; grid-row: 1 / span 2; font-size: 24px; color: var(--fg-2); }
 .rs-card-tag { margin-left: 10px; font-size: 14px; font-weight: 500; color: var(--caution); white-space: nowrap; }
-.rs-quiet { margin-top: 20px; text-align: center; }
+/* 例のリンク 3 つが 1 行につながって読めたので、間をあけて並べる（スマホは折り返す） */
+.rs-quiet { margin-top: 20px; display: flex; flex-wrap: wrap; justify-content: center; gap: 0 28px; text-align: center; }
 .rs-quiet .linklike { min-height: 44px; font-size: 16px; color: var(--fg-2); }
 
 /* 流れ：3 つだけ */
