@@ -17,6 +17,11 @@ describe("聞くの返事を分ける", () => {
     expect(a.why).toBe("");
     expect(a.ruleIds).toEqual(["match-face"]);
   });
+  it("決まりの行に [ ] がなくても、帳面にある id だけ拾う（2026-11-07 の試し）", () => {
+    const a = parseAskAnswer("答え：ゆっくり冷ます。\nなぜ：曲がらない。\n決まり：rule-solder-slow-cool-ishikawa no-hot-quench-stones made-up", ["rule-solder-slow-cool-ishikawa", "no-hot-quench-stones"]);
+    expect(a.ruleIds).toEqual(["rule-solder-slow-cool-ishikawa", "no-hot-quench-stones"]);
+    expect(parseAskAnswer("答え：x\n決まり：[a-b] a-b", ["a-b"]).ruleIds).toEqual(["a-b"]);
+  });
 });
 
 describe("目安帳から近い決まりを探す", () => {
