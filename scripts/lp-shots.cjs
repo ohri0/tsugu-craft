@@ -460,6 +460,36 @@ const SHOTS = {
       execFileSync('cwebp', ['-quiet', '-q', '78', '-m', '6', '-resize', String(Math.round(w / 2)), '0', `${H}/${f}.jpg`, '-o', `${OUT}/h-${f}-sm.webp`]);
     }
   },
+  // テンションの札（2026-11-07）：職人が実際に作った指輪と同じ値（SV925・挟む向き side・14 号・くぼみ 0.4 / 溝 0.4 mm。動画の tension16 と同じ）。
+  // 欄の「浅く留めたいとき」を上へ送り、答え（ぎりぎり・職人が確かめる）から事実の表の終わりまでを切り抜く。地金ごとの比べの表の字は、ログに出す（入口の TENSION_EXAMPLE に写す）
+  async tensionCard() {
+    const p = await studioNow(1440, 2000);
+    await p.evaluate(() => {
+      const s = window.__studio.session;
+      s.setSetting({ style: 'tension', reason: '撮る' });
+      s.setSetting({ tension_grip: 'side', reason: '撮る' });
+      s.setShank({ metal: 'sv925', gou: 14, reason: '撮る' });
+      s.setTensionDepths(0.4, 0.4);
+    });
+    await p.waitForTimeout(1500);
+    await refine(p);
+    await p.waitForTimeout(800);
+    console.log('tension-card 比べ', await p.evaluate(() => [...document.querySelectorAll('.tn-table tbody tr')].map((r) => r.innerText.replace(/\s+/g, ' ')).join(' ／ ')));
+    console.log('tension-card 答え', await p.evaluate(() => document.querySelector('.tn-hold .tn-verdict')?.innerText.replace(/\s+/g, ' ')));
+    await p.evaluate(() => { const e = document.querySelector('.tn-hold'); let c = e?.parentElement; while (c && !(c.scrollHeight > c.clientHeight + 1 && /(auto|scroll)/.test(getComputedStyle(c).overflowY))) c = c.parentElement; if (e && c) c.scrollTop += e.getBoundingClientRect().top - c.getBoundingClientRect().top - 8; });
+    await p.waitForTimeout(500);
+    const r = await p.evaluate(() => { const a = document.querySelector('.tn-hold').getBoundingClientRect(); const f = document.querySelector('.tn-hold .tn-facts').getBoundingClientRect(); return { x: a.x - 8, y: a.y - 8, width: a.width + 16, height: f.bottom - a.y + 20 }; });
+    await p.screenshot({ path: `${WORK}/tension-card.png`, clip: r });
+    made.push('tension-card');
+  },
+  // 職人が作ったテンションの指輪（動画の素材 video/work/footage/raw/finished.mov の 1.6 秒の 1 こま。指輪と手に寄せて 4:3 で切る）。
+  // 素材は動画の作業場所にだけある（リポジトリには入れない）。TSUGU_FINISHED で場所を変えられる
+  async finished() {
+    const src = process.env.TSUGU_FINISHED || path.join(__dirname, '..', 'video', 'work', 'footage', 'raw', 'finished.mov');
+    if (!fs.existsSync(src)) return console.log('finished：素材がない', src);
+    execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-ss', '1.6', '-i', src, '-frames:v', '1', '-vf', 'crop=992:744:329:116', `${WORK}/finished-ring.png`]);
+    made.push('finished-ring');
+  },
   // 大きさの一覧だけを作り直す（撮らない）
   async sizes() {},
 };
