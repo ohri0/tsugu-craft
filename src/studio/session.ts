@@ -11,7 +11,7 @@ import type { StoneParams } from "../geometry/stone";
 import { recordHeavy, replayHeavy } from "../geometry/sdf";
 import { FIXES, checkRing, cornerDistances, grooveNote, holdRatio, shankWidthNote, widthFixMm, tensionInsert, tensionNotes, tensionOpening, tensionOpeningText, type FixId, type Problem } from "../rules/checks";
 import { springForClaude, springIdOf, tensionCautions, tensionSpring } from "../rules/tension-calc";
-import { holdAdvice, holdForClaude, tensionHoldSet } from "../rules/tension-hold";
+import { holdAdvice, holdForClaude, safeDepthsFor, tensionHoldSet } from "../rules/tension-hold";
 import { GUIDES, requiredHold, stoneSizeMm, type Guides, type HeightOption, type MetalId, type StonePosition } from "../rules/guides";
 import { effectiveGuides, prongMinOverride, ruleForCheck, type Ledger, type Rule } from "../rules/ledger";
 import { INPUT_BOUNDS, isIrogane, nunomeInput, nunomePatchOf, nunomeState } from "../claude/tools";
@@ -1285,6 +1285,7 @@ export class RingSession implements ToolHost<RingState> {
               hold: holdForClaude(
                 tensionHoldSet(spring, b.ring.metalWeightG, springIdOf(this.state.metal), springIdOf(this.state.metal), this.guides()),
                 holdAdvice(spring, b.ring.setting.tension!.ends, this.tensionSpringOf(), this.guides(), b.ring.metalWeightG),
+                safeDepthsFor(spring, b.ring.metalWeightG, springIdOf(this.state.metal), b.ring.setting.tension!.ends, this.guides()),
               ),
               cautions: tensionCautions(b.ring.setting, spring, springIdOf(this.state.metal), this.guides()).map((c) => ({ title: c.title, text: c.text })),
             },

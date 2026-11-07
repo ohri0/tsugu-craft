@@ -37,15 +37,16 @@ import {
 export { dropWorkNmm, frictionFactor, holdWork, ringStiffnessNPerMm, type HoldWork };
 
 /**
- * 留まる見込み／限界まで広げて入れれば、留まる見込み／この地金・この太さでは足りない。
+ * 留まる見込み／ぎりぎり入れれば、留まる見込み／この地金・この太さでは足りない。
  * tight は前は「ぎりぎり・職人が確かめる」。作者の声（2026-11-08）：「結局職人が確かめてるんかい」。
- * 計算はもう、どうすれば留まるか（石より狭く作り、限界まで広げて入れ、戻る力ではさむ）を知っているので、それを言う。
+ * 計算はもう、どうすれば留まるか（石より狭く作り、石がぎりぎり入るだけ広げて入れ、戻る力ではさむ）を知っているので、それを言う。
+ * そのあと「限界まで広げて入れれば」も直した（作者の声 2026-11-08）：「限界いっぱい」ではなく、石がぎりぎり入るだけ広げる。広げすぎると戻らない。
  * 戻りきらない分の値は仮なので、それは小さな字と「式と前提」に書く（holdTightNote）
  */
 export type HoldVerdict = "hold" | "tight" | "short";
 export const HOLD_VERDICT_LABEL: Record<HoldVerdict, string> = {
   hold: "留まる見込み",
-  tight: "限界まで広げて入れれば、留まる見込み",
+  tight: "ぎりぎり入れれば、留まる見込み",
   short: "この地金・この太さでは足りない",
 };
 
@@ -295,23 +296,91 @@ export function setSummary(h: HoldResult): string {
 /** 広げられる限界（細い輪の式。mm）＝ 狭くできる限界 ＋ 深さの和 */
 const spreadLimitOf = (h: HoldResult) => h.limitSqueezeMm + h.depthSumMm;
 
+/** ぎりぎり入れるとき（tight）の、広げる量の添え書き（作者の声 2026-11-08：「限界いっぱい」ではなく、石がぎりぎり入るだけ。広げすぎると戻らない） */
+export const HOLD_SPREAD_NOTE = "（石がぎりぎり入るだけ。広げすぎると戻らない）";
+
 /**
  * 作る手順の一行（作者の声 2026-11-08：本当の順に）。石より狭く作る → 広げて石を入れる → 戻る力で石をはさむ。
- * 足りないとき（short）は、留まる作り方がないので null。限界まで広げるとき（tight）は、そう言う
+ * 足りないとき（short）は、留まる作り方がないので null。ぎりぎり入れるとき（tight）は、広げすぎないことを添える
  */
 export function holdSteps(h: HoldResult): string | null {
   if (h.verdict === "short") return null;
-  const L = spreadLimitOf(h);
-  const limit = h.verdict === "tight" ? (h.spreadMm >= L - 5e-3 ? "（広げるのは限界いっぱい）" : `（安全な目安をこえ、限界 約 ${L.toFixed(2)} mm の近くまで）`) : "";
-  return `石より ${h.squeezeMm.toFixed(2)} mm 狭く作る（作る時の開き ${h.makeGapMm.toFixed(2)} mm） → ${h.spreadMm.toFixed(2)} mm 広げて石を入れる${limit} → 戻る力で石をはさむ`;
+  const note = h.verdict === "tight" ? HOLD_SPREAD_NOTE : "";
+  return `石より ${h.squeezeMm.toFixed(2)} mm 狭く作る（作る時の開き ${h.makeGapMm.toFixed(2)} mm） → ${h.spreadMm.toFixed(2)} mm 広げて石を入れる${note} → 戻る力で石をはさむ`;
 }
 
 /**
- * 限界まで広げるとき（tight）の小さな字：戻りきらない分の値は仮なので、見込んだときの倍をここに。ほかは null
+ * 石の入れ方の職人の言葉（作者の声 2026-11-08。帳面 rule-tension-insert-ishikawa と同じ言葉）。
+ * 画面は帳面の決まりがあればその言葉を読み、なければこれ
+ */
+export const HOLD_INSERT_TIP = {
+  ruleId: "rule-tension-insert-ishikawa",
+  text: "角から斜めに入れながら、ぎりぎりの広げ方で入れる",
+  by: "職人 石川の言葉 2026-11-08",
+} as const;
+
+/** 広げる量の計算の前提（正直に小さな字で）：石をまっすぐ入れるとして、石の長さいっぱいまで開く量。斜めに入れる分は計算に入れていない */
+export const HOLD_STRAIGHT_NOTE =
+  "広げる量は、石をまっすぐ入れるとして、腕の両はしが石の長さいっぱいまで開く量で計算しています。角から斜めに入れると、もっと少なく広げて済むことがあります（斜めに入れる分は、まだ計算に入れていません）";
+
+/**
+ * ぎりぎり入れるとき（tight）の小さな字：戻りきらない分の値は仮なので、見込んだときの倍をここに。ほかは null
  */
 export function holdTightNote(h: HoldResult): string | null {
   if (h.verdict !== "tight") return null;
-  return `「${HOLD_VERDICT_LABEL.tight}」は、広げる量を安全な目安より大きく、限界 約 ${spreadLimitOf(h).toFixed(2)} mm まで使えば届く、という意味です。広げたあと戻りきらない分（仮）約 ${h.setMm.toFixed(2)} mm を見込むと、外れにくさは求める分の 約 ${h.margin.toFixed(2)} 倍。戻りきらない割合は仮の値です`;
+  return `「${HOLD_VERDICT_LABEL.tight}」は、広げる量が安全な目安をこえ、限界 約 ${spreadLimitOf(h).toFixed(2)} mm の近くまで要る、という意味です。石がぎりぎり入るだけ広げ、それ以上は広げません。広げたあと戻りきらない分（仮）約 ${h.setMm.toFixed(2)} mm を見込むと、外れにくさは求める分の 約 ${h.margin.toFixed(2)} 倍。戻りきらない割合は仮の値です`;
+}
+
+/** 深さのつまみの範囲と刻み（mm。形を作るための決まり。作者の頼み 2026-11-07「0.2〜0.8 mm くらい」） */
+export const HOLD_DEPTH_RANGE = { min: 0.2, max: 0.8, step: 0.05 } as const;
+
+/** 安全に留める深さの案（今の深さから、いちばん少なく深くして「留まる見込み」になる組） */
+export interface SafeDepths {
+  /** 案の深さ（その種類の端がなければ null） */
+  pitMm: number | null;
+  grooveMm: number | null;
+  /** 変える端の種類と、変えない端の種類（両はし同じ種類なら keep は null） */
+  change: "pit" | "groove";
+  keep: "pit" | "groove" | null;
+  /** その深さで出した答え（いまの計算そのまま） */
+  hold: HoldResult;
+}
+
+/**
+ * 答えが「留まる見込み」でないとき、今の深さから、つまみの刻みで少しずつ深くして、はじめて「留まる見込み」になる深さ（作者の声 2026-11-08「安全圏の感じで、数値をうまいこと調整して」）。
+ * 両はしの種類がちがえば溝だけを深く（くぼみはそのまま）、同じなら両はしを同じだけ深く。計算は tensionHold のまま（新しい数は作らない）。
+ * つまみの範囲で届かなければ null
+ */
+export function safeDepths(base: Omit<HoldInput, "depthSumMm">, ends: readonly { kind: "pit" | "groove"; depthMm: number }[], g: Guides = GUIDES, range: { max: number; step: number } = HOLD_DEPTH_RANGE): SafeDepths | null {
+  const sum = ends.reduce((a, e) => a + e.depthMm, 0);
+  if (tensionHold({ ...base, depthSumMm: sum }, g).verdict === "hold") return null;
+  const mixed = ends.some((e) => e.kind === "pit") && ends.some((e) => e.kind === "groove");
+  const change: "pit" | "groove" = mixed ? "groove" : ends[0].kind;
+  const moving = ends.filter((e) => e.kind === change);
+  const fixed = sum - moving.reduce((a, e) => a + e.depthMm, 0);
+  const from = Math.max(...moving.map((e) => e.depthMm));
+  for (let i = Math.floor(from / range.step + 1e-6) + 1; i * range.step <= range.max + 1e-9; i++) {
+    const v = Math.round(i * range.step * 100) / 100;
+    const hold = tensionHold({ ...base, depthSumMm: fixed + v * moving.length }, g);
+    if (hold.verdict !== "hold") continue;
+    const depthOf = (k: "pit" | "groove") => (k === change ? v : (ends.find((e) => e.kind === k)?.depthMm ?? null));
+    return { pitMm: ends.some((e) => e.kind === "pit") ? depthOf("pit") : null, grooveMm: ends.some((e) => e.kind === "groove") ? depthOf("groove") : null, change, keep: mixed ? "pit" : null, hold };
+  }
+  return null;
+}
+
+/** この設計（table：硬い状態の tensionSpring）の、安全に留める深さの案。tensionHoldSet と同じ地金・重さで */
+export function safeDepthsFor(table: SpringTable, massG: number, metal: SpringMetalId, ends: readonly { kind: "pit" | "groove"; depthMm: number }[], g: Guides = GUIDES): SafeDepths | null {
+  const row = table.rows.find((r) => r.metal === metal)!;
+  return safeDepths({ spanMm: table.spanMm, radiusMm: table.radiusMm, wireMm: table.wireMm, massG, spring: holdSpringOf(row, table.factor) }, ends, g);
+}
+
+/** 安全に留める深さの案の一文：「安全に留めるなら：溝を 0.50 mm に（くぼみ 0.40 mm のまま）」 */
+export function safeDepthsText(s: SafeDepths): string {
+  const word = (k: "pit" | "groove") => (k === "pit" ? "くぼみ" : "溝");
+  const v = (k: "pit" | "groove") => (k === "pit" ? s.pitMm : s.grooveMm)!;
+  const keep = s.keep ? `（${word(s.keep)} ${v(s.keep).toFixed(2)} mm のまま）` : "";
+  return `安全に留めるなら：${s.keep ? "" : "両はしの"}${word(s.change)}を ${v(s.change).toFixed(2)} mm に${keep}`;
 }
 
 /** 今の深さが、おすすめと同じか */
@@ -348,7 +417,7 @@ export function adviceLevers(table: Pick<SpringTable, "radiusMm" | "wireMm" | "s
 const r2 = (v: number | null) => (v === null || !Number.isFinite(v) ? null : Math.round(v * 100) / 100);
 
 /** Claude が読む形。advice があれば、おすすめも */
-export function holdForClaude(set: TensionHoldSet, advice?: TensionAdvice) {
+export function holdForClaude(set: TensionHoldSet, advice?: TensionAdvice, safe?: SafeDepths | null) {
   const h = set.now;
   return {
     depth_sum_mm: r2(h.depthSumMm),
@@ -361,6 +430,9 @@ export function holdForClaude(set: TensionHoldSet, advice?: TensionAdvice) {
     limit_squeeze_after_set_mm: r2(h.limitEffectiveMm),
     verdict: HOLD_VERDICT_LABEL[h.verdict],
     steps: holdSteps(h),
+    ...(safe ? { safe_depths: { pit_mm: safe.pitMm, groove_mm: safe.grooveMm, text: safeDepthsText(safe), verdict: HOLD_VERDICT_LABEL[safe.hold.verdict], steps: holdSteps(safe.hold) } } : {}),
+    insert_tip: `${HOLD_INSERT_TIP.text}（${HOLD_INSERT_TIP.by}）`,
+    spread_assumes_straight_insertion: HOLD_STRAIGHT_NOTE,
     set_ratio: h.curve.ratio,
     set_starts_at_spread_mm: r2(h.curve.onsetMm),
     plan: { make_smaller_by_mm: r2(h.squeezeMm), make_gap_mm: r2(h.makeGapMm), spread_mm: r2(h.spreadMm), stays_open_mm: r2(h.setMm), grip_after_set_mm: r2(h.effectiveSqueezeMm), margin: r2(h.margin) },
