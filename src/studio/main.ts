@@ -24,7 +24,7 @@ import { rulePlans } from "../ui/design";
 import { loadPhoto } from "../ui/photo";
 import { Viewer, type DisplayMode } from "../ui/viewer";
 import { extractStone, type Extraction } from "../vision/extract";
-import { PARAMS, activeRules, addRule, seedLedger, sourceLabel, valueFor, type Ledger, type ParamId, type Rule } from "../rules/ledger";
+import { PARAMS, activeRules, addRule, replaceNote, seedLedger, sourceLabel, valueFor, type Ledger, type ParamId, type Rule } from "../rules/ledger";
 import { askConfirm, filming } from "../app/confirm";
 import { askPassword, resetPassword } from "../app/password";
 import { esc, store, today } from "../app/store";
@@ -2967,12 +2967,20 @@ async function addRuleFromWords(said: string) {
     restore: () => undefined,
     proposeRule: (p) => propose(slot, p, name),
   };
-  const r = await runClaude({ host, messages: [{ role: "user", content: `${name}さんが話したこと：${said}` }], system: keepPrompt(store.ledger(), name), tools: TOOLS.filter((t) => t.name === "propose_rule"), password: pass, maxTurns: 3, speed: "fast" });
+  const r = await runClaude({ host, messages: [{ role: "user", content: `${name}さんが話したこと：${said}` }], system: keepPrompt(store.ledger(), name), tools: TOOLS.filter((t) => t.name === "propose_rule"), password: pass, maxTurns: 5, speed: "fast" });
   if (r.offline || (r.error && !r.log.length)) {
     if (r.error?.code === "wrong_password") resetPassword();
     $(".ar-proposal").innerHTML = `<p class="tech-what">Claude につながりませんでした。${esc(r.error?.message ?? "")}</p>`;
     showProposalSlot();
+    return;
   }
+  // Claude の終わりの言葉（案にしなかった話・聞きたいこと）を出す。案を出さなかったときは、前は「案にしています…」のまま止まっていた（2026-11-07 の試し）
+  const proposed = r.log.some((e) => e.kind === "tool" && e.tool === "propose_rule" && e.ok);
+  const words = plainWords(r.finalText.trim(), titlesNow());
+  const box = $(".ar-proposal");
+  if (!proposed) box.innerHTML = `<p class="tech-what">${esc(words || "決まりの案にできませんでした。言い方を変えて、もう一度話してください。")}</p>`;
+  else if (words) box.insertAdjacentHTML("beforeend", `<p class="tech-what">Claude：${esc(words)}</p>`);
+  showProposalSlot();
 }
 /**
  * 決まりの案の所まで欄を動かす。「これまでの作品」の欄があると、案が画面の下に隠れて見えなかった（2026-11-05）。
@@ -2986,7 +2994,8 @@ function propose(slot: HTMLElement, p: ProposeRuleInput, name: string): Promise<
   return new Promise((resolve) => {
     // 待っている間に欄が描き直されていても、今の欄に出す
     if (!slot.isConnected) slot = $(".ar-proposal");
-    slot.innerHTML = `<div class="proposal-d"><b>${esc(p.title)}</b><p>${esc(p.text)}</p><p class="tech-what">なぜ：${esc(p.reason)}</p>${p.param ? `<p class="tech-what">値：${p.value}</p>` : ""}${!p.param && p.steps?.length ? `<p class="tech-what">入る工程：${esc(p.steps.map((s) => MAKING_STEPS[s]).join("・"))}</p>` : ""}
+    const replaces = replaceNote(store.ledger(), p.param, p.value);
+    slot.innerHTML = `<div class="proposal-d"><b>${esc(p.title)}</b><p>${esc(p.text)}</p><p class="tech-what">なぜ：${esc(p.reason)}</p>${p.param ? `<p class="tech-what">値：${p.value}</p>` : ""}${replaces ? `<p class="tech-what">${esc(replaces)}</p>` : ""}${!p.param && p.steps?.length ? `<p class="tech-what">入る工程：${esc(p.steps.map((s) => MAKING_STEPS[s]).join("・"))}</p>` : ""}
       <div class="row"><button type="button" class="primary ok">これでいい</button><button type="button" class="ghost-d no">いらない</button></div></div>`;
     showProposalSlot();
     // 案は欄の描き直しで今の欄へ移されることがあるので、案そのものを消す

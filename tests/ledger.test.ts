@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { buildRing } from "../src/geometry/ring";
 import { checkRing } from "../src/rules/checks";
 import { GUIDES } from "../src/rules/guides";
-import { activeRules, addRule, effectiveGuides, ledgerText, parseSizeSteps, removeLastRule, ruleForCheck, seedLedger, valueFor, editRule } from "../src/rules/ledger";
+import { activeRules, addRule, effectiveGuides, ledgerText, parseSizeSteps, removeLastRule, replaceNote, ruleForCheck, seedLedger, valueFor, editRule, type Ledger } from "../src/rules/ledger";
+import repoJewelry from "../ledger/jewelry.json";
 import { triangleStone } from "./helpers/stones";
 
 const ring = () => buildRing({ stone: triangleStone(), setting: { style: "prong", height: "standard" }, shank: { gou: 11 } });
@@ -167,3 +168,19 @@ describe("決まりの編集（2026-11-05 作者：消すだけでなく編集�
   });
 });
 
+
+describe("決まりの案が置きかえる決まり（入れる前に見せる。2026-11-07 の試し）", () => {
+  const repoLedger = repoJewelry as unknown as Ledger;
+  it("爪の最低の太さの案は、石の大きさで変わる職人の決まりに置きかわると言う", () => {
+    const note = replaceNote(repoLedger, "prong.minDiameterMm", 0.9)!;
+    expect(note).toContain("爪の最低の太さ");
+    expect(note).toContain("石の大きさで変わる値");
+    expect(note).toContain("職人：石川");
+  });
+  it("値に結びつかない案は null。同じ値なら、そう言う", () => {
+    expect(replaceNote(repoLedger, undefined, undefined)).toBeNull();
+    const l = addRule(seedLedger(), { title: "腕の厚み", text: "1.8 mm 以上", reason: "曲がる", param: "band.minThicknessMm", value: 1.8, source: { kind: "craftsman", name: "石川" }, date: "2026-11-07" });
+    expect(replaceNote(l, "band.minThicknessMm", 1.8)).toContain("値は同じ");
+    expect(replaceNote(l, "band.minThicknessMm", 1.5)).toContain("1.8 mm");
+  });
+});

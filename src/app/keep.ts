@@ -11,7 +11,7 @@ import { TOOLS, type ProposeRuleInput, type ProposeRuleResult, type ToolHost } f
 import { summarizeMetrics } from "../craft/motion";
 import { bookHtml } from "../rules/book";
 import { freshGap, ringGaps } from "../rules/gaps";
-import { activeRules, addRule, editRule, removedList, removeRule, restoreRule, seedLedger, sourceLabel, type Ledger, type Rule } from "../rules/ledger";
+import { activeRules, addRule, editRule, removedList, removeRule, replaceNote, restoreRule, seedLedger, sourceLabel, type Ledger, type Rule } from "../rules/ledger";
 import { setBasics, MAIN, removeWorkshop, renameWorkshop, setActive } from "../rules/workshops";
 import repoLedger from "../../ledger/jewelry.json";
 import { groupQuestions, markAnswered, removeQuestions, type QuestionGroup } from "../rules/teacher-queue";
@@ -384,15 +384,23 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
       system: keepPrompt(ledger, name),
       tools: TOOLS.filter((t) => t.name === "propose_rule"),
       password,
-      maxTurns: 3,
+      maxTurns: 5,
     });
     if (r.offline || (r.error && !r.log.some((e) => e.kind === "tool"))) {
       if (r.error?.code === "wrong_password") resetPassword();
       fallback(`Claude につながらないので、話した言葉をそのまま案にしました。${r.error?.message ? `（${r.error.message}）` : ""}`);
+      return;
     }
+    // Claude の終わりの言葉（案にしなかった話・聞きたいこと）を出す。案を出さなかったときは、前は「まとめています…」のまま止まっていた（2026-11-07 の試し）
+    const proposed = r.log.some((e) => e.kind === "tool" && e.tool === "propose_rule" && e.ok);
+    const words = r.finalText.replace(/\*\*/g, "").trim();
+    if (!proposed) st(words || "決まりの案にできませんでした。言い方を変えて、もう一度話してください。");
+    else if (words && propSlot.isConnected) propSlot.insertAdjacentHTML("beforeend", `<p class="small">Claude：${esc(words)}</p>`);
   }
 
   function showProposal(slot: HTMLElement, p: ProposeRuleInput, g?: QuestionGroup): Promise<ProposeRuleResult> {
+    // 前の案を足して欄が描き直されたあとは、見せる所がない。待ち続けないように、見送りとして返す
+    if (!slot.isConnected) return Promise.resolve({ status: "declined", note: "画面が描き直されて、職人に見せられなかった。もう一度話してもらう" });
     return new Promise((resolve) => {
       slot.innerHTML = `<div class="proposal">
         <p class="small">決まりの案です。直してから足せます。</p>
@@ -400,6 +408,7 @@ export function mountKeep(root: HTMLElement, opts: { onExampleSaved?: () => void
         <label>決まり<textarea data-p="text" rows="2">${esc(p.text)}</textarea></label>
         <label>なぜ<textarea data-p="reason" rows="2">${esc(p.reason)}</textarea></label>
         ${p.quote ? `<blockquote>「${esc(p.quote)}」</blockquote>` : ""}
+        ${replaceNote(store.ledger(), p.param, p.value) ? `<p class="small">${esc(replaceNote(store.ledger(), p.param, p.value)!)}</p>` : ""}
         <div class="row"><button type="button" class="primary" data-a="ok">これでいい</button><button type="button" class="ghost" data-a="no">いらない</button></div>
       </div>`;
       const read = (k: string) => slot.querySelector<HTMLInputElement>(`[data-p="${k}"]`)!.value.trim();
