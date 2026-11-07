@@ -2991,7 +2991,7 @@ def moyou_three():
     return a
 
 
-@scene("moyou11")
+@scene("moyou11", "waza17e")  # 最終案 17e：waza17e は台本に waza があるときだけ使う
 def moyou11(s, t, f):
     """最終案 13（作者の声：表の小さな字が読めない。「9 に、たどり着きました」のあと、すぐ 3 枚に替わって「はん？」となる）：
     頁の全体 → 表の左半分（見出し・①〜③）に寄って段が順に出る → ④・⑤ は右半分 → 言い終わったら、下の行（本当の工程と比べると）を
@@ -3024,9 +3024,61 @@ def moyou11(s, t, f):
         return table
     k = sm((t - t_three) / 1.0)
     three = moyou_three_lit(t, a1)
+    # 最終案 17e（台本の waza。V17E=1 のときだけ）：3 枚の鐔を 1 枚ずつ見せ終えてから、架空の技 6 つ（waza17e_beat）へ重ねて替える
+    t_waza = a1 + WAZA17E_AT
+    if s.get("waza") and t >= t_waza:
+        u = sm((t - t_waza) / 0.6)
+        beat = waza17e_beat(t - t_waza)
+        return beat if u >= 1 else three * (1 - u) + beat * u
     if k >= 1:
         return three
     return table * (1 - k) + three * k
+
+
+# ---- 最終案 17e（作者の声：「新しいパターンとかもあったら見てみたい」）：復元は木目金だけでない、を約 3 秒
+#   途切れた技の頁で撮った、架空の技 6 つの模様の見込み（章 waza17e。本物の Claude の案の手順を、アプリが計算で描いた出来上がりの面）。
+#   上の段は重ねる技、下の段は重ねない技（彫る・打つ・透かす・はめる）。字は「架空の技でも。重ねない技でも。」。絵も字も動かさない（濃くなるだけ）
+WAZA17E = (("kasumi", "霞刃の小刀"), ("uzu", "渦金の帯留め"), ("ichimatsu", "市松縞の小箱"),
+           ("wauchi", "輪打ち金筋"), ("sukashibori", "花透かしの縁彫り板"), ("tsubukin", "粒金槌目の留め具"))
+WAZA17E_AT = 3.9      # n39 の頭から（3 枚の鐔を 1.2 秒ずつ明るくし終えて、3 枚そろって 0.5 秒ほどのあと）
+WAZA17E_SIDE = 280    # 絵の 1 辺（画面の px）
+WAZA17E_GAP = 56
+WAZA17E_X0 = W / 2 + 40 - (3 * WAZA17E_SIDE + 2 * WAZA17E_GAP) / 2   # 絵の並びの左の端（左に段の名前）
+WAZA17E_Y = (200, 594)  # 上の段・下の段の絵の上の端
+
+
+@lru_cache(maxsize=1)
+def waza17e_tiles():
+    """6 つの出来上がりの面（撮ったこまの canvas の所。左右のふちの断面の印が入らないよう、3% 内側を切る）"""
+    m = meta("waza17e")
+    K = m["size"][0] / 1280
+    out = []
+    for wid, _ in WAZA17E:
+        b = m["boxes"][f"top_{wid}"]
+        ins = b["w"] * 0.03
+        box = ((b["x"] + ins) * K, (b["y"] + ins) * K, (b["w"] - 2 * ins) * K, (b["h"] - 2 * ins) * K)
+        out.append(shot("waza17e", m["marks"][wid], box, (WAZA17E_SIDE, WAZA17E_SIDE)) * 0.92)  # 頁の地より暗い動画の地に合わせて、少しだけ落とす
+    return out
+
+
+def waza17e_beat(t):
+    a = L.ground().copy()
+    tiles = waza17e_tiles()
+    S0 = WAZA17E_SIDE
+    for i, ((_, name), im) in enumerate(zip(WAZA17E, tiles)):
+        k = fade(t, 0.05 + 0.1 * i, 0.35)
+        if k <= 0:
+            continue
+        x0 = int(round(WAZA17E_X0 + (i % 3) * (S0 + WAZA17E_GAP)))
+        y0 = WAZA17E_Y[i // 3]
+        a[y0:y0 + S0, x0:x0 + S0] = a[y0:y0 + S0, x0:x0 + S0] * (1 - k) + im * k
+        a = ink(a, Hz(x0 + S0 / 2, y0 + S0 + 46, name, "min", T, 0.06, "c"), SHIRO, 0.92 * k)
+    xl = WAZA17E_X0 - 40
+    for r, label in enumerate(("重ねる技", "重ねない技")):
+        a = ink(a, Hz(xl, WAZA17E_Y[r] + S0 / 2 + 10, label, "sans", T, 0.08, "r"), SHIRO, 0.75 * fade(t, 0.2 + 0.3 * r, 0.5))
+    a = ink(a, Hz(W / 2, 132, "架空の技でも。重ねない技でも。", "min", S, 0.08, "c"), SHIRO, fade(t, 0.3, 0.6))
+    a = ink(a, Hz(W / 2, 1012, "※ どれも作り話の技。Claude が出した手順で、計算で描いた形だけの見込み", "sans", 22, 0.06, "c"), SHIRO, 0.72 * fade(t, 0.8, 0.6))
+    return a
 
 
 # ---- 模様の試しの表を、順に出す（最終案 16）

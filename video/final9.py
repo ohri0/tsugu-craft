@@ -16,6 +16,8 @@ PY = sys.executable
 args = sys.argv[1:]
 jobs = args[args.index("--jobs") + 1] if "--jobs" in args else "12"
 PLAN = args[args.index("--plan") + 1] if "--plan" in args else "9"
+# 最終案 17e（別の案）：V17E=1 で、台本 final10e.json・動画 final10e_video.mp4・継ぐ_デモ_最終案10e_仮声.mp4（17d の物は上書きしない）
+TAG = "e" if os.environ.get("V17E") == "1" else ""
 AAC = "aac_at" if "aac_at" in subprocess.run(["ffmpeg", "-hide_banner", "-encoders"], capture_output=True, text=True).stdout else "aac"
 
 
@@ -28,11 +30,11 @@ def main():
     os.makedirs(VC, exist_ok=True)
     os.makedirs(MUSIC, exist_ok=True)
     run([PY, "-I", os.path.join(HERE, f"final_build{PLAN}.py")])
-    tl = json.load(open(os.path.join(HERE, f"final{PLAN}.json"), encoding="utf8"))
+    tl = json.load(open(os.path.join(HERE, f"final{PLAN}{TAG}.json"), encoding="utf8"))
     total = tl["len"]
-    video = os.path.join(VC, f"final{PLAN}_video.mp4")
+    video = os.path.join(VC, f"final{PLAN}{TAG}_video.mp4")
     if "--no-video" not in args:
-        run([PY, "-I", os.path.join(HERE, "reel9.py"), os.path.join(HERE, f"final{PLAN}.json"), video, jobs])
+        run([PY, "-I", os.path.join(HERE, "reel9.py"), os.path.join(HERE, f"final{PLAN}{TAG}.json"), video, jobs])
     # 音楽
     song = os.path.join(MUSIC, "song.wav")
     if os.path.exists(song):
@@ -80,21 +82,21 @@ def main():
         mix.append(f"[n{k}]")
         k += 1
     flt.append("".join(mix) + f"amix=inputs={len(mix)}:normalize=0,afade=t=out:st={total - 1.2}:d=1.2,atrim=0:{total}[a]")
-    raw = os.path.join(VC, f"_mix{PLAN}.wav")
+    raw = os.path.join(VC, f"_mix{PLAN}{TAG}.wav")
     run(["ffmpeg", "-v", "error", "-y", *ins, "-filter_complex", ";".join(flt), "-map", "[a]", "-ar", "48000", raw])
     # 確かめ用：声と、下げたあとの音楽（と本物の音）を別々に書く（声が音楽に埋もれていないか、数字で見る）
     stems = [f.replace("[a]", "[st]") if f.startswith("".join(mix)) else f for f in flt]
     stems[-1] = "".join(mix[1:]) + f"amix=inputs={len(mix) - 1}:normalize=0,atrim=0:{total}[st]"
     stems.append("[vo]anull[vst]")
-    run(["ffmpeg", "-v", "error", "-y", *ins, "-filter_complex", ";".join(stems), "-map", "[st]", "-ar", "48000", os.path.join(VC, f"_stem{PLAN}_music.wav"), "-map", "[vst]", "-ar", "48000", os.path.join(VC, f"_stem{PLAN}_voice.wav")])
+    run(["ffmpeg", "-v", "error", "-y", *ins, "-filter_complex", ";".join(stems), "-map", "[st]", "-ar", "48000", os.path.join(VC, f"_stem{PLAN}{TAG}_music.wav"), "-map", "[vst]", "-ar", "48000", os.path.join(VC, f"_stem{PLAN}{TAG}_voice.wav")])
     # 大きさをそろえる（2 回）
     out = subprocess.run(["ffmpeg", "-hide_banner", "-i", raw, "-af", "loudnorm=I=-14:TP=-1.5:LRA=11:print_format=json", "-f", "null", "-"], capture_output=True, text=True).stderr
     j = json.loads(out[out.rindex("{") : out.rindex("}") + 1])
     af = f"loudnorm=I=-13.7:TP=-1.5:LRA=11:measured_I={j['input_i']}:measured_TP={j['input_tp']}:measured_LRA={j['input_lra']}:measured_thresh={j['input_thresh']}:offset={j['target_offset']}:linear=true,alimiter=limit=0.708:attack=2:release=60:level=disabled:asc=1"
-    mixed = os.path.join(VC, f"_mix{PLAN}b.wav")
+    mixed = os.path.join(VC, f"_mix{PLAN}{TAG}b.wav")
     run(["ffmpeg", "-v", "error", "-y", "-i", raw, "-af", af, "-ar", "48000", mixed])
     own = tl["voice_own"] == len(tl["voice"])
-    name = f"継ぐ_デモ_最終案{PLAN}_声" if own else f"継ぐ_デモ_最終案{PLAN}_仮声"
+    name = f"継ぐ_デモ_最終案{PLAN}{TAG}_声" if own else f"継ぐ_デモ_最終案{PLAN}{TAG}_仮声"
     final = os.path.join(VC, name + ".mp4")
     run(["ffmpeg", "-v", "error", "-y", "-i", video, "-i", mixed, "-map", "0:v", "-map", "1:a",
          "-c:v", "libx264", "-threads", "4", "-preset", "medium", "-crf", "16", "-tune", "film", "-x264-params", "aq-mode=3:aq-strength=1.1:deblock=-1,-1",

@@ -22,8 +22,10 @@ export DECO_USE=${DECO_USE:-16}
 # 最終案 15：残すの本物の画面は teach15（話して直す所だけ）、伝統の仕上げ → 作り方は finish15
 # 最終案 16：本物の指輪の前のテンションの計算は tension16
 CHAPTERS=(${@:-draw10 first9 teach15 sec13 finish15 deco11 tension16 make14 learn11 kebori9 hands9 moyou11})
-echo "今のアプリを組む → $WORK/dist-cap10"
-npx vite build --outDir "$WORK/dist-cap10" --emptyOutDir > /dev/null
+# 最終案 17e：組んだアプリを置く所を CAP_DIST_DIR で替えられる（ほかの係が dist-cap10 で撮っている間も、別の所で撮れる）
+DIST=${CAP_DIST_DIR:-$WORK/dist-cap10}
+echo "今のアプリを組む → $DIST"
+npx vite build --outDir "$DIST" --emptyOutDir > /dev/null
 PIDS=()
 cleanup() { for p in $PIDS; do kill $p 2>/dev/null || true; done }
 trap cleanup EXIT INT TERM
@@ -35,7 +37,7 @@ else
   export CLAUDE9_OFF=1
   API=9
 fi
-CAP_DIST="$WORK/dist-cap10" CAP_PORT=5431 API_PORT=$API node video/capture/serve.cjs > "$WORK/log-serve10.txt" 2>&1 &
+CAP_DIST="$DIST" CAP_PORT=5431 API_PORT=$API node video/capture/serve.cjs > "$WORK/log-serve10.txt" 2>&1 &
 PIDS+=($!)
 sleep 2
 export TSUGU_CAP=http://localhost:5431

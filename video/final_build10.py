@@ -103,6 +103,14 @@ OPENING = os.environ.get("OPENING", "plain")
 SHOW_FIN = os.environ.get("FINISH", "0") != "0"
 
 
+# 最終案 17e（作者の声：「新しいパターンとかもあったら見てみたい」。17d と比べる別の案）：V17E=1 で、模様の試しの 3 枚の鐔のあとに、
+#   架空の技 6 つの模様の見込み（重ねる 3・重ねない 3。途切れた技の頁で撮った章 waza17e）を約 3 秒、字「架空の技でも。重ねない技でも。」と出す。
+#   時間は模様の試しの中から：n37 と n39 の間 3.6 → 3.3 秒（言い終わってから表のまま 2.1 → 1.8 秒。作者の頼みの 1.5 秒は残る）、言い終わったあと 1.4 → 1.7 秒。
+#   場面の長さ・章の頭の秒・ほかの場面は 17d のまま（曲もそのまま）。台本は final10e.json、動画は 継ぐ_デモ_最終案10e_仮声.mp4（final9.py も V17E を読む）
+V17E = os.environ.get("V17E") == "1" and os.path.exists(os.path.join(WORK, "story", "waza17e", "meta.json"))
+TAG = "e" if os.environ.get("V17E") == "1" else ""
+
+
 def nf(a, b):
     return a if SHOW_FIN else b
 
@@ -158,7 +166,7 @@ SCENES = [
     dict(id="kebori10", ch="渡す3", v=[30], pre=0.8, post=5.5, xf=0.9, fixed=True),
     # 途切れた技：木目金の鐔（n32・n33）→ 模様の試し（別の係の新しい頁。頁の全体 → 表に寄って段が順に出る（n37）→ 下の行を読める大きさで → 3 枚へゆっくり → n39）
     dict(id="mokume11", ch="途絶え", v=[32, 33], gap=0.75, pre=nf(0.15, 0.25), post=0.25, xf=1.0, dip=True, fixed=True),
-    dict(id="moyou11", ch="復元", v=[37, 39], pre=nf(2.0, 2.35), gap=nf(3.0, 3.6), post=nf(0.8, 1.4), xf=0.8, fixed=True),  # 最終案 16：本当の手順 → Claude の手順を段ごと → 本当の 11 の手順を 1 行ずつ数える（n37）。言い終わって 1.5 秒は表の下の行（作者の頼み）。最終案 17b：Claude の手順 → 隠しておいた本当の手順を開く → 数える
+    dict(id="moyou11", ch="復元", v=[37, 39], pre=nf(2.0, 2.35), gap=nf(3.0, 3.6) - (0.3 if V17E else 0), post=nf(0.8, 1.4) + (0.3 if V17E else 0), xf=0.8, fixed=True, **({"waza": 1} if V17E else {})),  # 最終案 16：本当の手順 → Claude の手順を段ごと → 本当の 11 の手順を 1 行ずつ数える（n37）。言い終わって 1.5 秒は表の下の行（作者の頼み）。最終案 17b：Claude の手順 → 隠しておいた本当の手順を開く → 数える
     # 結（最終案 12）：CG の指輪をやめ、実写の手元（磨いて仕上げる）→ 題「継ぐ」→ 間 →「職人の判断を、次の人へ。」。最終案 14：映像 2.4 → 2.0 秒
     dict(id="endhands", ch="結", v=[], hold=1.3, xf=1.0, dip=True),  # 最終案 17b：1.8 → 1.3 秒（最終案 16 と同じ。図面と STL・断面へ回した）
     dict(id="title3", ch="結", v=[42, 41], gap=1.2, pre=0.8, post=0.8, xf=1.2, fixed=True),
@@ -210,7 +218,7 @@ def layout(durs, kk):
         # フレームの区切りにそろえる
         ln = round(ln * FPS) / FPS
         start = round(start * FPS) / FPS
-        out.append(dict(id=sc["id"], ch=sc["ch"], start=start, len=ln, xf=round(xf * FPS) / FPS, dip=bool(sc.get("dip")), voice=voices, **({"nat": sc["nat"]} if "nat" in sc else {}), **({"fin_cap": sc["fin_cap"]} if "fin_cap" in sc else {})))
+        out.append(dict(id=sc["id"], ch=sc["ch"], start=start, len=ln, xf=round(xf * FPS) / FPS, dip=bool(sc.get("dip")), voice=voices, **({"nat": sc["nat"]} if "nat" in sc else {}), **({"fin_cap": sc["fin_cap"]} if "fin_cap" in sc else {}), **({"waza": sc["waza"]} if "waza" in sc else {})))
         t = start + ln
     return out, t
 
@@ -301,6 +309,11 @@ def main():
     sections = [["intro", 0.0], ["main", ch_at["残す"]], ["thin", ch_at["渡す3"]], ["gap", ch_at["途絶え"]], ["build", ch_at["復元"]], ["peak", round(peak, 3)], ["end", ch_at["結"]]]
     commits = subprocess.run(["git", "-C", REPO, "rev-list", "--count", "HEAD"], capture_output=True, text=True).stdout.strip()
     first_day = subprocess.run(["git", "-C", REPO, "log", "--reverse", "--format=%ad", "--date=short"], capture_output=True, text=True).stdout.split("\n")[0].strip()
+    # 最終案 17e：くらべる案なので、終わりのコミットの数も 17d の台本（final10.json）と同じにする（ちがうのは足した所だけ）
+    if TAG and os.path.exists(os.path.join(HERE, "final10.json")):
+        with open(os.path.join(HERE, "final10.json"), encoding="utf8") as f:
+            g17d = json.load(f).get("git") or {}
+        commits, first_day = g17d.get("commits", commits), g17d.get("first_day", first_day)
     doc = dict(
         fps=FPS,
         len=round(total * FPS) / FPS,
@@ -313,10 +326,12 @@ def main():
         foot=dict(finished=REAL_FIN, ring2=REAL_RING, kebori=REAL_KEBORI),
         git=dict(commits=commits, first_day=first_day),
     )
-    with open(os.path.join(HERE, "final10.json"), "w", encoding="utf8") as f:
+    if TAG and not V17E:
+        print("注意：V17E=1 だが、撮った章 waza17e がない（zsh video/capture10.sh waza17e）", file=sys.stderr)
+    with open(os.path.join(HERE, f"final10{TAG}.json"), "w", encoding="utf8") as f:
         json.dump(doc, f, ensure_ascii=False, indent=1)
     vs = sum(durs[n] for n in VOICE)
-    print(f"final10.json：{total:.2f} 秒（声 {vs:.1f} 秒・間の倍率 {kk:.2f}・場面 {len(scenes)}・作者の録音 {own}/{len(VOICE)}）")
+    print(f"final10{TAG}.json：{total:.2f} 秒（声 {vs:.1f} 秒・間の倍率 {kk:.2f}・場面 {len(scenes)}・作者の録音 {own}/{len(VOICE)}）")
     for s in scenes:
         print(f"  {s['start']:7.2f} {s['len']:5.2f} {s['ch']:<4} {s['id']:<9} " + " ".join(f"n{v['n']}" for v in s["voice"]))
 

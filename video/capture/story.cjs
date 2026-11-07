@@ -4510,7 +4510,47 @@ Object.assign(CH, {
   },
 });
 // 動かない画面（時計は本物のまま。Claude は呼ばない）
+// 最終案 17e（作者の声：「新しいパターンとかもあったら見てみたい」）：復元が木目金だけでないことを、模様の試しのあとに短く見せる。
+//   途切れた技の頁で、架空の技 6 つ（重ねる 3・重ねない 3。docs/pattern-demo/cases/<id>.json の、本物の Claude の案と見込み）を
+//   「ファイルを読み込む」で入れ、それぞれの模様の見込みの頁（#waza/restore/<id>/moyou/1）の出来上がり（上から見た面）を撮る。
+//   輪打ち金筋は、画面の「重ねない技の例を見る」と同じ例（demo-wauchi。開くと読み込まれる）。Claude は呼ばない
+const WAZA17E = ['kasumi', 'uzu', 'ichimatsu', 'wauchi', 'sukashibori', 'tsubukin'];
 const STILLS9 = {
+  waza17e: [[1280, 720], 3, async (s) => {
+    const { p } = s;
+    const cases = path.join(__dirname, '..', '..', 'docs', 'pattern-demo', 'cases');
+    const css = 'header.bar{display:none!important}';
+    const openMoyou = async (id) => {
+      await p.evaluate((id) => { location.hash = `#waza/restore/demo-${id}/moyou/1`; }, id);
+      await p.waitForSelector('.pv-final canvas.pv-top', { timeout: 30000 });
+      for (let k = 0; k < 14; k++) { await p.keyboard.press('ArrowRight'); await s.wait(60); }
+      // 出来上がりの絵は、段の絵のあとに描く（重い）。描き終わる（真ん中の画素に色が入る）まで待つ
+      await p.waitForFunction(() => { const c = document.querySelector('.pv-top'); if (!c || !c.width) return false; const d = c.getContext('2d').getImageData(c.width >> 1, c.height >> 1, 1, 1).data; return d[3] > 0; }, null, { timeout: 60000 });
+      await s.wait(800);
+      await p.addStyleTag({ content: css });
+      await s.hideFixed();
+      await p.evaluate(() => { document.querySelector('.pv-final')?.scrollIntoView({ block: 'center' }); });
+      await s.wait(300);
+    };
+    await p.goto(`${BASE}/app.html?rec#waza/restore`, { waitUntil: 'load' });
+    await s.wait(1200);
+    // 輪打ち金筋（例）を先に開く（一覧に「ファイルを読み込む」が出る）
+    await openMoyou('wauchi');
+    for (const id of WAZA17E) {
+      if (id !== 'wauchi') {
+        await p.evaluate(() => { location.hash = '#waza/restore'; });
+        await s.wait(900);
+        await p.evaluate(() => { const d = document.querySelector('.rs-fold'); if (d) d.open = true; });
+        await p.locator('.rs-import input[type=file]').first().setInputFiles(path.join(cases, `${id}.json`));
+        await p.waitForFunction((id) => location.hash === `#waza/restore/demo-${id}`, id, { timeout: 15000 });
+        await s.wait(500);
+        await openMoyou(id);
+      } else await openMoyou(id);
+      await s.shot(id);
+      await s.box(`top_${id}`, '.pv-now canvas.pv-top', 0);
+      console.log('waza17e', id, await p.evaluate(() => [document.querySelector('.pv .mo-head h1, .pv .mo-head h2')?.innerText, document.querySelector('.mo-eyebrow')?.innerText, (() => { const c = document.querySelector('.pv-top'); return [c.width, c.height]; })()]));
+    }
+  }],
   // 毛彫り：本当の帳面のまま（?rec&flow）。作者の言葉「彫りの深さ」（職人の名前は見本の山田）。学ぶ人が聞く → 帳面から答える（合言葉なし）
   kebori9: [[480, 900], 4, async (s) => {
     const { p } = s;
