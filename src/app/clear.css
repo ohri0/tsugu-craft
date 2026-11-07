@@ -147,7 +147,8 @@ html.fit .in-flow .who b { font-size: 15px; }
 html.fit .in-flow .who small { font-size: 13px; }
 html.fit .in-flow .empty { padding: 14px 0 0; }
 html.fit .in-flow .empty .master-lead { font-size: 14px; line-height: 1.7; margin-bottom: 14px; }
-.chips-h { margin: 0 0 8px !important; font-size: 13px !important; font-weight: 600; color: var(--fg-3) !important; }
+/* 左右は auto：.empty p の幅（30em）の箱が左に寄り、例のボタンの中心とずれていた */
+.chips-h { margin: 0 auto 8px !important; font-size: 13px !important; font-weight: 600; color: var(--fg-3) !important; }
 html.fit .in-flow .chip { min-height: 40px; padding: 0 16px; border-radius: 20px; font-size: 14px; color: var(--fg); background: var(--panel); border-color: var(--line-2); }
 html.fit .in-flow .chip:hover { border-color: rgba(64, 156, 255, 0.55); background: var(--accent-weak); }
 .learn-pw { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 10px; margin: 0 auto 16px !important; font-size: 13px !important; color: var(--fg-2) !important; }
