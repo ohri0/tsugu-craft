@@ -452,7 +452,7 @@ const html = `
         <div class="lines rv" role="img" aria-label="11 本の線のうち、6 本が一致、3 本が一部、2 本がたどり着けず">${REBUILD.map((s) => `<i class="${s.v}"></i>`).join("")}</div>
         <p class="lines-k rv"><span class="ok">一致</span><span class="part">一部</span><span class="miss">たどり着けず</span></p>
         <details class="score-d rv"><summary>11 の手順を見る</summary><ol>${REBUILD.map((s) => `<li class="${s.v}"><p><b>${s.t}</b>${s.d}</p><span>${RV_LABEL[s.v]}</span></li>`).join("")}</ol></details>
-        <p class="src rv">2026-11-04 に Claude が組み立てた回の答え合わせ。9 のうち 3 は、手がかりではなく Claude がもともと知っていたことから、と分けて数えています。この力試しに、職人の帳面は渡していません。<a href="${REBUILD_URL}">力試しを開く</a></p>
+        <p class="src rv">2026-11-04 に Claude が組み立てた回の答え合わせ。9 のうち 3 は、手がかりではなく Claude がもともと知っていたことから、と分けて数えています。この力試しに、職人の帳面は渡していません。画面で開くのは、リポジトリに置いた公開の記録の回（2026-11-05・11 のうち 10）です。<a href="${REBUILD_URL}">力試しを開く</a></p>
       </div>
       <figure class="moyou rv">${img("moyou-final", "本当の手順で作ったら、Claude の手順で作ったら、本物の鐔、の 3 つの鐔の絵。Claude の手順の方には、はがれた所の黄色い縁がある", "(max-width: 760px) 92vw, 1100px")}<figcaption>その手順で木目金を作ったら、どんな模様になるか。本当の手順、Claude の手順、本物の鐔を並べました。左の 2 つは計算で描いたシミュレーションです。<a href="${MOYOU_URL}">模様の試しを開く</a></figcaption></figure>
       <div class="any">
