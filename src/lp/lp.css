@@ -443,3 +443,30 @@ figcaption { font-size: 15.5px; line-height: 1.75; margin-top: 12px; color: var(
   .open-app .oa-sm { display: inline; }
   .app-menu { left: 0; right: 0; width: auto; border-left: 0; border-right: 0; padding: 14px var(--gut) 20px; }
 }
+
+/* ---- スマホをちゃんと（2026-11-08 作者：「スマホ版のウェブページも全部いい感じに、ちゃんと」）。PC の見た目は変えない ---- */
+/* 押すと大きく見る（main.ts の .lb）。スマホだけ */
+.lb { position: fixed; inset: 0; z-index: 70; display: grid; grid-template-rows: minmax(0, 1fr) auto; background: rgba(7, 6, 6, 0.97); }
+.lb-in { overflow: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; display: grid; place-items: center start; padding: 64px 0 8px; }
+.lb-in img { max-width: none; height: auto; background: #1c1c1e; }
+.lb-x { position: fixed; top: max(8px, env(safe-area-inset-top)); right: 8px; z-index: 1; width: 48px; height: 48px; padding: 0; border: 1px solid var(--hair); background: rgba(7, 6, 6, 0.9); color: var(--white); font: 400 26px/1 var(--sans); cursor: pointer; }
+.lb-n { padding: 10px var(--gut) max(14px, env(safe-area-inset-bottom)); font-size: 14px; color: var(--white-2); text-align: center; }
+html.lb-open, html.lb-open body { overflow: hidden; }
+@media (max-width: 760px) {
+  :root { --sec: clamp(64px, 10vh, 96px); }
+  /* 見出しや短い言葉は、文節の切れ目（main.ts が入れた <wbr>）でだけ折る。入りきらない時は、どこでも折る */
+  .jp { word-break: keep-all; overflow-wrap: anywhere; }
+  .can-zoom { position: relative; cursor: zoom-in; }
+  .can-zoom::after { content: "押すと大きく"; position: absolute; top: 8px; right: 8px; z-index: 2; padding: 3px 10px; border-radius: 99px; background: rgba(7, 6, 6, 0.78); color: var(--white); border: 1px solid var(--hair); font: 400 13px/1.5 var(--sans); letter-spacing: 0.04em; pointer-events: none; }
+  .paper .can-zoom::after { background: rgba(22, 19, 17, 0.82); }
+  /* 本文は 13 px 以上に */
+  .pt-fam { font-size: 13.5px; }
+  .ten-t tr.mine th::after { font-size: 13.5px; }
+  /* 表の頭が「広げて入れ／る」と折れないよう、少し小さく・字の間を詰めて */
+  .ten-t thead th { font-size: 14px; letter-spacing: 0; }
+  /* 上の帯のメニュー：場所の名前を 1 行に */
+  .am-list b { white-space: nowrap; }
+  .am-list small { white-space: normal; text-align: right; line-height: 1.5; }
+  /* 途絶えた技の節の上：黒の空きと、さび色の地の空きが重なって長かった */
+  .restore { margin-top: 0; }
+}
