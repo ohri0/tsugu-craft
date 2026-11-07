@@ -29,12 +29,18 @@ export function askPassword(force = false): Promise<string> {
     const input = dlg.querySelector("input")!;
     // Enter は「使う」。先頭のボタンが送信にならないよう、「なしで使う」は送信ボタンにしない（Enter で合言葉が捨てられていた）
     dlg.querySelector(".pw-skip")!.addEventListener("click", () => dlg.close("skip"));
+    // 頁を移ったら閉じる（前は、移った先の頁の上に窓が開いたままだった）。「なしで使う」を選んだことにはしない
+    const onRoute = () => dlg.open && dlg.close("route");
+    window.addEventListener("hashchange", onRoute);
+    window.addEventListener("popstate", onRoute);
     dlg.addEventListener("close", () => {
+      window.removeEventListener("hashchange", onRoute);
+      window.removeEventListener("popstate", onRoute);
       const v = dlg.returnValue === "ok" ? input.value.trim() : "";
       if (v) {
         store.setPassword(v);
         wrong = false;
-      } else skipped = true;
+      } else if (dlg.returnValue !== "route") skipped = true;
       dlg.remove();
       changed();
       resolve(v);
