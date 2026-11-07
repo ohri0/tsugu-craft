@@ -3087,6 +3087,10 @@ def waza17g_tiles():
 
 
 def waza17e_beat(t):
+    if BEAT17 == "H":
+        return waza17h_beat(t)
+    if BEAT17 == "I":
+        return waza17i_beat(t)
     a = L.ground().copy()
     S0 = WAZA17G_SIDE
     for i, (((_, name), (rgb, al))) in enumerate(zip(WAZA17G_TILES, waza17g_tiles())):
@@ -3109,6 +3113,114 @@ def waza17e_beat(t):
     for j, line in enumerate(WAZA17G_NOTE):
         a = ink(a, Hz(W / 2, 1000 + j * 36, line, "sans", 23, 0.02, "c"), SHIRO, 0.78 * fade(t, 0.8, 0.6))
     return a
+
+
+# ---- 最終案 17h・17i（2026-11-08 作者の声：架空の段はなくてもいい。本当に途切れた技を、本物の品物と並べて見せるのが大事。両方を見たい）：
+#   BEAT17=H（本当に途切れた技だけ）／BEAT17=I（その下に、新しい架空の技 3 つ。docs/pattern-demo/odd/ の上位 3 つ）。なし（G）は 17g のまま。
+#   上の段は H も I も同じ並び：Claude の手順から描いた見込み 3 つの段（鋳た塊のむら → 叩いてのばす → 色を出す）｜本物の刀の刃の写真。
+#   本物の写真は docs/pattern-demo/lost/real/met-30932-crop.png（メトロポリタン美術館 36.25.1632、刃はイラン 18〜19 世紀、パブリックドメイン。
+#   出典は research/restore/lost-wootz.md）。写真は明るさも色も変えない。見込みは本物にまだ遠い（docs/pattern-demo/lost/README-real.md の回 0：1.7／10）ので、
+#   「似ている」とは書かず、並べるだけ。注に「本物には、まだ遠い」と書く。秒は 17g と同じ（n39 の頭 + 2.9 秒から場面の終わりまで、約 4.2 秒）。
+BEAT17 = os.environ.get("BEAT17", "G").strip().upper() or "G"
+WAZA17H_CAPTION = {"H": ("昔に失われた技でも、", "作り方の案から、模様が見えてきます。"),
+                   "I": WAZA17G_CAPTION}
+WAZA17H_STAGES = ("lost/wootz-book-stage1.png", "lost/wootz-book-stage2.png", "lost/wootz-book-top.png")
+WAZA17H_STEPS = "鋳た塊のむら → 叩いてのばす → 溝を彫って平らにし、色を出す"
+WAZA17H_REAL = "lost/real/met-30932-crop.png"
+WAZA17H_SIM = "Claude の手順から描いた見込み"
+WAZA17H_REAL_HEAD = "本物"
+WAZA17H_REAL_SUB = "18〜19 世紀の刀（メトロポリタン美術館）"
+WAZA17H_TECH = "本当に途切れた技：ダマスカス鋼（ウーツ鋼）"
+WAZA17I_ODD = (("odd/warinekase-top.png", "割り寝かせの鐔"),
+               ("odd/imura-top.png", "鋳むら捩りの小箱"),
+               ("odd/kazaguruma-top.png", "風車石畳の箱の蓋"))
+WAZA17H_NOTE = {"H": ("※ 左は、Claude が出した手順を計算で描いた、形だけの見込み。数は絵のための仮の値。本物には、まだ遠い。",
+                      "模様の元は、説が分かれていて、まだはっきりしない。　写真：メトロポリタン美術館（パブリックドメイン）"),
+                "I": ("※ どれも、Claude が出した手順を計算で描いた、形だけの見込み。数は仮の値。上の見込みは、本物には、まだ遠い。",
+                      "模様の元は、説が分かれていて、まだはっきりしない。　写真：メトロポリタン美術館（パブリックドメイン）")}
+
+
+@lru_cache(maxsize=16)
+def waza17h_img(rel, side, dim=0.92):
+    """docs/pattern-demo/ の PNG を side px・角を少し丸めて。dim：動画の地に合わせて落とす割合（本物の写真は 1.0＝変えない）"""
+    im = Image.open(os.path.join(HERE, "..", "docs", "pattern-demo", rel)).convert("RGBA")
+    if im.size != (side, side):
+        im = im.resize((side, side), Image.LANCZOS)
+    a = np.asarray(im, F32) / 255.0
+    return a[..., :3] * dim, a[..., 3:4] * _rounded(side)
+
+
+def waza17h_put(a, rel, x0, y0, side, k, dim=0.92):
+    if k <= 0:
+        return a
+    rgb, al = waza17h_img(rel, side, dim)
+    x0, y0 = int(round(x0)), int(round(y0))
+    w = al * k
+    a[y0:y0 + side, x0:x0 + side] = a[y0:y0 + side, x0:x0 + side] * (1 - w) + rgb * w
+    return a
+
+
+def waza17h_top(a, t, x0, ytop, small, big, gap, sep, fs):
+    """上の段：見込み 3 つ（小・小・大。下をそろえる）→ 線 → 本物（大）。名前は下に 2 行（金の見出しと白の説明）。返す：段の右の端"""
+    yb = ytop + big
+    xs = [x0, x0 + small + gap, x0 + 2 * (small + gap)]
+    sides = (small, small, big)
+    for i, (rel, x, sd) in enumerate(zip(WAZA17H_STAGES, xs, sides)):
+        a = waza17h_put(a, rel, x, yb - sd, sd, fade(t, 0.05 + 0.12 * i, 0.35))
+    for i in range(2):  # 段のあいだの矢印
+        a = ink(a, Hz(xs[i] + small + gap / 2, yb - small / 2 + fs * 0.4, "→", "sans", fs + 6, 0, "c"), SHIRO, 0.7 * fade(t, 0.15 + 0.12 * i, 0.35))
+    xr = xs[2] + big + sep
+    kr = fade(t, 0.45, 0.4)
+    a = ink(a, Ln(xr - sep / 2, ytop + 10, xr - sep / 2, yb - 10, 1.2), SHIRO, 0.35 * kr)
+    a = waza17h_put(a, WAZA17H_REAL, xr, ytop, big, kr, 1.0)
+    # 名前（見込みは 3 つの段のまん中、本物は写真のまん中）
+    cs, cr = (xs[0] + xs[2] + big) / 2, xr + big / 2
+    yl = yb + fs * 1.75
+    ks = fade(t, 0.3, 0.45)
+    a = ink(a, Hz(cs, yl, WAZA17H_SIM, "sans4", fs + 6, 0.04, "c"), WAZA17G_KIN, ks)
+    a = ink(a, Hz(cs, yl + fs * 1.6, WAZA17H_STEPS, "sans", fs, 0.02, "c"), SHIRO, 0.85 * ks)
+    a = ink(a, Hz(cr, yl, WAZA17H_REAL_HEAD, "sans4", fs + 6, 0.04, "c"), WAZA17G_KIN, kr)
+    a = ink(a, Hz(cr, yl + fs * 1.6, WAZA17H_REAL_SUB, "sans", fs, 0.02, "c"), SHIRO, 0.85 * kr)
+    return a, xr + big
+
+
+def waza17h_text(a, t, ycap, ynote, nsize):
+    for j, line in enumerate(WAZA17H_CAPTION[BEAT17]):
+        a = ink(a, Hz(W / 2, ycap + j * 66, line, "min", 46, 0.06, "c"), SHIRO, fade(t, 0.3 + 0.15 * j, 0.6))
+    for j, line in enumerate(WAZA17H_NOTE[BEAT17]):
+        a = ink(a, Hz(W / 2, ynote + j * (nsize + 12), line, "sans", nsize, 0.02, "c"), SHIRO, 0.8 * fade(t, 0.8, 0.6))
+    return a
+
+
+def waza17h_beat(t):
+    """17h：本当に途切れた技だけ。見込み（小 250・小 250・大 460）｜本物（460）。上に技の名前、下に名前と注"""
+    a = L.ground().copy()
+    small, big, gap, sep = 250, 460, 44, 100
+    width = 2 * (small + gap) + big + sep + big
+    a = ink(a, Hz(W / 2, 274, WAZA17H_TECH, "sans4", 32, 0.04, "c"), WAZA17G_KIN, fade(t, 0.2, 0.5))
+    a, _ = waza17h_top(a, t, (W - width) / 2, 312, small, big, gap, sep, 26)
+    return waza17h_text(a, t, 108, 1002, 24)
+
+
+def waza17i_beat(t):
+    """17i：上の段は 17h と同じ並びを小さく（小 190・大 300）、下の段に新しい架空の技 3 つ（300）。段の名前は左（17g と同じ置き方）"""
+    a = L.ground().copy()
+    small, big, gap, sep = 190, 300, 40, 80
+    x0, head_x = 560, 528
+    ytop, ybot = 196, 628
+    a, _ = waza17h_top(a, t, x0, ytop, small, big, gap, sep, 23)
+    for i, (rel, name) in enumerate(WAZA17I_ODD):
+        k = fade(t, 0.55 + 0.1 * i, 0.35)
+        x = x0 + i * (big + 28)
+        a = waza17h_put(a, rel, x, ybot, big, k)
+        a = ink(a, Hz(x + big / 2, ybot + big + 38, name, "sans4", 25, 0.04, "c"), SHIRO, 0.9 * k)
+    for r, (y, head, subs) in enumerate(((ytop + 120, "本当に途切れた技", ("ダマスカス鋼（ウーツ鋼）", "資料の手がかりから")),
+                                         (ybot + 132, "架空の技", ("作り話の手がかりから",)))):
+        kr = fade(t, 0.2 + 0.4 * r, 0.5)
+        a = ink(a, Hz(head_x, y, head, "sans4", 34, 0.04, "r"), WAZA17G_KIN, kr)
+        for j, sub in enumerate(subs):
+            a = ink(a, Hz(head_x, y + 50 + j * 36, sub, "sans", 24, 0.02, "r"), SHIRO, 0.7 * kr)
+    return waza17h_text(a, t, 96, 1012, 23)
 
 
 # ---- 模様の試しの表を、順に出す（最終案 16）
@@ -3335,6 +3447,8 @@ SOURCES = [
     ("式年遷宮に関われる回数", ["国土交通白書"]),
     ("工房の映像（章の頭・結）", ["Tima Miroshnichenko、Pexels（Pexels License）"]),
 ]
+if BEAT17 in ("H", "I"):  # 最終案 17h・17i：2:45 に本物の刀の写真を出すので
+    SOURCES.insert(2, ("ダマスカス鋼の刀の写真", ["メトロポリタン美術館（パブリックドメイン）。模様の所を切り出し"]))
 
 
 @scene()
@@ -3410,10 +3524,26 @@ def scene_code(sid):
     return inspect.getsource(fn) if fn else ""
 
 
+def extra_key(s):
+    """場面の関数の外にあって、絵を変える物（最終案 17h・17i：BEAT17 の切り替えと、その絵の作り。出典の一覧）。ほかの場面は空（鍵は前と同じ）"""
+    import inspect
+
+    if not s:
+        return ""
+    if s.get("waza"):
+        fns = (waza17e_beat, waza17h_beat, waza17i_beat, waza17h_top, waza17h_text, waza17h_put, waza17h_img, waza17g_tiles)
+        consts = (WAZA17H_CAPTION, WAZA17H_STAGES, WAZA17H_STEPS, WAZA17H_REAL, WAZA17H_SIM, WAZA17H_REAL_HEAD, WAZA17H_REAL_SUB, WAZA17H_TECH, WAZA17I_ODD, WAZA17H_NOTE,
+                  WAZA17G_CAPTION, WAZA17G_ROWS, WAZA17G_TILES, WAZA17G_NOTE)
+        return "beat17=" + BEAT17 + "".join(inspect.getsource(getattr(fn, "__wrapped__", fn)) for fn in fns) + repr(consts)
+    if s["id"] == "sources":
+        return repr(SOURCES)
+    return ""
+
+
 def seg_key(doc, idx, code):
     s = doc["scenes"][idx]
     prev = doc["scenes"][idx - 1] if idx else None
-    code = hashlib.sha1((COMMON + scene_code(s["id"]) + (scene_code(prev["id"]) if prev else "")).encode()).hexdigest()[:12]
+    code = hashlib.sha1((COMMON + scene_code(s["id"]) + (scene_code(prev["id"]) if prev else "") + extra_key(s) + extra_key(prev)).encode()).hexdigest()[:12]
     uses = list(USES.get(s["id"], ()))
     if prev:
         uses += list(USES.get(prev["id"], ()))
