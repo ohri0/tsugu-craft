@@ -37,6 +37,9 @@ describe("入れた動画の扱い（添削か、職人の手本か）", () => {
   it("自分の手を見てほしい：手本があれば比べ、なければ頼む。職人の手本：残す", () => {
     expect(videoRoute("check", true)).toBe("compare");
     expect(videoRoute("check", false)).toBe("request");
+    // よくない例は、手本があってもなくても、よくない例として残す
+    expect(videoRoute("bad", true)).toBe("save-bad");
+    expect(videoRoute("bad", false)).toBe("save-bad");
     expect(videoRoute("model", false)).toBe("save-model");
     expect(videoRoute("model", true)).toBe("save-model");
   });

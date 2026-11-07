@@ -15,7 +15,7 @@ import { measureOutline, type StoneOutline } from "../geometry/measure";
 import { outlineIndexAtT, type JoinStyle, type ProngTip, type SettingResult } from "../geometry/setting";
 import { nameShape } from "../geometry/shape";
 import { runClaude, type LogEntry } from "../claude/loop";
-import { cannotFrom, hasJapanese, offlineWhy, plainWords, ruleTitles, toolLogLine, withoutCannot, type RuleTitles, type StoneWords } from "../claude/words";
+import { cannotFrom, hasJapanese, heardFrom, heardWords, offlineWhy, plainWords, ruleTitles, toolLogLine, withoutCannot, type RuleTitles, type StoneWords } from "../claude/words";
 import { STONE_FREE_NOTE, STONE_KEEP_NOTE, correctPrompt, designPrompt, gouNote } from "../claude/prompt";
 import { craftPointsFromProposal, designNowText, isPointProposal, previewPoints, type DesignNow, type PointsPreview } from "../claude/rule-points";
 import { craftProngPoints, craftProngRule, mergeCraftPoints, mmText, prongMinAt, prongPointsRule, prongTable } from "../rules/prong-points";
@@ -57,7 +57,7 @@ import { MAKE_BAND, SECTION_LABEL, bandGrooveNote, bandWidthNote, SECTION_LIST, 
 import { BAND_GOU_RANGE, bandTarget, renderBandPanel, type BandPanelHost } from "./band-panel";
 import { sectionLoop, sectionPath, type PresetKind, type SectionSpec } from "../cad/section";
 import { effectiveGuides } from "../rules/ledger";
-import { BAND_THIN_STEP_MM, COLLAR_STEP_MM, WIRE_STEP_MM, metalIdOf, nextGrip } from "./session";
+import { BAND_THIN_STEP_MM, DEFAULT_STATE, COLLAR_STEP_MM, WIRE_STEP_MM, metalIdOf, nextGrip } from "./session";
 import { GUIDES, GUIDE_NOTE, minProngMm, stoneSizeMm } from "../rules/guides";
 import { callTool } from "../rebuild/run";
 import { dimsSvg, flatDims, gizmoSvg, type Dim, type Rect, type V3 } from "./dims";
@@ -212,7 +212,7 @@ app.innerHTML = `
 
   <div class="cmd-wrap">${filming() ? "" : `<div class="make-opts">
       <div class="gen-stone solitaire-only" role="radiogroup" aria-label="石"><span class="sp-label">石</span>
-        <label><input type="radio" name="stone-pick" value="keep" checked><span><b>今の石を使う</b><small class="sp-now">—</small></span></label>
+        <label><input type="radio" name="stone-pick" value="keep" checked><span><b>今の石を使う</b><small class="sp-now">石を読んでいます…</small></span></label>
         <label><input type="radio" name="stone-pick" value="free"><span><b>石もおまかせ</b><small>形も大きさも Claude が選ぶ</small></span></label>
         <label><input type="radio" name="stone-pick" value="none"><span><b>石なし</b><small>地金だけの指輪</small></span></label>
       </div>
@@ -468,6 +468,8 @@ async function loadStone(img: ImageData, label: string, longMm: number, depthMm:
   if (!(opts.same?.shape && opts.same.size)) tuneProngs();
   if (!opts.same) keptPhoto = null;
   keepDesignSoon();
+  // 石の欄と号の欄は、組む前に埋める（最初の見せ場の間、「—」と空の号が見えていた。2026-11-07 仕上げの見直し）
+  renderMakeOpts();
   if (opts.intro) await intro();
   else session.build("最初の案");
 }
@@ -1323,6 +1325,8 @@ function drawingSheetHtml(): string {
   if (!session?.built) return "";
   return solitaireDrawing(session.built, grouped(session.built).map(({ p }) => SHORT[p.check] ?? p.where));
 }
+/** 図面の下に空ける高さ（px）。「大きく見る」のボタン（下から 12 px・高さ 44 px）が図面の右下の角に重なっていた。上は表示の欄の下から */
+const SHEET_BIG_ROOM = 64;
 function showSheet() {
   sheetOn = true;
   let el = document.querySelector<HTMLElement>(".sheet-view");
@@ -1339,7 +1343,7 @@ function showSheet() {
     .wrap{position:absolute;left:50%;top:50%;transform-origin:center}
     .dw{background:#fff;color:#111;box-shadow:0 20px 60px rgba(0,0,0,.5)}</style>
     <div class="wrap">${body}</div>
-    <script>const w=document.querySelector('.wrap');function fit(){const r=w.firstElementChild.getBoundingClientRect();const k=Math.min(innerWidth/(r.width/(w._k||1)),innerHeight/(r.height/(w._k||1)))*0.92;w._k=k;w.style.transform='translate(-50%,-50%) scale('+k+')'}addEventListener('resize',fit);requestAnimationFrame(fit);</script>`)}"></iframe>`;
+    <script>const w=document.querySelector('.wrap'),P=${filming() ? 0 : SHEET_BIG_ROOM};function T(){try{return Math.max(0,parent.document.querySelector('.vp-tl').getBoundingClientRect().bottom-frameElement.getBoundingClientRect().top+6)}catch(e){return 0}}function fit(){const r=w.firstElementChild.getBoundingClientRect(),rw=r.width/(w._k||1),rh=r.height/(w._k||1);let k;if(P){const t=T(),H=innerHeight-t-P;k=Math.min(innerWidth*0.92/rw,H*0.98/rh);w.style.top=(t+H/2)+'px'}else k=Math.min(innerWidth/rw,innerHeight/rh)*0.92;w._k=k;w.style.transform='translate(-50%,-50%) scale('+k+')'}addEventListener('resize',fit);requestAnimationFrame(fit);</script>`)}"></iframe>`;
   el.querySelector(".sheet-big")?.addEventListener("click", openSheetFull);
 }
 /** 図面を全画面で。＋ − で大きくして、指やマウスで動かして読む（スマホでは小さくて読めず、拡大もできなかった） */
@@ -1516,8 +1520,12 @@ async function make() {
       "この石で指輪を組み、check で確かめ、作れない所があれば直してください。\n" +
       `この道具で変えられるのは、${free ? "石（よくある形と大きさ）と、" : ""}石座（留め方・爪の本数と太さと形と位置・高さ・向き・腕への付け方）と腕（断面の線・場所ごとの幅と厚みと断面・腕の流れ・面に彫る模様・地金）です。` + "雰囲気の言葉は、腕の断面と線にも訳してください。\n" +
       "希望や絵のうち、これで表せないこと（穴を開ける透かし、決まった 8 つのほかの模様、立体の飾り、石の数を増やす など）は、できたふりをせず、「まだできないこと：」の行に正直に短く書いてください。この行には、希望や絵で求められたのに形にできなかったことだけを書きます（帳面の決まりで気づいたことは「残っていること」へ）。すべて表せたときは「まだできないこと：なし」と書いてください。\n" +
-      "最後の返事は、次の 4 行だけにしてください。前置き・見出し・箇条書きは書きません。1 行は 100 字ほどまで。\n" +
-      "やったこと：…\n確かめたこと：…\n残っていること：…\nまだできないこと：…",
+      (wish
+        ? "最後の返事は、次の 5 行だけにしてください。前置き・見出し・箇条書きは書きません。1 行は 100 字ほどまで。\n" +
+          "「受け取り方：」の行は、希望の言葉をどんな形に受け取ったかを 40 字ほどで（例：受け取り方：華奢に → 細い腕・低めの石座・細めの爪）。ひとことの希望でも聞き返さずに組み、ここで受け取り方を見せます。\n" +
+          "受け取り方：…\nやったこと：…\n確かめたこと：…\n残っていること：…\nまだできないこと：…"
+        : "最後の返事は、次の 4 行だけにしてください。前置き・見出し・箇条書きは書きません。1 行は 100 字ほどまで。\n" +
+          "やったこと：…\n確かめたこと：…\n残っていること：…\nまだできないこと：…"),
   });
   const r = await runClaude({
     host: makeHost(() => session!, {
@@ -1549,7 +1557,9 @@ async function make() {
   const chosenWords = chosen && stone ? `石は Claude が選びました（${stone.shapeName} ${stone.measured.longMm.toFixed(2)} × ${stone.measured.widthMm.toFixed(2)} mm、深さは例）。${imported ? "取り込んだ石は「取り込んだ石」のボタンで戻せます。" : ""}` : "";
   // 「今の石を使う」のまま石なしを頼まれたときは、石なしで作り直す道を出す
   const noStone = pick === "keep" && wantsNoStone(wish) ? [{ label: "石なしで作る →", run: () => void makeNoStone("none") }] : [];
-  setStatus(`${chosenWords}${r.remaining !== undefined ? `今日あと ${r.remaining} 回` : ""}`, { links: [...noStone, { label: "確かめる →", run: () => setMode("refine") }] });
+  // ひとことの希望（「かわいく」）を、どう受け取ったかを 1 行で見せる。違えば人が言葉を足せる（聞き返しで止めない）
+  const heard = wish ? heardWords(heardFrom(r.finalText, titlesNow())) : "";
+  setStatus(`${heard}${chosenWords}${r.remaining !== undefined ? `今日あと ${r.remaining} 回` : ""}`, { links: [...noStone, { label: "確かめる →", run: () => setMode("refine") }] });
 }
 /** 石もおまかせ：Claude が選んだよくある形を、人が札を押したときと同じ関数で入れる。腕・地金・号は引き継ぐ */
 async function chooseStoneTool(input: ChooseStoneInput): Promise<ChooseStoneResult> {
@@ -1630,8 +1640,9 @@ function renderMakeOpts() {
   const now = document.querySelector<HTMLElement>(".sp-now");
   if (now && stone) now.textContent = `${stone.shapeName} ${stone.measured.longMm.toFixed(2)} × ${stone.measured.widthMm.toFixed(2)} mm`;
   const sel = document.querySelector<HTMLSelectElement>(".gen-gou");
-  if (!sel || (kind === "solitaire" && !session)) return;
-  const cur = kind === "band" ? band.gou : session!.state.gou;
+  if (!sel) return;
+  // 石を読む前（開いてすぐ）は、はじめの号を出しておく（空の欄が見えていた）
+  const cur = kind === "band" ? band.gou : (session?.state.gou ?? DEFAULT_STATE.gou);
   const { min, max } = gouRange();
   // 開いた記録の号が、選べる範囲の外のこともある
   const lo = Math.min(min, cur);
@@ -4368,7 +4379,7 @@ async function makeBand(lead = "", begun?: number) {
   showCannot(d.cannotDo);
   // 職人の帳面の目安で確かめた結果も、ここで言う（Claude の案が帳面の厚みに届かないことがある）
   const probs = bandProblems().length;
-  setStatus(`${lead}${probs ? `帳面の目安で、作れない所が ${probs} あります。` : ""}${r.remaining !== undefined ? `今日あと ${r.remaining} 回` : ""}`, { links: [{ label: "確かめる →", run: () => setMode("refine") }] });
+  setStatus(`${lead}${wish ? heardWords(d.heard) : ""}${probs ? `帳面の目安で、作れない所が ${probs} あります。` : ""}${r.remaining !== undefined ? `今日あと ${r.remaining} 回` : ""}`, { links: [{ label: "確かめる →", run: () => setMode("refine") }] });
   // 「形」の欄が長いので、Claude の答えの所まで動かす
   if (!$(".make-panel").hidden) requestAnimationFrame(() => $(".make-note").parentElement?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
 }
@@ -4932,6 +4943,7 @@ if (new URLSearchParams(location.search).has("rec")) {
 // 前に入れた見本の作品は消す（職人が残した作品は消さない）。撮影は見本を使うので、そのまま
 if (!filming()) removeSampleWorks();
 setMode("make");
+renderMakeOpts();
 void restoreDesign()
   .catch(() => false)
   .then(async (back) => {

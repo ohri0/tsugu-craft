@@ -251,9 +251,12 @@ export function mountAsk(root: HTMLElement): { refresh(): void; route(tech?: str
     const ledger = store.ledger();
     // 爪の太さの問いは、画面が先に職人の点から計算しておく（Claude は言い方だけ。数字はこの計算から）
     const prong = tech === "ring" ? prongLearnFacts(question, rulesNow()) : null;
-    const password = store.password() || (await askPassword());
+    // 「いまは Claude なしで、帳面から探します」と画面に出ているときは、そのとおり合言葉を聞かずに帳面から答える
+    // （前は、はじめの 1 回だけ合言葉の窓が出て、画面の言葉と食い違っていた。合言葉は右上のボタンで入れられる）
+    const promised = !!root.querySelector(".learn-pw:not([hidden])");
+    const password = store.password() || (promised ? "" : await askPassword());
     if (!password) {
-      localAnswer(question, el, isMihon() ? "" : "合言葉がないので、Claude なしで帳面から探しました。");
+      localAnswer(question, el, isMihon() ? "" : promised ? "Claude なしで、帳面から探しました（合言葉は右上）。" : "合言葉がないので、Claude なしで帳面から探しました。");
       busy = false;
       return;
     }

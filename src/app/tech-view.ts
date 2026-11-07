@@ -297,7 +297,7 @@ export function mountTech(root: HTMLElement, id: HowtoId, opts: { gapId?: string
     const mine = savedRecords().filter((r) => (r.technique ?? "ring") === id);
     // 学ぶ人から、この技の手本を頼まれていれば、ここに出す
     mountRequests($(".mreq-slot"), id);
-    $(".model-n").textContent = `残した手本 ${mine.length}`;
+    $(".model-n").textContent = `残した手本 ${mine.filter((r) => !r.bad).length}${mine.some((r) => r.bad) ? `・よくない例 ${mine.filter((r) => r.bad).length}` : ""}`;
     $(".tp-models").innerHTML = mine.map((r) => `<li><b>${esc(r.title)}</b><small>${r.craftsman === MIHON_NAME ? "作り話の例" : esc(r.craftsman || "名前なし")} ・ ${esc(r.date)} ・ ${Math.round(r.durationS)} 秒</small></li>`).join("");
   }
 

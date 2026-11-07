@@ -324,6 +324,27 @@ export function cannotFrom(finalText: string, titles?: RuleTitles): string {
 }
 
 /**
+ * 生成の答えの「受け取り方：」の行（希望の言葉を、どんな形に受け取ったか）。ひとことの希望（「かわいく」）は何通りにも取れるので、
+ * 聞き返さずに組み、受け取り方を 1 行で見せて、違えば人が言葉を足せるようにする（docs/robustness の D09）。なければ空
+ */
+export function heardFrom(finalText: string, titles?: RuleTitles): string {
+  const line = finalText.replace(/\*\*/g, "").split(/\r?\n/).find((l) => /受け取り方\s*[：:]/.test(l));
+  if (!line) return "";
+  const text = line
+    .replace(/^.*?受け取り方\s*[：:]\s*/, "")
+    .replace(/[、,]?\s*と受け取りました[。．]?\s*$/, "")
+    .replace(/[。．]\s*$/, "")
+    .trim();
+  if (!text || /^(なし|ありません|特になし|特にありません|ない)$/.test(text)) return "";
+  return plainWords(text, titles);
+}
+
+/** 受け取り方を、画面の一言に（違えば言葉を足してもう一度、と添える） */
+export function heardWords(heard: string): string {
+  return heard ? `受け取り方：${heard}、と受け取りました。違えば、希望に言葉を足してもう一度。` : "";
+}
+
+/**
  * Claude につながらなかったわけを、かっこつきの短い言葉に。返事の言葉が「Claude につながりませんでした。…」で始まるときは、
  * 前の文と同じ言葉が 2 回出ていたので、サーバーの番号だけを残す（2026-11-06 通しの確かめ）。わけがなければ空
  */

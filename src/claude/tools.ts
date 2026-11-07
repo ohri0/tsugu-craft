@@ -545,6 +545,26 @@ export const INPUT_BOUNDS = {
   culet_gap_mm: [GUIDES.height.minFingerGapMm, 6],
 } as const;
 
+/**
+ * 決まりの値（param）のうち、道具の入力の範囲（INPUT_BOUNDS）が前からある値だけ、その範囲で受ける。
+ * 範囲を新しく作らない（出典のない数字は作らない）。石の一番下と指のすき間は、範囲の下が目安の最低そのもので、職人がゆるめる決まりを断ってしまうので入れない
+ */
+export const PARAM_INPUT_BOUND: Partial<Record<ParamId, keyof typeof INPUT_BOUNDS>> = {
+  "prong.minDiameterMm": "prong_mm",
+  "band.minThicknessMm": "thickness_mm",
+  "band.minWidthMm": "width_mm",
+};
+
+/** 決まりの値が、道具の入力の範囲の外なら、そのわけ（日本語）。範囲のない値・範囲の中なら null */
+export function paramValueProblem(param: ParamId, value: number): string | null {
+  const b = PARAM_INPUT_BOUND[param];
+  if (!b) return null;
+  const [lo, hi] = INPUT_BOUNDS[b];
+  if (value >= lo && value <= hi) return null;
+  const unit = PARAMS[param].unit;
+  return `${PARAMS[param].label}の ${value} ${unit} は、継ぐで組める値（${lo}〜${hi} ${unit}）の外です。数字と単位（mm）を確かめてください`;
+}
+
 // ---- 道具の定義（Claude に見せる説明つき） ----
 
 const h = GUIDES.height;

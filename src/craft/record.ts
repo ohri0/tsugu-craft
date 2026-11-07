@@ -27,6 +27,8 @@ export interface SkillRecord {
   craftsman: string;
   /** どの技の手本か（なければ指輪の石留め） */
   technique?: string;
+  /** よくない例として残した動画（手本にはしない。手本の横に「よくない例」として出す） */
+  bad?: true;
   /** YYYY-MM-DD */
   date: string;
   videoName: string;
@@ -160,6 +162,7 @@ export function importRecord(src: string | unknown): SkillRecord {
     title: str(v.title, "手の記録"),
     craftsman: str(v.craftsman, ""),
     ...(typeof v.technique === "string" ? { technique: v.technique } : {}),
+    ...(v.bad === true ? { bad: true as const } : {}),
     date: str(v.date, ""),
     videoName: str(v.videoName, ""),
     durationS: durationS ?? metrics.durationS,

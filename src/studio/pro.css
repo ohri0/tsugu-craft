@@ -172,6 +172,8 @@ line.ax-z { stroke: #4ea1ff; } text.ax-z { fill: #4ea1ff; }
 
 .sec { padding: 12px 14px; border-bottom: 1px solid var(--line); }
 .sec:last-child { border-bottom: 0; }
+/* 腕の形の欄は、組めるまで（最初の見せ場の間）見出しだけ空で見えていたので、中身が入るまで隠す */
+.sec:has(> .ring-shape:empty) { display: none; }
 .sec > h4, .sec-h { margin: 0 0 8px; font-size: 11px; font-weight: 600; color: var(--fg-2); display: flex; align-items: center; justify-content: space-between; }
 .sec-h small { font-weight: 400; color: var(--fg-3); }
 .hint, .tech-what, .note-b { margin: 6px 0 0; font-size: 11px; color: var(--fg-3); line-height: 1.55; }

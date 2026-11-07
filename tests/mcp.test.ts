@@ -84,6 +84,15 @@ describe("propose_rule", () => {
     expect(() => proposeRule(ctx, { ...gapRule, value: undefined })).toThrow(/両方/);
     expect(existsSync(ctx.ledgerPath)).toBe(false);
   });
+  it("ありえない値（爪 5 mm）は、道具の入力の範囲で断る。範囲のある値だけ（M07）", () => {
+    const prong = { craftsman: "試しの職人", title: "爪の太さ", text: "爪は 5 mm 以上", reason: "折れないように", param: "prong.minDiameterMm" as const, value: 5 };
+    expect(() => proposeRule(ctx, prong)).toThrow(/爪の太さ（最低）の 5 mm は、継ぐで組める値（0.3〜3 mm）の外です/);
+    expect(existsSync(ctx.ledgerPath)).toBe(false);
+    expect(proposeRule(ctx, { ...prong, value: 0.9 }).rule_id).toBeTruthy();
+    expect(() => proposeRule(ctx, { ...prong, title: "腕の厚み", param: "band.minThicknessMm", value: 12 })).toThrow(/外です/);
+    // 範囲のない値（すき間）は今までどおり
+    expect(proposeRule(ctx, gapRule).rule_id).toBeTruthy();
+  });
 });
 
 describe("check_ring", () => {

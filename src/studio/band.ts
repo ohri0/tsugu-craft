@@ -6,7 +6,7 @@ import { GUIDES, GUIDE_NOTE, type Guides } from "../rules/guides";
 import { SPIKE_TEXT, WIDTH_RED_TEXT, narrowGroove, sectionSpots, widthFixMm, widthLevel, widthNoteOf, type GrooveNote, type WidthNote } from "../rules/checks";
 import type { ThinSpot } from "../geometry/section-thin";
 import type { SectionCurve } from "../geometry/shank";
-import type { ClaudeTool } from "../claude/wire";
+import { JA_ANSWER, type ClaudeTool } from "../claude/wire";
 import type { Step } from "./howto";
 import type { AlloyId } from "./process";
 import { castSteps, finishStep, forgeSteps } from "./steps";
@@ -554,8 +554,9 @@ export const MAKE_BAND: ClaudeTool = {
       metal: { type: "string", enum: [...METALS], description: "地金" },
       reason: { type: "string", description: "そう決めた理由（1〜2 文、やさしい日本語）" },
       cannot_do: { type: "string", description: "希望のうち、この道具では表せないこと（模様・彫り・石 など）。正直に短く。すべて表せたときは空の文字" },
+      heard: { type: "string", description: "希望の言葉を、どんな形に受け取ったか。40 字ほどの 1 行（例：力強く → 太めの幅・平らな面・角の立つ断面）。希望がなければ空の文字" },
     },
-    required: ["section", "bottom_section", "top_width_mm", "top_thickness_mm", "bottom_width_mm", "bottom_thickness_mm", "inner_mm", "gou", "metal", "reason", "cannot_do"],
+    required: ["section", "bottom_section", "top_width_mm", "top_thickness_mm", "bottom_width_mm", "bottom_thickness_mm", "inner_mm", "gou", "metal", "reason", "cannot_do", "heard"],
     additionalProperties: false,
   },
 };
@@ -569,6 +570,8 @@ export interface BandDraft {
   metal: (typeof METALS)[number];
   reason: string;
   cannotDo: string;
+  /** 希望の言葉の受け取り方（ひとことの希望を、どんな形に受け取ったか。画面の一言に出す） */
+  heard: string;
 }
 
 const inRange = (v: unknown, lo: number, hi: number, d: number) => (typeof v === "number" && Number.isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d);
@@ -594,6 +597,7 @@ export function parseBand(input: unknown): { ok: true; value: BandDraft } | { ok
       metal,
       reason: typeof r.reason === "string" ? r.reason.trim() : "",
       cannotDo: typeof r.cannot_do === "string" ? r.cannot_do.trim() : "",
+      heard: typeof r.heard === "string" ? r.heard.trim().replace(/[、,]?\s*と受け取りました[。．]?$/, "").replace(/[。．]$/, "") : "",
     },
   };
 }
@@ -621,5 +625,7 @@ export function bandPrompt(guides: Guides = GUIDES): string {
 - この道具で変えられるのは、断面の形（上と下で変えられる）と、上と下の幅・厚み、内甲丸の丸み、地金だけです。模様・彫り・石・ねじり などは表せないので、cannot_do に正直に書きます。表せなかったのに「ご希望どおり」とは書きません。
 - 厚みが薄すぎて作りにくい値は選びません（上も下も、厚み ${g.minThicknessMm} mm 以上が${own ? "この工房の決まり" : "目安"}）。それより薄く頼まれたら、この値まで厚くして、cannot_do にそう書きます。幅は職人の決まりで、${g.widthYellowMm} mm 以下は黄色の注意、${g.widthOrangeMm} mm より細いとオレンジの注意（どちらも作れる）、${g.minWidthMm} mm 以下は赤です。細い希望でなければ、${g.widthYellowMm} mm より太くします。
 - 石のない指輪です。希望に石のこと（石を大きく見せる・ダイヤを入れる など）があれば、石があるつもりの理由は書かず、cannot_do に「石のある指輪は、一粒石の指輪で作れます」と書きます。
-- reason はやさしい日本語で 1〜2 文。Markdown の記号は使いません。`;
+- 「かわいく」のようなひとことの希望でも聞き返さずに決め、heard に受け取り方を 1 行で書きます（人が見て、違えば言葉を足します）。
+- reason はやさしい日本語で 1〜2 文。Markdown の記号は使いません。
+${JA_ANSWER}`;
 }

@@ -141,6 +141,7 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
         <button type="button" class="role-btn role-check"><b>自分の手を見てほしい</b><small class="role-check-s"></small></button>
         <button type="button" class="role-btn role-model"><b>職人の手本（いい例）として残す</b><small class="role-model-s"></small></button>
       </div>
+      <button type="button" class="linklike role-bad">よくない例として残す</button>
       <button type="button" class="linklike role-cancel">やめる</button>
     </div>
     <div class="progress" hidden><div class="pbar"><i></i></div><p class="small ptext"></p></div>
@@ -157,6 +158,8 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
 
   let seq = 0;
   let examples: Example[] = [];
+  /** この技のよくない例（手本にはしない。手本の一覧の横に出す） */
+  let bads: Example[] = [];
   let sampleLearner: Example | undefined;
   let current: Example | null = null;
   let masterTrack: { left: PoseTrack; right: PoseTrack } | null = null;
@@ -256,7 +259,7 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
     // 見本の手本は、職人の本物の手元でもヤスリがけ。技の手本だとは言わない
     $(".see-title").textContent = isMihon() ? "見本の手本（職人の本物の手元・ヤスリがけ）と、学ぶ人の手の動きを比べます。" : tech ? `${san(name)}の手本（${techName(tech)}）と、あなたの手を比べます。` : `${name}さんの手本の動画と、あなたの手の動きを比べます。`;
     if (demo && !pair) pair = loadPair();
-    const [samples, local, pd] = await Promise.all([loadSamples(), localExamples().then((l) => l.filter((e) => (demo ? (e.record.technique ?? "ring") === techKey() : !tech || (e.record.technique ?? "ring") === tech))), demo ? pair! : Promise.resolve(null)]);
+    const [samples, all, pd] = await Promise.all([loadSamples(), localExamples().then((l) => l.filter((e) => (demo ? (e.record.technique ?? "ring") === techKey() : !tech || (e.record.technique ?? "ring") === tech))), demo ? pair! : Promise.resolve(null)]);
     if (my !== seq) return;
     if (pd && !pairShown) {
       pairShown = true;
@@ -264,6 +267,8 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
       mountPair($(".pair-slot"), pd);
     }
     const mihon = isMihon();
+    bads = all.filter((e) => e.record.bad);
+    const local = all.filter((e) => !e.record.bad);
     examples = [...(samples && !mihon && (!tech || tech === "ring") ? [samples.master] : []), ...local];
     sampleLearner = samples?.learner;
     $(".try-sample").hidden = !sampleLearner;
@@ -293,7 +298,8 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
         const sent = !nm ? 0 : choice === OTHER ? loadRequests().items.filter((r) => !r.tech && r.name === nm).length : requestsFor(loadRequests(), tech ?? "ring").length;
         $(".see-title").hidden = true;
         $(".master-stage").hidden = true;
-        $(".examples").innerHTML = `<p class="no-model">${nm ? `${esc(nm)}の手本は、まだありません。` : "一覧にない技は、名前を書いてください。"}${sent ? `<small>この技は、もう ${sent} 件 頼んでいます。</small>` : ""}</p>`;
+        $(".examples").innerHTML = `<p class="no-model">${nm ? `${esc(nm)}の手本は、まだありません。` : "一覧にない技は、名前を書いてください。"}${sent ? `<small>この技は、もう ${sent} 件 頼んでいます。</small>` : ""}</p>${badListHtml(name)}`;
+        bindBadList();
         $(".cta").hidden = false;
         $(".cta b").textContent = "動画を入れる";
         $(".cta small").textContent = "あなたの手なら、その動画をつけて職人に手本を頼めます。職人なら、そのまま手本として残せます。";
@@ -307,7 +313,7 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
       $(".tool-opt").hidden = !!good;
       const want = pickAfter ? examples.find((e) => e.id === pickAfter) : undefined;
       pickAfter = null;
-      if (examples.length === 1 && good) {
+      if (examples.length === 1 && good && !bads.length) {
         $(".examples").innerHTML = "";
         if (current?.id !== PAIR_GOOD) choose(good);
         else current = good;
@@ -333,8 +339,19 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
   function listExamples(name: string) {
     $(".examples").innerHTML = `<div class="ex-list">${examples
       .map((e, i) => `<button type="button" class="ex" data-i="${i}" aria-pressed="false"><b>${esc(e.record.title)}</b><small>${esc(e.id === PAIR_GOOD ? "上のいい例" : e.record.craftsman === MIHON_NAME ? "見本・職人の本物の手元" : san(e.record.craftsman || name))} ・ ${clock(e.record.durationS)}${e.record.notes.length ? ` ・ 言葉 ${e.record.notes.length}` : ""}${e.sample && e.id !== PAIR_GOOD ? " ・ 見本" : ""}</small></button>`)
+      .join("")}</div>${badListHtml(name)}`;
+    root.querySelectorAll<HTMLButtonElement>(".ex[data-i]").forEach((b) => b.addEventListener("click", () => choose(examples[Number(b.dataset.i)])));
+    bindBadList();
+  }
+  /** この技のよくない例の一覧（手本の一覧の下。手本がまだなくても出す） */
+  function badListHtml(name: string): string {
+    if (!bads.length) return "";
+    return `<p class="ex-bad-h small">よくない例</p><div class="ex-list ex-bad">${bads
+      .map((e, i) => `<button type="button" class="ex bad" data-b="${i}" aria-pressed="false"><b>${esc(e.record.title)}</b><small>${esc(san(e.record.craftsman || name))} ・ ${clock(e.record.durationS)} ・ 比べる手本にはしません</small></button>`)
       .join("")}</div>`;
-    root.querySelectorAll<HTMLButtonElement>(".ex").forEach((b) => b.addEventListener("click", () => choose(examples[Number(b.dataset.i)])));
+  }
+  function bindBadList() {
+    root.querySelectorAll<HTMLButtonElement>(".ex[data-b]").forEach((b) => b.addEventListener("click", () => choose(bads[Number(b.dataset.b)])));
   }
 
   /** 聞きたい技の名前（ヤスリがけ・一覧の技・書いた名前） */
@@ -351,14 +368,15 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
 
   function choose(e: Example) {
     current = e;
-    root.querySelectorAll<HTMLButtonElement>(".ex").forEach((b) => b.setAttribute("aria-pressed", String(examples[Number(b.dataset.i)] === e)));
+    root.querySelectorAll<HTMLButtonElement>(".ex").forEach((b) => b.setAttribute("aria-pressed", String((b.dataset.b !== undefined ? bads[Number(b.dataset.b)] : examples[Number(b.dataset.i)]) === e)));
     masterTrack = { left: poseTrack(e.record.landmarksSampled, "left"), right: poseTrack(e.record.landmarksSampled, "right") };
     mv.src = e.videoUrl;
     $(".master-stage").hidden = e.id === PAIR_GOOD;
-    $(".cta").hidden = false;
+    // よくない例は見るだけ（自分の手と比べる手本にはしない）。手本がまだない技では、動画を入れる欄はそのまま
+    $(".cta").hidden = !!e.record.bad && !asking;
     $(".result").hidden = true;
     cmp = null;
-    $(".master-meta").textContent = `${e.record.craftsman === MIHON_NAME ? "見本・職人の本物の手元（ヤスリがけ）" : `${e.record.craftsman || masterOf()}さん`} ・ ${e.record.date} ・ 線は手の骨組み（動画から読んだ手の点）`;
+    $(".master-meta").textContent = `${e.record.bad ? "よくない例（比べる手本にはしません） ・ " : ""}${e.record.craftsman === MIHON_NAME ? "見本・職人の本物の手元（ヤスリがけ）" : `${e.record.craftsman || masterOf()}さん`} ・ ${e.record.date} ・ 線は手の骨組み（動画から読んだ手の点）`;
     $(".pins").innerHTML = e.record.notes
       .map((n, i) => `<button type="button" class="pin" data-i="${i}" style="left:${((100 * n.t) / Math.max(1, e.record.durationS)).toFixed(2)}%" title="${esc(n.text)}"></button>`)
       .join("");
@@ -748,10 +766,11 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
     const to = videoRoute(role, !asking);
     if (to === "compare") void readLearner(f);
     else if (to === "request") void askModel(f);
-    else void saveModel(f);
+    else void saveModel(f, to === "save-bad");
   };
   $(".role-check").addEventListener("click", () => pickRole("check"));
   $(".role-model").addEventListener("click", () => pickRole("model"));
+  $(".role-bad").addEventListener("click", () => pickRole("bad"));
   $(".role-cancel").addEventListener("click", () => pickRole(null));
   $(".ask-novideo").addEventListener("click", () => void askModel());
 
@@ -775,8 +794,11 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
     await refresh();
   }
 
-  /** 職人の手本（いい例）として残す：手の点を読み、その技の手本にする。頼まれていた分は済みにする */
-  async function saveModel(f: File) {
+  /**
+   * 職人の手本（いい例）として残す：手の点を読み、その技の手本にする。頼まれていた分は済みにする。
+   * bad：よくない例として残す（手本にはせず、手本の横に「よくない例」として出す。頼みは済みにしない）
+   */
+  async function saveModel(f: File, bad = false) {
     if (!needName()) return;
     const name = techNow();
     const key = techKey();
@@ -791,10 +813,10 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
         fps: 10,
         onProgress: (d, n) => {
           bar.style.width = `${(100 * d) / n}%`;
-          $(".ptext").textContent = `手本の手を読んでいます ${Math.round((100 * d) / n)}%`;
+          $(".ptext").textContent = `${bad ? "よくない例" : "手本"}の手を読んでいます ${Math.round((100 * d) / n)}%`;
         },
       });
-      record = { ...createRecord(input, { title: `${name}の手本`, craftsman: masterOf(), videoName: f.name || "動画" }), technique: key };
+      record = { ...createRecord(input, { title: `${name}の${bad ? "よくない例" : "手本"}`, craftsman: masterOf(), videoName: f.name || "動画" }), technique: key, ...(bad ? { bad: true as const } : {}) };
     } catch (e) {
       $(".progress").hidden = true;
       status(`手を読めませんでした：${(e as Error).message}`);
@@ -811,14 +833,16 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
       status("動画をこのブラウザに残せませんでした（置き場がいっぱいです）。");
       return;
     }
-    const done = fulfilModel(choice === YASURI || choice === OTHER ? { name } : { tech: key });
+    const done = bad ? 0 : fulfilModel(choice === YASURI || choice === OTHER ? { name } : { tech: key });
     status("");
-    pickAfter = record.id;
+    pickAfter = bad ? null : record.id;
     current = null;
     store.touch();
     await refresh();
     $(".result").hidden = false;
-    $(".result").innerHTML = `<div class="asked"><b>${esc(name)}の手本として残しました</b><p class="small">学ぶ人は、この技を選ぶと、すぐこの手本と比べられます。${done ? `頼まれていた ${done} 件は、済みにしました。` : ""}</p></div>`;
+    $(".result").innerHTML = bad
+      ? `<div class="asked"><b>${esc(name)}のよくない例として残しました</b><p class="small">手本の一覧の下に「よくない例」として出ます。比べる手本にはしません。</p></div>`
+      : `<div class="asked"><b>${esc(name)}の手本として残しました</b><p class="small">学ぶ人は、この技を選ぶと、すぐこの手本と比べられます。${done ? `頼まれていた ${done} 件は、済みにしました。` : ""}</p></div>`;
   }
   $(".pick-cam").addEventListener("change", onPick);
   $(".pick-file").addEventListener("change", onPick);
