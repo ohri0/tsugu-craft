@@ -277,7 +277,8 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
     }
     const toMaster = tech ? `#waza/${tech}?step=model` : "#ledger/motion";
     asking = false;
-    $(".other-tech").hidden = !(demo && choice === OTHER);
+    const other = root.querySelector<HTMLElement>(".other-tech"); // 見本（?mihon）には無い
+    if (other) other.hidden = !(demo && choice === OTHER);
     $(".tool-opt").hidden = true;
     $(".ask-novideo").hidden = true;
     if (demo) {
@@ -737,7 +738,8 @@ export function mountSee(root: HTMLElement): { refresh(): void; route(tech?: str
     $(".role").hidden = false;
     $(".role").scrollIntoView({ behavior: "smooth", block: "nearest" });
   };
-  $(".other-tech input").addEventListener("change", () => void refresh());
+  // 見本（?mihon）では「ほかの技」の欄を出さないので、無いときは付けない
+  root.querySelector(".other-tech input")?.addEventListener("change", () => void refresh());
   const pickRole = (role: VideoRole | null) => {
     const f = pending;
     pending = null;

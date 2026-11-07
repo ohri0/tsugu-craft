@@ -195,7 +195,7 @@
 .rs-save-bad button { min-height: 48px; font-size: 15px; }
 
 /* 技の一覧の、途切れた技の札 */
-html.fit .rs-waza-card small { font-size: 15px; line-height: 1.6; color: #d6d6dc; }
+html.fit .rs-waza-card small { line-height: 1.6; color: #d6d6dc; }  /* 字の大きさは、ほかの技の札（clear.css の .bt-body small）にそろえる */
 
 /* 答えの分かっている技で試す（src/app/rebuild.ts）。撮影のときは前のまま（html.fit がない） */
 html.fit .view.rebuild { --fg-2: #d6d6dc; --fg-3: #c4c4ca; }
