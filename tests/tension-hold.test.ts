@@ -163,17 +163,19 @@ describe("作者の本物の指輪（SV925・φ4・14 号・三角）", () => {
     expect(set.now.safeSqueezeMm).toBeCloseTo(0.54, 2);
     expect(set.now.limitSqueezeMm).toBeCloseTo(0.76, 2);
     expect(set.now.safeSqueezeMm - set.now.needSqueezeMm).toBeLessThan(0.03);
-    // 戻りきらない分（仮）を入れると、安全な限界まで広げて 約 0.07 mm 開いたまま残り、残せる締まりは 約 0.47 mm。要る量に届かず「ぎりぎり・職人が確かめる」
+    // 戻りきらない分（仮）を入れると、安全な限界まで広げて 約 0.07 mm 開いたまま残り、残せる締まりは 約 0.47 mm。安全な目安では要る量に届かない
     expect(set.now.safeEffectiveMm).toBeCloseTo(0.474, 2);
+    // 限界（約 1.56 mm）まで広げれば届く：「限界まで広げて入れれば、留まる見込み」（前は「ぎりぎり・職人が確かめる」。2026-11-08 作者の声）
     expect(set.now.verdict).toBe("tight");
-    // 図面の開き ＝ 角から短い辺までの長さ − 0.8 mm（約 7.66）。安全な限界まで広げる作り方で、作る時の開き 約 7.12
+    // 図面の開き ＝ 角から短い辺までの長さ − 0.8 mm（約 7.66）。限界いっぱいまで広げる作り方で、石より 約 0.76 mm 狭く、作る時の開き 約 6.90
     expect(set.now.gapMm).toBeCloseTo(i.spanMm - 0.8, 6);
     expect(set.now.makeGapMm).toBeCloseTo(i.gapMm - set.now.squeezeMm, 6);
-    expect(set.now.makeGapMm).toBeCloseTo(7.12, 2);
+    expect(set.now.squeezeMm).toBeCloseTo(set.now.limitSqueezeMm, 6);
+    expect(set.now.makeGapMm).toBeCloseTo(6.9, 2);
     expect(set.now.spreadMm).toBeCloseTo(0.8 + set.now.squeezeMm, 6);
-    expect(set.now.setMm).toBeCloseTo(0.067, 2);
-    // 広げて入れる量（約 1.34）は、広げられる限界（約 1.56）の内
-    expect(set.now.spreadMm).toBeLessThan(tensionSpring(r.setting, r.shank)!.rows.find((x) => x.metal === "sv925")!.limitMm);
+    // 広げて入れる量は、広げられる限界（約 1.56）いっぱい。そこまで広げると 約 0.23 mm 戻りきらない（仮）
+    expect(set.now.spreadMm).toBeCloseTo(tensionSpring(r.setting, r.shank)!.rows.find((x) => x.metal === "sv925")!.limitMm, 6);
+    expect(set.now.setMm).toBeCloseTo(0.234, 2);
     // 太い輪の分の限界まで縮めても、戻りきらない分を引くと、求める分の 約 0.94 倍（前は 約 1.02 倍）。縮めた分が半分ほどを受け持つ
     const app = set.atAppSqueeze!;
     expect(app.squeezeMm).toBeCloseTo(set.now.safeSqueezeMm, 6);
@@ -246,7 +248,9 @@ describe("作者の本物の指輪（SV925・φ4・14 号・三角）", () => {
     expect(text).toContain(HOLD_WORDS.safe);
     expect(text).toContain(HOLD_WORDS.limit);
     expect(text).not.toMatch(/詰め|太い輪|細い輪/);
-    expect(HOLD_WORDS).toMatchObject({ need: "石を留めるのに縮める量", safe: "安全に縮められる量", limit: "縮められる限界", make: "作る時の開き", spread: "石を入れる時に広げる量", spreadLimit: "広げられる限界" });
+    // 2026-11-08 作者の声：「縮める量」「縮められる」も分かりにくい。本当の手順（石より狭く作る → 広げて入れる → 戻る力ではさむ）の言葉に
+    expect(text).not.toMatch(/縮め/);
+    expect(HOLD_WORDS).toMatchObject({ need: "石より狭く作る量（要る分）", safe: "狭くできる量（広げても戻る範囲）", limit: "狭くできる限界（広げて戻る限界）", make: "作る時の開き", spread: "石を入れる時に広げる量", spreadLimit: "広げられる限界" });
   });
 
   it("長い辺の両はしの角（両方くぼみ。作者の指輪の向きではない）：既定はおすすめ（0.6 ずつ。仮）。0.8 ＋ 0.8 はまっすぐ開くだけでは入らない、0.5 は留まる見込み、0.3 はぎりぎり、0.2 は足りない", () => {
@@ -262,7 +266,7 @@ describe("作者の本物の指輪（SV925・φ4・14 号・三角）", () => {
     const r = authorRing("side", 0.3, 0.3);
     const c = holdForClaude(holdOf(r));
     expect(c.depth_sum_mm).toBeCloseTo(0.6, 6);
-    expect(c.verdict).toBe("ぎりぎり・職人が確かめる");
+    expect(c.verdict).toBe("限界まで広げて入れれば、留まる見込み");
     expect(c.note).toContain("仮");
     const steps = howToMake({ ring: r, outlineMm: tri().outlineMm, longMm: 8.88, widthMm: 7.52, depthMm: 4.24, metalLabel: "SV925", springMetal: "sv925" }, "hand");
     const close = steps.find((s) => s.id === "tension_close")!;
@@ -270,7 +274,7 @@ describe("作者の本物の指輪（SV925・φ4・14 号・三角）", () => {
     expect(depth.value).toContain("くぼみ 0.30");
     expect(depth.value).toContain("溝 0.30");
     const hold = close.specs.find((x) => x.label.startsWith("外れにくさ"))!;
-    expect(hold.value).toContain("ぎりぎり・職人が確かめる");
+    expect(hold.value).toContain("限界まで広げて入れれば、留まる見込み");
     expect(hold.value).toContain("最後は職人が決める");
   });
 
@@ -281,13 +285,13 @@ describe("作者の本物の指輪（SV925・φ4・14 号・三角）", () => {
     // 短い辺を溝に・反対の角をくぼみに の既定は、職人の値 角のくぼみ 0.4 mm・辺の溝 0.4 mm（作者が実際に作った指輪を見た感じの深さ）
     expect(s.built!.ring.setting.tension!.ends.map((e) => e.depthMm)).toEqual([0.4, 0.4]);
     // 戻りきらない分（仮）を見込むと、作者の 0.4 / 0.4 はぎりぎり（前は留まる見込み）
-    expect(s.check().tension_calc!.hold!.verdict).toBe("ぎりぎり・職人が確かめる");
+    expect(s.check().tension_calc!.hold!.verdict).toBe("限界まで広げて入れれば、留まる見込み");
     s.setTensionDepths(0.5, 0.5);
     expect(s.built!.ring.setting.tension!.ends.map((e) => e.depthMm)).toEqual([0.5, 0.5]);
     expect(s.check().tension_calc!.hold!.verdict).toBe("留まる見込み");
     s.setTensionDepths(0.3, 0.3);
     expect(s.built!.ring.setting.tension!.ends.map((e) => e.depthMm)).toEqual([0.3, 0.3]);
-    expect(s.check().tension_calc!.hold!.verdict).toBe("ぎりぎり・職人が確かめる");
+    expect(s.check().tension_calc!.hold!.verdict).toBe("限界まで広げて入れれば、留まる見込み");
     s.setTensionDepths(undefined, undefined);
     expect(s.built!.ring.setting.tension!.ends.map((e) => e.depthMm)).toEqual([0.4, 0.4]);
     // 長い辺を溝に入れる向きに戻すと（既定はおすすめ）

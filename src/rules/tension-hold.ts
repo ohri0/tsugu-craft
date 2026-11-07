@@ -36,11 +36,16 @@ import {
 // 式は src/rules/tension-set.ts（形の側からも読むので、そこに置いた）。前からの名前で読めるように
 export { dropWorkNmm, frictionFactor, holdWork, ringStiffnessNPerMm, type HoldWork };
 
-/** 留まる見込み／ぎりぎり・職人が確かめる／この地金・この太さでは足りない */
+/**
+ * 留まる見込み／限界まで広げて入れれば、留まる見込み／この地金・この太さでは足りない。
+ * tight は前は「ぎりぎり・職人が確かめる」。作者の声（2026-11-08）：「結局職人が確かめてるんかい」。
+ * 計算はもう、どうすれば留まるか（石より狭く作り、限界まで広げて入れ、戻る力ではさむ）を知っているので、それを言う。
+ * 戻りきらない分の値は仮なので、それは小さな字と「式と前提」に書く（holdTightNote）
+ */
 export type HoldVerdict = "hold" | "tight" | "short";
 export const HOLD_VERDICT_LABEL: Record<HoldVerdict, string> = {
   hold: "留まる見込み",
-  tight: "ぎりぎり・職人が確かめる",
+  tight: "限界まで広げて入れれば、留まる見込み",
   short: "この地金・この太さでは足りない",
 };
 
@@ -122,7 +127,7 @@ function minDepthFor(capMm: number, demand: number, k: number, eta: number): num
 }
 
 /**
- * 深さの和と地金から、石を留めるのに縮める量・安全に縮められる量・答え。squeezeMm を渡すと、その量で作ったときの外れにくさ。
+ * 深さの和と地金から、石より狭く作る量（要る分）・狭くできる量・答え。squeezeMm を渡すと、その量で作ったときの外れにくさ。
  * 広げたあと戻りきらない分（src/rules/tension-set.ts。仮）を入れる：答えは、戻りきらない分を引いた残る締まりで決める
  */
 export function tensionHold(input: HoldInput, g: Guides = GUIDES, squeezeMm?: number): HoldResult {
@@ -140,14 +145,17 @@ export function tensionHold(input: HoldInput, g: Guides = GUIDES, squeezeMm?: nu
   const limitEffectiveMm = limitSqueezeMm - permanentSetMm(limitMm, curve);
   const needSqueezeMm = needFor(e, demand, k, eta);
   // 留まる見込み：戻りきらない分を見込んで、安全な限界までに要る量が残る。
-  // ぎりぎり：そうはならないが、限界まで広げて戻りきらない分が出なければ（前の計算）届く。戻りきらない分の値は仮なので、職人が確かめる
+  // 限界まで広げれば：そうはならないが、限界まで広げて戻りきらない分が出なければ（前の計算）届く。戻りきらない分の値は仮なので、小さな字に書く
   const verdict: HoldVerdict = needSqueezeMm <= safeEffectiveMm + 1e-9 ? "hold" : needSqueezeMm <= limitSqueezeMm + 1e-9 ? "tight" : "short";
   const plan =
     squeezeMm !== undefined
       ? planAt(e, squeezeMm, curve)
       : verdict === "hold"
         ? compensateSet(e, needSqueezeMm, curve, safeMm)!
-        : ((verdict === "tight" ? compensateSet(e, needSqueezeMm, curve, limitMm) : null) ?? planAt(e, Math.max(0, safeSqueezeMm), curve));
+        : verdict === "tight"
+          ? // 限界まで広げて入れる作り方。戻りきらない分（仮）を見込んでも届けばその量、届かなければ限界いっぱいまで広げる量（2026-11-08）
+            (compensateSet(e, needSqueezeMm, curve, limitMm) ?? planAt(e, Math.max(0, limitSqueezeMm), curve))
+          : planAt(e, Math.max(0, safeSqueezeMm), curve);
   const gapMm = input.spanMm - e;
   const work = holdWork(k, e, plan.effectiveMm, eta);
   const marginOf = (w: HoldWork) => (demand > 0 ? w.total / demand : Infinity);
@@ -243,15 +251,16 @@ export function tensionHoldSet(table: SpringTable, massG: number, metal: SpringM
 
 /**
  * 画面・作り方・図面の表題欄で使う言葉（作者の声 2026-11-07：「留めるのに要る詰める量」「詰められる量（太い輪の分）」「詰められる上限（細い輪の式）」が分かりにくい）。
- * 「詰める」を「（開きを）縮める」に、式の名前を「安全に」「限界」に言いかえた。言葉はここ 1 か所
+ * 2026-11-08 作者の声：「止めるのに縮める量」「安全に縮められる量」「縮められる限界」もまだ分かりにくい。
+ * 本当の手順（石より狭く作る → 広げて石を入れる → 戻る力ではさむ）に沿う言葉にした。言葉はここ 1 か所
  */
 export const HOLD_WORDS = {
-  /** 留めるのに要る詰める量（needSqueezeMm） */
-  need: "石を留めるのに縮める量",
-  /** 腕が戻れる範囲で詰められる量・太い輪の分（safeSqueezeMm） */
-  safe: "安全に縮められる量",
-  /** 詰められる上限・細い輪の式（limitSqueezeMm） */
-  limit: "縮められる限界",
+  /** 留めるのに要る締まり（needSqueezeMm）。前は「石を留めるのに縮める量」 */
+  need: "石より狭く作る量（要る分）",
+  /** 腕が戻れる範囲で狭くできる量・太い輪の分（safeSqueezeMm）。前は「安全に縮められる量」 */
+  safe: "狭くできる量（広げても戻る範囲）",
+  /** 狭くできる限界・細い輪の式（limitSqueezeMm）。前は「縮められる限界」 */
+  limit: "狭くできる限界（広げて戻る限界）",
   /** 図面の開き（石が入ったとき） */
   gap: "図面の開き",
   /** 作る時の開き（makeGapMm） */
@@ -272,7 +281,7 @@ export const HOLD_WORDS = {
 export const HOLD_PREMISE =
   "外れにくさの目安：指輪を落として石から当たったとき、腕が石の深さの分だけ開かされる仕事で受け止められるか、の大まかな計算です。広げたあと戻りきらない分を引いた締まりで見ます。落とす高さ・摩擦・壁の傾き・戻りきらない割合は仮の値です。合否にはしません。最後は職人が決めます";
 
-/** 短い答えの文（作り方・図面）。安全に縮められる量・限界は、戻りきらない分を引いた、石を入れたあとに残せる締まり */
+/** 短い答えの文（作り方・図面）。狭くできる量・限界は、戻りきらない分を引いた、石を入れたあとに残せる締まり */
 export function holdSummary(h: HoldResult, name: string): string {
   const need = Number.isFinite(h.needSqueezeMm) ? `約 ${h.needSqueezeMm.toFixed(2)} mm` : "決まらない（深さが 0）";
   return `${HOLD_VERDICT_LABEL[h.verdict]}（${name}・深さの和 ${h.depthSumMm.toFixed(2)} mm：${HOLD_WORDS.need} ${need}、${HOLD_WORDS.safe} 約 ${h.safeEffectiveMm.toFixed(2)} mm・${HOLD_WORDS.limit} 約 ${h.limitEffectiveMm.toFixed(2)} mm（${HOLD_WORDS.set}を引いて）。落とす高さ ${(h.dropMm / 1000).toFixed(1)} m・戻りきらない割合 ${h.curve.ratio} の仮の目安）`;
@@ -281,6 +290,28 @@ export function holdSummary(h: HoldResult, name: string): string {
 /** 戻りきらない分の一言（作り方・図面）：広げる量、残る量、見込んだ作る時の開き */
 export function setSummary(h: HoldResult): string {
   return `${HOLD_WORDS.spread} 約 ${h.spreadMm.toFixed(2)} mm で、${HOLD_WORDS.set} 約 ${h.setMm.toFixed(2)} mm（仮）。${HOLD_WORDS.makeWithSet} 約 ${h.makeGapMm.toFixed(2)} mm（図面の開きより ${h.squeezeMm.toFixed(2)} mm 狭く）`;
+}
+
+/** 広げられる限界（細い輪の式。mm）＝ 狭くできる限界 ＋ 深さの和 */
+const spreadLimitOf = (h: HoldResult) => h.limitSqueezeMm + h.depthSumMm;
+
+/**
+ * 作る手順の一行（作者の声 2026-11-08：本当の順に）。石より狭く作る → 広げて石を入れる → 戻る力で石をはさむ。
+ * 足りないとき（short）は、留まる作り方がないので null。限界まで広げるとき（tight）は、そう言う
+ */
+export function holdSteps(h: HoldResult): string | null {
+  if (h.verdict === "short") return null;
+  const L = spreadLimitOf(h);
+  const limit = h.verdict === "tight" ? (h.spreadMm >= L - 5e-3 ? "（広げるのは限界いっぱい）" : `（安全な目安をこえ、限界 約 ${L.toFixed(2)} mm の近くまで）`) : "";
+  return `石より ${h.squeezeMm.toFixed(2)} mm 狭く作る（作る時の開き ${h.makeGapMm.toFixed(2)} mm） → ${h.spreadMm.toFixed(2)} mm 広げて石を入れる${limit} → 戻る力で石をはさむ`;
+}
+
+/**
+ * 限界まで広げるとき（tight）の小さな字：戻りきらない分の値は仮なので、見込んだときの倍をここに。ほかは null
+ */
+export function holdTightNote(h: HoldResult): string | null {
+  if (h.verdict !== "tight") return null;
+  return `「${HOLD_VERDICT_LABEL.tight}」は、広げる量を安全な目安より大きく、限界 約 ${spreadLimitOf(h).toFixed(2)} mm まで使えば届く、という意味です。広げたあと戻りきらない分（仮）約 ${h.setMm.toFixed(2)} mm を見込むと、外れにくさは求める分の 約 ${h.margin.toFixed(2)} 倍。戻りきらない割合は仮の値です`;
 }
 
 /** 今の深さが、おすすめと同じか */
@@ -309,7 +340,7 @@ export function adviceLevers(table: Pick<SpringTable, "radiusMm" | "wireMm" | "s
     const a = holdAdvice({ radiusMm: table.radiusMm + 0.25, wireMm: d, spanMm: table.spanMm }, ends, spring, g);
     out.push(a.ok ? `線を太くする：ø ${d.toFixed(1)} mm なら、${adviceText({ ...a, makeGapMm: null })}（仮）` : `線を太くする（ø ${d.toFixed(1)} mm でも、まだ足りない見込み。仮）`);
   }
-  out.push("もっと硬くする（加工硬化を強める・熱で硬くする合金にする）と、戻りきらない分が減り、縮められる量が増えます。硬さの値は仮なので、職人が確かめます");
+  out.push("もっと硬くする（加工硬化を強める・熱で硬くする合金にする）と、戻りきらない分が減り、狭くできる量が増えます。硬さの値は仮なので、職人が確かめます");
   out.push(`深く彫る（${g.tension.adviceDepthMaxMm.toFixed(1)} mm より深く。くぼみの両わきの地金が薄くなるので、形の確かめも見ます）`);
   return out;
 }
@@ -329,6 +360,7 @@ export function holdForClaude(set: TensionHoldSet, advice?: TensionAdvice) {
     safe_squeeze_after_set_mm: r2(h.safeEffectiveMm),
     limit_squeeze_after_set_mm: r2(h.limitEffectiveMm),
     verdict: HOLD_VERDICT_LABEL[h.verdict],
+    steps: holdSteps(h),
     set_ratio: h.curve.ratio,
     set_starts_at_spread_mm: r2(h.curve.onsetMm),
     plan: { make_smaller_by_mm: r2(h.squeezeMm), make_gap_mm: r2(h.makeGapMm), spread_mm: r2(h.spreadMm), stays_open_mm: r2(h.setMm), grip_after_set_mm: r2(h.effectiveSqueezeMm), margin: r2(h.margin) },

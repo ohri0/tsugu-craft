@@ -341,7 +341,7 @@ const html = `
         <h3 id="ten-h" class="rv">腕のばねだけで、<br>石を挟む。</h3>
         <p class="rv">テンションは、爪を使わず、腕が元に戻ろうとする力で石を挟む留め方です。人がやると大変な計算を、継ぐは組んだ形からその場で出します。</p>
         <ul class="ten-what rv">
-          <li><b>どれだけ縮めて作るか</b>石を押さえるために、腕の開きを石より小さく作る量。</li>
+          <li><b>石よりどれだけ狭く作るか</b>石を押さえるために、腕の開きを石より狭く作る量。</li>
           <li><b>どれだけ広げて入れるか</b>石を入れるとき、腕を押し広げる量。</li>
           <li><b>くぼみと溝の深さ</b>石の角を受ける「角のくぼみ」と、辺を受ける「辺の溝」の深さ。</li>
           <li><b>戻りきらない分</b>広げた腕は、手を離しても元の位置まで戻りきりません。その分も見込みます。</li>
@@ -349,11 +349,11 @@ const html = `
       </div>
     </div>
     <div class="ten-body">
-      <figure class="ten-card rv">${img("tension-card", "設計の画面のテンションの札。角のくぼみ 0.40 mm・辺の溝 0.40 mm、答えは「ぎりぎり・職人が確かめる」。石を留めるのに縮める量 約 0.53 mm、安全に縮められる量 約 0.47 mm、作る時の開き 約 7.13 mm、石を入れる時に広げる量 約 1.34 mm", "(max-width: 760px) 80vw, 340px")}<figcaption>設計の画面の札。職人の指輪と同じ値（SV925・14 号・くぼみ 0.4 mm・溝 0.4 mm）を入れると「ぎりぎり・職人が確かめる」。</figcaption></figure>
+      <figure class="ten-card rv">${img("tension-card", "設計の画面のテンションの札。角のくぼみ 0.40 mm・辺の溝 0.40 mm、答えは「限界まで広げて入れれば、留まる見込み」。手順は、石より 0.76 mm 狭く作る（作る時の開き 6.91 mm）→ 1.56 mm 広げて石を入れる（広げるのは限界いっぱい）→ 戻る力で石をはさむ。石より狭く作る量（要る分）約 0.53 mm、狭くできる量（広げても戻る範囲）約 0.47 mm", "(max-width: 760px) 80vw, 340px")}<figcaption>設計の画面の札。職人の指輪と同じ値（SV925・14 号・くぼみ 0.4 mm・溝 0.4 mm）を入れると「限界まで広げて入れれば、留まる見込み」。作る時の開きと広げる量も、その場で出します（目安・最後は職人が決める）。</figcaption></figure>
       <div class="ten-side">
         <table class="ten-t rv">
           <caption>同じ石・同じ腕で、地金ごとに（mm）</caption>
-          <thead><tr><th scope="col">地金</th><th scope="col">縮めて作る</th><th scope="col">広げて入れる</th><th scope="col">戻りきらない</th></tr></thead>
+          <thead><tr><th scope="col">地金</th><th scope="col">狭く作る</th><th scope="col">広げて入れる</th><th scope="col">戻りきらない</th></tr></thead>
           <tbody>
             ${TENSION_EXAMPLE.map((r) => `<tr${r.metal === "SV925" ? ` class="mine"` : ""}><th scope="row">${r.metal}</th>${r.short ? `<td colspan="3" class="short">この腕では開ききらない見込み（約 <span class="num">${r.short}</span> mm 曲がりが残る）。腕を太くするか、形を変えます</td>` : `<td class="num">約 ${r.shrink}</td><td class="num">約 ${r.spread}</td><td class="num">約 ${r.set}</td>`}</tr>`).join("")}
           </tbody>
