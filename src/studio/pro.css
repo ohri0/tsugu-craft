@@ -1175,6 +1175,8 @@ html.fit .command { flex: 1 1 320px; min-width: 0; }
 .tn-verdict { display: grid; gap: 2px; padding: 8px 10px; border-radius: 6px; border: 1px solid var(--line-2); }
 .tn-verdict b { font-weight: 600; font-size: 14px; }
 .tn-verdict small { font-size: 12px; color: var(--fg-2); }
+/* 作る手順の一行（石より狭く作る → 広げて入れる → 戻る力ではさむ。2026-11-08） */
+.tn-verdict .tn-recipe { font-size: 13px; color: var(--fg); line-height: 1.5; }
 .tn-verdict.hold { background: rgba(48, 209, 88, 0.08); border-color: rgba(48, 209, 88, 0.3); }
 .tn-verdict.hold b { color: #30d158; }
 .tn-verdict.tight { background: rgba(255, 214, 10, 0.08); border-color: rgba(255, 214, 10, 0.3); }

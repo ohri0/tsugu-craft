@@ -12,7 +12,7 @@ import { SPRING_SHORT_TEXT, tensionSpring, type SpringMetalId } from "../rules/t
 import { howtoFor, type HowtoStep } from "../rules/howto-steps";
 import { TSUCHIME_STYLE_LABEL, TSUCHIME_STYLE_NOTE, tsuchimeSpec, tsuchimeStyleOf, type RingFinish } from "../geometry/finish";
 import { NUNOME_AROUND, NUNOME_FORM, NUNOME_LABEL, NUNOME_METAL_LABEL, NUNOME_NOTE, defaultNunome, nunomeLayout, nunomeMetal, nunomeOf } from "../geometry/nunome";
-import { holdAdvice, HOLD_WORDS, holdSummary, isAdvised, setSummary, tensionHoldSet } from "../rules/tension-hold";
+import { holdAdvice, HOLD_WORDS, holdSteps, holdSummary, isAdvised, setSummary, tensionHoldSet } from "../rules/tension-hold";
 import type { AlloyId, Detail } from "./process";
 import { castSteps, dropVDetails, finishStep, forgeSteps, settingStep } from "./steps";
 
@@ -496,18 +496,18 @@ function tensionSteps(o: HowToInput, method: Method): Step[] {
   const closeSpecs: Spec[] =
     row.shrinkMm !== null
       ? [
-          { label: "縮める量", value: `図面の開きより、いちばん 約 ${row.shrinkMm.toFixed(2)} mm まで狭く作れる（${row.verdict === "room" ? `${HOLD_WORDS.safe}。` : ""}${row.name}・硬い状態の大まかな計算${kari}。${HOLD_WORDS.limit} 約 ${row.shrinkMaxMm!.toFixed(2)} mm。そこまで広げると、戻りきらない分 約 ${row.setMm!.toFixed(2)} mm が残る見込み。最後は職人が決める）` },
+          { label: "狭く作れる量", value: `図面の開きより、いちばん 約 ${row.shrinkMm.toFixed(2)} mm まで狭く作れる（${row.verdict === "room" ? `${HOLD_WORDS.safe}。` : ""}${row.name}・硬い状態の大まかな計算${kari}。${HOLD_WORDS.limit} 約 ${row.shrinkMaxMm!.toFixed(2)} mm。そこまで広げると、戻りきらない分 約 ${row.setMm!.toFixed(2)} mm が残る見込み。最後は職人が決める）` },
           { label: HOLD_WORDS.make, value: `いちばん狭くて 約 ${row.makeGapMm!.toFixed(2)} mm（同じ計算${kari}）` },
         ]
-      : [{ label: "縮める量", value: `${row.name}は、この腕のままでは開ききらない見込み（限界 約 ${row.limitMm.toFixed(2)} mm、要る量 ${spring.needMm.toFixed(2)} mm。大まかな計算${kari}）。地金ごとに腕の太さ・形を変えて組み直す。${SPRING_SHORT_TEXT}` }];
-  // 外れにくさ（浅く留めたいとき。src/rules/tension-hold.ts）：選んだ深さで、石を留めるのに縮める量と、答え
+      : [{ label: "狭く作れる量", value: `${row.name}は、この腕のままでは開ききらない見込み（限界 約 ${row.limitMm.toFixed(2)} mm、要る量 ${spring.needMm.toFixed(2)} mm。大まかな計算${kari}）。地金ごとに腕の太さ・形を変えて組み直す。${SPRING_SHORT_TEXT}` }];
+  // 外れにくさ（浅く留めたいとき。src/rules/tension-hold.ts）：選んだ深さで、石より狭く作る量（要る分）と、答え
   const hold = tensionHoldSet(spring, r.metalWeightG, row.metal, row.metal, o.guides ?? GUIDES);
   const depthWords = info.ends.map((e) => `${e.kind === "pit" ? "くぼみ" : "溝"} ${mm(e.depthMm, 2)}`).join("・");
   const holdSpecs: Spec[] = [
     // 広げたあと戻りきらない分（仮。作者の声 2026-11-07）を見込んだ作り方
-    ...(row.shrinkMm !== null ? [{ label: HOLD_WORDS.makeWithSet, value: `この深さで石を留めるなら：${setSummary(hold.now)}。大まかな計算・仮。最後は職人が決める` }] : []),
+    ...(row.shrinkMm !== null ? [{ label: HOLD_WORDS.makeWithSet, value: `この深さで石を留めるなら：${setSummary(hold.now)}${holdSteps(hold.now) ? `。手順：${holdSteps(hold.now)}` : ""}。大まかな計算・仮。最後は職人が決める` }] : []),
     { label: "深さ", value: `${depthWords}（和 ${mm(hold.now.depthSumMm, 2)}）` },
-    { label: "外れにくさ（目安・仮）", value: `${holdSummary(hold.now, row.name)}${hold.atAppSqueeze ? `。上の縮める量なら、求める分の 約 ${hold.atAppSqueeze.margin.toFixed(2)} 倍` : ""}。最後は職人が決める` },
+    { label: "外れにくさ（目安・仮）", value: `${holdSummary(hold.now, row.name)}${hold.atAppSqueeze ? `。上の狭く作れる量なら、求める分の 約 ${hold.atAppSqueeze.margin.toFixed(2)} 倍` : ""}。最後は職人が決める` },
   ];
   const close: Step = {
     id: "tension_close",

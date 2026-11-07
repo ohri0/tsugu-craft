@@ -8,7 +8,7 @@ import { adviceSpringOf, tensionDefaultDepths } from "../src/geometry/tension";
 import { GUIDES, type Guides } from "../src/rules/guides";
 import { addRule, effectiveGuides, seedLedger, type Ledger } from "../src/rules/ledger";
 import { tensionSpring } from "../src/rules/tension-calc";
-import { adviceLevers, adviceText, HOLD_WORDS, holdAdvice, holdForClaude, isAdvised, setSummary, tensionHoldSet } from "../src/rules/tension-hold";
+import { adviceLevers, adviceText, HOLD_VERDICT_LABEL, HOLD_WORDS, holdAdvice, holdForClaude, holdSteps, holdTightNote, isAdvised, setSummary, tensionHoldSet } from "../src/rules/tension-hold";
 import {
   adviceDepths,
   bandMassUpperG,
@@ -149,7 +149,7 @@ describe("戻りきらない分を見込んだ作り方", () => {
 });
 
 describe("作者の本物の指輪（SV925・φ4・14 号・三角・短い辺を溝に）", () => {
-  it("くぼみ 0.4・溝 0.4（作者の新しい値）：前は「留まる見込み」。戻りきらない分を見込むと「ぎりぎり」", () => {
+  it("くぼみ 0.4・溝 0.4（作者の新しい値）：前は「留まる見込み」。戻りきらない分を見込むと「限界まで広げて入れれば、留まる見込み」", () => {
     const h = holdOf(authorRing("side", 0.4, 0.4)).now;
     expect(h.depthSumMm).toBeCloseTo(0.8, 9);
     expect(h.needSqueezeMm).toBeCloseTo(0.525, 2);
@@ -158,10 +158,11 @@ describe("作者の本物の指輪（SV925・φ4・14 号・三角・短い辺�
     // 今：安全な限界まで広げると 約 0.067 mm 戻りきらず、残せる締まりは 約 0.474 mm。要る量に届かない
     expect(h.safeEffectiveMm).toBeCloseTo(0.474, 2);
     expect(h.verdict).toBe("tight");
-    expect(h.spreadMm).toBeCloseTo(S, 2);
-    expect(h.setMm).toBeCloseTo(0.067, 2);
-    expect(h.effectiveSqueezeMm).toBeCloseTo(0.474, 2);
-    expect(h.margin).toBeCloseTo(0.94, 2);
+    // 作り方は、限界 L まで広げる（2026-11-08）：約 0.234 mm 戻りきらず（仮）、残る締まり 約 0.524 mm。要る量 0.525 にほぼ届く（約 1.00 倍）
+    expect(h.spreadMm).toBeCloseTo(L, 3);
+    expect(h.setMm).toBeCloseTo(0.234, 2);
+    expect(h.effectiveSqueezeMm).toBeCloseTo(0.524, 2);
+    expect(h.margin).toBeGreaterThan(0.99);
     // 見込まずに要る量だけ縮めて作ると：広げる 1.325 mm、約 0.06 mm 戻りきらず、残る締まり 約 0.47 mm（0.94 倍）
     expect(h.naive!.spreadMm).toBeCloseTo(1.325, 2);
     expect(h.naive!.setMm).toBeCloseTo(0.059, 2);
@@ -276,6 +277,44 @@ describe("深さの既定（作者 2026-11-07：前の 0.8・0.5 は「適当に
   });
 });
 
+describe("限界まで広げて入れれば、留まる見込み（作者の声 2026-11-08「結局職人が確かめてるんかい」）", () => {
+  it("作者の指輪（くぼみ 0.4・溝 0.4）：答えに、作る時の開き・広げる量・限界いっぱいの作り方の数字が出る。戻りきらない分（仮）は小さな字に", () => {
+    const r = authorRing("side", 0.4, 0.4);
+    const h = holdOf(r).now;
+    const limitMm = tensionSpring(r.setting, r.shank)!.rows.find((x) => x.metal === "sv925")!.limitMm;
+    expect(h.verdict).toBe("tight");
+    expect(HOLD_VERDICT_LABEL.tight).toBe("限界まで広げて入れれば、留まる見込み");
+    expect(HOLD_VERDICT_LABEL.tight).not.toContain("職人が確かめる");
+    // 石より 約 0.76 mm 狭く作る（作る時の開き 約 6.90 mm）→ 約 1.56 mm（限界いっぱい）広げて入れる → 戻る力ではさむ
+    expect(h.squeezeMm).toBeCloseTo(0.758, 2);
+    expect(h.makeGapMm).toBeCloseTo(6.9, 2);
+    expect(h.spreadMm).toBeCloseTo(limitMm, 6);
+    const steps = holdSteps(h)!;
+    expect(steps).toBe(`石より 0.76 mm 狭く作る（作る時の開き 6.90 mm） → 1.56 mm 広げて石を入れる（広げるのは限界いっぱい） → 戻る力で石をはさむ`);
+    expect(steps).not.toContain("仮");
+    // 小さな字：戻りきらない分は仮。見込んだときの倍もここに
+    const note = holdTightNote(h)!;
+    expect(note).toContain("仮");
+    expect(note).toContain(`約 ${h.setMm.toFixed(2)} mm`);
+    expect(note).toContain(`約 ${h.margin.toFixed(2)} 倍`);
+    // Claude が読む形・作り方にも同じ手順
+    expect(holdForClaude(holdOf(r)).steps).toBe(steps);
+    const howto = howToMake({ ring: r, outlineMm: tri().outlineMm, longMm: 8.88, widthMm: 7.52, depthMm: 4.24, metalLabel: "SV925", springMetal: "sv925" }, "hand");
+    expect(JSON.stringify(howto.find((s) => s.id === "tension_close")!.specs)).toContain(steps);
+  });
+
+  it("留まる見込みは安全な目安の内で手順を出し、足りないときは手順を出さない", () => {
+    const ok = holdOf(authorRing("side", 0.65, 0.6)).now;
+    expect(ok.verdict).toBe("hold");
+    expect(holdSteps(ok)).toContain("戻る力で石をはさむ");
+    expect(holdSteps(ok)).not.toContain("限界");
+    expect(holdTightNote(ok)).toBeNull();
+    const short = holdOf(authorRing("side", 0.2, 0.2)).now;
+    expect(short.verdict).toBe("short");
+    expect(holdSteps(short)).toBeNull();
+  });
+});
+
 describe("画面・作り方・Claude の言葉", () => {
   it("言葉はやさしく、1 か所に（作者の頼みの言い方）", () => {
     expect(HOLD_WORDS.set).toBe("広げたあと、戻りきらずに開いたまま残る量");
@@ -305,9 +344,9 @@ describe("画面・作り方・Claude の言葉", () => {
   it("Claude が読む形に、戻りきらない分・見込んだ作り方・おすすめが入る", () => {
     const r = authorRing("side", 0.4, 0.4);
     const c = holdForClaude(holdOf(r), adviceOf(r));
-    expect(c.verdict).toBe("ぎりぎり・職人が確かめる");
+    expect(c.verdict).toBe("限界まで広げて入れれば、留まる見込み");
     expect(c.set_ratio).toBe(0.05);
-    expect(c.plan.stays_open_mm).toBeCloseTo(0.07, 2);
+    expect(c.plan.stays_open_mm).toBeCloseTo(0.23, 2);
     expect(c.without_set_allowance!.stays_open_mm).toBeCloseTo(0.06, 2);
     expect(c.advice!.text).toContain("おすすめ：くぼみ 0.65 mm・溝 0.60 mm");
     expect(c.note).toContain("tension.springSetRatio");
