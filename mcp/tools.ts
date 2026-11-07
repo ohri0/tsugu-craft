@@ -40,6 +40,9 @@ const paramIds = Object.keys(PARAMS) as [ParamId, ...ParamId[]];
 const heightIds = Object.keys(GUIDES.height.options) as [HeightOption, ...HeightOption[]];
 const metalIds = Object.keys(GUIDES.metals) as [MetalId, ...MetalId[]];
 
+/** 受ける石の大きさの上限（mm）。画面のつまみ（3〜14 mm）より広く、測った大きな石も受ける */
+const STONE_MAX_MM = 25;
+
 const stoneShape = z
   .object({
     preset: z
@@ -50,9 +53,10 @@ const stoneShape = z
       .array(z.object({ x: z.number(), y: z.number() }))
       .optional()
       .describe("上から見た石の縁の点（mm、y は上向き）。あれば preset より優先。向きと真ん中はこちらでそろえる"),
-    long_mm: z.number().positive().optional().describe("長辺（mm、ノギスで測った値）。preset のときは必ず。輪郭の点のときは、なければ点から測る"),
-    width_mm: z.number().positive().optional().describe("幅（mm）。なければ形から（丸は長辺と同じ）"),
-    depth_mm: z.number().positive().describe("深さ（mm、テーブルからキューレットまで）"),
+    // 上の限りは指輪の石として考えられる大きさ（40 mm の石でも「作れる」と返していた。2026-11-07 の試し）
+    long_mm: z.number().positive().max(STONE_MAX_MM, `長辺は ${STONE_MAX_MM} mm までにしてください（指輪の石として大きすぎます）`).optional().describe("長辺（mm、ノギスで測った値）。preset のときは必ず。輪郭の点のときは、なければ点から測る"),
+    width_mm: z.number().positive().max(STONE_MAX_MM, `幅は ${STONE_MAX_MM} mm までにしてください`).optional().describe("幅（mm）。なければ形から（丸は長辺と同じ）"),
+    depth_mm: z.number().positive().max(STONE_MAX_MM, `深さは ${STONE_MAX_MM} mm までにしてください`).describe("深さ（mm、テーブルからキューレットまで）"),
   })
   .describe("石。ガードル＝石の縁、キューレット＝石の一番下");
 
