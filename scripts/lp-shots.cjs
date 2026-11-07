@@ -460,6 +460,18 @@ const SHOTS = {
       execFileSync('cwebp', ['-quiet', '-q', '78', '-m', '6', '-resize', String(Math.round(w / 2)), '0', `${H}/${f}.jpg`, '-o', `${OUT}/h-${f}-sm.webp`]);
     }
   },
+  // 模様の見込み（2026-11-07）：架空の技の絵（docs/pattern-demo/*-top.png・400 px 角）と、輪打ち金筋の段が 1 つずつ現れる画面（wauchi-flow-07 の段の所を切り抜く）。
+  // 撮らずに、記録の PNG を webp にするだけ。作り直すときは scripts/pattern-demo.ts と pattern-flow-shots.cjs で記録を撮り直してから
+  async patterns() {
+    const D = path.join(__dirname, '..', 'docs', 'pattern-demo');
+    for (const f of ['kasumi', 'uzu', 'ichimatsu', 'wauchi', 'sukashibori', 'tsubukin']) {
+      execFileSync('cwebp', ['-quiet', '-q', '80', '-m', '6', `${D}/${f}-top.png`, '-o', `${OUT}/pt-${f}.webp`]);
+      execFileSync('cwebp', ['-quiet', '-q', '80', '-m', '6', '-resize', '200', '0', `${D}/${f}-top.png`, '-o', `${OUT}/pt-${f}-sm.webp`]);
+    }
+    const crop = ['-crop', '108', '362', '918', '456'];
+    execFileSync('cwebp', ['-quiet', '-q', '82', '-m', '6', ...crop, `${D}/wauchi-flow-07.png`, '-o', `${OUT}/pt-stages.webp`]);
+    execFileSync('cwebp', ['-quiet', '-q', '82', '-m', '6', ...crop, '-resize', '459', '0', `${D}/wauchi-flow-07.png`, '-o', `${OUT}/pt-stages-sm.webp`]);
+  },
   // テンションの札（2026-11-07）：職人が実際に作った指輪と同じ値（SV925・挟む向き side・14 号・くぼみ 0.4 / 溝 0.4 mm。動画の tension16 と同じ）。
   // 欄の「浅く留めたいとき」を上へ送り、答え（ぎりぎり・職人が確かめる）から事実の表の終わりまでを切り抜く。地金ごとの比べの表の字は、ログに出す（入口の TENSION_EXAMPLE に写す）
   async tensionCard() {

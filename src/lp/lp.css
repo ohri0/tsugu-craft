@@ -301,6 +301,19 @@ figcaption { font-size: 15.5px; line-height: 1.75; margin-top: 12px; color: var(
 .score-d li.miss { color: rgba(244, 241, 234, 0.72); }
 .moyou { margin-top: clamp(72px, 12vh, 128px); }
 .moyou img { border-radius: 4px; }
+/* 架空の技の例：木目金だけではない（重ねる技・表の技） */
+.any { max-width: 980px; margin: clamp(72px, 12vh, 128px) auto 0; display: grid; gap: 20px; }
+.any h3 { font-size: clamp(24px, 2.6vw, 34px); }
+.any > p:not(.kicker):not(.src) { max-width: 40em; }
+.pt-grid { list-style: none; margin: 8px 0 0; padding: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: clamp(12px, 1.6vw, 20px); }
+.pt-grid figure { margin: 0; }
+.pt-grid img { display: block; width: 100%; height: auto; aspect-ratio: 1; border-radius: 4px; border: 1px solid var(--hair); }
+.pt-grid figcaption { display: grid; gap: 2px; margin-top: 8px; font-size: 14.5px; line-height: 1.6; }
+.pt-grid figcaption b { font-weight: 600; color: var(--white); }
+.pt-fam { justify-self: start; padding: 0 8px; border: 1px solid var(--hair); border-radius: 99px; font-size: 13px; }
+.pt-grid small { font-size: 13.5px; }
+.pt-stages { margin: 12px 0 0; max-width: 760px; }
+.pt-stages img { display: block; width: 100%; height: auto; border-radius: 6px; border: 1px solid var(--hair); }
 .own { display: grid; grid-template-columns: minmax(0, 6fr) minmax(0, 5fr); gap: clamp(28px, 5vw, 80px); align-items: center; margin-top: clamp(72px, 12vh, 128px); }
 .own-t { display: grid; gap: 18px; }
 .own-f img { border-radius: 8px; border: 1px solid var(--hair); }
@@ -344,6 +357,7 @@ figcaption { font-size: 15.5px; line-height: 1.75; margin-top: 12px; color: var(
   .hide-sm { display: none !important; }
 }
 @media (max-width: 900px) {
+  .pt-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .keep-grid, .feat, .feat.flip, .restore-head, .own, .flows, .ten-body { grid-template-columns: 1fr; }
   .feat.flip .feat-t { order: 0; }
   .feat-m { order: 2; }
@@ -380,6 +394,7 @@ figcaption { font-size: 15.5px; line-height: 1.75; margin-top: 12px; color: var(
   .ten-intro { max-width: none; }
 }
 @media (max-width: 560px) {
+  .pt-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   br.sm { display: inline; }
   .hero-h { font-size: 88px; }
   .cta .btn { flex: 1 1 130px; padding: 0 18px; }
