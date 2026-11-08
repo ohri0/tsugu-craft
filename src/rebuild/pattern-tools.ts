@@ -252,7 +252,7 @@ export const PREDICT_PATTERN: ClaudeTool = {
             count: {
               type: "integer",
               description: `並べる・散らす物を、品物 1 つ（板全体）でいくつにするか（${range("items")}）。手がかりの「10 ほど」なら 10。使える操作と選び：${COUNT_USE}。幅の中の数（across）で並べるときは 0。` +
-                `forge_thin・flatten では、熱して叩くのをくり返す回数（${range("heats")}。size の打ちむらがあるときだけ。2 回目からの打ちは、あとの回ほど小さく浅く、前の回の跡に重なる。0 か 1＝1 回）。ほかの操作では 0`,
+                `forge_thin・flatten では、熱して叩くのをくり返す回数（${range("heats")}。size の打ちむらがあるときだけ。2 回目からの打ちは、あとの回ほど小さく浅く、前の回の跡に重なる。0 か 1＝1 回。鋼（steel_light・steel_dark）では、熱するたびに炭素が層のあいだを動いて色の境がにじむ。層が薄いほど、熱する回数（fold の回数も入る）が多いほど色は混ざり、多すぎると模様は消える）。ほかの操作では 0`,
             },
             thickness: {
               type: "array",

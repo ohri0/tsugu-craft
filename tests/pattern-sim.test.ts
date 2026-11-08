@@ -201,3 +201,18 @@ describe("模様の見込みを案と一緒に残す", () => {
     expect(patternRequest(p.name, p.plans[0])).toContain("工程の数は 3");
   });
 });
+
+describe("熱して炭素が動き、層の色がにじむ（2026-11-08 回 8）", () => {
+  const steel: PatternOp = { op: "stack", metals: ["steel_light", "steel_dark"], count: 8 };
+  it("鋼は、折る回数が多いほど、にじむ幅が大きい", () => {
+    const few = buildSim([steel, { op: "bond", quality: "good" }, { op: "fold", times: 2 }]);
+    const many = buildSim([steel, { op: "bond", quality: "good" }, { op: "fold", times: 5 }]);
+    expect(few.mix).toBeGreaterThan(0);
+    expect(many.mix).toBeGreaterThan(few.mix * 4);
+    expect(many.notes.some((n) => n.includes("炭素"))).toBe(true);
+  });
+  it("鋼でない合わせ（ニッケルが入る・木目金など）は、にじませない", () => {
+    const sim = buildSim([STACK, { op: "bond", quality: "good" }, { op: "fold", times: 5 }]);
+    expect(sim.mix).toBe(0);
+  });
+});

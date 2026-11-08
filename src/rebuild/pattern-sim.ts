@@ -202,6 +202,8 @@ export interface Sim {
   ingot?: { cells: number; seed: number; form?: "dendrite"; cut?: number };
   /** 色の濃淡（0＝2 色。color の graded。樹枝のむらのときだけ 0 より大きい） */
   graded: number;
+  /** 熱して炭素が動き、層の色の境がにじむ幅（最後の層の数で。鋼だけ。0＝にじまない。2026-11-08 回 8） */
+  mix: number;
   stages: Stage[];
   /** 層の境のつながらない所の割合 */
   unbonded: number;
@@ -308,6 +310,12 @@ export function buildSim(ops: readonly PatternOp[], seed = 7, opts: { bond?: Bon
   let bond: BondQuality | "none" = "none";
   let color: ColorKind = "none";
   let graded = 0;
+  // 炭素のにじみ：今の層が、はじめより何倍薄いか（thin）と、熱した回ごとの thin の 2 乗の和
+  let thin = 1;
+  let heatSum = 0;
+  const heat = (times: number) => {
+    heatSum += times * thin * thin;
+  };
   const stages: Stage[] = [];
   for (const [index, op] of ops.entries()) {
     if (op.op === "stack" || op.op === "ingot") {
@@ -337,11 +345,15 @@ export function buildSim(ops: readonly PatternOp[], seed = 7, opts: { bond?: Bon
             break;
           }
           layers *= 2;
+          thin *= 2;
+          heat(1);
         }
         break;
       }
       case "forge_thin": {
         const f = clampTo(op.ratio, PATTERN_LIMITS.ratio);
+        thin *= f;
+        heat(op.heats ? Math.round(clampTo(op.heats, PATTERN_LIMITS.heats)) : 1);
         if (op.direction === "length") H *= f;
         else {
           W *= Math.sqrt(f);
@@ -351,6 +363,7 @@ export function buildSim(ops: readonly PatternOp[], seed = 7, opts: { bond?: Bon
         break;
       }
       case "flatten":
+        heat(op.heats ? Math.round(clampTo(op.heats, PATTERN_LIMITS.heats)) : 1);
         // 平らにする打ちのむら（2026-11-08 回 4。無ければ前のまま）
         hammerMarks(st, op, W, H, notes);
         break;
@@ -411,6 +424,12 @@ export function buildSim(ops: readonly PatternOp[], seed = 7, opts: { bond?: Bon
   if (stages.some((s) => s.swells))
     notes.push("大きな打ちと曲げ（金属を板の幅ほどの大きさで動かす）は、数・大きさ・ずれの深さを仮に決めて描きました。削ると、ふくらみの所に輪（目）が出ます。本当の打ち方は分かっていません。");
 
+  const steel = metals.length >= 2 && metals.every((m) => m === "steel_light" || m === "steel_dark");
+  const mix = steel && heatSum > 0 ? PATTERN_VALUES.carbonMix.perHeat * Math.sqrt(heatSum) : 0;
+  if (mix > 0)
+    notes.push(
+      `熱するたびに、鋼の中の炭素が層のあいだを動いて、色の境がにじむとして描きました（にじむ幅は、最後の層の ${Math.round(mix * 100) / 100} 層ぶん。1 回ごとの動く幅は仮）。叩いて層が薄いほど、何度も熱するほど、色は混ざって見えます。`,
+    );
   const unbonded = ingot ? 0 : PATTERN_VALUES.unbonded[opts.bond ?? bond];
   const hr = rng(seed + 3000);
   const holes: Sim["holes"] = [];
@@ -431,6 +450,7 @@ export function buildSim(ops: readonly PatternOp[], seed = 7, opts: { bond?: Bon
     layersFinal: layers,
     ...(ingot ? { ingot } : {}),
     graded,
+    mix,
     stages,
     unbonded,
     holes,
@@ -1213,7 +1233,7 @@ function paintSurface(sim: Sim, surf: Surface, n: number, ss: number, j0 = 0, j1
             c[1] = e[1];
             c[2] = e[2];
           } else {
-            rampColor(ramp, surf.s[J * N + I], footprint(surf.s, N, N, I, J), c);
+            rampColor(ramp, surf.s[J * N + I], Math.hypot(footprint(surf.s, N, N, I, J), sim.mix), c);
             if (sim.graded > 0) shade(ramp, surf.s[J * N + I], sim.graded, c);
           }
           r += c[0];
@@ -1288,7 +1308,7 @@ export function sectionImage(sim: Sim, w: number, h: number, row = 0.5, ss = 2):
             c[1] = gap[1];
             c[2] = gap[2];
           } else {
-            rampColor(ramp, sec.s[J * W + I], footprint(sec.s, W, H, I, J), c);
+            rampColor(ramp, sec.s[J * W + I], Math.hypot(footprint(sec.s, W, H, I, J), sim.mix), c);
             if (sim.graded > 0) shade(ramp, sec.s[J * W + I], sim.graded, c);
             // 上の面（空気に接する所）に細い光
             const rim = J === 0 || sec.cells[(J - 1) * W + I] === AIR ? 1.22 : 1;

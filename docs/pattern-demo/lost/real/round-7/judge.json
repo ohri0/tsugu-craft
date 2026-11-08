@@ -1,0 +1,490 @@
+{
+  "date": "2026-11-08",
+  "round": 7,
+  "cols": [
+    {
+      "tag": "book-r5",
+      "file": "docs/pattern-demo/lost/real/round-5/wootz-book-top.png",
+      "title": "帳面あり（回 5）",
+      "sub": "2 つ前の回の絵"
+    },
+    {
+      "tag": "book-r6",
+      "file": "docs/pattern-demo/lost/real/round-6/wootz-book-top.png",
+      "title": "帳面あり（回 6）",
+      "sub": "前の回の絵"
+    },
+    {
+      "tag": "book-r6-alt",
+      "file": "docs/pattern-demo/lost/real/round-6/wootz-book-alt-top.png",
+      "title": "案 2（回 6）",
+      "sub": "前の回の案 2"
+    },
+    {
+      "tag": "book-r7",
+      "file": "docs/pattern-demo/lost/real/round-7/wootz-book-top.png",
+      "title": "案 1（資料：るつぼの塊）",
+      "sub": "手がかりのとおり。職人の言葉 7 つの帳面あり"
+    },
+    {
+      "tag": "book-r7-alt",
+      "file": "docs/pattern-demo/lost/real/round-7/wootz-book-alt-top.png",
+      "title": "案 2（職人の見立て）",
+      "sub": "「色が混ざって見えるまで叩く」：何度も折り返して重ねる作り方で組んだ"
+    }
+  ],
+  "show": [
+    "book-r7",
+    "book-r7-alt"
+  ],
+  "honest": "ウーツ鋼は、昔は、るつぼで作った 1 つの鋼の塊から作った、と資料は言います（板を重ねた物ではない）。案 2 が本物に近く見えても、それは「その見た目に、折り返す作り方でも近づける」ということで、昔の作り方がそうだった、ということではありません。",
+  "words": [
+    {
+      "id": "wootz-r7-1-ishikawa",
+      "title": "色が混ざって見えるまで叩く",
+      "text": "もっともっと何回も折り曲げて叩いてをやりまくったら、色も混ざって見えるようになって、ダマスカス鋼に寄ってくるかも。",
+      "reason": "本物の刀の写真と見込みの絵を見くらべて、職人が言った（回 7）",
+      "quote": "色が混ざって見えるまで叩く｜もっともっと何回も折り曲げて叩いてをやりまくったら、色も混ざって見えるようになって、ダマスカス鋼に寄ってくるかも。",
+      "source": {
+        "kind": "craftsman",
+        "name": "石川"
+      },
+      "date": "2026-11-08",
+      "round": 7
+    }
+  ],
+  "points": [
+    {
+      "key": "contrast",
+      "name": "明暗",
+      "ask": "明るい線と暗い地の、差の強さと、明るい所・暗い所の割合"
+    },
+    {
+      "key": "flow",
+      "name": "流れ",
+      "ask": "流れる水のように、うねって波打つ線かどうか（まっすぐな線・角ばった形とのちがい）"
+    },
+    {
+      "key": "bands",
+      "name": "横切る段",
+      "ask": "刃を横切る段（はしご）や、輪（バラ）があるか・ないか、ある所の見え方"
+    },
+    {
+      "key": "scale",
+      "name": "細かさ",
+      "ask": "線の太さと、線と線の間の大きさ（模様の細かさ）"
+    },
+    {
+      "key": "texture",
+      "name": "つながり方",
+      "ask": "線がとぎれて点やまだらで終わる網のようか、長くつながる縞か、角ばった格子か"
+    }
+  ],
+  "results": [
+    {
+      "ref": "met-30932",
+      "order": [
+        "book-r7",
+        "book-r6-alt",
+        "book-r5",
+        "book-r7-alt",
+        "book-r6"
+      ],
+      "scores": [
+        {
+          "label": "A",
+          "points": {
+            "contrast": 2,
+            "flow": 3,
+            "bands": 2,
+            "scale": 2,
+            "texture": 2
+          },
+          "overall": 5,
+          "comment": "うねる線と輪はあるが、明暗が強すぎて線が太め。中ほどを横切る輪の帯がはっきりしない。",
+          "tag": "book-r7"
+        },
+        {
+          "label": "B",
+          "points": {
+            "contrast": 1,
+            "flow": 3,
+            "bands": 1,
+            "scale": 3,
+            "texture": 1
+          },
+          "overall": 4,
+          "comment": "細かくうねる線は近いが、地図の等高線のように長くつながる。横切る段もない。",
+          "tag": "book-r6-alt"
+        },
+        {
+          "label": "C",
+          "points": {
+            "contrast": 2,
+            "flow": 2,
+            "bands": 2,
+            "scale": 2,
+            "texture": 1
+          },
+          "overall": 4,
+          "comment": "輪が横に並ぶが、全体が格子のように角ばってくり返す。本物のやわらかい流れとちがう。",
+          "tag": "book-r5"
+        },
+        {
+          "label": "D",
+          "points": {
+            "contrast": 1,
+            "flow": 3,
+            "bands": 1,
+            "scale": 1,
+            "texture": 1
+          },
+          "overall": 3,
+          "comment": "うねりはあるが、線が太くて白黒が強い。長い縞ばかりで、輪の帯もない。",
+          "tag": "book-r7-alt"
+        },
+        {
+          "label": "E",
+          "points": {
+            "contrast": 2,
+            "flow": 3,
+            "bands": 2,
+            "scale": 2,
+            "texture": 3
+          },
+          "overall": 6,
+          "comment": "まだらにとぎれる流れと輪が近い。ただ明るすぎ、線もやや太く、横の帯は弱い。",
+          "tag": "book-r6"
+        }
+      ],
+      "stats": {
+        "本物": {
+          "orient": 1,
+          "light": 0.34,
+          "spread": 0.25,
+          "edges": 0.433
+        },
+        "book-r7": {
+          "orient": 0.93,
+          "light": 0.46,
+          "spread": 0.31,
+          "edges": 0.429
+        },
+        "book-r6-alt": {
+          "orient": 0.87,
+          "light": 0.34,
+          "spread": 0.22,
+          "edges": 0.375
+        },
+        "book-r5": {
+          "orient": 0.92,
+          "light": 0.45,
+          "spread": 0.32,
+          "edges": 0.458
+        },
+        "book-r7-alt": {
+          "orient": 0.86,
+          "light": 0.31,
+          "spread": 0.3,
+          "edges": 0.57
+        },
+        "book-r6": {
+          "orient": 0.89,
+          "light": 0.47,
+          "spread": 0.31,
+          "edges": 0.431
+        }
+      },
+      "raw": "{\"scores\":[{\"label\":\"A\",\"points\":{\"contrast\":2,\"flow\":3,\"bands\":2,\"scale\":2,\"texture\":2},\"overall\":5,\"comment\":\"うねる線と輪はあるが、明暗が強すぎて線が太め。中ほどを横切る輪の帯がはっきりしない。\"},{\"label\":\"B\",\"points\":{\"contrast\":1,\"flow\":3,\"bands\":1,\"scale\":3,\"texture\":1},\"overall\":4,\"comment\":\"細かくうねる線は近いが、地図の等高線のように長くつながる。横切る段もない。\"},{\"label\":\"C\",\"points\":{\"contrast\":2,\"flow\":2,\"bands\":2,\"scale\":2,\"texture\":1},\"overall\":4,\"comment\":\"輪が横に並ぶが、全体が格子のように角ばってくり返す。本物のやわらかい流れとちがう。\"},{\"label\":\"D\",\"points\":{\"contrast\":1,\"flow\":3,\"bands\":1,\"scale\":1,\"texture\":1},\"overall\":3,\"comment\":\"うねりはあるが、線が太くて白黒が強い。長い縞ばかりで、輪の帯もない。\"},{\"label\":\"E\",\"points\":{\"contrast\":2,\"flow\":3,\"bands\":2,\"scale\":2,\"texture\":3},\"overall\":6,\"comment\":\"まだらにとぎれる流れと輪が近い。ただ明るすぎ、線もやや太く、横の帯は弱い。\"}]}"
+    },
+    {
+      "ref": "met-31130",
+      "order": [
+        "book-r5",
+        "book-r6-alt",
+        "book-r7-alt",
+        "book-r7",
+        "book-r6"
+      ],
+      "scores": [
+        {
+          "label": "A",
+          "points": {
+            "contrast": 1,
+            "flow": 2,
+            "bands": 0,
+            "scale": 2,
+            "texture": 2
+          },
+          "overall": 2,
+          "comment": "細かいとぎれた線は少し近いが、横の段と輪が強く、本物にない形が目立つ。明暗の差も強すぎる。",
+          "tag": "book-r5"
+        },
+        {
+          "label": "B",
+          "points": {
+            "contrast": 1,
+            "flow": 2,
+            "bands": 1,
+            "scale": 2,
+            "texture": 1
+          },
+          "overall": 2,
+          "comment": "線の細かさとうねりは少し近い。だが等高線のような長い縞と目玉の輪が多く、本物のまだらとちがう。",
+          "tag": "book-r6-alt"
+        },
+        {
+          "label": "C",
+          "points": {
+            "contrast": 0,
+            "flow": 2,
+            "bands": 1,
+            "scale": 1,
+            "texture": 1
+          },
+          "overall": 1,
+          "comment": "白黒の差が強すぎ、線も太い。長くつながる縞と輪ばかりで、本物の細かなまだらとは大きくちがう。",
+          "tag": "book-r7-alt"
+        },
+        {
+          "label": "D",
+          "points": {
+            "contrast": 3,
+            "flow": 3,
+            "bands": 1,
+            "scale": 2,
+            "texture": 3
+          },
+          "overall": 5,
+          "comment": "灰色の明暗と縦にうねるとぎれ線は近い。しかし丸い輪や横の段がところどころあり、本物にはない。",
+          "tag": "book-r7"
+        },
+        {
+          "label": "E",
+          "points": {
+            "contrast": 3,
+            "flow": 3,
+            "bands": 1,
+            "scale": 2,
+            "texture": 3
+          },
+          "overall": 5,
+          "comment": "縦に流れるまだらの線と灰色の調子は近い。だが渦や輪が大きく目立ち、本物よりうねりが強い。",
+          "tag": "book-r6"
+        }
+      ],
+      "stats": {
+        "本物": {
+          "orient": 1,
+          "light": 0.29,
+          "spread": 0.27,
+          "edges": 0.279
+        },
+        "book-r5": {
+          "orient": 0.76,
+          "light": 0.45,
+          "spread": 0.32,
+          "edges": 0.458
+        },
+        "book-r6-alt": {
+          "orient": 0.61,
+          "light": 0.34,
+          "spread": 0.22,
+          "edges": 0.375
+        },
+        "book-r7-alt": {
+          "orient": 0.63,
+          "light": 0.31,
+          "spread": 0.3,
+          "edges": 0.57
+        },
+        "book-r7": {
+          "orient": 0.8,
+          "light": 0.46,
+          "spread": 0.31,
+          "edges": 0.429
+        },
+        "book-r6": {
+          "orient": 0.84,
+          "light": 0.47,
+          "spread": 0.31,
+          "edges": 0.431
+        }
+      },
+      "raw": "{\"scores\":[{\"label\":\"A\",\"points\":{\"contrast\":1,\"flow\":2,\"bands\":0,\"scale\":2,\"texture\":2},\"overall\":2,\"comment\":\"細かいとぎれた線は少し近いが、横の段と輪が強く、本物にない形が目立つ。明暗の差も強すぎる。\"},{\"label\":\"B\",\"points\":{\"contrast\":1,\"flow\":2,\"bands\":1,\"scale\":2,\"texture\":1},\"overall\":2,\"comment\":\"線の細かさとうねりは少し近い。だが等高線のような長い縞と目玉の輪が多く、本物のまだらとちがう。\"},{\"label\":\"C\",\"points\":{\"contrast\":0,\"flow\":2,\"bands\":1,\"scale\":1,\"texture\":1},\"overall\":1,\"comment\":\"白黒の差が強すぎ、線も太い。長くつながる縞と輪ばかりで、本物の細かなまだらとは大きくちがう。\"},{\"label\":\"D\",\"points\":{\"contrast\":3,\"flow\":3,\"bands\":1,\"scale\":2,\"texture\":3},\"overall\":5,\"comment\":\"灰色の明暗と縦にうねるとぎれ線は近い。しかし丸い輪や横の段がところどころあり、本物にはない。\"},{\"label\":\"E\",\"points\":{\"contrast\":3,\"flow\":3,\"bands\":1,\"scale\":2,\"texture\":3},\"overall\":5,\"comment\":\"縦に流れるまだらの線と灰色の調子は近い。だが渦や輪が大きく目立ち、本物よりうねりが強い。\"}]}"
+    },
+    {
+      "ref": "met-32739",
+      "order": [
+        "book-r7-alt",
+        "book-r6",
+        "book-r7",
+        "book-r6-alt",
+        "book-r5"
+      ],
+      "scores": [
+        {
+          "label": "A",
+          "points": {
+            "contrast": 2,
+            "flow": 3,
+            "bands": 1,
+            "scale": 2,
+            "texture": 1
+          },
+          "overall": 4,
+          "comment": "うねる線は近いが、白黒の差が強すぎる。丸い輪が多く、線が長くきれいにつながりすぎている。",
+          "tag": "book-r7-alt"
+        },
+        {
+          "label": "B",
+          "points": {
+            "contrast": 3,
+            "flow": 3,
+            "bands": 2,
+            "scale": 2,
+            "texture": 3
+          },
+          "overall": 6,
+          "comment": "縦にうねる流れと、とぎれたまだらの感じが近い。丸い輪が本物より多く、目立つ。",
+          "tag": "book-r6"
+        },
+        {
+          "label": "C",
+          "points": {
+            "contrast": 3,
+            "flow": 2,
+            "bands": 1,
+            "scale": 2,
+            "texture": 2
+          },
+          "overall": 5,
+          "comment": "明暗とまだらの感じは近い。横長の輪が並び、少し格子のようで、流れが弱い。",
+          "tag": "book-r7"
+        },
+        {
+          "label": "D",
+          "points": {
+            "contrast": 2,
+            "flow": 3,
+            "bands": 1,
+            "scale": 2,
+            "texture": 1
+          },
+          "overall": 4,
+          "comment": "うねりは近いが、線が細かすぎて長くつながる。等高線のような輪が多い。",
+          "tag": "book-r6-alt"
+        },
+        {
+          "label": "E",
+          "points": {
+            "contrast": 3,
+            "flow": 1,
+            "bands": 1,
+            "scale": 2,
+            "texture": 1
+          },
+          "overall": 3,
+          "comment": "明暗の割合は近い。しかし横の段と縦の筋が格子のようで、本物のうねる流れがない。",
+          "tag": "book-r5"
+        }
+      ],
+      "stats": {
+        "本物": {
+          "orient": 1,
+          "light": 0.42,
+          "spread": 0.29,
+          "edges": 0.453
+        },
+        "book-r7-alt": {
+          "orient": 0.72,
+          "light": 0.31,
+          "spread": 0.3,
+          "edges": 0.57
+        },
+        "book-r6": {
+          "orient": 0.91,
+          "light": 0.47,
+          "spread": 0.31,
+          "edges": 0.431
+        },
+        "book-r7": {
+          "orient": 0.88,
+          "light": 0.46,
+          "spread": 0.31,
+          "edges": 0.429
+        },
+        "book-r6-alt": {
+          "orient": 0.71,
+          "light": 0.34,
+          "spread": 0.22,
+          "edges": 0.375
+        },
+        "book-r5": {
+          "orient": 0.84,
+          "light": 0.45,
+          "spread": 0.32,
+          "edges": 0.458
+        }
+      },
+      "raw": "{\"scores\":[{\"label\":\"A\",\"points\":{\"contrast\":2,\"flow\":3,\"bands\":1,\"scale\":2,\"texture\":1},\"overall\":4,\"comment\":\"うねる線は近いが、白黒の差が強すぎる。丸い輪が多く、線が長くきれいにつながりすぎている。\"},{\"label\":\"B\",\"points\":{\"contrast\":3,\"flow\":3,\"bands\":2,\"scale\":2,\"texture\":3},\"overall\":6,\"comment\":\"縦にうねる流れと、とぎれたまだらの感じが近い。丸い輪が本物より多く、目立つ。\"},{\"label\":\"C\",\"points\":{\"contrast\":3,\"flow\":2,\"bands\":1,\"scale\":2,\"texture\":2},\"overall\":5,\"comment\":\"明暗とまだらの感じは近い。横長の輪が並び、少し格子のようで、流れが弱い。\"},{\"label\":\"D\",\"points\":{\"contrast\":2,\"flow\":3,\"bands\":1,\"scale\":2,\"texture\":1},\"overall\":4,\"comment\":\"うねりは近いが、線が細かすぎて長くつながる。等高線のような輪が多い。\"},{\"label\":\"E\",\"points\":{\"contrast\":3,\"flow\":1,\"bands\":1,\"scale\":2,\"texture\":1},\"overall\":3,\"comment\":\"明暗の割合は近い。しかし横の段と縦の筋が格子のようで、本物のうねる流れがない。\"}]}"
+    }
+  ],
+  "mean": {
+    "book-r5": {
+      "overall": 3,
+      "points": {
+        "contrast": 2,
+        "flow": 1.7,
+        "bands": 1,
+        "scale": 2,
+        "texture": 1.3
+      },
+      "orient": 0.84
+    },
+    "book-r6": {
+      "overall": 5.7,
+      "points": {
+        "contrast": 2.7,
+        "flow": 3,
+        "bands": 1.7,
+        "scale": 2,
+        "texture": 3
+      },
+      "orient": 0.88
+    },
+    "book-r6-alt": {
+      "overall": 3.3,
+      "points": {
+        "contrast": 1.3,
+        "flow": 2.7,
+        "bands": 1,
+        "scale": 2.3,
+        "texture": 1
+      },
+      "orient": 0.73
+    },
+    "book-r7": {
+      "overall": 5,
+      "points": {
+        "contrast": 2.7,
+        "flow": 2.7,
+        "bands": 1.3,
+        "scale": 2,
+        "texture": 2.3
+      },
+      "orient": 0.87
+    },
+    "book-r7-alt": {
+      "overall": 2.7,
+      "points": {
+        "contrast": 1,
+        "flow": 2.7,
+        "bands": 1,
+        "scale": 1.3,
+        "texture": 1
+      },
+      "orient": 0.74
+    }
+  }
+}
