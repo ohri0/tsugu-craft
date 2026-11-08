@@ -75,11 +75,11 @@ import { bindVoice } from "./voice";
 
 const FLOW: { n: Stage; label: string }[] = [
   { n: 1, label: "分かることを入れる" },
-  { n: 2, label: "Claude が作り方の案を出す" },
-  { n: 3, label: "試して、結果を入れる" },
+  { n: 2, label: "Claude が作り方の案を出す（模様は画面でシミュレーション）" },
+  { n: 3, label: "実物で試して、結果を入れる" },
 ];
 /** 一覧の札に出す、次にすること */
-const NEXT_WORD: Record<Stage, string> = { 1: "次：分かることを入れる", 2: "次：Claude に案を出してもらう", 3: "次：試して、結果を入れる" };
+const NEXT_WORD: Record<Stage, string> = { 1: "次：分かることを入れる", 2: "次：Claude に案を出してもらう", 3: "次：実物で試して、結果を入れる" };
 const KIND_UI: Record<ClueKind, { label: string; example: string }> = {
   object: { label: "残った品物", example: "例：ふたの表に、霜のような白いまだらがある" },
   record: { label: "古い記録", example: "例：古い本に「灰をかけて火にあぶる」と書いてある" },

@@ -118,14 +118,15 @@ function drawSection(c: HTMLCanvasElement | null, m: PatternModel, row: number, 
 }
 
 /** 上から見た面（canvas の形に合わせて、断面の行のまわりの帯を切り出す）。断面を切った所に、細い印 */
-async function drawTop(c: HTMLCanvasElement | null, m: PatternModel, row: number, alive: () => boolean, mark: "line" | "ticks" | "none") {
+async function drawTop(c: HTMLCanvasElement | null, m: PatternModel, row: number, alive: () => boolean, mark: "line" | "ticks" | "none", scale = 1) {
   if (!c?.isConnected) return;
   const { w, h } = fit(c);
-  const n = w;
+  // scale < 1：粗く速く描いて引きのばす（2026-11-08 作者：段の絵が 1 枚ずつ出るのが遅い → まず全部を粗く一度に出す）
+  const n = Math.max(32, Math.round(w * scale));
   const span = h / w;
   let b0 = row - span / 2;
   b0 = Math.max(0, Math.min(1 - span, b0));
-  const ss = n > 500 || dpr() >= 2 ? 1 : 2;
+  const ss = scale < 1 ? 1 : n > 500 || dpr() >= 2 ? 1 : 2;
   const img = await m.top(n, ss, pause, () => !alive(), span >= 1 ? [0, 1] : [b0, b0 + span]);
   if (!img || !alive()) return;
   const ctx = c.getContext("2d")!;
@@ -416,23 +417,26 @@ export function mountPatternView(root: HTMLElement, project: RestoreProject, ver
 
   /** 絵を描く：段の絵を順に（見せるより先に）、そのあと出来上がり。重いので、間をあけて */
   async function draw(ok: () => boolean, model: PatternModel, prevModel?: PatternModel) {
+    // 2026-11-08 作者：段の絵が 1 枚ずつ順に出るのは使いにくい → まず切り口を全部、次に上から見た面を全部粗く一度に出し、
+    //   出来上がりを描いてから、段の絵を細かく描き直す
     const row = model.row;
     const stages = [...root.querySelectorAll<HTMLElement>(".pv-stage")];
-    for (const [i, li] of stages.entries()) {
-      const sm = model.stage(i);
-      drawSection(li.querySelector<HTMLCanvasElement>(".pv-sec"), sm, row, 0.62);
-      await pause();
-      if (!ok()) return;
-      await drawTop(li.querySelector<HTMLCanvasElement>(".pv-face"), sm, row, ok, "line");
-      if (!ok()) return;
-    }
-    if (!ok()) return;
+    const sms = stages.map((_, i) => model.stage(i));
+    stages.forEach((li, i) => drawSection(li.querySelector<HTMLCanvasElement>(".pv-sec"), sms[i], row, 0.62));
     drawSection(root.querySelector<HTMLCanvasElement>(".pv-sec-final"), model, row, 0.8);
     if (prevModel) drawSection(root.querySelector<HTMLCanvasElement>(".pv-sec-prev"), prevModel, row, 0.8);
     await pause();
     if (!ok()) return;
+    for (const [i, li] of stages.entries()) {
+      await drawTop(li.querySelector<HTMLCanvasElement>(".pv-face"), sms[i], row, ok, "line", 0.3);
+      if (!ok()) return;
+    }
     await drawTop(root.querySelector<HTMLCanvasElement>(".pv-top"), model, row, ok, "ticks");
     if (prevModel && ok()) await drawTop(root.querySelector<HTMLCanvasElement>(".pv-top-prev"), prevModel, row, ok, "ticks");
+    for (const [i, li] of stages.entries()) {
+      if (!ok()) return;
+      await drawTop(li.querySelector<HTMLCanvasElement>(".pv-face"), sms[i], row, ok, "line", 0.6);
+    }
   }
 
   render();
