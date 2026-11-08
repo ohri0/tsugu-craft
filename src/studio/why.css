@@ -103,6 +103,7 @@
 .wy-photo figcaption, .wy-tachi figcaption { padding: 10px clamp(20px, 5vw, 32px) 0; opacity: 0.86; }
 .why figure.wy-tachi { max-width: 1100px; margin: 36px auto clamp(64px, 10vh, 112px); display: grid; gap: 10px; }
 .wy-tachi img { width: 100%; }
+.wy-tachi img.wy-mokume { width: min(100%, 420px); justify-self: center; }  /* 2026-11-08 作者：最後の 1 枚は木目金の鐔に（正方形なので小さめに真ん中） */
 .wy-big { margin: 0 0 16px !important; font: 400 clamp(64px, 11vw, 112px)/1.1 var(--t-mincho) !important; }
 .wy-steps { list-style: none; margin: 32px 0 44px; padding: 0; }
 .wy-steps li { display: grid; gap: 4px; padding: 18px 0; border-top: 1px solid rgba(22, 19, 17, 0.34); }

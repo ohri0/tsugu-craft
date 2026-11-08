@@ -9,6 +9,8 @@
 .gnav a { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-width: 92px; padding: 4px 14px 5px; border-radius: 6px; color: var(--fg-2); text-decoration: none; line-height: 1.25; white-space: nowrap; }
 .gnav a svg { display: none; }
 .gnav .gn-l { font-size: 14px; font-weight: 600; color: var(--fg); opacity: 0.86; }
+/* 設計は別の頁（studio.html）へ移るので、右上に小さな矢印（2026-11-08 作者） */
+.gnav .gn-ext { position: absolute; top: 3px; right: 8px; font-size: 10px; line-height: 1; color: var(--fg-2); opacity: 0.8; }
 .gnav .gn-s { font-size: 11px; color: var(--fg-3); }
 .gnav a:hover { background: var(--hover); }
 .gnav a:hover .gn-l { opacity: 1; }

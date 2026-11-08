@@ -64,7 +64,7 @@ app.innerHTML = `
   <header class="bar">
     <a class="brand" href="./" aria-label="継ぐ（始めの画面へ）" title="始めの画面へ"><span class="seal">継</span><span class="name">継ぐ</span></a>
     ${NEW_NAV ? mainNavHtml(null, "app") : `<nav class="nav" aria-label="画面">${NAV}</nav>`}
-    <div class="bar-r">${isMihon() ? `<span class="mihon-tag">見本・作り話</span>` : ""}<button type="button" class="ghost help" aria-label="使い方">使い方</button></div>
+    <div class="bar-r">${isMihon() ? `<span class="mihon-tag">見本・作り話</span>` : ""}</div>
   </header>
   <main>
     <div class="screen" id="screen-ledger" hidden></div>
@@ -144,8 +144,8 @@ badges();
 
 const intro = document.querySelector<HTMLDialogElement>(".intro")!;
 intro.addEventListener("close", () => store.setIntroSeen());
-document.querySelector(".help")!.addEventListener("click", () => intro.showModal());
+// 2026-11-08 作者：「使い方」の窓はなくてよい（流れの説明は、それぞれの頁にある）。ボタンも、はじめに開くのもやめた
 // ほかの画面からのリンクで来たときは、説明を出さずにその場面へ
-if (!store.introSeen() && !location.hash && !isMihon() && !new URLSearchParams(location.search).has("nointro")) intro.showModal();
+// if (!store.introSeen() && !location.hash && !isMihon() && !new URLSearchParams(location.search).has("nointro")) intro.showModal();  （止めた）
 // 撮影用の見本：決まった順に見せる
 if (isTour()) void import("./tour").then((m) => m.startTour());

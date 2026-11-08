@@ -143,7 +143,7 @@ const html = `
   </nav>
   <div class="app-menu" id="app-menu" hidden>
     <p class="am-h">アプリの中（5 つの場所）</p>
-    <ul class="am-list">${PLACES.map((p) => `<li><a href="${placeHref(p, "other")}"><b>${p.label}</b><small>${p.sub}</small></a></li>`).join("")}</ul>
+    <ul class="am-list">${PLACES.map((p) => `<li><a href="${placeHref(p, "other")}"><b>${p.label}${p.id === "design" ? `<span class="am-ext" aria-label="（別の頁）">↗</span>` : ""}</b><small>${p.sub}</small></a></li>`).join("")}</ul>
     <div class="am-page">
       <p class="am-h">このページの中</p>
       <p class="am-links"><a href="#keep">残す</a><a href="#design">デザインする人へ</a><a href="#learn">学ぶ人へ</a><a href="#next">次の時代へ</a><a href="#why" class="open-why">なぜ継ぐ</a></p>

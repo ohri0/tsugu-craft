@@ -431,8 +431,9 @@ figcaption { font-size: 15.5px; line-height: 1.75; margin-top: 12px; color: var(
 .am-h { font-size: 13.5px; letter-spacing: 0.16em; color: var(--white-2); margin-bottom: 6px; }
 .am-list li + li { border-top: 1px solid rgba(244, 241, 234, 0.1); }
 .am-list a { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; min-height: 54px; padding: 10px 0; text-decoration: none; }
-.am-list b { font: 400 21px/1.4 var(--mincho); letter-spacing: 0.08em; }
-.am-list small { font-size: 14.5px; color: var(--white-2); white-space: nowrap; }
+.am-list b { font: 400 21px/1.4 var(--mincho); letter-spacing: 0.08em; white-space: nowrap; flex: none; }
+.am-ext { margin-left: 6px; font: 400 14px/1 var(--sans, sans-serif); color: var(--white-2); }
+.am-list small { font-size: 14.5px; color: var(--white-2); text-align: right; }  /* 2026-11-08：長い説明は折り返す（横に流れて切れないように） */
 .am-list a:hover b { text-decoration: underline; text-underline-offset: 0.22em; text-decoration-thickness: 1px; }
 .am-page { display: none; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--hair); }
 .am-links { display: flex; flex-wrap: wrap; gap: 0 20px; }

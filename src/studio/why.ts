@@ -139,8 +139,8 @@ export function whyHtml(opts: { standalone?: boolean } = {}): string {
     <figure class="wy-tachi">
       <img src="/heritage/itomaki-tachi-tsuka.jpg" width="1400" height="640" alt="太刀の拵えの柄の部分。金の鐔と、柄の間からのぞく金の飾り金具" loading="lazy" decoding="async" />
       <img src="/heritage/kozuka-carp.jpg" width="1800" height="436" alt="小柄に寄ったところ。細かな地の上に、金の鯉と波" loading="lazy" decoding="async" />
-      <img src="/heritage/menuki-tiger.jpg" width="1400" height="619" alt="金の目貫。竹の葉と虎。虎の毛が細い線で刻まれている" loading="lazy" decoding="async" />
-      <figcaption>上から、糸巻太刀拵の柄（江戸時代）、小柄（こづか＝小刀の柄。18 世紀）、目貫（めぬき＝柄の飾り金具。17 世紀）。メトロポリタン美術館（<a href="https://www.metmuseum.org/art/collection/search/894754" target="_blank" rel="noopener">2023.735.6a–e</a>・<a href="https://www.metmuseum.org/art/collection/search/24755" target="_blank" rel="noopener">45.24.14</a>・<a href="https://www.metmuseum.org/art/collection/search/24733" target="_blank" rel="noopener">45.24.44</a>）・パブリックドメイン（CC0）</figcaption>
+      <img class="wy-mokume" src="/heritage/mokume-tsuba-1-black.jpg" width="1352" height="1400" alt="木目金の鐔。色のちがう金属の層が、木の目のような模様になっている" loading="lazy" decoding="async" />
+      <figcaption>上から、糸巻太刀拵の柄（江戸時代）、小柄（こづか＝小刀の柄。18 世紀）、木目金（もくめがね）の鐔（19 世紀前半）。メトロポリタン美術館（<a href="https://www.metmuseum.org/art/collection/search/894754" target="_blank" rel="noopener">2023.735.6a–e</a>・<a href="https://www.metmuseum.org/art/collection/search/24755" target="_blank" rel="noopener">45.24.14</a>・<a href="https://www.metmuseum.org/art/collection/search/34992" target="_blank" rel="noopener">34992</a>）・パブリックドメイン（CC0）</figcaption>
     </figure>
     <div class="wy-w wy-stat">
       <p class="wy-big">約 6 割</p>
