@@ -1,225 +1,225 @@
 {
  "fps": 30,
  "len": 179.8,
- "pad": 1.149,
+ "pad": 1.105,
  "voice_own": 29,
  "voice": [
   {
    "n": 1,
    "at": 1.9,
-   "dur": 2.23,
+   "dur": 2.269,
    "text": "私は、彫金の職人です。",
-   "file": "voice/_own10/n1.wav"
+   "file": "voice/_own10_pro/n1.wav"
   },
   {
    "n": 2,
-   "at": 5.133,
-   "dur": 3.746,
+   "at": 5.167,
+   "dur": 3.785,
    "text": "作れるかどうかの判断は、職人の頭の中にあります。",
-   "file": "voice/_own10/n2.wav"
+   "file": "voice/_own10_pro/n2.wav"
   },
   {
    "n": 3,
-   "at": 9.867,
-   "dur": 3.63,
+   "at": 9.967,
+   "dur": 3.669,
    "text": "職人がいなくなれば、その判断も消えます。",
-   "file": "voice/_own10/n3.wav"
+   "file": "voice/_own10_pro/n3.wav"
   },
   {
    "n": 42,
-   "at": 15.0,
-   "dur": 1.312,
+   "at": 15.133,
+   "dur": 1.351,
    "text": "継ぐ。",
-   "file": "voice/_own10/n42.wav"
+   "file": "voice/_own10_pro/n42.wav"
   },
   {
    "n": 41,
-   "at": 17.512,
-   "dur": 2.415,
+   "at": 17.684,
+   "dur": 2.454,
    "text": "職人の判断を、次の人へ。",
-   "file": "voice/_own10/n41.wav"
+   "file": "voice/_own10_pro/n41.wav"
   },
   {
    "n": 5,
-   "at": 20.867,
-   "dur": 1.992,
+   "at": 21.1,
+   "dur": 2.031,
    "text": "職人は、ふだんの言葉で話すだけ。",
-   "file": "voice/_own10/n5.wav"
+   "file": "voice/_own10_pro/n5.wav"
   },
   {
    "n": 6,
-   "at": 23.309,
-   "dur": 4.934,
+   "at": 23.581,
+   "dur": 4.973,
    "text": "Claude が決まりにし、ほかの設計も、帳面をもとに計算します。",
-   "file": "voice/_own10/n6.wav"
+   "file": "voice/_own10_pro/n6.wav"
   },
   {
    "n": 7,
-   "at": 28.692,
-   "dur": 2.824,
+   "at": 29.003,
+   "dur": 2.855,
    "text": "職人がよければ、帳面に残ります。",
-   "file": "voice/_own10/n7.wav"
+   "file": "voice/_own10_pro/n7.wav"
   },
   {
    "n": 8,
-   "at": 32.8,
-   "dur": 2.853,
+   "at": 33.167,
+   "dur": 2.72,
    "text": "違えば、ひとこと話すだけで直せます。",
-   "file": "voice/_own10/n8.wav"
+   "file": "voice/_own10_pro/n8.wav"
   },
   {
    "n": 10,
-   "at": 37.55,
-   "dur": 1.861,
+   "at": 37.783,
+   "dur": 1.9,
    "text": "まず、デザインする人へ。",
-   "file": "voice/_own10/n10.wav"
+   "file": "voice/_own10_pro/n10.wav"
   },
   {
    "n": 11,
-   "at": 40.533,
-   "dur": 4.793,
+   "at": 40.8,
+   "dur": 4.832,
    "text": "作れない、と制作から何度も戻ってくることがあります。",
-   "file": "voice/_own10/n11.wav"
+   "file": "voice/_own10_pro/n11.wav"
   },
   {
    "n": 12,
-   "at": 47.626,
-   "dur": 4.507,
+   "at": 47.932,
+   "dur": 4.545,
    "text": "継ぐがあれば、制作から戻ることは、ごく少なくなります。",
-   "file": "voice/_own10/n12.wav"
+   "file": "voice/_own10_pro/n12.wav"
   },
   {
    "n": 13,
-   "at": 58.711,
-   "dur": 5.373,
+   "at": 58.793,
+   "dur": 5.412,
    "text": "職人が残した言葉をもとに、Claude が、作れる指輪を自動で組みます。",
-   "file": "voice/_own10/n13.wav"
+   "file": "voice/_own10_pro/n13.wav"
   },
   {
    "n": 15,
-   "at": 66.417,
-   "dur": 7.068,
+   "at": 66.45,
+   "dur": 6.97,
    "text": "好きな雰囲気や細かい希望を打ち込むだけで、職人の決まりを守った、作れる形が出てきます。",
-   "file": "voice/_own10/n15.wav"
+   "file": "voice/_own10_pro/n15.wav"
   },
   {
    "n": 18,
-   "at": 77.6,
-   "dur": 3.063,
+   "at": 77.533,
+   "dur": 3.102,
    "text": "作れない所は、職人の言葉で教えます。",
-   "file": "voice/_own10/n18.wav"
+   "file": "voice/_own10_pro/n18.wav"
   },
   {
    "n": 19,
-   "at": 81.363,
-   "dur": 3.384,
+   "at": 81.335,
+   "dur": 3.161,
    "text": "なぜ作れないのか、どう直せばよいのかを。",
-   "file": "voice/_own10/n19.wav"
+   "file": "voice/_own10_pro/n19.wav"
   },
   {
    "n": 21,
-   "at": 96.633,
-   "dur": 1.884,
+   "at": 95.9,
+   "dur": 1.923,
    "text": "次に、学ぶ人へ。",
-   "file": "voice/_own10/n21.wav"
+   "file": "voice/_own10_pro/n21.wav"
   },
   {
    "n": 20,
-   "at": 100.133,
-   "dur": 6.253,
+   "at": 99.433,
+   "dur": 6.292,
    "text": "鋳造でも鍛造でも、3D モデルと帳面の言葉から、作り方を自動で出します。",
-   "file": "voice/_own10/n20.wav"
+   "file": "voice/_own10_pro/n20.wav"
   },
   {
    "n": 22,
-   "at": 107.333,
-   "dur": 3.488,
+   "at": 106.667,
+   "dur": 3.527,
    "text": "学校では、独自のデザインの作り方は、先生に聞くしかありません。",
-   "file": "voice/_own10/n22.wav"
+   "file": "voice/_own10_pro/n22.wav"
   },
   {
    "n": 23,
-   "at": 111.271,
-   "dur": 5.528,
+   "at": 110.644,
+   "dur": 5.566,
    "text": "先生が確かめられる数には限りがあり、1 時間ほど待つこともあります。",
-   "file": "voice/_own10/n23.wav"
+   "file": "voice/_own10_pro/n23.wav"
   },
   {
    "n": 24,
-   "at": 118.733,
-   "dur": 2.135,
+   "at": 118.167,
+   "dur": 2.174,
    "text": "継ぐなら、すぐ答えが出ます。",
-   "file": "voice/_own10/n24.wav"
+   "file": "voice/_own10_pro/n24.wav"
   },
   {
    "n": 27,
-   "at": 122.167,
-   "dur": 1.887,
+   "at": 121.633,
+   "dur": 1.927,
    "text": "そして、次の時代へ。",
-   "file": "voice/_own10/n27.wav"
+   "file": "voice/_own10_pro/n27.wav"
   },
   {
    "n": 28,
-   "at": 124.967,
-   "dur": 3.526,
+   "at": 124.467,
+   "dur": 3.565,
    "text": "伝統的工芸品の作り手は、約 6 割減りました。",
-   "file": "voice/_own10/n28.wav"
+   "file": "voice/_own10_pro/n28.wav"
   },
   {
    "n": 29,
-   "at": 129.533,
-   "dur": 3.794,
+   "at": 129.067,
+   "dur": 3.833,
    "text": "20 年に一度しか、受け継ぐ機会がない技もあります。",
-   "file": "voice/_own10/n29.wav"
+   "file": "voice/_own10_pro/n29.wav"
   },
   {
    "n": 30,
-   "at": 133.733,
-   "dur": 4.335,
+   "at": 133.75,
+   "dur": 4.374,
    "text": "こうした彫金の技も、継ぐで、次へ残せます。",
-   "file": "voice/_own10/n30.wav"
+   "file": "voice/_own10_pro/n30.wav"
   },
   {
    "n": 32,
-   "at": 142.817,
-   "dur": 3.999,
+   "at": 142.883,
+   "dur": 4.038,
    "text": "もし途絶えてしまっても、復元を試みることができます。",
-   "file": "voice/_own10/n32.wav"
+   "file": "voice/_own10_pro/n32.wav"
   },
   {
    "n": 33,
-   "at": 147.566,
-   "dur": 4.2,
+   "at": 147.671,
+   "dur": 4.239,
    "text": "たとえば、江戸時代の刀の飾りの技、木目金。",
-   "file": "voice/_own10/n33.wav"
+   "file": "voice/_own10_pro/n33.wav"
   },
   {
    "n": 37,
-   "at": 153.55,
-   "dur": 5.273,
+   "at": 153.717,
+   "dur": 5.312,
    "text": "隠しておいた、本当の 11 の手順と比べると、9 に、たどり着きました。",
-   "file": "voice/_own10/n37.wav"
+   "file": "voice/_own10_pro/n37.wav"
   },
   {
    "n": 39,
-   "at": 161.523,
-   "dur": 5.811,
+   "at": 161.729,
+   "dur": 5.85,
    "text": "職人の帳面が加われば、失われた技も、組み立て直せるかもしれません。",
-   "file": "voice/_own10/n39.wav"
+   "file": "voice/_own10_pro/n39.wav"
   },
   {
    "n": 42,
-   "at": 169.133,
-   "dur": 1.312,
+   "at": 169.3,
+   "dur": 1.351,
    "text": "継ぐ。",
-   "file": "voice/_own10/n42.wav"
+   "file": "voice/_own10_pro/n42.wav"
   },
   {
    "n": 41,
-   "at": 171.645,
-   "dur": 2.415,
+   "at": 171.851,
+   "dur": 2.454,
    "text": "職人の判断を、次の人へ。",
-   "file": "voice/_own10/n41.wav"
+   "file": "voice/_own10_pro/n41.wav"
   }
  ],
  "scenes": [
@@ -227,171 +227,171 @@
    "id": "flame",
    "ch": "序",
    "start": 0.0,
-   "len": 5.333333333333333,
+   "len": 5.366666666666666,
    "xf": 0.0,
    "dip": false,
    "voice": [
     {
      "n": 1,
      "at": 1.9,
-     "dur": 2.23,
+     "dur": 2.269,
      "text": "私は、彫金の職人です。",
-     "file": "voice/_own10/n1.wav"
+     "file": "voice/_own10_pro/n1.wav"
     }
    ]
   },
   {
    "id": "hands0",
    "ch": "序",
-   "start": 4.433333333333334,
-   "len": 5.733333333333333,
+   "start": 4.466666666666667,
+   "len": 5.8,
    "xf": 0.9,
    "dip": false,
    "voice": [
     {
      "n": 2,
      "at": 0.7,
-     "dur": 3.746,
+     "dur": 3.785,
      "text": "作れるかどうかの判断は、職人の頭の中にあります。",
-     "file": "voice/_own10/n2.wav"
+     "file": "voice/_own10_pro/n2.wav"
     }
    ]
   },
   {
    "id": "vanish10",
    "ch": "序",
-   "start": 9.266666666666667,
-   "len": 5.633333333333334,
+   "start": 9.366666666666667,
+   "len": 5.666666666666667,
    "xf": 0.9,
    "dip": false,
    "voice": [
     {
      "n": 3,
      "at": 0.6,
-     "dur": 3.63,
+     "dur": 3.669,
      "text": "職人がいなくなれば、その判断も消えます。",
-     "file": "voice/_own10/n3.wav"
+     "file": "voice/_own10_pro/n3.wav"
     }
    ]
   },
   {
    "id": "title10",
    "ch": "序",
-   "start": 14.1,
-   "len": 6.966666666666667,
+   "start": 14.233333333333333,
+   "len": 7.066666666666666,
    "xf": 0.8,
    "dip": false,
    "voice": [
     {
      "n": 42,
      "at": 0.9,
-     "dur": 1.312,
+     "dur": 1.351,
      "text": "継ぐ。",
-     "file": "voice/_own10/n42.wav"
+     "file": "voice/_own10_pro/n42.wav"
     },
     {
      "n": 41,
-     "at": 3.412,
-     "dur": 2.415,
+     "at": 3.451,
+     "dur": 2.454,
      "text": "職人の判断を、次の人へ。",
-     "file": "voice/_own10/n41.wav"
+     "file": "voice/_own10_pro/n41.wav"
     }
    ]
   },
   {
    "id": "rule15",
    "ch": "残す",
-   "start": 20.066666666666666,
-   "len": 12.433333333333334,
+   "start": 20.3,
+   "len": 12.566666666666666,
    "xf": 1.0,
    "dip": true,
    "voice": [
     {
      "n": 5,
      "at": 0.8,
-     "dur": 1.992,
+     "dur": 2.031,
      "text": "職人は、ふだんの言葉で話すだけ。",
-     "file": "voice/_own10/n5.wav"
+     "file": "voice/_own10_pro/n5.wav"
     },
     {
      "n": 6,
-     "at": 3.242,
-     "dur": 4.934,
+     "at": 3.281,
+     "dur": 4.973,
      "text": "Claude が決まりにし、ほかの設計も、帳面をもとに計算します。",
-     "file": "voice/_own10/n6.wav"
+     "file": "voice/_own10_pro/n6.wav"
     },
     {
      "n": 7,
-     "at": 8.625,
-     "dur": 2.824,
+     "at": 8.703,
+     "dur": 2.855,
      "text": "職人がよければ、帳面に残ります。",
-     "file": "voice/_own10/n7.wav"
+     "file": "voice/_own10_pro/n7.wav"
     }
    ]
   },
   {
    "id": "teach15",
    "ch": "残す",
-   "start": 31.9,
-   "len": 6.4,
+   "start": 32.266666666666666,
+   "len": 6.266666666666667,
    "xf": 0.6,
    "dip": false,
    "voice": [
     {
      "n": 8,
      "at": 0.9,
-     "dur": 2.853,
+     "dur": 2.72,
      "text": "違えば、ひとこと話すだけで直せます。",
-     "file": "voice/_own10/n8.wav"
+     "file": "voice/_own10_pro/n8.wav"
     }
    ]
   },
   {
    "id": "door1h",
    "ch": "渡す1",
-   "start": 37.3,
-   "len": 3.033333333333333,
+   "start": 37.53333333333333,
+   "len": 3.066666666666667,
    "xf": 1.0,
    "dip": true,
    "voice": [
     {
      "n": 10,
      "at": 0.25,
-     "dur": 1.861,
+     "dur": 1.9,
      "text": "まず、デザインする人へ。",
-     "file": "voice/_own10/n10.wav"
+     "file": "voice/_own10_pro/n10.wav"
     }
    ]
   },
   {
    "id": "flow11",
    "ch": "渡す1",
-   "start": 39.53333333333333,
-   "len": 13.5,
+   "start": 39.8,
+   "len": 13.566666666666666,
    "xf": 0.8,
    "dip": false,
    "voice": [
     {
      "n": 11,
      "at": 1.0,
-     "dur": 4.793,
+     "dur": 4.832,
      "text": "作れない、と制作から何度も戻ってくることがあります。",
-     "file": "voice/_own10/n11.wav"
+     "file": "voice/_own10_pro/n11.wav"
     },
     {
      "n": 12,
-     "at": 8.093,
-     "dur": 4.507,
+     "at": 8.132,
+     "dur": 4.545,
      "text": "継ぐがあれば、制作から戻ることは、ごく少なくなります。",
-     "file": "voice/_own10/n12.wav"
+     "file": "voice/_own10_pro/n12.wav"
     }
    ]
   },
   {
    "id": "section13",
    "ch": "渡す1",
-   "start": 52.53333333333333,
-   "len": 5.4,
+   "start": 52.86666666666667,
+   "len": 5.2,
    "xf": 0.5,
    "dip": false,
    "voice": []
@@ -399,66 +399,66 @@
   {
    "id": "firstnow10",
    "ch": "渡す1",
-   "start": 57.333333333333336,
-   "len": 9.033333333333333,
+   "start": 57.46666666666667,
+   "len": 8.933333333333334,
    "xf": 0.6,
    "dip": false,
    "voice": [
     {
      "n": 13,
-     "at": 1.378,
-     "dur": 5.373,
+     "at": 1.326,
+     "dur": 5.412,
      "text": "職人が残した言葉をもとに、Claude が、作れる指輪を自動で組みます。",
-     "file": "voice/_own10/n13.wav"
+     "file": "voice/_own10_pro/n13.wav"
     }
    ]
   },
   {
    "id": "deco11",
    "ch": "渡す1",
-   "start": 65.56666666666666,
-   "len": 8.233333333333333,
+   "start": 65.6,
+   "len": 8.133333333333333,
    "xf": 0.8,
    "dip": false,
    "voice": [
     {
      "n": 15,
      "at": 0.85,
-     "dur": 7.068,
+     "dur": 6.97,
      "text": "好きな雰囲気や細かい希望を打ち込むだけで、職人の決まりを守った、作れる形が出てきます。",
-     "file": "voice/_own10/n15.wav"
+     "file": "voice/_own10_pro/n15.wav"
     }
    ]
   },
   {
    "id": "fix11",
    "ch": "渡す1",
-   "start": 73.0,
-   "len": 12.133333333333333,
+   "start": 72.93333333333334,
+   "len": 11.966666666666667,
    "xf": 0.8,
    "dip": false,
    "voice": [
     {
      "n": 18,
      "at": 4.6,
-     "dur": 3.063,
+     "dur": 3.102,
      "text": "作れない所は、職人の言葉で教えます。",
-     "file": "voice/_own10/n18.wav"
+     "file": "voice/_own10_pro/n18.wav"
     },
     {
      "n": 19,
-     "at": 8.363,
-     "dur": 3.384,
+     "at": 8.402,
+     "dur": 3.161,
      "text": "なぜ作れないのか、どう直せばよいのかを。",
-     "file": "voice/_own10/n19.wav"
+     "file": "voice/_own10_pro/n19.wav"
     }
    ]
   },
   {
    "id": "out11",
    "ch": "渡す1",
-   "start": 84.33333333333333,
-   "len": 5.266666666666667,
+   "start": 84.1,
+   "len": 5.066666666666666,
    "xf": 0.8,
    "dip": false,
    "voice": []
@@ -466,8 +466,8 @@
   {
    "id": "tension16",
    "ch": "渡す1",
-   "start": 89.0,
-   "len": 5.733333333333333,
+   "start": 88.56666666666666,
+   "len": 5.533333333333333,
    "xf": 0.6,
    "dip": false,
    "voice": []
@@ -475,8 +475,8 @@
   {
    "id": "finished",
    "ch": "渡す1",
-   "start": 93.93333333333334,
-   "len": 3.2,
+   "start": 93.3,
+   "len": 3.1,
    "xf": 0.8,
    "dip": false,
    "voice": [],
@@ -485,191 +485,191 @@
   {
    "id": "door2",
    "ch": "渡す2",
-   "start": 96.13333333333334,
-   "len": 3.6,
+   "start": 95.4,
+   "len": 3.6333333333333333,
    "xf": 1.0,
    "dip": true,
    "voice": [
     {
      "n": 21,
      "at": 0.5,
-     "dur": 1.884,
+     "dur": 1.923,
      "text": "次に、学ぶ人へ。",
-     "file": "voice/_own10/n21.wav"
+     "file": "voice/_own10_pro/n21.wav"
     }
    ]
   },
   {
    "id": "make14",
    "ch": "渡す2",
-   "start": 98.93333333333334,
-   "len": 8.8,
+   "start": 98.23333333333333,
+   "len": 8.833333333333334,
    "xf": 0.8,
    "dip": false,
    "voice": [
     {
      "n": 20,
      "at": 1.2,
-     "dur": 6.253,
+     "dur": 6.292,
      "text": "鋳造でも鍛造でも、3D モデルと帳面の言葉から、作り方を自動で出します。",
-     "file": "voice/_own10/n20.wav"
+     "file": "voice/_own10_pro/n20.wav"
     }
    ]
   },
   {
    "id": "school10",
    "ch": "渡す2",
-   "start": 106.93333333333334,
-   "len": 10.2,
+   "start": 106.26666666666667,
+   "len": 10.3,
    "xf": 0.8,
    "dip": false,
    "voice": [
     {
      "n": 22,
      "at": 0.4,
-     "dur": 3.488,
+     "dur": 3.527,
      "text": "学校では、独自のデザインの作り方は、先生に聞くしかありません。",
-     "file": "voice/_own10/n22.wav"
+     "file": "voice/_own10_pro/n22.wav"
     },
     {
      "n": 23,
-     "at": 4.338,
-     "dur": 5.528,
+     "at": 4.377,
+     "dur": 5.566,
      "text": "先生が確かめられる数には限りがあり、1 時間ほど待つこともあります。",
-     "file": "voice/_own10/n23.wav"
+     "file": "voice/_own10_pro/n23.wav"
     }
    ]
   },
   {
    "id": "learn10",
    "ch": "渡す2",
-   "start": 116.33333333333333,
-   "len": 6.333333333333333,
+   "start": 115.76666666666667,
+   "len": 6.366666666666666,
    "xf": 0.8,
    "dip": false,
    "voice": [
     {
      "n": 24,
      "at": 2.4,
-     "dur": 2.135,
+     "dur": 2.174,
      "text": "継ぐなら、すぐ答えが出ます。",
-     "file": "voice/_own10/n24.wav"
+     "file": "voice/_own10_pro/n24.wav"
     }
    ]
   },
   {
    "id": "door3h",
    "ch": "渡す3",
-   "start": 121.66666666666667,
-   "len": 3.4,
+   "start": 121.13333333333334,
+   "len": 3.433333333333333,
    "xf": 1.0,
    "dip": true,
    "voice": [
     {
      "n": 27,
      "at": 0.5,
-     "dur": 1.887,
+     "dur": 1.927,
      "text": "そして、次の時代へ。",
-     "file": "voice/_own10/n27.wav"
+     "file": "voice/_own10_pro/n27.wav"
     }
    ]
   },
   {
    "id": "stat",
    "ch": "渡す3",
-   "start": 124.06666666666666,
-   "len": 6.166666666666667,
+   "start": 123.56666666666666,
+   "len": 6.2,
    "xf": 1.0,
    "dip": false,
    "voice": [
     {
      "n": 28,
      "at": 0.9,
-     "dur": 3.526,
+     "dur": 3.565,
      "text": "伝統的工芸品の作り手は、約 6 割減りました。",
-     "file": "voice/_own10/n28.wav"
+     "file": "voice/_own10_pro/n28.wav"
     }
    ]
   },
   {
    "id": "naiku",
    "ch": "渡す3",
-   "start": 129.23333333333332,
-   "len": 4.6,
+   "start": 128.76666666666668,
+   "len": 4.633333333333334,
    "xf": 1.0,
    "dip": false,
    "voice": [
     {
      "n": 29,
      "at": 0.3,
-     "dur": 3.794,
+     "dur": 3.833,
      "text": "20 年に一度しか、受け継ぐ機会がない技もあります。",
-     "file": "voice/_own10/n29.wav"
+     "file": "voice/_own10_pro/n29.wav"
     }
    ]
   },
   {
    "id": "kebori10",
    "ch": "渡す3",
-   "start": 132.93333333333334,
-   "len": 10.633333333333333,
+   "start": 132.5,
+   "len": 11.133333333333333,
    "xf": 0.9,
    "dip": false,
    "voice": [
     {
      "n": 30,
-     "at": 0.8,
-     "dur": 4.335,
+     "at": 1.25,
+     "dur": 4.374,
      "text": "こうした彫金の技も、継ぐで、次へ残せます。",
-     "file": "voice/_own10/n30.wav"
+     "file": "voice/_own10_pro/n30.wav"
     }
    ]
   },
   {
    "id": "mokume11",
    "ch": "途絶え",
-   "start": 142.56666666666666,
-   "len": 9.433333333333334,
+   "start": 142.63333333333333,
+   "len": 9.533333333333333,
    "xf": 1.0,
    "dip": true,
    "voice": [
     {
      "n": 32,
      "at": 0.25,
-     "dur": 3.999,
+     "dur": 4.038,
      "text": "もし途絶えてしまっても、復元を試みることができます。",
-     "file": "voice/_own10/n32.wav"
+     "file": "voice/_own10_pro/n32.wav"
     },
     {
      "n": 33,
-     "at": 4.999,
-     "dur": 4.2,
+     "at": 5.038,
+     "dur": 4.239,
      "text": "たとえば、江戸時代の刀の飾りの技、木目金。",
-     "file": "voice/_own10/n33.wav"
+     "file": "voice/_own10_pro/n33.wav"
     }
    ]
   },
   {
    "id": "moyou11",
    "ch": "復元",
-   "start": 151.2,
-   "len": 17.833333333333332,
+   "start": 151.36666666666667,
+   "len": 17.9,
    "xf": 0.8,
    "dip": false,
    "voice": [
     {
      "n": 37,
      "at": 2.35,
-     "dur": 5.273,
+     "dur": 5.312,
      "text": "隠しておいた、本当の 11 の手順と比べると、9 に、たどり着きました。",
-     "file": "voice/_own10/n37.wav"
+     "file": "voice/_own10_pro/n37.wav"
     },
     {
      "n": 39,
-     "at": 10.323,
-     "dur": 5.811,
+     "at": 10.362,
+     "dur": 5.85,
      "text": "職人の帳面が加われば、失われた技も、組み立て直せるかもしれません。",
-     "file": "voice/_own10/n39.wav"
+     "file": "voice/_own10_pro/n39.wav"
     }
    ],
    "waza": 1
@@ -677,8 +677,8 @@
   {
    "id": "endhands",
    "ch": "結",
-   "start": 168.03333333333333,
-   "len": 1.5,
+   "start": 168.26666666666668,
+   "len": 1.4333333333333333,
    "xf": 1.0,
    "dip": true,
    "voice": []
@@ -686,32 +686,32 @@
   {
    "id": "title3",
    "ch": "結",
-   "start": 168.33333333333334,
-   "len": 6.533333333333333,
+   "start": 168.5,
+   "len": 6.6,
    "xf": 1.2,
    "dip": false,
    "voice": [
     {
      "n": 42,
      "at": 0.8,
-     "dur": 1.312,
+     "dur": 1.351,
      "text": "継ぐ。",
-     "file": "voice/_own10/n42.wav"
+     "file": "voice/_own10_pro/n42.wav"
     },
     {
      "n": 41,
-     "at": 3.312,
-     "dur": 2.415,
+     "at": 3.351,
+     "dur": 2.454,
      "text": "職人の判断を、次の人へ。",
-     "file": "voice/_own10/n41.wav"
+     "file": "voice/_own10_pro/n41.wav"
     }
    ]
   },
   {
    "id": "credit",
    "ch": "結",
-   "start": 174.06666666666666,
-   "len": 4.133333333333334,
+   "start": 174.3,
+   "len": 3.966666666666667,
    "xf": 0.8,
    "dip": true,
    "voice": []
@@ -719,8 +719,8 @@
   {
    "id": "sources",
    "ch": "結",
-   "start": 177.4,
-   "len": 2.4,
+   "start": 177.46666666666667,
+   "len": 2.3333333333333335,
    "xf": 0.8,
    "dip": false,
    "voice": []
@@ -728,13 +728,13 @@
  ],
  "chapters": {
   "序": 0.0,
-  "残す": 20.066666666666666,
-  "渡す1": 37.3,
-  "渡す2": 96.13333333333334,
-  "渡す3": 121.66666666666667,
-  "途絶え": 142.56666666666666,
-  "復元": 151.2,
-  "結": 168.03333333333333
+  "残す": 20.3,
+  "渡す1": 37.53333333333333,
+  "渡す2": 95.4,
+  "渡す3": 121.13333333333334,
+  "途絶え": 142.63333333333333,
+  "復元": 151.36666666666667,
+  "結": 168.26666666666668
  },
  "music": {
   "sections": [
@@ -744,27 +744,27 @@
    ],
    [
     "main",
-    20.066666666666666
+    20.3
    ],
    [
     "thin",
-    121.66666666666667
+    121.13333333333334
    ],
    [
     "gap",
-    142.56666666666666
+    142.63333333333333
    ],
    [
     "build",
-    151.2
+    151.36666666666667
    ],
    [
     "peak",
-    151.2
+    151.367
    ],
    [
     "end",
-    168.03333333333333
+    168.26666666666668
    ]
   ],
   "end": 179.8
@@ -775,7 +775,7 @@
   "kebori": null
  },
  "git": {
-  "commits": "782",
+  "commits": "793",
   "first_day": "2026-11-02"
  }
 }

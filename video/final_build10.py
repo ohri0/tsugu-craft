@@ -16,6 +16,16 @@ WORK = os.environ.get("TSUGU_VIDEO_WORK", os.path.join(HERE, "work"))
 VO = os.path.join(WORK, "voice")
 SIM = os.path.join(VO, "sim10")
 OWN = os.path.join(VO, "_own10")
+# 2026-11-08 作者の声：口の音（くちゃ・プチッ）を消し、落ち着いたプロのナレーションのように聞きやすく。NARR_FX=pro なら、
+#   口の音を消す → 低い唸りを切る → やさしく圧縮（大小の差を少し縮める）→ 低い所を少し温かく・耳に刺さる所を少し丸く → ごく小さな部屋の響き。
+#   NARR_FX=plain（ふだん）は、口の音を消すだけ。どちらも、無音を切ってから足すので、声の長さ（場面の長さ）は変わらない
+NARR_FX = os.environ.get("NARR_FX", "plain")
+if NARR_FX == "pro":
+    OWN = OWN + "_pro"
+NARR_CHAIN = {
+    "plain": "adeclick=w=40:o=75:t=2",
+    "pro": "adeclick=w=40:o=75:t=2,highpass=f=80,acompressor=threshold=-21dB:ratio=2.2:attack=10:release=160:makeup=1.4,equalizer=f=200:t=q:w=1.0:g=1.2,equalizer=f=4200:t=q:w=1.2:g=-1.0,aecho=0.9:0.6:24|39:0.06|0.035",
+}[NARR_FX]
 FOOT = os.path.join(WORK, "footage")
 RAW = os.path.join(FOOT, "raw")
 FPS = 30
@@ -168,7 +178,7 @@ SCENES = [
     dict(id="stat", ch="渡す3", v=[28], pre=0.9, post=1.75, xf=1.0, fixed=True),
     dict(id="naiku", ch="渡す3", v=[29], pre=0.3, post=0.5, xf=1.0, fixed=True),
     # 職人が残す → 学ぶ人が受け取る：それぞれの画面を読める長さ（作者の声：移るのが速すぎる）。中の段の秒は kebori10 が声の頭から決める
-    dict(id="kebori10", ch="渡す3", v=[30], pre=0.8, post=5.5, xf=0.9, fixed=True),
+    dict(id="kebori10", ch="渡す3", v=[30], pre=1.25, post=5.5, xf=0.9, fixed=True),  # 2026-11-08 作者の声：「20 年に一度…」から「こうした彫金の技も…」が急 → 前の間 0.8 → 1.25 秒
     # 途切れた技：木目金の鐔（n32・n33）→ 模様の試し（別の係の新しい頁。頁の全体 → 表に寄って段が順に出る（n37）→ 下の行を読める大きさで → 3 枚へゆっくり → n39）
     dict(id="mokume11", ch="途絶え", v=[32, 33], gap=0.75, pre=nf(0.15, 0.25), post=0.25, xf=1.0, dip=True, fixed=True),
     dict(id="moyou11", ch="復元", v=[37, 39], pre=nf(2.0, 2.35), gap=nf(3.0, 3.6) - (0.9 if V17E else 0), post=nf(0.8, 1.4) + (0.3 if V17E else 0), xf=0.8, fixed=True, **({"waza": 1} if V17E else {})),  # 最終案 16：本当の手順 → Claude の手順を段ごと → 本当の 11 の手順を 1 行ずつ数える（n37）。言い終わって 1.5 秒は表の下の行（作者の頼み）。最終案 17b：Claude の手順 → 隠しておいた本当の手順を開く → 数える
@@ -195,7 +205,7 @@ def own_voice(n):
     dst = os.path.join(OWN, f"n{n}.wav")
     if not os.path.exists(dst) or os.path.getmtime(dst) < os.path.getmtime(src):
         cut = "silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.05,areverse,silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.12,areverse"
-        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", src, "-af", f"{cut},loudnorm=I=-16:TP=-1.5", "-ar", "48000", "-ac", "2", dst], check=True)
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", src, "-af", f"{cut},{NARR_CHAIN},loudnorm=I=-16:TP=-1.5", "-ar", "48000", "-ac", "2", dst], check=True)
     return dst
 
 

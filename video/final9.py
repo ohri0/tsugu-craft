@@ -59,7 +59,8 @@ def main():
         flt.append(f"[{k}:a]aresample=48000,aformat=channel_layouts=stereo,adelay={ms}|{ms}[v{k}]")
         vkeys.append(f"[v{k}]")
         k += 1
-    flt.append("".join(vkeys) + f"amix=inputs={len(vkeys)}:normalize=0,apad,atrim=0:{total},asplit=2[vo][vk]")
+    # 2026-11-08 作者の声：声が曲より少し大きい → 若干（約 1.5 dB）下げる
+    flt.append("".join(vkeys) + f"amix=inputs={len(vkeys)}:normalize=0,volume=0.84,apad,atrim=0:{total},asplit=2[vo][vk]")
     flt.append(f"[0:a]aresample=48000,aformat=channel_layouts=stereo,atrim=0:{total},volume=0.78[m]")
     # 最終案 17（作者の声：2:32 あたりで脈打つように聞こえる）：声の言葉ごとに音楽が上下しないよう、戻りをゆっくり（0.5 → 0.9 秒）、下がり始めも少しゆっくり
     flt.append("[m][vk]sidechaincompress=threshold=0.018:ratio=5:attack=80:release=900:makeup=1[md]")
