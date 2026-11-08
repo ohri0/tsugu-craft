@@ -1438,10 +1438,14 @@ def credit(s, t, f):
     a = L.ground().copy()
     a0 = vat(s)
     k = fade(t, a0 - 0.1, 0.9)
-    a = ink(a, Hz(W / 2, 520, "このアプリも、私が Claude Code と作りました。", "min", S + 4, 0.08, "c"), SHIRO, k)
+    a = ink(a, Hz(W / 2, 520, "この道具も、私が Claude Code と作りました。", "min", S + 4, 0.08, "c"), SHIRO, k)
     g = s.get("git") or {}
     if g.get("commits"):
-        a = ink(a, Hz(W / 2, 590, f"{g['first_day']} から {g['commits']} 回のコミット", "sans", T, 0.08, "c"), SHIRO, 0.9 * fade(t, a0 + 0.8, 0.9))
+        # 2026-11-08：エンジニアの言葉だけにならないよう「手直し（コミット）」。日の数は、はじめの日から今日まで（はじめの日も 1 日と数える）
+        import datetime as _dt
+        d0 = _dt.date.fromisoformat(g["first_day"])
+        days = (_dt.date.today() - d0).days + 1
+        a = ink(a, Hz(W / 2, 590, f"{d0.month} 月 {d0.day} 日から {days} 日間で、{g['commits']} 回の手直し（コミット）", "sans", T, 0.08, "c"), SHIRO, 0.9 * fade(t, a0 + 0.8, 0.9))
     return a
 
 
@@ -3525,17 +3529,62 @@ def scene_frame(doc, idx, t, f):
     return FN[s["id"]](s, t, f)
 
 
+# 2026-11-08（作者の声：画面の絵が、コンセプトの映像に見えないか。本当に操作できる画面だと伝わるか）：
+#   本物の継ぐを操作して撮った場面には、右下に小さく「継ぐの実際の画面」と出す（どの場面でも同じ所・同じ大きさ）
+REAL_SCREEN = {"teach15", "section13", "firstnow10", "deco11", "fix11", "out11", "tension16", "make14", "learn10", "kebori10", "moyou11", "flow11"}
+REAL_LABEL = "継ぐの実際の画面"
+# 作者の声（同じ日）：行き来の図の図面も、継ぐが描いた物だと分かるように
+REAL_LABELS = {"flow11": "図面は、継ぐが描いた物"}
+
+
+def real_k(s, t):
+    """場面 s の t 秒で、「実際の画面」の札をどれだけ出すか（0〜1）。模様の試しは、ダマスカス鋼の絵（作った見込みの絵）に替わる所で消す"""
+    if s["id"] not in REAL_SCREEN:
+        return 0.0
+    if s["id"] == "moyou11" and s.get("waza") and len(s["voice"]) > 1:
+        return 1.0 - sm(min(1.0, max(0.0, (t - (vat(s, 1) + WAZA17E_AT)) / 0.5)))
+    return 1.0
+
+
+@lru_cache(maxsize=4)
+def real_label_mask(text=REAL_LABEL):
+    return Hz(W - 64, H - 70, text, "sans", 26, 0.08, "r")
+
+
+def real_label(a, k, text=REAL_LABEL):
+    if k <= 0.001:
+        return a
+    m = real_label_mask(text)
+    y0, y1, x0, x1 = m.bb
+    box = soft_rect(x0 - 40, y0 - 12, x1 + 18, y1 + 12, 10)
+    a = a * (1 - 0.72 * k * box)[..., None]
+    dot = soft_rect(x0 - 28, (y0 + y1) / 2 - 5, x0 - 18, (y0 + y1) / 2 + 5, 5)
+    a = a * (1 - k * dot)[..., None] + np.array(SHU, F32) * (k * dot)[..., None]
+    return ink(a, m, SHIRO, 0.92 * k)
+
+
 def full_frame(doc, idx, f_local):
     """場面 idx の、頭から f_local こま目（前の場面との重ねを含む）"""
     s = doc["scenes"][idx]
     t = f_local / FPS
     a = scene_frame(doc, idx, t, f_local)
+    lab = real_k(s, t)
+    lab_p, text_p = 0.0, REAL_LABEL
     xf = s.get("xf", 0)
     if idx > 0 and t < xf:
         prev = doc["scenes"][idx - 1]
         tp = t + (s["start"] - prev["start"])
         b = scene_frame(doc, idx - 1, tp, f_local)
         u = t / xf
+        kp = real_k(prev, tp)
+        text_p = REAL_LABELS.get(prev["id"], REAL_LABEL)
+        if text_p == REAL_LABELS.get(s["id"], REAL_LABEL) and not s.get("dip"):
+            lab = kp * (1 - sm(u)) + lab * sm(u)
+        elif s.get("dip"):
+            lab_p = kp * (1 - sm(min(1, u * 2))) if u < 0.5 else 0.0
+            lab = 0.0 if u < 0.5 else lab * sm(u * 2 - 1)
+        else:
+            lab_p, lab = kp * (1 - sm(u)), lab * sm(u)
         if s.get("dip"):
             if u < 0.5:
                 a = b * (1 - sm(u * 2)) + np.array(SUMI, F32) * sm(u * 2)
@@ -3544,6 +3593,8 @@ def full_frame(doc, idx, f_local):
         else:
             k = sm(u)
             a = b * (1 - k) + a * k
+    a = real_label(a, lab_p, text_p)
+    a = real_label(a, lab, REAL_LABELS.get(s["id"], REAL_LABEL))
     # 全体の頭と終わり
     if idx == 0 and t < 0.8:
         a = a * sm(t / 0.8)
@@ -3578,6 +3629,16 @@ def scene_code(sid):
 
 
 def extra_key(s):
+    """場面の外にあって絵を変える物（_extra_base）に、「継ぐの実際の画面」の札（2026-11-08）を足す"""
+    import inspect
+
+    base = _extra_base(s)
+    if s and s["id"] in REAL_SCREEN:
+        base += "real=" + REAL_LABEL + repr(REAL_LABELS) + "".join(inspect.getsource(fn) for fn in (real_k, real_label, real_label_mask.__wrapped__))
+    return base
+
+
+def _extra_base(s):
     """場面の関数の外にあって、絵を変える物（最終案 17h・17i：BEAT17 の切り替えと、その絵の作り。出典の一覧）。ほかの場面は空（鍵は前と同じ）"""
     import inspect
 
