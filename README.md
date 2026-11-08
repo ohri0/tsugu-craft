@@ -6,6 +6,8 @@
 
 ![継ぐで組んだ指輪](public/lp/ring-macro.webp)
 
+**デモ動画（3 分）**：https://youtu.be/dByccMF_yuY
+
 **試す**：https://tsugu-craft.vercel.app/ 入口のページはだれでも見られます。設計・帳面・学ぶ・技・技の再現は、合言葉なしでも使えます。Claude が考えて答える所だけ、合言葉が要ります（合言葉は提出の文でお伝えします）。自分のパソコンで動かすときは聞きません。
 
 Built with Claude: Japan 2026（テーマ #1「あなたにしかない深さを。」）。作者は宝飾の彫金職人（石川）。
