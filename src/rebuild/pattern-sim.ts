@@ -638,12 +638,53 @@ export interface Trace {
  * 打ちむらをもどす：打った所の下では、層が押し下げられ（裏からなら押し上げられ）、金属は外へ逃げた。
  * (x, y, u) にある物が、打つ前にどこにあったかを返す。amp は上下のずれの大きさ（板の厚みに対して）。ずれは表と裏のごく近くでは消える
  */
-export function undent(dents: readonly { x: number; y: number; r: number; s: number; a?: number }[], amp: number, x: number, y: number, u: number): [number, number, number] {
+type Dent = { x: number; y: number; r: number; s: number; a?: number };
+/**
+ * 打ちの跡の、場所ごとの一覧（2026-11-08 作者の声：熱して叩くのをくり返すと跡が 1,000 をこえ、模様の見込みがとても遅かった）。
+ * 跡が効くのは中心から半径の 3 倍まで（q ≤ 9）なので、その円がかかる升目ごとに、跡の番号を元の順のまま入れておく。
+ * 1 点では、その点の升目の跡だけを、元の順で足す（外した跡は、もともと 0 しか足さないので、答えは同じ）
+ */
+type DentGrid = { x0: number; y0: number; cs: number; nx: number; ny: number; cells: number[][] };
+const dentGrids = new WeakMap<readonly Dent[], DentGrid>();
+function dentGrid(dents: readonly Dent[]): DentGrid {
+  const have = dentGrids.get(dents);
+  if (have) return have;
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity, rmin = Infinity;
+  for (const d of dents) {
+    const R = 3 * d.r;
+    x0 = Math.min(x0, d.x - R); y0 = Math.min(y0, d.y - R); x1 = Math.max(x1, d.x + R); y1 = Math.max(y1, d.y + R);
+    rmin = Math.min(rmin, d.r);
+  }
+  const cs = Math.max((x1 - x0) / 64, (y1 - y0) / 256, 3 * rmin, 1e-9);
+  const nx = Math.max(1, Math.ceil((x1 - x0) / cs));
+  const ny = Math.max(1, Math.ceil((y1 - y0) / cs));
+  const cells: number[][] = Array.from({ length: nx * ny }, () => []);
+  dents.forEach((d, k) => {
+    const R = 3 * d.r;
+    const i0 = Math.max(0, Math.floor((d.x - R - x0) / cs)), i1 = Math.min(nx - 1, Math.floor((d.x + R - x0) / cs));
+    const j0 = Math.max(0, Math.floor((d.y - R - y0) / cs)), j1 = Math.min(ny - 1, Math.floor((d.y + R - y0) / cs));
+    for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) cells[j * nx + i].push(k);
+  });
+  const g = { x0, y0, cs, nx, ny, cells };
+  dentGrids.set(dents, g);
+  return g;
+}
+
+export function undent(dents: readonly Dent[], amp: number, x: number, y: number, u: number): [number, number, number] {
   const hv = PATTERN_VALUES.hammer;
   let dz = 0;
   let dx = 0;
   let dy = 0;
-  for (const d of dents) {
+  const g = dents.length > 24 ? dentGrid(dents) : null;
+  let idx: readonly number[] | null = null;
+  if (g) {
+    const i = Math.floor((x - g.x0) / g.cs);
+    const j = Math.floor((y - g.y0) / g.cs);
+    idx = i >= 0 && j >= 0 && i < g.nx && j < g.ny ? g.cells[j * g.nx + i] : [];
+  }
+  const count = idx ? idx.length : dents.length;
+  for (let t = 0; t < count; t++) {
+    const d = idx ? dents[idx[t]] : dents[t];
     const ex = x - d.x;
     const ey = y - d.y;
     const q = (ex * ex + ey * ey) / (d.r * d.r);

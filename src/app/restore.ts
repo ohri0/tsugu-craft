@@ -105,7 +105,7 @@ export const MOYOU_SAMPLE_ID = "demo-amadare";
 export const MOYOU_SURFACE_SAMPLE_ID = "demo-wauchi";
 /** 本当に途切れた技：ダマスカス鋼（ウーツ鋼）。手がかり（出典つき）と職人の帳面の言葉から、本物の Claude が組んだ手順と模様の見込み
  *  （docs/pattern-demo/lost/real/round-6 の帳面ありの案 1。動画の 2:44 の絵と同じ記録。2026-11-08 作者：継ぐで作った物だと言えるように） */
-export const WOOTZ_SAMPLE_ID = "demo-wootz";
+export const WOOTZ_SAMPLE_ID = "demo-wootz-best";  // 2026-11-08 作者：いちばん近かった案 1 だけを残した版（前の demo-wootz は案 2 つ。開いたことのあるブラウザでは消して入れ替える）
 const SAMPLES: Record<string, () => Promise<unknown>> = {
   [WOOTZ_SAMPLE_ID]: async () => (await import("../../research/restore/sample-wootz.json")).default,
   rmw3fsef87cep: async () => (await import("../../research/restore/sample.json")).default,
@@ -226,6 +226,8 @@ const SAMPLE_CARDS: { id: string; title: string; sub: string }[] = [
 ];
 
 function mountList(root: HTMLElement, opts: { onBack: () => void }) {
+  // 前の版のダマスカス鋼の例（案 2 つ）が残っていれば、消す（いまの例は、いちばん近かった案 1 だけ）
+  if (loadProject("demo-wootz")) removeProject("demo-wootz");
   const projects = listProjects();
   // 撮影（?rec・?nointro）の絵は前のまま
   const film = filming();
