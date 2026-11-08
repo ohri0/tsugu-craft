@@ -220,7 +220,7 @@ function wireImport(input: HTMLInputElement, say: (t: string) => void) {
  */
 const SAMPLE_CARDS: { id: string; title: string; sub: string }[] = [
   { id: WOOTZ_SAMPLE_ID, title: "本当に途切れた技：ダマスカス鋼（ウーツ鋼）", sub: "出典つきの手がかりと職人の帳面から、Claude が組んだ手順と模様の見込み" },
-  { id: "rmw3fsef87cep", title: "作り話の例で、流れを最後まで見る", sub: "手がかり → Claude の案 → 試した結果 → 直した案（霜目の小箱）" },
+  // 2026-11-08 作者：例に置くのは、模様の見込みまで描ける物だけ。霜目の小箱（灰を塗ってあぶる色つけの技）は、今の計算では描けないので一覧から外した（直接のリンクでは開ける）
   { id: MOYOU_SAMPLE_ID, title: "手順から模様を描いた例（重ねる技・木目金のなかま）", sub: "Claude の手順のとおりに作ると、どんな模様になるか（雨垂れ銀）" },
   { id: MOYOU_SURFACE_SAMPLE_ID, title: "彫る・打つ技で、模様を描いた例", sub: "1 枚の板に溝を彫って金をはめ、鏨で打つ（輪打ち金筋）" },
 ];
