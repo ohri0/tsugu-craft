@@ -228,6 +228,8 @@ const SAMPLE_CARDS: { id: string; title: string; sub: string }[] = [
 function mountList(root: HTMLElement, opts: { onBack: () => void }) {
   // 前の版のダマスカス鋼の例（案 2 つ）が残っていれば、消す（いまの例は、いちばん近かった案 1 だけ）
   if (loadProject("demo-wootz")) removeProject("demo-wootz");
+  // 霜目の小箱（模様を描けない作り話の例）も、例を開いたことのあるブラウザの一覧から外す（自分で入れた記録には触らない。例の印 sample のある物だけ）
+  if (loadProject("rmw3fsef87cep")?.sample) removeProject("rmw3fsef87cep");
   const projects = listProjects();
   // 撮影（?rec・?nointro）の絵は前のまま
   const film = filming();
