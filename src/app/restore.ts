@@ -103,7 +103,11 @@ let releasePhotos: () => void = () => undefined;
 export const MOYOU_SAMPLE_ID = "demo-amadare";
 /** 重ねない技（1 枚の板の表の飾り）の見込みつきの例 */
 export const MOYOU_SURFACE_SAMPLE_ID = "demo-wauchi";
+/** 本当に途切れた技：ダマスカス鋼（ウーツ鋼）。手がかり（出典つき）と職人の帳面の言葉から、本物の Claude が組んだ手順と模様の見込み
+ *  （docs/pattern-demo/lost/real/round-6 の帳面ありの案 1。動画の 2:44 の絵と同じ記録。2026-11-08 作者：継ぐで作った物だと言えるように） */
+export const WOOTZ_SAMPLE_ID = "demo-wootz";
 const SAMPLES: Record<string, () => Promise<unknown>> = {
+  [WOOTZ_SAMPLE_ID]: async () => (await import("../../research/restore/sample-wootz.json")).default,
   rmw3fsef87cep: async () => (await import("../../research/restore/sample.json")).default,
   [MOYOU_SAMPLE_ID]: async () => (await import("../../research/restore/sample-moyou.json")).default,
   [MOYOU_SURFACE_SAMPLE_ID]: async () => (await import("../../research/restore/sample-moyou-surface.json")).default,
@@ -215,6 +219,7 @@ function wireImport(input: HTMLInputElement, say: (t: string) => void) {
  * 輪打ち金筋：1 枚の板に、溝を彫って金をはめ、輪の鏨で打つ技（重ねない）。手順から模様の見込みを描いた。
  */
 const SAMPLE_CARDS: { id: string; title: string; sub: string }[] = [
+  { id: WOOTZ_SAMPLE_ID, title: "本当に途切れた技：ダマスカス鋼（ウーツ鋼）", sub: "出典つきの手がかりと職人の帳面から、Claude が組んだ手順と模様の見込み" },
   { id: "rmw3fsef87cep", title: "作り話の例で、流れを最後まで見る", sub: "手がかり → Claude の案 → 試した結果 → 直した案（霜目の小箱）" },
   { id: MOYOU_SAMPLE_ID, title: "手順から模様を描いた例（重ねる技・木目金のなかま）", sub: "Claude の手順のとおりに作ると、どんな模様になるか（雨垂れ銀）" },
   { id: MOYOU_SURFACE_SAMPLE_ID, title: "彫る・打つ技で、模様を描いた例", sub: "1 枚の板に溝を彫って金をはめ、鏨で打つ（輪打ち金筋）" },
@@ -259,7 +264,7 @@ function mountList(root: HTMLElement, opts: { onBack: () => void }) {
       film
         ? `<div class="rs-quiet"><button type="button" class="linklike rs-sample" data-sample="rmw3fsef87cep">例を見る</button><button type="button" class="linklike rs-sample" data-sample="${MOYOU_SAMPLE_ID}">模様の見込みつきの例を見る</button><button type="button" class="linklike rs-sample" data-sample="${MOYOU_SURFACE_SAMPLE_ID}">重ねない技の例を見る</button></div>`
         : `<section class="rs-examples" aria-labelledby="rs-ex-h">
-      <h3 id="rs-ex-h">はじめての方は、例を 1 つ開いてみてください <small>どれも作り話の技です</small></h3>
+      <h3 id="rs-ex-h">はじめての方は、例を 1 つ開いてみてください <small>ダマスカス鋼のほかは、作り話の技です</small></h3>
       <ul>${SAMPLE_CARDS.map((c) => `<li><button type="button" class="rs-sample rs-ex" data-sample="${c.id}"><b>${c.title}</b><small>${c.sub}</small><span class="rs-go-mark" aria-hidden="true">›</span></button></li>`).join("")}</ul>
     </section>`
     }

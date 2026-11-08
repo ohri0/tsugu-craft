@@ -590,7 +590,7 @@ export function bindSectionEditor(box: HTMLElement, start: SectionShape, onLive:
       wBad || tBad ? `赤い数字は${wBad ? `職人の決まりの赤（幅 ${g.minWidthMm} mm 以下）` : ""}${wBad && tBad ? "と、" : ""}${tBad ? `目安（厚み ${g.minThicknessMm} mm）より薄い所` : ""}。最後は職人が決める` : "",
       wLv === "orange" ? `幅がオレンジ：${WIDTH_NOTE_TEXT.orange}（${g.widthOrangeMm} mm より細い。止めません）` : wLv === "yellow" ? `幅が黄色：${WIDTH_NOTE_TEXT.yellow}（${g.widthYellowMm} mm 以下。止めません）` : "",
     ].filter(Boolean);
-    const fingerNote = lift ? "下の丸い線が指の側（内甲丸）" : opts.innerMm === undefined ? "下の線が指の側（いつも平ら）" : "下の線が指の側";
+    const fingerNote = lift ? "下の丸い線が指の側（内甲丸）" : "下の線が指の側";  // 2026-11-08 作者：下もいろいろな形にできるので「（いつも平ら）」は外した
     q<HTMLElement>(".se-hint").textContent = `${hint}。${notes.length ? notes.join("。") : fingerNote}`;
   };
   draw();
