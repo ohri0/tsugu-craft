@@ -210,7 +210,7 @@ export function mountRebuild(root: HTMLElement, opts: { onBack?: () => void } = 
       }
 
 
-      ${filming() ? "" : `<p class="rs-cross-line">答えの分からない技なら <a href="#waza/restore">途切れた技を入れる ›</a></p>`}
+      ${filming() ? "" : `<p class="rs-cross-line">答えの分からない技なら <a href="#waza/restore">技の再現へ ›</a></p>`}
       ${CAVEAT}
     </section>`;
 

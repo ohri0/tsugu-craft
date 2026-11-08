@@ -2564,7 +2564,7 @@ def section13(s, t, f):
     return subheading(a, SEC17_CAP, t, t_red - 0.15)
 
 
-SEC17_CAP = "引きすぎると赤く → 動かしたまま戻すと消える"
+SEC17_CAP = "引きすぎると赤く → 戻すと消える"  # 2026-11-08 作者：「動かしたまま」はノイズ
 
 
 PRONG12_Z = (530, 300, 820)    # 爪を押す：左の指輪と、爪の欄（指輪を大きめに）
@@ -3041,7 +3041,26 @@ def moyou_three():
     return a
 
 
-@scene("moyou11", "waza17e")  # 最終案 17e：waza17e は台本に waza があるときだけ使う
+NAV_H = 87  # 上の帯の高さ（1280 の頁で 58 px → 動画の 1920 で 87 px）
+
+
+@lru_cache(maxsize=1)
+def nav_strip():
+    p = os.path.join(STORY, "navbar", "restore-nav.png")
+    return np.asarray(Image.open(p).convert("RGB").resize((W, NAV_H), Image.LANCZOS), F32) / 255.0 if os.path.exists(p) else None
+
+
+def with_nav(a):
+    """頁の絵 a の上に、本物のアプリの上の帯を貼る。撮った頁は上に空きがあるので、ずらさずに重ねる（中身は隠れない・下も切れない）"""
+    n = nav_strip()
+    if n is None:
+        return a
+    out = a.copy()
+    out[:NAV_H] = n
+    return out
+
+
+@scene("moyou11", "waza17e", "navbar")  # 最終案 17e：waza17e は台本に waza があるときだけ使う
 def moyou11(s, t, f):
     """最終案 13（作者の声：表の小さな字が読めない。「9 に、たどり着きました」のあと、すぐ 3 枚に替わって「はん？」となる）：
     頁の全体 → 表の左半分（見出し・①〜③）に寄って段が順に出る → ④・⑤ は右半分 → 言い終わったら、下の行（本当の工程と比べると）を
@@ -3068,12 +3087,15 @@ def moyou11(s, t, f):
     #   枠も寄りも同じまま、本当の手順 → Claude の手順を段ごとに → 本当の 11 の手順を 1 行ずつ出して、たどり着いた数（一致・一部）を 9 まで数える
     # 最終案 17b（作者の声：語り「隠しておいた、本当の 11 の手順と比べると」に合わせて順を逆に）：Claude の手順を段ごとに先に →
     #   隠しておいた本当の手順（伏せた札に「？」）を答えとして開く → 本当の 11 の手順を ○ △ × で数えて「11 のうち 9」（moyou_reveal）
+    # 2026-11-08（作者の声：この頁は本物の画面と分かりにくい。上の案内の帯を、写真で貼れないか）：撮ったときは撮影のため上の帯を
+    #   隠していた。本物のアプリの同じ頁の上の帯（58 px。work/story/navbar/restore-nav.png）を貼り、頁はその分だけ下へ（本物と同じ並び）
     table = moyou_reveal(hold_fr, t, a0) if "li00_ok" in meta("moyou11")["boxes"] or any(k.startswith("li00_") for k in meta("moyou11")["boxes"]) else moyou_table(hold_fr)
+    table = with_nav(table)
     t_three = a1 - 1.5         # 3 枚へ、1 秒かけて重ねて替える（n39 の 0.5 秒前に替わり終わる）
     if t < t_three:
         return table
     k = sm((t - t_three) / 1.0)
-    three = moyou_three_lit(t, a1, WAZA17E_STEP if s.get("waza") else 1.2)
+    three = moyou_three_lit(t, a1, WAZA17E_STEP if s.get("waza") else 1.2)  # 3 枚の鐔は、動画で組んだ絵（頁そのままではない）なので帯は貼らない
     # 最終案 17e（台本の waza。V17E=1 のときだけ）：3 枚の鐔を 1 枚ずつ見せ終えてから、6 つの絵（waza17e_beat。最終案 17g から本当に途切れた技 3・架空の技 3）へ重ねて替える
     t_waza = a1 + WAZA17E_AT
     if s.get("waza") and t >= t_waza:
@@ -3539,15 +3561,25 @@ REAL_LABELS = {"flow11": "図面は、継ぐが描いた物", "firstnow10": "指
 WAZA_LABEL = "見込みの絵は、継ぐが計算で描いた物"
 
 
+REAL_SHOW = 3.0  # 札を出しておく秒（作者の声：ずっと出ているとノイズ。同じ札の場面が続くときは、続きの頭だけ出す）
+
+
 def real_labels(s, t):
-    """場面 s の t 秒に出す札の [(字, 濃さ 0〜1)]。模様の試しは、ダマスカス鋼の絵に替わる所で「見込みの絵は…」に替える"""
+    """場面 s の t 秒に出す札の [(字, 濃さ 0〜1)]。模様の試しは、ダマスカス鋼の絵に替わる所で「見込みの絵は…」に替える。
+    s["label_from"]：同じ札が前の場面から続いているとき、その札が出始めた秒（この場面の頭からの秒。負になる）"""
     if s["id"] not in REAL_SCREEN:
         return []
     text = REAL_LABELS.get(s["id"], REAL_LABEL)
-    if s["id"] == "moyou11" and s.get("waza") and len(s["voice"]) > 1:
-        u = sm(min(1.0, max(0.0, (t - (vat(s, 1) + WAZA17E_AT)) / 0.5)))
-        return [(text, 1.0 - u), (WAZA_LABEL, u)]
-    return [(text, 1.0)]
+    t0 = s.get("label_from", 0.0)
+    show = lambda since: 1.0 - sm(min(1.0, max(0.0, (since - REAL_SHOW) / 0.6)))  # noqa: E731
+    if s["id"] == "moyou11" and len(s["voice"]) > 1:
+        # 作者の声：模様の試しの頁は、ほかの画面より本物と分かりにくい → 頁のあいだは、ずっと出す。
+        #   3 枚の鐔（動画で組んだ絵）とダマスカス鋼の見込みの絵のあいだは、「見込みの絵は、継ぐが計算で描いた物」をずっと出す
+        tt = vat(s, 1) - 1.5
+        u = sm(min(1.0, max(0.0, (t - tt) / 1.0)))
+        # 作者の声：上の帯（本物のアプリの案内）を貼ったので、頁のあいだの「継ぐの実際の画面」は無くても伝わる
+        return [(WAZA_LABEL, u)]
+    return [(text, show(t - t0))]
 
 
 @lru_cache(maxsize=8)
@@ -3638,7 +3670,7 @@ def extra_key(s):
 
     base = _extra_base(s)
     if s and s["id"] in REAL_SCREEN:
-        base += "real=" + REAL_LABEL + repr(REAL_LABELS) + WAZA_LABEL + "".join(inspect.getsource(fn) for fn in (real_labels, real_label, real_label_mask.__wrapped__))
+        base += "real=" + REAL_LABEL + repr(REAL_LABELS) + WAZA_LABEL + str(REAL_SHOW) + str(s.get("label_from")) + "".join(inspect.getsource(fn) for fn in (real_labels, real_label, real_label_mask.__wrapped__))
     return base
 
 
@@ -3746,6 +3778,16 @@ def prepare(doc):
             s["foot"] = doc["foot"].get("ring2")
         if s["id"] == "credit":
             s["git"] = doc["git"]
+    # 札（継ぐの実際の画面）：同じ札の場面が続くときは、続きの頭からの秒を渡す（続きの頭だけ札を出す）
+    prev = None
+    for s in doc["scenes"]:
+        txt = REAL_LABELS.get(s["id"], REAL_LABEL) if s["id"] in REAL_SCREEN else None
+        if txt and prev is not None and prev[0] == txt:
+            s["label_from"] = round(prev[1] - s["start"], 3)
+        if txt:
+            prev = (txt, (s["start"] + s["label_from"]) if "label_from" in s else s["start"])
+        else:
+            prev = None
     if REAL17:
         # 残す（rule15）と話して直す（teach15）を、teach17 の 1 本の流れに：声の秒を rule15 の頭からの秒にそろえて、両方の場面に渡す
         r = next(x for x in doc["scenes"] if x["id"] == "rule15")

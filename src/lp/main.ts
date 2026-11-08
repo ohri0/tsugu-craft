@@ -165,7 +165,7 @@ const html = `
     </div>
     <div class="hero-b">
       <p class="hero-by">宝飾の彫金職人が、Claude Code と作りました。</p>
-      <div class="cta"><a class="btn primary" href="${STUDIO}">設計する</a><a class="btn" href="app.html#waza/restore">途切れた技</a><a class="btn open-why" href="#why">なぜ継ぐ</a></div>
+      <div class="cta"><a class="btn primary" href="${STUDIO}">設計する</a><a class="btn" href="app.html#waza/restore">技の再現</a><a class="btn open-why" href="#why">なぜ継ぐ</a></div>
     </div>
   </section>
 

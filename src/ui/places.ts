@@ -21,7 +21,7 @@ export const PLACES: readonly Place[] = [
   { id: "design", label: "設計", sub: "形を作って、作れるか確かめる", icon: `<circle cx="12" cy="14" r="6" ${S}/><path d="M9 4h6l-3 4Z" ${S}/>` },
   { id: "learn", label: "学ぶ", sub: "職人に聞く・手の動きを比べる", hash: "#learn", icon: `<path d="M4 5h16v11H8l-4 4V5Z" ${S}/>` },
   { id: "waza", label: "技", sub: "技ごとに、言葉と手本を残す", hash: "#waza", icon: `<circle cx="7" cy="7" r="2" ${S}/><circle cx="17" cy="7" r="2" ${S}/><circle cx="12" cy="12" r="2" ${S}/><circle cx="7" cy="17" r="2" ${S}/><circle cx="17" cy="17" r="2" ${S}/>` },
-  { id: "restore", label: "途切れた技", sub: "手がかりから、作り方を組み立て直す", hash: "#waza/restore", icon: `<path d="M19.5 13a7.5 7.5 0 1 1-2.2-6.3" ${S}/><path d="M18 3.5v4h-4" ${S}/><path d="M9 12.5h1.6M13.4 12.5H15" ${S}/>` },
+  { id: "restore", label: "技の再現", sub: "手がかりや思い描いた模様から、作り方を組み立てる", hash: "#waza/restore", icon: `<path d="M19.5 13a7.5 7.5 0 1 1-2.2-6.3" ${S}/><path d="M18 3.5v4h-4" ${S}/><path d="M9 12.5h1.6M13.4 12.5H15" ${S}/>` },
 ];
 
 /**

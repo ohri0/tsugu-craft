@@ -154,7 +154,7 @@ async function openSample(id: string): Promise<RestoreProject | null> {
 async function mountMoyouPage(root: HTMLElement, id: string, version: number | null) {
   const project = loadProject(id) ?? (await openSample(id));
   if (!project) {
-    root.innerHTML = `<section class="view rs"><button type="button" class="rs-back">← 途切れた技の一覧</button><p class="rs-empty">この記録は、このブラウザにありません。</p></section>`;
+    root.innerHTML = `<section class="view rs"><button type="button" class="rs-back">← 技の再現の一覧</button><p class="rs-empty">この記録は、このブラウザにありません。</p></section>`;
     root.querySelector(".rs-back")!.addEventListener("click", () => (location.hash = "#waza/restore"));
     return;
   }
@@ -232,15 +232,15 @@ function mountList(root: HTMLElement, opts: { onBack: () => void }) {
   root.innerHTML = `
   <section class="view rs">
     <button type="button" class="rs-back">${film ? "← 技の一覧" : "← 技へ"}</button>
-    <h2 class="rs-title">途切れた技</h2>
+    <h2 class="rs-title">技の再現</h2>
     ${
       film
         ? `<p class="rs-lead">分かることを入れると、Claude が作り方の案を出します。</p>`
-        : `<p class="rs-lead">作り方の残っていない技を、残った品物や古い記録の手がかりから、Claude と組み立て直す所です。</p>
+        : `<p class="rs-lead">作り方の残っていない技を、残った品物や古い記録の手がかりから、Claude と組み立て直す所です。思い描いた模様から、新しい技の作り方を考えることもできます。</p>
     <ol class="rs-how" aria-label="流れ">${FLOW.map((f) => `<li><span aria-hidden="true">${f.n}</span>${f.label}</li>`).join("")}</ol>`
     }
     <div class="rs-start">
-      <button type="button" class="primary rs-big rs-new-open">途切れた技を入れる</button>
+      <button type="button" class="primary rs-big rs-new-open">技を入れる</button>
       <form class="rs-new" hidden>
         <label>技の名前<input class="rs-new-name" maxlength="${TEXT_LIMITS.name}" placeholder="例：家に残った鍔の色つけ" autocomplete="off"></label>
         <button type="submit" class="primary rs-big">始める</button>
@@ -307,7 +307,7 @@ function mountList(root: HTMLElement, opts: { onBack: () => void }) {
 function mountProject(root: HTMLElement, id: string) {
   const loaded = loadProject(id);
   if (!loaded) {
-    root.innerHTML = `<section class="view rs"><button type="button" class="rs-back">← 途切れた技の一覧</button><p class="rs-empty">この記録は、このブラウザにありません。</p></section>`;
+    root.innerHTML = `<section class="view rs"><button type="button" class="rs-back">← 技の再現の一覧</button><p class="rs-empty">この記録は、このブラウザにありません。</p></section>`;
     root.querySelector(".rs-back")!.addEventListener("click", () => (location.hash = "#waza/restore"));
     return;
   }
@@ -331,7 +331,7 @@ function mountProject(root: HTMLElement, id: string) {
 
   root.innerHTML = `
   <section class="view rs">
-    <button type="button" class="rs-back">← 途切れた技の一覧</button>
+    <button type="button" class="rs-back">← 技の再現の一覧</button>
     <div class="rs-head"><h2 class="rs-title"></h2><span class="rs-example" hidden>これは作り話の例です</span></div>
     <div class="rs-save" role="status" aria-live="polite"></div>
     <ol class="rs-flow" aria-label="流れ">${FLOW.map((f) => `<li><button type="button" data-view="${f.n}"><span class="rs-flow-n" aria-hidden="true">${f.n}</span><span>${f.label}</span></button></li>`).join("")}</ol>

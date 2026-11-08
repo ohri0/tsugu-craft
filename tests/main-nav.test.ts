@@ -4,9 +4,9 @@ import { describe, expect, it } from "vitest";
 import { PLACES, placeHref, placeOf } from "../src/ui/places";
 
 describe("場所の切り替え", () => {
-  it("並びは入口のページの話と同じ：帳面 → 設計 → 学ぶ → 技 → 途切れた技。だれの場所かを添える", () => {
-    expect(PLACES.map((p) => p.label)).toEqual(["帳面", "設計", "学ぶ", "技", "途切れた技"]);
-    expect(PLACES.map((p) => p.sub)).toEqual(["職人の決まりを見る・残す", "形を作って、作れるか確かめる", "職人に聞く・手の動きを比べる", "技ごとに、言葉と手本を残す", "手がかりから、作り方を組み立て直す"]);
+  it("並びは入口のページの話と同じ：帳面 → 設計 → 学ぶ → 技 → 技の再現。だれの場所かを添える", () => {
+    expect(PLACES.map((p) => p.label)).toEqual(["帳面", "設計", "学ぶ", "技", "技の再現"]);
+    expect(PLACES.map((p) => p.sub)).toEqual(["職人の決まりを見る・残す", "形を作って、作れるか確かめる", "職人に聞く・手の動きを比べる", "技ごとに、言葉と手本を残す", "手がかりや思い描いた模様から、作り方を組み立てる"]);
   });
 
   it("app.html の中からは # だけ（?mihon を付けたまま移る）。ほかの頁からは app.html#…。設計は studio.html", () => {
