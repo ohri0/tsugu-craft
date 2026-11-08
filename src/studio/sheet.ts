@@ -53,7 +53,11 @@ dd { margin: 0.5mm 0 0; font-size: 11pt; font-variant-numeric: tabular-nums; }
 .ng { background: #f8e3de; color: #8a2a1c; }
 h2 { font-weight: 700; font-size: 11pt; margin: 6mm 0 3mm; }
 ${CARDS_PRINT_CSS}
-.two .sc { grid-template-columns: 1fr 1fr; }
+/* 2026-11-08 作者：PDF で札が 2 ページにまたがって切れた。2 列の格子の札は、ブラウザによって「途中で切らない」が効かない。
+   2 列は、札を 1 つの塊（inline-block。ページの途中で割れない）として横に 2 つ並べる形にする。入りきらない札は次のページへ */
+.two .sc { display: block; font-size: 0; }
+.two .sc > .sc-card { display: inline-block; vertical-align: top; width: calc(50% - 1.5mm); margin: 0 0 3mm; font-size: 10pt; box-sizing: border-box; }
+.two .sc > .sc-card:nth-child(odd) { margin-right: 3mm; }
 .two .sc-body { margin-left: 0; }
 .foot { margin-top: 4mm; font-size: 7.5pt; color: #666; }
 </style></head><body>

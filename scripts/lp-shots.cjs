@@ -494,12 +494,12 @@ const SHOTS = {
     await p.screenshot({ path: `${WORK}/tension-card.png`, clip: r });
     made.push('tension-card');
   },
-  // 職人が作ったテンションの指輪（動画の素材 video/work/footage/raw/finished.mov の 1.6 秒の 1 こま。指輪と手に寄せて 4:3 で切る）。
+  // 職人が作ったテンションの指輪（動画の素材 video/work/footage/raw/finished.mov の 1.0 秒の 1 こま（2026-11-08 作者：石が腕の溝に入っているのが分かる、傾いていない所へ。前は 1.6 秒）。指輪と手に寄せて 4:3 で切る）。
   // 素材は動画の作業場所にだけある（リポジトリには入れない）。TSUGU_FINISHED で場所を変えられる
   async finished() {
     const src = process.env.TSUGU_FINISHED || path.join(__dirname, '..', 'video', 'work', 'footage', 'raw', 'finished.mov');
     if (!fs.existsSync(src)) return console.log('finished：素材がない', src);
-    execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-ss', '1.6', '-i', src, '-frames:v', '1', '-vf', 'crop=992:744:329:116', `${WORK}/finished-ring.png`]);
+    execFileSync('ffmpeg', ['-y', '-loglevel', 'error', '-ss', '1.0', '-i', src, '-frames:v', '1', '-vf', 'crop=992:744:329:116', `${WORK}/finished-ring.png`]);
     made.push('finished-ring');
   },
   // 大きさの一覧だけを作り直す（撮らない）

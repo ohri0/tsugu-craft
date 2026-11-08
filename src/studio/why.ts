@@ -59,6 +59,7 @@ export function bindFlowMotion(root: ParentNode): void {
 export function flowAfterSvg(): string {
   return `<svg class="ff" viewBox="0 0 360 150" role="img" aria-label="継ぐの枠の中に、デザイン・設計（CAD）と職人の判断がある。そこから制作へまっすぐ進む。戻りはごく細い線だけ">
     <path class="ff-faint" d="M326 66C316 14 262 6 214 18"/>
+    <text class="ff-say ff-say-few" x="292" y="46" text-anchor="middle">ごく少なく</text>
     <rect class="ff-box" x="4" y="18" width="226" height="126"/>
     <g class="ff-labels">
       <text class="ff-in" x="117" y="52" text-anchor="middle">継ぐ</text>

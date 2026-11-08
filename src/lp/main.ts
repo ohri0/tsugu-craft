@@ -182,9 +182,8 @@ const html = `
     <p class="v sf-l rv">その判断も</p>
     <p class="v sf-big rv">消えます。</p>
   </section>
-  <section class="say-full s3" aria-label="継ぐは、その判断を残して、次の人へ渡します。">
-    <p class="v sf-k rv">継ぐは、</p>
-    <p class="v sf-m rv">その判断を残して、<br>次の人へ渡します。</p>
+  <section class="say-after" aria-label="継ぐは、その判断を残して、次の人へ渡します。">
+    <p class="rv">継ぐは、その判断を残して、次の人へ渡します。</p>
   </section>
 
   <section class="how" id="how" aria-labelledby="how-h">
@@ -483,12 +482,7 @@ const html = `
   </section>
 
   <section class="ifever" aria-label="工房に">
-    <p class="v ifever-v rv">工房に入れておけば、<br>万が一の時に役立ちます。</p>
-  </section>
-
-  <section class="stance" aria-labelledby="stance-h">
-    <h2 id="stance-h" class="rv">決めるのは、職人です。</h2>
-    <p class="rv">Claude は職人の決まりを読み、案を出し、理由を残します。</p>
+    <p class="ifever-t rv">工房に入れておけば、万が一の時に役立ちます。</p>
   </section>
 
   <section class="end" aria-labelledby="end-h">

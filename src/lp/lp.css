@@ -85,7 +85,7 @@ figcaption { font-size: 15.5px; line-height: 1.75; margin-top: 12px; color: var(
 .hero-by { font-size: clamp(16.5px, 1.3vw, 19px); color: var(--white-2); }
 
 /* ---- なぜ作ったか ---- */
-.reason { max-width: 980px; margin: 0 auto; padding: var(--sec) var(--gut); display: grid; gap: 28px; }
+.reason { max-width: 980px; margin: 0 auto; padding: calc(var(--sec) + 14vh) var(--gut) var(--sec); display: grid; gap: 28px; }  /* 2026-11-08 作者：はじめの画面を少し下げてから出す */
 .reason-q p { font: 400 clamp(26px, 3.1vw, 44px)/1.65 var(--mincho); letter-spacing: 0.04em; }
 .reason-q p::before { content: "「"; margin-left: -0.6em; }
 .reason-q p::after { content: "」"; }
@@ -94,6 +94,9 @@ figcaption { font-size: 15.5px; line-height: 1.75; margin-top: 12px; color: var(
 /* ---- 序の言葉：1 つずつ画面いっぱいに（前の版の序。動画の n2・n3 と同じ言葉）。字は少しずつ遅れて濃くなる ---- */
 .say-full { min-height: 100svh; display: flex; flex-direction: row-reverse; justify-content: center; align-items: center; gap: clamp(24px, 5vw, 76px); padding: clamp(72px, 12vh, 120px) var(--gut); background: var(--black); overflow: hidden; }
 .say-full.s3 { background: var(--char); }
+/* 2026-11-08 作者：大きな見出しが多くてうるさい → 3 つ目は、2 つ目の下に小さく横書きで */
+.say-after { background: var(--black); text-align: center; padding: 0 var(--gut) clamp(72px, 14vh, 140px); margin-top: clamp(-120px, -10vh, -60px); }
+.say-after p { font: 400 clamp(20px, 1.9vw, 28px)/1.8 var(--mincho); letter-spacing: 0.06em; color: var(--white-2); }
 .sf-l { font-size: clamp(26px, 2.9vw, 42px); line-height: 2; }
 .sf-m { font-size: clamp(32px, 3.8vw, 56px); line-height: 1.9; }
 .sf-k { font-size: clamp(52px, 6.4vw, 96px); line-height: 1.1; letter-spacing: 0.12em; }
@@ -140,7 +143,7 @@ figcaption { font-size: 15.5px; line-height: 1.75; margin-top: 12px; color: var(
 .steps b { font: 400 22px/1.5 var(--mincho); color: var(--shu); }
 .steps p { font-size: clamp(16.5px, 1.2vw, 18px); line-height: 1.85; }
 .steps strong { display: block; font: 400 clamp(19px, 1.6vw, 22px)/1.6 var(--mincho); letter-spacing: 0.03em; margin-bottom: 2px; }
-.keep-shots { display: grid; gap: 16px; position: sticky; top: 88px; }
+.keep-shots { display: grid; gap: 16px; align-content: start; }  /* 2026-11-08 作者：札が画面についてくるのはやめる（その場にいる） */
 /* 工房ごと：2 つの帳面の指輪を並べる（前の版の見せ方） */
 .book { padding: var(--sec) var(--gut); background: var(--black); display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: clamp(24px, 4vw, 64px); align-items: start; }
 .book-h { grid-column: 2; grid-row: 1; font-size: clamp(27px, 2.8vw, 40px); line-height: 2; }
@@ -318,7 +321,8 @@ figcaption { font-size: 15.5px; line-height: 1.75; margin-top: 12px; color: var(
 .own-t { display: grid; gap: 18px; }
 .own-f img { border-radius: 8px; border: 1px solid var(--hair); }
 /* 工房に：罫の紙に縦の字（前の版）。罫は字の列と同じ間隔で、字の列の右の端から引く（両わきにも 4 本ずつ） */
-.ifever { --ifs: clamp(27px, 3.6vw, 52px); --rule: calc(var(--ifs) * 2); display: flex; justify-content: center; padding: clamp(84px, 14vh, 144px) var(--gut); overflow: hidden; background: var(--paper); color: var(--ink); }
+.ifever { display: flex; justify-content: center; padding: clamp(84px, 14vh, 144px) var(--gut); background: var(--black); color: var(--white); }  /* 2026-11-08 作者：縦の罫線は安っぽい → 黒の上に横書き */
+.ifever-t { font: 400 clamp(22px, 2.6vw, 38px)/1.7 var(--mincho); letter-spacing: 0.06em; text-align: center; }
 .ifever-v { font-size: var(--ifs); line-height: 2; padding: clamp(84px, 14vh, 144px) calc(var(--rule) * 4); margin: calc(clamp(84px, 14vh, 144px) * -1) 0; background-image: linear-gradient(to right, rgba(190, 50, 30, 0.22) 0 1px, transparent 1px); background-size: var(--rule) 100%; background-repeat: repeat-x; background-position: right calc(var(--rule) * 4) top; }
 
 /* ---- Claude の立ち位置 ---- */
