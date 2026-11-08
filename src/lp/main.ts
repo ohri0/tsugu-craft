@@ -93,8 +93,6 @@ const PATTERNS: { id: string; name: string; fam: string; how: string; alt: strin
   { id: "uzu", name: "渦金の帯留め", fam: "重ねる", how: "重ねた棒をねじり、平たくして削る", alt: "ねじれた縞と、入れ子の山形" },
   { id: "ichimatsu", name: "市松縞の小箱", fam: "重ねる", how: "縞の板を四角に切り、互い違いに", alt: "細い縞の四角が、向きを変えて並ぶ" },
   { id: "wauchi", name: "輪打ち金筋", fam: "表面", how: "金の筋をはめ、魚々子を打つ", alt: "黒い地に小さな輪が並び、金の波の筋" },
-  { id: "sukashibori", name: "花透かしの縁彫り板", fam: "表面", how: "花を透かし、毛彫り・片切彫り", alt: "花の形の透かしと、ふちの彫りの線" },
-  { id: "tsubukin", name: "粒金槌目の留め具", fam: "表面", how: "槌目の地に、金の粒を房に", alt: "浅いくぼみの金の面と、粒の房" },
 ];
 
 const RV_LABEL = { ok: "一致", part: "一部", miss: "たどり着けず" } as const;
@@ -103,7 +101,7 @@ const RV_LABEL = { ok: "一致", part: "一部", miss: "たどり着けず" } as
  * テンションの比べ：設計の画面の「地金ごとの比べ（mm）」の表を、そのまま写した値（2026-11-07 撮影。scripts/lp-shots.cjs の tension）。
  * 職人の指輪と同じ設定：三角の石 8.88 × 7.52 × 4.24 mm・挟む向き side（短い辺を溝に）・丸線 ø 4.0 mm・14 号・くぼみ 0.4 / 溝 0.4 mm・硬い状態。
  * 決まった値ではない（作者：「この石の場合、という話」）。戻りきらない分の割合と、地金の値の多くは仮（src/rules/guides.ts の tension.spring）。
- * Pt900 も値はある（Pt/Ir 900/100 の表の値。仮）。ヤング率が高く、戻れる範囲が狭いので、この腕では開ききらない見込みになる。
+ * Pt900 も値はある（Pt/Ir 900/100 の表の値。仮）。ヤング率が高く、戻れる範囲が狭いので、この腕では広げると戻りきらない見込みになる。
  *   前は「—」だけにしていた（2026-11-06 作者：ノイズになる）が、2026-11-07 職人の声「プラチナのところもちゃんと数値入れてあげて」で、曲がりが残る量を書く。
  */
 const TENSION_EXAMPLE: { metal: string; shrink?: string; spread?: string; set?: string; short?: string }[] = [
@@ -355,7 +353,7 @@ const html = `
           <caption>同じ石・同じ腕で、地金ごとに（mm）</caption>
           <thead><tr><th scope="col">地金</th><th scope="col">狭く作る</th><th scope="col">広げて入れる</th><th scope="col">戻りきらない</th></tr></thead>
           <tbody>
-            ${TENSION_EXAMPLE.map((r) => `<tr${r.metal === "SV925" ? ` class="mine"` : ""}><th scope="row">${r.metal}</th>${r.short ? `<td colspan="3" class="short">この腕では開ききらない見込み（約 <span class="num">${r.short}</span> mm 曲がりが残る）。腕を太くするか、形を変えます</td>` : `<td class="num">約 ${r.shrink}</td><td class="num">約 ${r.spread}</td><td class="num">約 ${r.set}</td>`}</tr>`).join("")}
+            ${TENSION_EXAMPLE.map((r) => `<tr${r.metal === "SV925" ? ` class="mine"` : ""}><th scope="row">${r.metal}</th>${r.short ? `<td colspan="3" class="short">この腕では、広げると戻りきらない見込み（約 <span class="num">${r.short}</span> mm 曲がりが残る）。テンションには、形を変えるか、ほかの地金を選びます</td>` : `<td class="num">約 ${r.shrink}</td><td class="num">約 ${r.spread}</td><td class="num">約 ${r.set}</td>`}</tr>`).join("")}
           </tbody>
         </table>
         <p class="note rv">三角の石 8.88 × 7.52 × 4.24 mm・丸線 ø 4.0 mm・14 号・加工硬化した硬い状態での、大まかな計算です。地金の値（硬さや、曲がりにくさ）には「仮」のものがあり、計算も試して確かめたものではありません。目安・最後は職人が決めます。</p>

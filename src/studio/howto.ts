@@ -499,7 +499,7 @@ function tensionSteps(o: HowToInput, method: Method): Step[] {
           { label: "狭く作れる量", value: `図面の開きより、いちばん 約 ${row.shrinkMm.toFixed(2)} mm まで狭く作れる（${row.verdict === "room" ? `${HOLD_WORDS.safe}。` : ""}${row.name}・硬い状態の大まかな計算${kari}。${HOLD_WORDS.limit} 約 ${row.shrinkMaxMm!.toFixed(2)} mm。そこまで広げると、戻りきらない分 約 ${row.setMm!.toFixed(2)} mm が残る見込み。最後は職人が決める）` },
           { label: HOLD_WORDS.make, value: `いちばん狭くて 約 ${row.makeGapMm!.toFixed(2)} mm（同じ計算${kari}）` },
         ]
-      : [{ label: "狭く作れる量", value: `${row.name}は、この腕のままでは開ききらない見込み（限界 約 ${row.limitMm.toFixed(2)} mm、要る量 ${spring.needMm.toFixed(2)} mm。大まかな計算${kari}）。地金ごとに腕の太さ・形を変えて組み直す。${SPRING_SHORT_TEXT}` }];
+      : [{ label: "狭く作れる量", value: `${row.name}は、この腕のままでは、広げると戻りきらない見込み（限界 約 ${row.limitMm.toFixed(2)} mm、要る量 ${spring.needMm.toFixed(2)} mm。大まかな計算${kari}）。形を変えるか、ほかの地金で組み直す。${SPRING_SHORT_TEXT}` }];
   // 外れにくさ（浅く留めたいとき。src/rules/tension-hold.ts）：選んだ深さで、石より狭く作る量（要る分）と、答え
   const hold = tensionHoldSet(spring, r.metalWeightG, row.metal, row.metal, o.guides ?? GUIDES);
   const depthWords = info.ends.map((e) => `${e.kind === "pit" ? "くぼみ" : "溝"} ${mm(e.depthMm, 2)}`).join("・");

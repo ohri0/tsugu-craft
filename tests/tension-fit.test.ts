@@ -514,7 +514,7 @@ describe("地金ごとの計算（どれだけ小さめに作り、どれだけ�
     const r = buildRing({ stone: tri(), setting: { style: "tension", culetGapMm: 0.5 }, shank: { gou: 11, ...phi4, metal: "pt900" }, tension: { cornerPitMm: 0.8, edgeGrooveMm: 0.5 } });
     const steps = howToMake({ ring: r, outlineMm: tri().outlineMm, longMm: 8.88, widthMm: 7.52, depthMm: 4.24, metalLabel: "Pt900", alloy: null, springMetal: "pt900" }, "hand");
     const text = JSON.stringify(steps.find((x) => x.id === "tension_close")!.specs);
-    expect(text).toContain("この腕のままでは開ききらない");
+    expect(text).toContain("この腕のままでは、広げると戻りきらない");
     expect(text).toContain("組み直す");
     expect(text).not.toContain("足りない見込み");
     expect(text).toContain("職人が決める");
