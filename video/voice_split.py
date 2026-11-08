@@ -157,7 +157,8 @@ def clean(x):
         "highpass=f=70:poles=2",
         f"asendcmd=c='0.05 afftdn sn start;{(pre / SR) - 0.05:.3f} afftdn sn stop'",
         f"afftdn=nr=10:nf={nf_db:.1f}:tn=0",
-        "deesser=i=0.2:m=0.5:f=0.5",
+        # 2026-11-08 作者の声：「です・ます」の「す」が、言えていないように聞こえる → VOICE_DEESS=0 で歯擦音を下げない（サ行を削らない）
+        *([] if os.environ.get("VOICE_DEESS") == "0" else ["deesser=i=0.2:m=0.5:f=0.5"]),
         "adeclick=t=3",
     ])
     out = ffilter(y, af)[pre:]
