@@ -1585,18 +1585,24 @@ def word11(s, t, f):
 #   全体 → 欄に寄る → 職人の言葉を打つ（n5）→ Claude の案：表に寄る（n6。8.2 mm は職人 0.70、ほかの大きさは推測）
 #   → 全体に戻して「これでいい」→ 赤い爪が消える（n7）→ 欄に寄る → 話して直す「18 ミリなら 1.2 は欲しい」（n8）→ 案 2 の表 → これでいい → 帳面の表
 #   寄るのは、欄の右の端にそろえた 640×360（ページの px。撮ったこまの 3 倍をそのまま）。表の字は画面で 30 px 以上
+# 最終案 17r（2026-11-08 作者の声：デモ映像を求められている。0:20〜0:34 を本物の画面にした案も見たい）：REAL17=1 なら、
+#   残すの字の札（rule15）と話して直す所（teach15）を、今のアプリで撮り直した teach17（職人の言葉に 5 mm の 0.6 も入れた）の 1 本の流れにする。声の秒は同じ
+REAL17 = os.environ.get("REAL17") == "1"
+TEACH_CAP = "teach17" if REAL17 else "teach14"
+
+
 def teach_cy(key, dy=0):
-    b = meta("teach14")["boxes"].get(key)
+    b = meta(TEACH_CAP)["boxes"].get(key)
     return (b["y"] + b["h"] / 2 + dy) if b else 360
 
 
 def teach_zoom(i, cy):
-    return zoom_view("teach14", i, 1280, cy)
+    return zoom_view(TEACH_CAP, i, 1280, cy)
 
 
 @scene("teach14")
 def teach14(s, t, f):
-    M = meta("teach14")
+    M = meta(TEACH_CAP)
     m, nfr, cur = M["marks"], M["frames"], M["cur"]
     v = s["voice"]
     a5, a6, a7, a8 = (x["at"] for x in v[:4])
@@ -1627,10 +1633,10 @@ def teach14(s, t, f):
     cy_field2 = cur[max(0, m["type2"] - 3)][1] + 30
     cy_p2 = B["card2"]["y"] + 172 if "card2" in B else 400
     cy_fin = teach_cy("pttable", 30)
-    full = lambda: full_view("teach14", i)  # noqa: E731
+    full = lambda: full_view(TEACH_CAP, i)  # noqa: E731
     if a7 - 0.05 < t < a7 + 0.25:
         # これでいいを押した瞬間：押す前のこまから、上の知らせへ戻り終えたこまへ重ねて替える（途中の欄の描き直しは見せない）
-        return blend_views(lambda: full_view("teach14", m["applied"] - 3), lambda: full_view("teach14", m["applied"] + 17), t, a7 - 0.05, 0.3)
+        return blend_views(lambda: full_view(TEACH_CAP, m["applied"] - 3), lambda: full_view(TEACH_CAP, m["applied"] + 17), t, a7 - 0.05, 0.3)
     if t < a6 - 0.1:
         return blend_views(full, lambda: teach_zoom(i, cy_field), t, a5 + 0.05, 0.5)
     if t < a7 - 0.95:
@@ -1656,6 +1662,8 @@ RULE15_ROWS = (("5 mm", "0.60 mm", True), ("8 mm", "0.70 mm", True), ("12 mm", "
 
 @scene()
 def rule15(s, t, f):
+    if s.get("teach17"):
+        return teach14(dict(s, voice=s["teach17"]["voice"]), t + s["teach17"]["off"], f)
     a = L.ground().copy()
     a0, a1, a2 = vat(s, 0), vat(s, 1), vat(s, 2)
     d1 = s["voice"][1]["dur"]
@@ -1705,6 +1713,8 @@ TEACH15_W = 1000  # 本物の画面を短く見せる所の切り抜きの幅（
 @scene("teach15")
 def teach15(s, t, f):
     """最終案 15：話して直す所だけを短く（4〜5 秒）。欄を押す →「18 ミリなら 1.2 は欲しい」→ Claude に教える → 案（18 mm が 1.20）→ これでいい → 帳面の表"""
+    if s.get("teach17"):
+        return teach14(dict(s, voice=s["teach17"]["voice"]), t + s["teach17"]["off"], f)
     M = meta("teach15")
     m, nfr = M["marks"], M["frames"]
     n = s["len"]
@@ -3577,6 +3587,9 @@ def extra_key(s):
         consts = (WAZA17H_CAPTION, WAZA17H_STAGES, WAZA17H_STEPS, WAZA17H_REAL, WAZA17H_SIM, WAZA17H_REAL_HEAD, WAZA17H_REAL_SUB, WAZA17H_TECH, WAZA17I_ODD, WAZA17H_NOTE,
                   WAZA17G_CAPTION, WAZA17G_ROWS, WAZA17G_TILES, WAZA17G_NOTE)
         return "beat17=" + BEAT17 + "".join(inspect.getsource(getattr(fn, "__wrapped__", fn)) for fn in fns) + repr(consts)
+    if s.get("teach17"):
+        p = os.path.join(STORY, TEACH_CAP, "meta.json")
+        return "teach17=" + "".join(inspect.getsource(fn) for fn in (teach14, teach_cy, teach_zoom)) + str(os.path.getmtime(p) if os.path.exists(p) else 0)
     if s["id"] == "sources":
         return repr(SOURCES)
     if s["id"] == "finished" and s.get("fin_cap") == "calc":
@@ -3667,6 +3680,14 @@ def prepare(doc):
             s["foot"] = doc["foot"].get("ring2")
         if s["id"] == "credit":
             s["git"] = doc["git"]
+    if REAL17:
+        # 残す（rule15）と話して直す（teach15）を、teach17 の 1 本の流れに：声の秒を rule15 の頭からの秒にそろえて、両方の場面に渡す
+        r = next(x for x in doc["scenes"] if x["id"] == "rule15")
+        q = next(x for x in doc["scenes"] if x["id"] == "teach15")
+        off = q["start"] - r["start"]
+        voice = [dict(v) for v in r["voice"]] + [dict(v, at=v["at"] + off) for v in q["voice"]]
+        r["teach17"] = {"voice": voice, "off": 0.0}
+        q["teach17"] = {"voice": voice, "off": round(off, 6)}
     return doc
 
 

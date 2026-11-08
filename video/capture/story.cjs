@@ -35,16 +35,16 @@ const SIZE = { ledger3m: [480, 900], waza3m: [480, 900], learn3m: [480, 900], le
   word10: [1280, 720], gothic10: [1280, 720], reason10: [1280, 720], make10: [1280, 720], ask10: [960, 540], learn10: [960, 540], rebuild10: [960, 540], ledger10: [960, 540],
   // 最終案 10（作者の声：実際に使っている所を中心に）：手で変える操作と、生成のあとに人が直す流れ
   ops11: [1280, 720], gothic11: [1280, 720], moyou11: [1280, 720], deco11: [1280, 720], gen12: [1280, 720], learn11: [960, 540], ops12: [1280, 720], sec13: [1280, 720],
-  teach14: [1280, 720], make14: [1280, 720], teach15: [1280, 720], finish15: [1280, 720], tension16: [1280, 720], finish16: [1280, 720], finish17: [1280, 720] };
+  teach14: [1280, 720], make14: [1280, 720], teach15: [1280, 720], finish15: [1280, 720], tension16: [1280, 720], finish16: [1280, 720], finish17: [1280, 720], teach17: [1280, 720] };
 const DSF = { photo9: 3, gothic9: 3, reason9: 3, make9: 3, word9: 4, ask9: 4, learn9: 4,
   word10: 3, gothic10: 3, reason10: 3, make10: 3, ask10: 4, learn10: 4, rebuild10: 4, ledger10: 4, ops11: 3, gothic11: 3, moyou11: 3, deco11: 3, gen12: 3, learn11: 4, ops12: 3, sec13: 3,
-  teach14: 3, make14: 3, teach15: 3, finish15: 3, tension16: 3, finish16: 3, finish17: 3 };
+  teach14: 3, make14: 3, teach15: 3, finish15: 3, tension16: 3, finish16: 3, finish17: 3, teach17: 3 };
 // マウスの印の大きさ（4 倍で撮る章で大きくなりすぎないように）
 const CURK = { word9: 0.5, ask9: 0.5, learn9: 0.5, photo9: 0.72, gothic9: 0.72, reason9: 0.72, make9: 0.72,
   word10: 0.8, gothic10: 0.8, reason10: 0.8, make10: 0.8, ask10: 0.62, learn10: 0.62, rebuild10: 0.62, ledger10: 0.62, ops11: 0.8, gothic11: 0.8, moyou11: 0.8, deco11: 0.8, gen12: 0.8, learn11: 0.62, ops12: 0.8, sec13: 0.8,
-  teach14: 0.8, make14: 0.8, teach15: 0.8, finish15: 0.8, tension16: 0.8, finish16: 0.8, finish17: 0.8 };
+  teach14: 0.8, make14: 0.8, teach15: 0.8, finish15: 0.8, tension16: 0.8, finish16: 0.8, finish17: 0.8, teach17: 0.8 };
 // 最終案 9：本物の Claude の返事を章ごと・順番ごとに覚える（work/story/_claude9/）。撮り直しでは覚えた返事を使うので、Claude は呼ばない（呼ぶのは最初の 1 回だけ）
-const CLAUDE9 = new Set(['word9', 'ask9', 'learn9', 'gothic9', 'reason9', 'word10', 'ask10', 'learn10', 'gothic10', 'reason10', 'gothic11', 'deco11', 'gen12', 'learn11', 'teach14', 'teach15']);
+const CLAUDE9 = new Set(['word9', 'ask9', 'learn9', 'gothic9', 'reason9', 'word10', 'ask10', 'learn10', 'gothic10', 'reason10', 'gothic11', 'deco11', 'gen12', 'learn11', 'teach14', 'teach15', 'teach17']);
 // 最終案 10：同じ操作の章は、前に覚えた本物の Claude の返事をそのまま使う（新しく呼ばない）。gothic11 は gothic10（今のアプリで本物の Claude が組んだ「ゴシックな感じ」）の返事
 const CLAUDE_ALIAS = { word10: 'word9', ask10: 'ask9', learn10: 'learn9', gothic11: 'gothic10', teach15: 'teach14',
   // 「アールデコな感じ」：試した回ごとに別に覚える（DECO_TRY=1〜4）。使う回は DECO_USE（撮り直しは、その回の返事で）
@@ -53,7 +53,7 @@ const CLAUDE_ALIAS = { word10: 'word9', ask10: 'ask9', learn10: 'learn9', gothic
   gen12: process.env.GEN_TAG === 'gothic10' ? 'gothic10' : `${process.env.GEN_TAG || 'goth12'}_t${process.env.DECO_USE || process.env.DECO_TRY || '1'}` };
 // 覚えた返事を返す前に待つ時間（ミリ秒。作業の記録が 1 行ずつ増える所を撮るため）
 // 最終案 14：teach14（Claude に教える）と learn11 は、返事を少し待たせて「Claude が…しています」の所を何こまか撮る（その間は撮るだけ。返事が来たら until で待つ）
-const CLAUDE9_WAIT = { gothic9: 1600, gothic10: 1600, gothic11: 1600, deco11: 1600, gen12: 1600, teach14: 5000, learn11: 20000, teach15: 5000 };
+const CLAUDE9_WAIT = { gothic9: 1600, gothic10: 1600, gothic11: 1600, deco11: 1600, gen12: 1600, teach14: 5000, learn11: 20000, teach15: 5000, teach17: 5000 };
 // 返事を覚える所。言葉で頼む場面（deco11）は DECO_REPLY_DIR で、ほかの所に置いた本物の返事（000.json…、API の返事そのまま）も使える
 // （アールデコの形を新しい候補に替えるとき：その候補の返事の所を DECO_REPLY_DIR に、または _claude9/deco11_t<番号>/ に置いて DECO_USE=<番号>）
 const claudeDir = (name) => (name === 'deco11' && process.env.DECO_REPLY_DIR) ? process.env.DECO_REPLY_DIR : `${OUT}/_claude9/${CLAUDE_ALIAS[name] || name}`;
@@ -3854,7 +3854,8 @@ Object.assign(CH, {
 //   返事は 2026-11-06 に本物の Claude を 1 回通して覚えた 4 つ（_claude9/teach14/000〜003.json。撮り直しでは Claude を呼ばない）。
 //   帳面は新しい工房（公開の目安だけ）で、名前は石川工房。爪を 0.9 mm にして、作れない所 2 つから始める（公開の目安では、この石の爪の最低は 1.22 mm）。
 //   印は止めない（作者の声：止まるとラグに見える）。待つ所は、読ませたい字の上をゆっくりなぞる
-const TEACH1 = 'このサイズ（約 8 mm）の石なら、最低ライン 0.7 ミリは欲しい';
+// 最終案 17r（2026-11-08 作者の声：0:20〜0:34 を本物の画面で見る案）：teach17 は、職人の言葉に 5 mm の 0.6 も入れる（作者の言葉。0:32 の札と同じ数）
+const TEACH1 = process.env.TEACH1 || 'このサイズ（約 8 mm）の石なら、最低ライン 0.7 ミリは欲しい';
 const TEACH2 = '18 ミリなら 1.2 は欲しい';
 const TEACH_DIR = { x: 0.62, y: -0.95, z: 0.62 };
 /** 確かめるの欄の中で、sel を欄の上から off px の所へ（撮らない） */
@@ -3913,6 +3914,8 @@ Object.assign(CH, {
     a.mark('row');
     await traceRow(a, '.ar-proposal tr.pt-after', N(54));
     a.mark('rowEnd');
+    // 最終案 17r：今のアプリは案の札が長く、「これでいい」が画面の下の帯に隠れる。押す前に、ボタンが見える所まで送る
+    await a.scroll('.ar-proposal button.ok', { block: 'center', n: 14 });
     await a.box('ok', '.ar-proposal button.ok', 8);
     await a.press('.ar-proposal button.ok', { n: 16, after: 0 });
     a.mark('applied');
@@ -3944,6 +3947,7 @@ Object.assign(CH, {
     a.mark('row2');
     await traceRow(a, '.ar-proposal tr.pt-after', N(44));
     a.mark('row2End');
+    await a.scroll('.ar-proposal button.ok', { block: 'center', n: 12 });
     await a.press('.ar-proposal button.ok', { n: 14, after: 0 });
     a.mark('applied2');
     // 欄は上の知らせへ戻る（作れない所 0 → 0）。撮らずに待ち、帳面の表（職人の点と推測の点）を見せる所へ
@@ -4028,6 +4032,9 @@ Object.assign(CH, {
 // 最終案 15（作者の声：前の字の札の方が、見ていて入ってきた）：残すは字の札に戻し、そのあと本物の画面を短く（4〜5 秒）。
 //   1 回目（職人の言葉 → 案 → これでいい）は撮らずに済ませ、2 回目の「話して直す」だけを撮る：欄を押す →「18 ミリなら 1.2 は欲しい」→ Claude に教える →
 //   案（18 mm が 1.20）→ これでいい（1 つのなめらかな動き）→ 帳面の表。寄りは中くらい（推測の印には寄らない）。返事は teach14 と同じ覚えた 4 つ
+// 最終案 17r：teach14 と同じ流れ（職人の言葉 → 案 → これでいい → 話して直す → 案 2 → これでいい）を、今のアプリと TEACH1 の言葉で撮る
+// 確かめの窓（帳面に入れますか？）には、studioNow9 の「はい」が答える
+Object.assign(CH, { teach17: (a) => CH.teach14(a) });
 Object.assign(CH, {
   teach15: async (a) => {
     const { p } = a;
@@ -4719,3 +4726,4 @@ CH.hands17 = async (a) => {
     await chapter(n, CH[n]);
   }
 })();
+
