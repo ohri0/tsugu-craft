@@ -1041,7 +1041,7 @@ def school(s, t, f):
     a0, a1 = vat(s, 0), vat(s, 1)
     k = fade(t, a0 - 0.1, 0.9)
     a = ink(a, V(RIGHT - 30, TOP + 6, "学校では、", "min", M, 0.10), SHIRO, k)
-    a = ink(a, V(RIGHT - 126, TOP + 6, "独自のデザインは、", "min", M, 0.10), SHIRO, fade(t, a0 + 0.4, 0.9))
+    a = ink(a, V(RIGHT - 126, TOP + 6, "独自のデザインの作り方は、", "min", M, 0.10), SHIRO, fade(t, a0 + 0.4, 0.9))
     a = ink(a, V(RIGHT - 222, TOP + 6, "先生に聞くしかない。", "min", M, 0.10), SHIRO, fade(t, a0 + 0.9, 0.9))
     # 待っている印：細い縦線が並ぶ。先頭の 1 本だけ明るい
     n = 30
@@ -2173,7 +2173,7 @@ def school10(s, t, f):
     a0, a1 = vat(s, 0), vat(s, 1)
     k = fade(t, a0 - 0.1, 0.9)
     a = ink(a, V(RIGHT - 30, TOP + 6, "学校では、", "min", M, 0.10), SHIRO, k)
-    a = ink(a, V(RIGHT - 126, TOP + 6, "独自のデザインは、", "min", M, 0.10), SHIRO, fade(t, a0 + 0.4, 0.9))
+    a = ink(a, V(RIGHT - 126, TOP + 6, "独自のデザインの作り方は、", "min", M, 0.10), SHIRO, fade(t, a0 + 0.4, 0.9))
     a = ink(a, V(RIGHT - 222, TOP + 6, "先生に聞くしかない。", "min", M, 0.10), SHIRO, fade(t, a0 + 0.9, 0.9))
     n = 30
     x0, x1 = 120, 1160
@@ -2899,13 +2899,14 @@ def out11(s, t, f):
                         (n, m["stl"] + 2 + int((n - t_stl - 0.2) * FPS))], t)
     # 見出しと言葉は、白い図面の上にかかるので、暗い札の上に置く（最終案 12 は見出しが図面の上で読みにくかった）
     a = full_view(GEN_CH, i)
-    a = boxed(a, Hz(LEFT, 146, "図面と STL", "min", S + 6, 0.08), fade(t, 0.2, 0.5))
+    # 2026-11-08 作者の声：一瞬で読まれないかも → 見出しと言葉を大きく（S + 6 → S + 12、S - 6 → S + 4）
+    a = boxed(a, Hz(LEFT, 146, "図面と STL", "min", S + 12, 0.08), fade(t, 0.2, 0.5))
     # 言葉は見出しのすぐあとから最後まで（場面の終わりは次の章への黒なので、STL のあとからでは読む間が足りない）
-    a = boxed(a, Hz(LEFT, 222, OUT_WORDS, "min", S - 6, 0.06), fade(t, 0.7, 0.5))
+    a = boxed(a, Hz(LEFT, 236, OUT_WORDS, "min", S + 4, 0.06), fade(t, 0.7, 0.5))
     return a
 
 
-OUT_HOLD = 1.5  # 最終案 17b：STL を押してから場面の終わりまで（うち 0.6 秒は次の場面との重ね）
+OUT_HOLD = 2.0  # 2026-11-08：1.5 → 2.0 秒（STL を書き出した知らせを長く）。 最終案 17b：STL を押してから場面の終わりまで（うち 0.6 秒は次の場面との重ね）
 
 
 def boxed(a, m, k, pad=(24, 14), dark=0.88):
